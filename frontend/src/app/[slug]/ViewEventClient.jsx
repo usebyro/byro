@@ -36,14 +36,6 @@ const categoryLabels = {
   other:         "OTHER",
 };
 
-const MOCK_LINEUP = [
-  { initials: "As", name: "Asake",    role: "Performing", color: "bg-pink-500" },
-  { initials: "Ay", name: "Ayra Starr", role: "Performing", color: "bg-purple-500" },
-  { initials: "Re", name: "Rema",     role: "Performing", color: "bg-red-500" },
-  { initials: "Te", name: "Tems",     role: "Performing", color: "bg-blue-500" },
-  { initials: "Fi", name: "Fireboy",  role: "Performing", color: "bg-orange-500" },
-  { initials: "Lo", name: "Lojay",    role: "Performing", color: "bg-teal-500" },
-];
 
 export default function ViewEventClient({ slug }) {
   const router = useRouter();
@@ -263,25 +255,6 @@ export default function ViewEventClient({ slug }) {
               </p>
             </section>
 
-            {/* Lineup (mock — entertainment only) */}
-            {event.category === "entertainment" && (
-              <section className="mb-10">
-                <h2 className="text-xl font-bold text-gray-900 mb-4">Lineup</h2>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {MOCK_LINEUP.map(artist => (
-                    <div key={artist.name} className="flex items-center gap-3 bg-gray-50 rounded-xl px-4 py-3">
-                      <div className={`w-8 h-8 rounded-full ${artist.color} flex items-center justify-center text-white text-xs font-bold shrink-0`}>
-                        {artist.initials}
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold text-gray-900 leading-tight">{artist.name}</p>
-                        <p className="text-xs text-gray-400">{artist.role}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            )}
 
             {/* Location */}
             <section className="mb-10">

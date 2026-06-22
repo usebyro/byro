@@ -143,6 +143,7 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
             'amount': int(amount * 100),  # Paystack amount is in kobo (multiply by 100)
             'reference': reference,
             'currency': 'NGN',
+            'channels': ['card', 'bank', 'ussd', 'bank_transfer', 'mobile_money', 'qr'],
             'metadata': {
                 'event_id': str(event.id),
                 'event_slug': event.slug,
