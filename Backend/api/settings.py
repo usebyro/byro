@@ -217,13 +217,11 @@ SESSION_COOKIE_SECURE = os.getenv('ENVIRONMENT') == 'production'
 
 
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000", 
+    "http://localhost:3000",
     'https://www.byro.africa',
     'https://byro-two.vercel.app',
-    'http://localhost:3000',
-    'http://usebyro.com',
-
-
+    'https://usebyro.com',
+    'https://www.usebyro.com',
 ]
 
 
