@@ -22,7 +22,7 @@ const footerLinks = {
     { label: "Contact", href: "/contact" },
   ],
   support: [
-    { label: "Help center", href: "/help" },
+    { label: "Help center", href: "/faq" },
     { label: "Refund policy", href: "/refund-policy" },
     { label: "Terms of service", href: "/terms" },
     { label: "Privacy", href: "/privacy" },
