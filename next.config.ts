@@ -12,12 +12,13 @@ const nextConfig: NextConfig = {
       'byro-32ux.onrender.com',
       'byro.onrender.com',
       'localhost',
-     'byro.africa'
+     'byro.africa',
+     'usebyro.com'
     ],
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: 'byro-32ux.onrender.com',
+        hostname: 'byro.onrender.com',
         pathname: '/**',
       },
     ],
