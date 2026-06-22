@@ -77,11 +77,11 @@ export default function ProfilePage() {
 
   return (
     <AppLayout>
-      <div className="min-h-screen bg-[#F0F2F5] py-8">
-        <div className="max-w-5xl mx-auto px-4 flex gap-6 items-start">
+      <div className="min-h-screen bg-[#F0F2F5] py-6 sm:py-8">
+        <div className="max-w-5xl mx-auto px-4 flex flex-col md:flex-row gap-6 items-start">
 
           {/* ── Left sidebar ── */}
-          <div className="w-60 shrink-0">
+          <div className="w-full md:w-60 shrink-0">
             <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
               {/* Avatar + name */}
               <div className="flex items-center gap-3 pb-4 mb-4 border-b border-gray-100">
@@ -132,7 +132,7 @@ export default function ProfilePage() {
 
           {/* ── Main content ── */}
           <div className="flex-1 min-w-0">
-            <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-100">
+            <div className="bg-white rounded-2xl p-5 sm:p-8 shadow-sm border border-gray-100">
               {/* Heading */}
               <h1 className="text-2xl font-bold text-gray-900 mb-1">Profile</h1>
               <p className="text-sm text-gray-400 mb-8">
@@ -162,7 +162,7 @@ export default function ProfilePage() {
               {/* Form fields */}
               <div className="space-y-5">
                 {/* First + Last name */}
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1.5">First name</label>
                     <input
@@ -186,7 +186,7 @@ export default function ProfilePage() {
                 </div>
 
                 {/* Email + Phone */}
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1.5">Email</label>
                     <div className="relative">
@@ -265,16 +265,16 @@ export default function ProfilePage() {
             </div>
 
             {/* Action buttons */}
-            <div className="flex justify-end gap-3 mt-5">
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 mt-5">
               <button
                 onClick={handleCancel}
-                className="px-6 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-100 rounded-xl transition-colors"
+                className="w-full sm:w-auto px-6 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-100 rounded-xl transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSave}
-                className="px-6 py-2.5 text-sm font-semibold bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors"
+                className="w-full sm:w-auto px-6 py-2.5 text-sm font-semibold bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors"
               >
                 Save changes
               </button>

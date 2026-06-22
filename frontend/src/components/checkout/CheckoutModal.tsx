@@ -220,7 +220,7 @@ export default function CheckoutModal({ event, onClose }: Props) {
   return (
     <div className="fixed inset-0 z-50 bg-[#F1F4F9] overflow-y-auto">
       {/* ── Checkout header ── */}
-      <div className="sticky top-0 z-10 bg-white border-b border-gray-100 px-6 py-3.5 flex items-center justify-between">
+      <div className="sticky top-0 z-10 bg-white border-b border-gray-100 px-4 sm:px-6 py-3.5 flex items-center justify-between">
         <Link href="/" onClick={onClose}>
           <Image
             src="/assets/images/logo.svg"
@@ -273,9 +273,9 @@ export default function CheckoutModal({ event, onClose }: Props) {
             const active = step === n;
             return (
               <div key={name} className="flex items-center">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 sm:gap-2">
                   <div
-                    className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-colors ${
+                    className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs sm:text-sm font-bold transition-colors shrink-0 ${
                       done
                         ? "bg-emerald-500 text-white"
                         : active
@@ -285,8 +285,8 @@ export default function CheckoutModal({ event, onClose }: Props) {
                   >
                     {done ? (
                       <svg
-                        width="13"
-                        height="13"
+                        width="11"
+                        height="11"
                         viewBox="0 0 24 24"
                         fill="none"
                         stroke="white"
@@ -299,7 +299,7 @@ export default function CheckoutModal({ event, onClose }: Props) {
                     )}
                   </div>
                   <span
-                    className={`text-sm font-medium ${
+                    className={`hidden sm:inline text-sm font-medium ${
                       active
                         ? "text-gray-900"
                         : done
@@ -312,7 +312,7 @@ export default function CheckoutModal({ event, onClose }: Props) {
                 </div>
                 {i < STEPS.length - 1 && (
                   <div
-                    className={`w-14 sm:w-20 h-0.5 mx-3 rounded-full transition-colors ${
+                    className={`w-6 sm:w-14 lg:w-20 h-0.5 mx-2 sm:mx-3 rounded-full transition-colors ${
                       step > n ? "bg-emerald-400" : "bg-gray-200"
                     }`}
                   />
@@ -804,8 +804,8 @@ export default function CheckoutModal({ event, onClose }: Props) {
 
           {/* ── Right panel – Order summary ── */}
           {step < 4 && (
-            <div className="lg:w-72 xl:w-80 w-full shrink-0">
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden sticky top-28">
+            <div className="lg:w-72 xl:w-80 w-full shrink-0 order-last lg:order-none">
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden lg:sticky lg:top-28">
                 {/* Event preview */}
                 <div className="relative h-28">
                   {event.event_image_url ? (
