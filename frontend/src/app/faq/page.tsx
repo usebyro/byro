@@ -129,7 +129,7 @@ export default function FAQPage() {
           </h1>
           <div className="flex items-center bg-white rounded-xl overflow-hidden shadow-lg">
             <svg
-              className="ml-4 shrink-0 text-gray-400"
+              className="ml-3 sm:ml-4 shrink-0 text-gray-400"
               width="18"
               height="18"
               viewBox="0 0 24 24"
@@ -145,9 +145,9 @@ export default function FAQPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search help articles..."
-              className="flex-1 px-4 py-4 text-sm text-gray-700 placeholder-gray-400 focus:outline-none bg-transparent"
+              className="flex-1 min-w-0 px-3 sm:px-4 py-3.5 sm:py-4 text-sm text-gray-700 placeholder-gray-400 focus:outline-none bg-transparent"
             />
-            <button className="m-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-6 py-3 rounded-lg transition-colors">
+            <button className="m-1.5 shrink-0 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg transition-colors">
               Search
             </button>
           </div>
