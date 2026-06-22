@@ -44,6 +44,8 @@ FRONTEND_URL = os.environ.get('FRONTEND_URL')
 PAYSTACK_SECRET_KEY = config('PAYSTACK_SECRET_KEY', default='')
 PAYSTACK_PUBLIC_KEY = config('PAYSTACK_PUBLIC_KEY', default='')
 PAYSTACK_CALLBACK_URL = config('PAYSTACK_CALLBACK_URL', default='http://localhost:3000/payment/callback')
+PAYSTACK_CALLBACK_URL = config('PAYSTACK_CALLBACK_URL', default='https://usebyro.com/payment/callback')
+
 
 # Web3Auth Settings
 # WEB3AUTH_CLIENT_ID: Your Web3Auth project's Client ID from the Web3Auth dashboard.
@@ -217,13 +219,11 @@ SESSION_COOKIE_SECURE = os.getenv('ENVIRONMENT') == 'production'
 
 
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000", 
+    "http://localhost:3000",
     'https://www.byro.africa',
     'https://byro-two.vercel.app',
-    'http://localhost:3000',
-    'http://usebyro.com',
-
-
+    'https://usebyro.com',
+    'https://www.usebyro.com',
 ]
 
 
@@ -286,6 +286,5 @@ SIMPLE_JWT = {
 
     'JTI_CLAIM': 'jti',
 }
-
 
 

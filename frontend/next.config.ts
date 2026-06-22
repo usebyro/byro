@@ -25,11 +25,17 @@ const nextConfig: NextConfig = {
       {
         protocol: 'http',
         hostname: 'localhost',
+        port: '8000',
         pathname: '/**',
       },
       {
         protocol: 'https',
         hostname: 'byro.africa',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'usebyro.com',
         pathname: '/**',
       },
     ],

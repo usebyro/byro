@@ -1,943 +1,640 @@
 "use client";
-import { eventFrame, globeTime, publicSymbol } from "../../app/assets";
-import Image from "next/image";
-import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useSelector } from "react-redux";
+import { HugeiconsIcon } from "@hugeicons/react";
+import {
+  Camera01Icon,
+  Calendar01Icon,
+  Clock01Icon,
+  Location01Icon,
+  ArrowLeft01Icon,
+  Add01Icon,
+  Delete01Icon,
+  Edit01Icon,
+  DragDropVerticalIcon,
+} from "@hugeicons/core-free-icons";
 import API from "../../services/api";
 
+/* ── Category options ── */
+const CATEGORIES = [
+  {
+    id: "entertainment",
+    label: "Concerts",
+    gradient: "from-purple-600 to-pink-500",
+    icon: (
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+        <path d="M9 18V5l12-2v13" />
+        <circle cx="6" cy="18" r="3" />
+        <circle cx="18" cy="16" r="3" />
+      </svg>
+    ),
+  },
+  {
+    id: "fitness",
+    label: "Sports",
+    gradient: "from-orange-500 to-amber-400",
+    icon: (
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+        <circle cx="12" cy="12" r="10" />
+        <path d="M4.93 4.93l4.24 4.24M14.83 14.83l4.24 4.24M4.93 19.07l4.24-4.24M14.83 9.17l4.24-4.24" />
+      </svg>
+    ),
+  },
+  {
+    id: "art_culture",
+    label: "Nightlife",
+    gradient: "from-pink-600 to-rose-400",
+    icon: (
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+        <path d="M21 10.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+      </svg>
+    ),
+  },
+  {
+    id: "conference",
+    label: "Conferences",
+    gradient: "from-teal-600 to-emerald-400",
+    icon: (
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+        <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+        <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+        <line x1="12" y1="19" x2="12" y2="22" />
+        <line x1="8" y1="22" x2="16" y2="22" />
+      </svg>
+    ),
+  },
+];
+
+const fmt = (n) =>
+  new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN", minimumFractionDigits: 0 }).format(n);
+
+const convertTo24Hour = (t) => (!t ? "00:00:00" : `${t}:00`);
+
+const formatDateForServer = (d) => {
+  if (!d?.trim()) { toast.error("Event date is required"); return null; }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) { toast.error("Invalid date format"); return null; }
+  return d;
+};
+
+/* ── Default tiers ── */
+const DEFAULT_TIERS = [
+  { id: "general", name: "General Admission", available: "2,000", price: "" },
+];
+
 export default function EventCreationForm({ editSlug = null, initialData = null }) {
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isImageLoading, setIsImageLoading] = useState(false);
+  const router = useRouter();
+  const { token } = useSelector((state) => state.auth);
+  const fileInputRef = useRef(null);
+  const venueTimerRef = useRef(null);
+
+  /* form state */
   const [eventName, setEventName] = useState("");
+  const [category, setCategory] = useState("entertainment");
+  const [description, setDescription] = useState("");
   const [date, setDate] = useState("");
   const [timeFrom, setTimeFrom] = useState("");
-  const [timeTo, setTimeTo] = useState("");
-  const [physicalLocation, setPhysicalLocation] = useState("");
+  const [venue, setVenue] = useState("");
   const [virtualLink, setVirtualLink] = useState("");
-  const [description, setDescription] = useState("");
+  const [eventVisibility, setEventVisibility] = useState(true);
+  const [showRemainingCount, setShowRemainingCount] = useState(false);
   const [ticketsTransferable, setTicketsTransferable] = useState(false);
-  const [ticketPrice, setTicketPrice] = useState("Free");
   const [capacity, setCapacity] = useState("Unlimited");
+
+  /* venue autocomplete */
+  const [venueCoords, setVenueCoords] = useState(null);
+  const [venueSuggestions, setVenueSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
+  /* image */
   const [eventImage, setEventImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
-  const [eventSlug, setEventSlug] = useState();
-  // const [eventId, setEventId] = useState();
+  const [isImageLoading, setIsImageLoading] = useState(false);
 
+  /* ticket tiers (UI only — we submit the first tier's price to the API) */
+  const [tiers, setTiers] = useState(DEFAULT_TIERS);
+  const [editingTierId, setEditingTierId] = useState(null);
+  const [editTierData, setEditTierData] = useState({});
+
+  /* submission */
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [eventCreated, setEventCreated] = useState(false);
-  const [eventVisibility, setEventVisibility] = useState(true);
-  const [category, setCategory] = useState("other"); // Default to 'other' as per backend
-  const router = useRouter();
-  const fileInputRef = useRef(null);
-  
-  const { token } = useSelector((state) => state.auth);
+  const [eventSlug, setEventSlug] = useState(null);
 
-  // Pre-fill form when editing an existing event
+  /* pre-fill when editing */
   useEffect(() => {
     if (!initialData) return;
     const d = initialData;
     setEventName(d.name || "");
     setDate(d.day || "");
-    // Strip seconds from HH:MM:SS → HH:MM
     setTimeFrom(d.time_from ? d.time_from.slice(0, 5) : "");
-    setTimeTo(d.time_to ? d.time_to.slice(0, 5) : "");
-    setPhysicalLocation(d.location || "");
+    setVenue(d.location || "");
     setVirtualLink(d.virtual_link || "");
     setDescription(d.description || "");
     setTicketsTransferable(d.transferable || false);
-    setTicketPrice(
-      !d.ticket_price || parseFloat(d.ticket_price) === 0 ? "Free" : String(d.ticket_price)
-    );
-    setCapacity(d.capacity ? String(d.capacity) : "Unlimited");
+    setCategory(d.category || "entertainment");
     setEventVisibility(d.visibility === "public");
-    setCategory(d.category || "other");
+    const price = d.ticket_price ? parseFloat(d.ticket_price) : 0;
+    setTiers([{ id: "general", name: "General Admission", available: "2,000", price: price > 0 ? String(price) : "" }]);
     if (d.event_image_url || d.event_image) {
-      const imgUrl = d.event_image_url ||
-        (d.event_image?.startsWith("http")
-          ? d.event_image
-          : `${(process.env.NEXT_PUBLIC_API_URL || "https://byro.onrender.com").replace(/\/api\/?$/, "")}${d.event_image}`);
+      const base = (process.env.NEXT_PUBLIC_API_URL || "https://byro.onrender.com").replace(/\/api\/?$/, "");
+      const imgUrl = d.event_image_url || (d.event_image?.startsWith("http") ? d.event_image : `${base}${d.event_image}`);
       setImagePreview(imgUrl);
     }
   }, [initialData]);
 
-  // Memoize handlers to prevent unnecessary re-renders
-  const handleImageClick = useCallback(() => {
-    fileInputRef.current?.click();
-  }, []);
-
   const handleImageChange = useCallback((e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
-
-    if (!file.type.startsWith("image/")) {
-      toast.error("Please upload an image file");
-      return;
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error("Image size must be less than 5MB");
-      return;
-    }
-
+    if (!file.type.startsWith("image/")) { toast.error("Please upload an image file"); return; }
+    if (file.size > 5 * 1024 * 1024) { toast.error("Image must be under 5MB"); return; }
     setIsImageLoading(true);
     setEventImage(file);
-
     const reader = new FileReader();
-    reader.onloadend = () => {
-      setImagePreview(reader.result);
-      setIsImageLoading(false);
-    };
+    reader.onloadend = () => { setImagePreview(reader.result); setIsImageLoading(false); };
     reader.readAsDataURL(file);
   }, []);
 
-  // Memoize validation functions
-  const validateForm = useCallback(() => {
-    const validations = [
-      { condition: !eventName.trim(), message: "Event name is required" },
-      { condition: !date.trim(), message: "Event date is required" },
-      { condition: !timeFrom || !timeTo, message: "Event time is required" },
-      {
-        condition: !physicalLocation.trim() && !virtualLink.trim(),
-        message: "Please provide either a physical location or virtual link",
-      },
-      {
-        condition: virtualLink && !virtualLink.match(/^(https?:\/\/)?.+\..+/),
-        message: "Please enter a valid URL for the virtual link",
-      },
-      {
-        condition:
-          ticketPrice !== "Free" &&
-          (!ticketPrice || isNaN(ticketPrice) || parseFloat(ticketPrice) < 0),
-        message: "Please enter a valid ticket price",
-      },
-      {
-        condition:
-          capacity !== "Unlimited" &&
-          (!capacity || isNaN(capacity) || parseInt(capacity) <= 0),
-        message: "Please enter a valid capacity",
-      },
-    ];
-
-    for (const { condition, message } of validations) {
-      if (condition) {
-        toast.error(message);
-        return false;
-      }
-    }
-    return true;
-  }, [
-    eventName,
-    date,
-    timeFrom,
-    timeTo,
-    physicalLocation,
-    virtualLink,
-    ticketPrice,
-    capacity,
-  ]);
-
-  // Not memoized — always closes over latest state to avoid stale closure issues
-  const handleSubmit = async (e) => {
-      e.preventDefault();
-      if (!validateForm()) return;
-
-      // Ensure token is set before making the API call
-      if (token) {
-        API.setAuthToken(token);
-      } else {
-        let storedToken = localStorage.getItem("authToken");
-        if (!storedToken) {
-          try {
-            const raw = localStorage.getItem("token");
-            storedToken = raw ? JSON.parse(raw) : null;
-          } catch {
-            storedToken = null;
-          }
-        }
-        if (storedToken) {
-          API.setAuthToken(storedToken);
-        } else {
-          toast.error("Please log in to create an event");
-          return;
-        }
-      }
-
-      try {
-        setIsSubmitting(true);
-        const formData = new FormData();
-        const formattedDate = formatDateForServer(date);
-        if (!formattedDate) return;
-
-        // Add form fields
-        const formFields = {
-          name: eventName,
-          day: formattedDate,
-          time_from: convertTo24Hour(timeFrom),
-          time_to: convertTo24Hour(timeTo),
-          transferable: ticketsTransferable.toString(),
-          ticket_price: ticketPrice === "Free" ? "0.00" : ticketPrice,
-          visibility: eventVisibility ? "public" : "private",
-          category: category || "other", // Required field - default to 'other'
-          timezone:
-            Intl.DateTimeFormat().resolvedOptions().timeZone || "GMT+01:00",
-        };
-
-        // Add optional fields
-        if (physicalLocation) formFields.location = physicalLocation;
-        if (virtualLink) formFields.virtual_link = virtualLink;
-        if (description) formFields.description = description;
-        if (capacity !== "Unlimited") formFields.capacity = capacity;
-
-        // Append all fields to FormData
-        Object.entries(formFields).forEach(([key, value]) => {
-          formData.append(key, value);
-        });
-
-        if (eventImage && eventImage instanceof File) {
-          formData.append("event_image", eventImage);
-        }
-
-
-        const response = editSlug
-          ? await API.updateEvent(editSlug, formData)
-          : await API.createEvent(formData);
-
-        if (response) {
-          toast.success(editSlug ? "Event updated successfully!" : "Event created successfully!");
-          if (editSlug) {
-            router.push(`/dashboard/${editSlug}`);
-          } else {
-            setEventSlug(response.slug || response.id);
-            setEventCreated(true);
-            resetForm();
-
-            const userData = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('user') || '{}') : {};
-            const userEmail = response?.owner_email || userData?.email;
-            if (userEmail) {
-              try {
-                fetch("/api/send-email", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    emails: [
-                      {
-                        type: "event_created",
-                        to: userEmail,
-                        data: {
-                          name: userData?.name || response?.owner_email || "Organizer",
-                          eventName: response?.name || eventName,
-                          eventDate: response?.day || date,
-                          eventTime: response?.time_from || timeFrom,
-                          eventLocation: response?.location || physicalLocation,
-                          eventLink: `${window.location.origin}/${response?.slug}`,
-                        },
-                      },
-                    ],
-                  }),
-                });
-              } catch (e) {
-                console.error("Failed to send event created email:", e);
-              }
-            }
-          }
-        } else {
-          throw new Error("Invalid response format from server");
-        }
-      } catch (error) {
-        console.error("Error saving event:", error);
-        toast.error(error.message || "Failed to save event");
-      } finally {
-        setIsSubmitting(false);
-      }
+  /* Tier editing helpers */
+  const startEditTier = (tier) => {
+    setEditingTierId(tier.id);
+    setEditTierData({ name: tier.name, available: tier.available, price: tier.price });
   };
 
-  // Memoize link generation functions
-  const getEventViewLink = useMemo(() => {
-    if (!eventSlug) return "";
-    return `${
-      typeof window !== "undefined" ? window.location.origin : ""
-    }/${eventSlug}`;
-  }, [eventSlug]);
+  const saveEditTier = () => {
+    setTiers(prev => prev.map(t => t.id === editingTierId ? { ...t, ...editTierData } : t));
+    setEditingTierId(null);
+  };
 
-  const getEventRegisterLink = useMemo(() => {
-    if (!eventSlug) return "";
-    return `${
-      typeof window !== "undefined" ? window.location.origin : ""
-    }/event-registration/${eventSlug}`;
-  }, [eventSlug]);
+  const deleteTier = (id) => {
+    if (tiers.length <= 1) { toast.error("At least one ticket tier is required"); return; }
+    setTiers(prev => prev.filter(t => t.id !== id));
+  };
 
-  // Memoize navigation handlers
-  const handleViewEvent = useCallback(() => {
-    if (eventSlug) {
-      router.push(`/${eventSlug}?preview=true`);
+  const addTier = () => {
+    const newId = `tier_${Date.now()}`;
+    setTiers(prev => [...prev, { id: newId, name: "New Tier", available: "100", price: "" }]);
+    setEditingTierId(newId);
+    setEditTierData({ name: "New Tier", available: "100", price: "" });
+  };
+
+  const handleVenueChange = useCallback((val) => {
+    setVenue(val);
+    setVenueCoords(null);
+    if (venueTimerRef.current) clearTimeout(venueTimerRef.current);
+    if (!val.trim() || val.length < 3) {
+      setVenueSuggestions([]);
+      setShowSuggestions(false);
+      return;
     }
-  }, [eventSlug, router]);
-
-  const handleRegisterEvent = useCallback(() => {
-    if (eventSlug) {
-      router.push(`/event-registration/${eventSlug}`);
-    }
-  }, [eventSlug, router]);
-
-  const copyToClipboard = useCallback((link) => {
-    navigator.clipboard.writeText(link);
-    toast.success("Link copied to clipboard!");
+    venueTimerRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(val)}&limit=5`,
+          { headers: { "Accept-Language": "en" } }
+        );
+        const data = await res.json();
+        setVenueSuggestions(data);
+        setShowSuggestions(data.length > 0);
+      } catch {
+        setVenueSuggestions([]);
+      }
+    }, 600);
   }, []);
 
-  useEffect(() => {
-    if (timeFrom && timeTo && timeFrom >= timeTo) {
-      const [hours, minutes] = timeFrom.split(":");
-      const newHours = String((parseInt(hours, 10) + 1) % 24).padStart(2, "0");
-      setTimeTo(`${newHours}:${minutes}`);
-    }
-  }, [timeFrom, timeTo]);
+  /* Submit */
+  const handleSubmit = async (isDraft = false) => {
+    if (!eventName.trim()) { toast.error("Event name is required"); return; }
+    if (!date.trim()) { toast.error("Event date is required"); return; }
+    if (!timeFrom) { toast.error("Start time is required"); return; }
+    if (!venue.trim() && !virtualLink.trim()) { toast.error("Please add a venue or virtual link"); return; }
 
-  const formatDateForServer = (dateStr) => {
-    if (!dateStr || dateStr.trim() === "") {
-      toast.error("Event date is required");
-      return null;
-    }
-    const datePattern = /^(\d{4})-(\d{2})-(\d{2})$/;
-    if (!datePattern.test(dateStr)) {
-      toast.error("Please enter a valid date");
-      return null;
-    }
-    return dateStr;
-  };
+    const formattedDate = formatDateForServer(date);
+    if (!formattedDate) return;
 
-  const convertTo24Hour = (time) => {
-    if (!time) return "00:00:00";
-    return `${time}:00`;
-  };
+    /* Set auth token */
+    if (token) {
+      API.setAuthToken(token);
+    } else {
+      let stored = localStorage.getItem("authToken");
+      if (!stored) { try { const raw = localStorage.getItem("token"); stored = raw ? JSON.parse(raw) : null; } catch { stored = null; } }
+      if (stored) API.setAuthToken(stored);
+      else { toast.error("Please log in to create an event"); return; }
+    }
 
-  const resetForm = () => {
-    setEventName("");
-    setDate("");
-    setTimeFrom("");
-    setTimeTo("");
-    setPhysicalLocation("");
-    setVirtualLink("");
-    setDescription("");
-    setTicketsTransferable(false);
-    setTicketPrice("Free");
-    setCapacity("Unlimited");
-    setEventImage(null);
-    setImagePreview(null);
-    setCategory("other");
-    // setEventId(null);
-    // setEventCreated(true);
+    /* Derive ticket_price from first tier */
+    const firstTierPrice = tiers[0]?.price;
+    const ticketPrice = firstTierPrice && !isNaN(parseFloat(firstTierPrice)) ? String(parseFloat(firstTierPrice)) : "0.00";
+
+    const formData = new FormData();
+    const fields = {
+      name: eventName,
+      day: formattedDate,
+      time_from: convertTo24Hour(timeFrom),
+      time_to: convertTo24Hour(timeFrom), // same for now; no end-time in design
+      ticket_price: ticketPrice,
+      transferable: ticketsTransferable.toString(),
+      visibility: isDraft ? "private" : (eventVisibility ? "public" : "private"),
+      category,
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "GMT+01:00",
+    };
+    if (venue) fields.location = venue;
+    if (virtualLink) fields.virtual_link = virtualLink;
+    if (description) fields.description = description;
+    if (capacity !== "Unlimited") fields.capacity = capacity;
+
+    Object.entries(fields).forEach(([k, v]) => formData.append(k, v));
+    if (eventImage instanceof File) formData.append("event_image", eventImage);
+
+    try {
+      setIsSubmitting(true);
+      const response = editSlug
+        ? await API.updateEvent(editSlug, formData)
+        : await API.createEvent(formData);
+
+      if (response) {
+        toast.success(editSlug ? "Event updated!" : isDraft ? "Draft saved!" : "Event published!");
+        if (editSlug) {
+          router.push(`/dashboard/${editSlug}`);
+        } else {
+          setEventSlug(response.slug || response.id);
+          setEventCreated(true);
+          router.push(`/${response.slug}?preview=true`);
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error(err.message || "Failed to save event");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
-    <div className="md:w-[90%] mx-auto p-4 sm:p-8 bg-white  ">
-      <div>
-        {/* Event Name */}
-        <div className="flex flex-col-reverse lg:flex-row items-center justify-between mb-8">
-          <input
-            type="text"
-            placeholder="Event Name"
-            value={eventName}
-            onChange={(e) => setEventName(e.target.value)}
-            className=" text-[27px] font-medium text-[#007AFFC2] focus:outline-none w-full md:max-w-[387px]  py-[9px] px-[32px] border rounded-[20px] border-[#B3BBC3] placeholder:font-[27px] placeholder:text-[#007AFFC2]"
-            aria-label="Event name"
-          />
-          <div className="flex gap-4 cursor-pointer mb-2 lg:mb-0">
-            {eventVisibility ? (
-              <div
-                className="flex items-center bg-blue-100 px-4 py-2 rounded-full"
-                onClick={() => setEventVisibility(!eventVisibility)}
-              >
-                <div className="mr-2">
-                  <Image src={publicSymbol} alt="Public symbol" />
-                </div>
-                <span className="text-sm text-[#007AFF]">Public</span>
-              </div>
+    <div className="min-h-screen bg-[#F5F6FA]">
+      {/* ── Top bar ── */}
+      <div className="bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between sticky top-0 z-10">
+        <div className="flex items-center gap-4">
+          <button onClick={() => router.back()} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors">
+            <HugeiconsIcon icon={ArrowLeft01Icon} size={16} color="#6b7280" />
+            Events
+          </button>
+          <span className="text-gray-200">/</span>
+          <h1 className="text-xl font-bold text-gray-900">
+            {editSlug ? "Edit event" : "Create event"}
+          </h1>
+        </div>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => handleSubmit(true)}
+            disabled={isSubmitting}
+            className="border border-gray-200 text-gray-700 text-sm font-semibold px-5 py-2.5 rounded-xl hover:bg-gray-50 transition-colors disabled:opacity-40"
+          >
+            Save draft
+          </button>
+          <button
+            onClick={() => handleSubmit(false)}
+            disabled={isSubmitting}
+            className="bg-blue-600 text-white text-sm font-semibold px-5 py-2.5 rounded-xl hover:bg-blue-700 transition-colors flex items-center gap-2 disabled:opacity-40"
+          >
+            {isSubmitting ? (
+              <svg className="animate-spin" width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25" /><path d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" fill="currentColor" className="opacity-75" /></svg>
             ) : (
-              <div
-                className="flex items-center bg-blue-100 px-4 py-2 rounded-full"
-                onClick={() => setEventVisibility(!eventVisibility)}
-              >
-                <div className="mr-2">
-                  <Image src={publicSymbol} alt="Public symbol" />
-                </div>
-                <span className="text-sm text-[#007AFF]">Private</span>
-              </div>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12" /></svg>
             )}
-
-            <div className="flex items-center bg-blue-100 px-4 py-2 rounded-full">
-              <div className="mr-2">
-                <Image src={globeTime} alt="Timezone" />
-              </div>
-              <span className="text-sm text-[#007AFF]">
-                {Intl.DateTimeFormat().resolvedOptions().timeZone ||
-                  "GMT+01:00"}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Date and Time */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-5 sm:gap-6 mb-4 sm:mb-8">
-          <div>
-            <label className="font-medium mb-2 block text-black">Day</label>
-            <div className="relative">
-              <input
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="w-full p-3  border rounded-lg border-[#B3BBC3] pl-10 focus:text-black text-black"
-                aria-label="Event date"
-              />
-              <div className="absolute left-3 top-3.5 text-gray-400">
-                <svg
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <rect
-                    x="3"
-                    y="4"
-                    width="18"
-                    height="18"
-                    rx="2"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  />
-                  <path d="M3 10H21" stroke="currentColor" strokeWidth="2" />
-                  <path
-                    d="M8 2V6"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                  />
-                  <path
-                    d="M16 2V6"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                  />
-                </svg>
-              </div>
-            </div>
-          </div>
-          <div>
-            <label className="font-medium mb-2 block text-black">
-              Time - From
-            </label>
-            <div className="relative">
-              <input
-                type="time"
-                value={timeFrom}
-                onChange={(e) => setTimeFrom(e.target.value)}
-                className="w-full p-3 border  border-[#B3BBC3] rounded-lg text-black"
-                aria-label="Event start time"
-              />
-            </div>
-          </div>
-          <div>
-            <label className="font-medium mb-2 block text-black">
-              Time - To
-            </label>
-            <div className="relative">
-              <input
-                type="time"
-                value={timeTo}
-                onChange={(e) => setTimeTo(e.target.value)}
-                min={timeFrom}
-                className="w-full p-3 border  border-[#B3BBC3] rounded-lg text-black"
-                aria-label="Event end time"
-              />
-            </div>
-          </div>
-
-          <div>
-            {" "}
-            <label className="font-medium mb-2 block text-black">
-              Location
-            </label>{" "}
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Physical location"
-                value={physicalLocation}
-                onChange={(e) => setPhysicalLocation(e.target.value)}
-                className="w-full p-3 border  border-[#B3BBC3] rounded-lg pl-10 text-black"
-                aria-label="Physical location"
-              />
-              <div className="absolute left-3 top-3.5 text-gray-400">
-                <svg
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <path
-                    d="M12 13C13.6569 13 15 11.6569 15 10C15 8.34315 13.6569 7 12 7C10.3431 7 9 8.34315 9 10C9 11.6569 10.3431 13 12 13Z"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                  <path
-                    d="M12 22C16 18 20 14.4183 20 10C20 5.58172 16.4183 2 12 2C7.58172 2 4 5.58172 4 10C4 14.4183 8 18 12 22Z"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Location */}
-        <div className="mb-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6"></div>
-        </div>
-
-        {/* Description and Image */}
-        <div className="flex flex-col md:flex-row gap-6 mb-8">
-          <div className="md:w-1/2">
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleImageChange}
-              className="hidden"
-              accept="image/*"
-              aria-label="Upload event image"
-            />
-            <div
-              onClick={handleImageClick}
-              className="h-40 rounded-lg flex flex-col items-center justify-center text-white cursor-pointer overflow-hidden relative"
-              style={{
-                background: imagePreview
-                  ? `url(${imagePreview}) center/cover no-repeat`
-                  : "linear-gradient(to bottom, #DBEAFE, #3B82F6)",
-              }}
-            >
-              {isImageLoading && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50">
-                  <span className="text-white">Loading...</span>
-                </div>
-              )}
-              {!imagePreview && !isImageLoading && (
-                <>
-                  <div className="mb-1">
-                    <Image src={eventFrame} alt="Event frame" />
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-          <div className="flex flex-col gap-2 md:w-1/2">
-            <div className="flex justify-end">
-              {" "}
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="Paste virtual link here"
-                  value={virtualLink}
-                  onChange={(e) => setVirtualLink(e.target.value)}
-                  className=" p-3 border  border-[#B3BBC3] rounded-lg pl-10 text-black"
-                  aria-label="Virtual link"
-                />
-                <div className="absolute left-3 top-3.5 text-gray-400">
-                  <svg
-                    width="18"
-                    height="18"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path
-                      d="M10 13C11.0945 14.0945 12.4446 14.6361 13.8033 14.6361C15.162 14.6361 16.5121 14.0945 17.6066 13C18.7012 11.9054 19.2427 10.5553 19.2427 9.1967C19.2427 7.83807 18.7012 6.48797 17.6066 5.3934C16.512 4.29883 15.162 3.75736 13.8033 3.75736C12.4446 3.75736 11.0945 4.29883 10 5.3934"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                    <path
-                      d="M14 11C12.9055 9.90548 11.5554 9.36401 10.1967 9.36401C8.83807 9.36401 7.48797 9.90548 6.3934 11C5.29883 12.0946 4.75736 13.4447 4.75736 14.8033C4.75736 16.1619 5.29883 17.512 6.3934 18.6066C7.48797 19.7012 8.83807 20.2426 10.1967 20.2426C11.5554 20.2426 12.9055 19.7012 14 18.6066"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </div>
-              </div>
-            </div>
-
-            <div>
-              {" "}
-              <label className="font-medium mb-2 block text-black">
-                Description
-              </label>
-              <div className="relative">
-                <textarea
-                  placeholder="Tell us about the event"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  className="w-full p-3 border  border-[#B3BBC3] rounded-lg pl-10 h-16 text-black"
-                  aria-label="Event description"
-                />
-                <div className="absolute left-3 top-3.5 text-gray-400">
-                  <svg
-                    width="18"
-                    height="18"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path
-                      d="M3 5H21M3 12H21M3 19H12"
-                      stroke="#6B7280"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-6 md:flex-row">
-          {" "}
-          {/* Event Options */}
-          <div className=" md:w-3/4">
-            <label className="font-medium mb-2 block text-black">
-              Event Options
-            </label>
-            <p className="text-xs text-gray-500 mb-4">
-              *All transactions must be made using USDC on Base network*
-            </p>
-            <div className="space-y-4">
-              {/* Category Selection */}
-              <div className="flex items-center justify-between p-4 border border-[#B3BBC3] rounded-lg">
-                <div className="flex items-center">
-                  <div className="text-gray-400 mr-3">
-                    <svg
-                      width="18"
-                      height="18"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path
-                        d="M7 8H17M7 12H17M7 16H17"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                      />
-                      <rect
-                        x="3"
-                        y="4"
-                        width="18"
-                        height="16"
-                        rx="2"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                      />
-                    </svg>
-                  </div>
-                  <span className="text-gray-600">Category</span>
-                </div>
-                <select
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                  className="p-2 border border-[#B3BBC3] rounded text-black min-w-[180px]"
-                  aria-label="Event category"
-                >
-                  <option value="web3_crypto">Web3 & Crypto</option>
-                  <option value="entertainment">Entertainment</option>
-                  <option value="art_culture">Art & Culture</option>
-                  <option value="fitness">Fitness</option>
-                  <option value="conference">Conference</option>
-                  <option value="technology">Technology</option>
-                  <option value="other">Other</option>
-                </select>
-              </div>
-              <div className="flex items-center justify-between p-4 border  border-[#B3BBC3] rounded-lg">
-                <div className="flex items-center">
-                  <div className="text-gray-400 mr-3">
-                    <svg
-                      width="18"
-                      height="18"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path
-                        d="M2 10V14C2 16 3 17 5 17H6.5C7.33 17 8 17.67 8 18.5C8 19.33 7.33 20 6.5 20H5M13 17H19C21 17 22 16 22 14V10C22 8 21 7 19 7H13C11 7 10 8 10 10V14C10 16 11 17 13 17ZM15.5 13.5C16.3284 13.5 17 12.8284 17 12C17 11.1716 16.3284 10.5 15.5 10.5C14.6716 10.5 14 11.1716 14 12C14 12.8284 14.6716 13.5 15.5 13.5Z"
-                        stroke="currentColor"
-                        strokeWidth="1.5"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                      <path
-                        d="M6.5 7C7.33 7 8 6.33 8 5.5C8 4.67 7.33 4 6.5 4H5C3 4 2 5 2 7V8"
-                        stroke="currentColor"
-                        strokeWidth="1.5"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  </div>
-                  <span className="text-gray-600">Set Ticket Price</span>
-                </div>
-                <div className="flex items-center">
-                  <select
-                    className="p-2 rounded mr-2 text-[#999999]"
-                    value={ticketPrice === "Free" ? "Free" : "Paid"}
-                    onChange={(e) => {
-                      if (e.target.value === "Free") {
-                        setTicketPrice("Free");
-                      } else {
-                        setTicketPrice("0.00");
-                      }
-                    }}
-                    aria-label="Ticket price type"
-                  >
-                    <option className="text-black" value="Free">
-                      Free
-                    </option>
-                    <option className="text-black" value="Paid">
-                      Paid
-                    </option>
-                  </select>
-                  {ticketPrice !== "Free" && (
-                    <div className="relative">
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={ticketPrice}
-                        onChange={(e) => setTicketPrice(e.target.value)}
-                        className="p-2 border  border-[#B3BBC3] rounded w-24 pl-6 text-black"
-                        aria-label="Ticket price amount"
-                      />
-                      <span className="absolute left-2 top-2 text-gray-500">
-                        $
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </div>
-              <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
-                <div className="flex items-center">
-                  <div className="mr-3 text-gray-400">
-                    <svg
-                      width="18"
-                      height="18"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <rect
-                        x="3"
-                        y="3"
-                        width="18"
-                        height="18"
-                        rx="2"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                      />
-                      <path
-                        d="M8 11L11 14L16 9"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  </div>
-                  <span className="text-gray-600">
-                    Should Tickets be transferable?
-                  </span>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    className="sr-only peer"
-                    checked={ticketsTransferable}
-                    onChange={() =>
-                      setTicketsTransferable(!ticketsTransferable)
-                    }
-                    aria-label="Toggle ticket transferability"
-                  />
-                  <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-500"></div>
-                </label>
-              </div>
-              <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
-                <div className="flex items-center">
-                  <div className="text-gray-400 mr-3">
-                    <svg
-                      width="18"
-                      height="18"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path
-                        d="M17 8C17 10.2091 15.2091 12 13 12C10.7909 12 9 10.2091 9 8C9 5.79086 10.7909 4 13 4C15.2091 4 17 5.79086 17 8Z"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                      <path
-                        d="M1 20.5C1 17.6 3.4 14 9 14C14.6 14 17 17.6 17 20.5"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                      />
-                      <path
-                        d="M19 8H25"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                      />
-                      <path
-                        d="M22 5V11"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                      />
-                    </svg>
-                  </div>
-                  <span className="text-gray-600">Capacity</span>
-                </div>
-                <div className="flex items-center">
-                  <select
-                    className="p-2 rounded mr-2 text-[#999999]"
-                    value={capacity === "Unlimited" ? "Unlimited" : "Limited"}
-                    onChange={(e) => {
-                      if (e.target.value === "Unlimited") {
-                        setCapacity("Unlimited");
-                      } else {
-                        setCapacity("100");
-                      }
-                    }}
-                    aria-label="Capacity type"
-                  >
-                    <option value="Unlimited">Unlimited</option>
-                    <option value="Limited">Limited</option>
-                  </select>
-                  {capacity !== "Unlimited" && (
-                    <input
-                      type="number"
-                      min="1"
-                      value={capacity}
-                      onChange={(e) => setCapacity(e.target.value)}
-                      className="p-2 border border-gray-200 rounded w-24 text-black"
-                      aria-label="Capacity limit"
-                    />
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="md:w-1/4 flex items-end justify-center">
-            <div className="flex gap-3">
-              {editSlug && (
-                <button
-                  type="button"
-                  onClick={() => router.push(`/dashboard/${editSlug}`)}
-                  className="border border-gray-300 text-gray-600 font-medium py-3 px-6 rounded-full hover:bg-gray-50 transition-colors"
-                >
-                  Cancel
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={handleSubmit}
-                disabled={isSubmitting}
-                className={`bg-gradient-to-r from-[#63D0A5] to-[#16B979] text-white font-medium py-3 px-8 rounded-full transition-colors ${
-                  isSubmitting ? "opacity-50 cursor-not-allowed" : "hover:opacity-90"
-                }`}
-              >
-                {isSubmitting
-                  ? editSlug ? "Saving..." : "Creating..."
-                  : editSlug ? "Save Changes" : "Create Event"}
-              </button>
-            </div>
-          </div>
+            {isSubmitting ? "Saving..." : "Publish event"}
+          </button>
         </div>
       </div>
 
-      {/* Event Links Section */}
-      {eventCreated && (
-        <div className="mt-8 p-6 bg-blue-50 rounded-lg">
-          <h3 className="font-medium text-lg text-blue-800 mb-4">
-            Your Event is Ready!
-          </h3>
-          <div className="space-y-6">
-            <div>
-              <h4 className="font-medium text-blue-700 mb-2">
-                Event Page Link:
-              </h4>
-              <div className="flex items-center">
-                <input
-                  type="text"
-                  value={getEventViewLink}
-                  readOnly
-                  className="flex-1 p-2 border border-blue-200 rounded-l-lg bg-white text-black"
-                  aria-label="Event page link"
-                />
-                <button
-                  onClick={() => copyToClipboard(getEventViewLink)}
-                  className="bg-blue-500 text-white px-4 py-2 rounded-r-lg hover:bg-blue-600"
-                  aria-label="Copy event page link"
-                >
-                  Copy
-                </button>
-              </div>
-              <button
-                onClick={handleViewEvent}
-                className="mt-2 w-full bg-blue-600 text-white text-center py-2 px-4 rounded-lg hover:bg-blue-700"
-                aria-label="View event page"
-              >
-                View Event Page
-              </button>
+      {/* ── Body ── */}
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8 flex flex-col lg:flex-row gap-6 items-start">
+
+        {/* Left column */}
+        <div className="flex-1 min-w-0 space-y-5">
+
+          {/* Event details card */}
+          <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
+            <h2 className="font-bold text-gray-900 text-base mb-5">Event details</h2>
+
+            {/* Name */}
+            <div className="mb-5">
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Event name</label>
+              <input
+                type="text"
+                value={eventName}
+                onChange={e => setEventName(e.target.value)}
+                placeholder="Give your event a name"
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-400"
+              />
             </div>
-            <div>
-              <h4 className="font-medium text-blue-700 mb-2">
-                Registration Link (share with attendees):
-              </h4>
-              <div className="flex items-center">
-                <input
-                  type="text"
-                  value={getEventRegisterLink}
-                  readOnly
-                  className="flex-1 p-2 border border-blue-200 rounded-l-lg bg-white text-black"
-                  aria-label="Event registration link"
-                />
-                <button
-                  onClick={() => copyToClipboard(getEventRegisterLink)}
-                  className="bg-green-500 text-white px-4 py-2 rounded-r-lg hover:bg-green-600"
-                  aria-label="Copy registration link"
-                >
-                  Copy
-                </button>
+
+            {/* Category */}
+            <div className="mb-5">
+              <label className="block text-sm font-medium text-gray-700 mb-3">Category</label>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {CATEGORIES.map(cat => (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => setCategory(cat.id)}
+                    className={`relative flex flex-col items-center justify-center p-5 rounded-2xl bg-gradient-to-br ${cat.gradient} transition-all ${
+                      category === cat.id
+                        ? "ring-2 ring-offset-2 ring-blue-500 scale-[1.02]"
+                        : "opacity-70 hover:opacity-90"
+                    }`}
+                  >
+                    {cat.icon}
+                    <span className="text-white text-xs font-semibold mt-2">{cat.label}</span>
+                    {category === cat.id && (
+                      <div className="absolute top-2 right-2 w-4 h-4 bg-white rounded-full flex items-center justify-center">
+                        <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="3"><polyline points="20 6 9 17 4 12" /></svg>
+                      </div>
+                    )}
+                  </button>
+                ))}
               </div>
-              <button
-                onClick={handleRegisterEvent}
-                className="mt-2 w-full bg-green-600 text-white text-center py-2 px-4 rounded-lg hover:bg-green-700"
-                aria-label="Go to registration page"
-              >
-                Go to Registration Page
-              </button>
+            </div>
+
+            {/* Description */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Description</label>
+              <textarea
+                value={description}
+                onChange={e => setDescription(e.target.value)}
+                placeholder="Tell attendees what to expect..."
+                rows={4}
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-400 resize-none"
+              />
             </div>
           </div>
+
+          {/* Date & location card */}
+          <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
+            <h2 className="font-bold text-gray-900 text-base mb-5">Date &amp; location</h2>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                {/* Date */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Date</label>
+                  <div className="relative">
+                    <HugeiconsIcon icon={Calendar01Icon} size={15} color="#9ca3af" className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      type="date"
+                      value={date}
+                      onChange={e => setDate(e.target.value)}
+                      className="w-full border border-gray-200 rounded-xl pl-9 pr-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                </div>
+                {/* Start time */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Start time</label>
+                  <div className="relative">
+                    <HugeiconsIcon icon={Clock01Icon} size={15} color="#9ca3af" className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      type="time"
+                      value={timeFrom}
+                      onChange={e => setTimeFrom(e.target.value)}
+                      className="w-full border border-gray-200 rounded-xl pl-9 pr-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Venue */}
+              <div className="relative">
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Venue</label>
+                <div className="relative">
+                  <HugeiconsIcon icon={Location01Icon} size={15} color="#9ca3af" className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={venue}
+                    onChange={e => handleVenueChange(e.target.value)}
+                    onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                    onFocus={() => venueSuggestions.length > 0 && setShowSuggestions(true)}
+                    placeholder="Eko Convention Centre, Victoria Island"
+                    className="w-full border border-gray-200 rounded-xl pl-9 pr-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-400"
+                    autoComplete="off"
+                  />
+                </div>
+
+                {/* Suggestions dropdown */}
+                {showSuggestions && venueSuggestions.length > 0 && (
+                  <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
+                    {venueSuggestions.map((s, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onMouseDown={() => {
+                          const label = s.display_name.split(",").slice(0, 3).join(", ").trim();
+                          setVenue(label);
+                          setVenueCoords({ lat: parseFloat(s.lat), lon: parseFloat(s.lon) });
+                          setShowSuggestions(false);
+                          setVenueSuggestions([]);
+                        }}
+                        className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 border-b border-gray-50 last:border-0 flex items-start gap-2.5"
+                      >
+                        <HugeiconsIcon icon={Location01Icon} size={13} color="#9ca3af" className="shrink-0 mt-0.5" />
+                        <span className="leading-snug line-clamp-2">{s.display_name}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Map preview */}
+                {venueCoords && (
+                  <div className="mt-3 rounded-xl overflow-hidden border border-gray-200" style={{ height: "200px" }}>
+                    <iframe
+                      title="venue-map-preview"
+                      width="100%"
+                      height="100%"
+                      style={{ border: "none" }}
+                      loading="lazy"
+                      src={`https://www.openstreetmap.org/export/embed.html?bbox=${venueCoords.lon - 0.01},${venueCoords.lat - 0.01},${venueCoords.lon + 0.01},${venueCoords.lat + 0.01}&layer=mapnik&marker=${venueCoords.lat},${venueCoords.lon}`}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Virtual link */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Virtual link <span className="text-gray-400 font-normal">(optional)</span>
+                </label>
+                <input
+                  type="url"
+                  value={virtualLink}
+                  onChange={e => setVirtualLink(e.target.value)}
+                  placeholder="https://meet.example.com/..."
+                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-400"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Ticket tiers card */}
+          <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="font-bold text-gray-900 text-base">Ticket tiers</h2>
+              <button
+                type="button"
+                onClick={addTier}
+                className="flex items-center gap-1.5 text-blue-600 text-sm font-semibold hover:text-blue-700 transition-colors"
+              >
+                <HugeiconsIcon icon={Add01Icon} size={15} color="#2563eb" />
+                Add tier
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              {tiers.map((tier, idx) => (
+                <div key={tier.id}>
+                  {editingTierId === tier.id ? (
+                    /* Editing state */
+                    <div className="border border-blue-200 bg-blue-50/40 rounded-xl p-4 space-y-3">
+                      <div className="grid grid-cols-3 gap-3">
+                        <div className="col-span-2">
+                          <label className="text-xs font-medium text-gray-600 mb-1 block">Tier name</label>
+                          <input
+                            type="text"
+                            value={editTierData.name}
+                            onChange={e => setEditTierData(p => ({ ...p, name: e.target.value }))}
+                            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium text-gray-600 mb-1 block">Available</label>
+                          <input
+                            type="text"
+                            value={editTierData.available}
+                            onChange={e => setEditTierData(p => ({ ...p, available: e.target.value }))}
+                            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            placeholder="100"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-gray-600 mb-1 block">Price (₦) — leave blank for free</label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="100"
+                          value={editTierData.price}
+                          onChange={e => setEditTierData(p => ({ ...p, price: e.target.value }))}
+                          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="e.g. 8500"
+                        />
+                      </div>
+                      <div className="flex gap-2">
+                        <button type="button" onClick={saveEditTier} className="bg-blue-600 text-white text-xs font-semibold px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">Save</button>
+                        <button type="button" onClick={() => setEditingTierId(null)} className="border border-gray-200 text-gray-600 text-xs font-medium px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors">Cancel</button>
+                      </div>
+                    </div>
+                  ) : (
+                    /* Display state */
+                    <div className="flex items-center gap-3 p-4 border border-gray-100 rounded-xl hover:border-gray-200 transition-colors">
+                      <span className="text-gray-300 cursor-grab">
+                        <HugeiconsIcon icon={DragDropVerticalIcon} size={16} color="#d1d5db" />
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-gray-900 text-sm">{tier.name}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">{tier.available} available</p>
+                      </div>
+                      <span className="font-bold text-gray-900 text-sm mr-2">
+                        {tier.price ? fmt(parseFloat(tier.price)) : "Free"}
+                      </span>
+                      <button type="button" onClick={() => startEditTier(tier)} className="text-gray-400 hover:text-gray-700 transition-colors p-1">
+                        <HugeiconsIcon icon={Edit01Icon} size={15} color="currentColor" />
+                      </button>
+                      {tiers.length > 1 && (
+                        <button type="button" onClick={() => deleteTier(tier.id)} className="text-red-400 hover:text-red-600 transition-colors p-1">
+                          <HugeiconsIcon icon={Delete01Icon} size={15} color="currentColor" />
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <p className="text-xs text-gray-400 mt-4">
+              Note: The first tier&apos;s price is used as the event ticket price. Multiple tiers are displayed to attendees during checkout.
+            </p>
+          </div>
         </div>
-      )}
+
+        {/* Right column */}
+        <div className="lg:w-64 xl:w-72 shrink-0 w-full space-y-4">
+
+          {/* Cover image */}
+          <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+            <h3 className="font-bold text-gray-900 text-sm mb-4">Cover image</h3>
+            <input type="file" ref={fileInputRef} onChange={handleImageChange} className="hidden" accept="image/*" />
+            <div
+              onClick={() => fileInputRef.current?.click()}
+              className="rounded-xl overflow-hidden cursor-pointer relative"
+              style={{ height: "160px" }}
+            >
+              {imagePreview ? (
+                <img src={imagePreview} alt="Cover" className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full bg-gradient-to-br from-purple-700 to-pink-500 flex flex-col items-center justify-center gap-2">
+                  {isImageLoading ? (
+                    <svg className="animate-spin" width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="white" strokeWidth="4" className="opacity-25" /><path d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" fill="white" className="opacity-75" /></svg>
+                  ) : (
+                    <HugeiconsIcon icon={Camera01Icon} size={24} color="white" />
+                  )}
+                </div>
+              )}
+              {imagePreview && (
+                <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                  <span className="bg-white text-gray-900 text-xs font-semibold px-3 py-1.5 rounded-full flex items-center gap-1.5">
+                    <HugeiconsIcon icon={Camera01Icon} size={12} color="#111827" />
+                    Replace cover
+                  </span>
+                </div>
+              )}
+            </div>
+            <p className="text-xs text-gray-400 mt-2.5">1600×900px recommended. JPG or PNG, max 5MB.</p>
+          </div>
+
+          {/* Settings */}
+          <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+            <h3 className="font-bold text-gray-900 text-sm mb-4">Settings</h3>
+            <div className="space-y-4">
+              {[
+                { label: "Public event", value: eventVisibility, toggle: () => setEventVisibility(v => !v) },
+                { label: "Show remaining count", value: showRemainingCount, toggle: () => setShowRemainingCount(v => !v) },
+                { label: "Transferable tickets", value: ticketsTransferable, toggle: () => setTicketsTransferable(v => !v) },
+              ].map(({ label, value, toggle }) => (
+                <div key={label} className="flex items-center justify-between">
+                  <span className="text-sm text-gray-700">{label}</span>
+                  <button
+                    type="button"
+                    onClick={toggle}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${value ? "bg-blue-600" : "bg-gray-200"}`}
+                  >
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${value ? "translate-x-6" : "translate-x-1"}`} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {editSlug && (
+            <button
+              type="button"
+              onClick={() => router.push(`/dashboard/${editSlug}`)}
+              className="w-full border border-gray-200 text-gray-600 font-medium py-2.5 rounded-xl hover:bg-gray-50 transition-colors text-sm"
+            >
+              Cancel
+            </button>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
