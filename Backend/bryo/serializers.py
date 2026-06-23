@@ -4,6 +4,7 @@ from django.utils.text import slugify
 from .models import (
     Payment, WaitList, PrivyUser, Ticket, Event, EventCoHost,
     TicketTransfer, Payment, UserProfile, EventFormQuestion, EventFormAnswer,
+    TicketTier,
 )
 from django.core.mail import send_mail
 from django.contrib.auth import get_user_model
@@ -112,6 +113,43 @@ class EventFormAnswerSerializer(serializers.ModelSerializer):
 
 
 
+class TicketTierSerializer(serializers.ModelSerializer):
+    remaining = serializers.SerializerMethodField()
+    sold = serializers.SerializerMethodField()
+
+    class Meta:
+        model = TicketTier
+        fields = ['id', 'name', 'price', 'capacity', 'order', 'remaining', 'sold']
+        read_only_fields = ['id']
+
+    def get_remaining(self, obj):
+        request = self.context.get('request')
+        event = obj.event
+        # Only expose remaining counts when the organiser has opted in
+        if request is not None and not event.show_remaining_count:
+            if not (request.user.is_authenticated and event.is_owner_or_cohost(request.user)):
+                return None
+        return obj.remaining()
+
+    def get_sold(self, obj):
+        request = self.context.get('request')
+        event = obj.event
+        if request is not None and not event.show_remaining_count:
+            if not (request.user.is_authenticated and event.is_owner_or_cohost(request.user)):
+                return None
+        return obj.sold_count()
+
+    def validate_capacity(self, value):
+        if value is not None and value < 0:
+            raise serializers.ValidationError("Capacity cannot be negative.")
+        return value
+
+    def validate_price(self, value):
+        if value < 0:
+            raise serializers.ValidationError("Price cannot be negative.")
+        return value
+
+
 class EventCoHostSerializer(serializers.ModelSerializer):
     """Serializer for co-host information"""
     email = serializers.EmailField(source='user.email', read_only=True)
@@ -136,21 +174,25 @@ class EventSerializer(serializers.ModelSerializer):
     # Event image URL
     event_image_url = serializers.SerializerMethodField()
 
+    # Ticket tiers (read-only here; managed via the dedicated tiers endpoints)
+    tiers = TicketTierSerializer(many=True, read_only=True)
+
     # Optional fields that may not be sent by the client
     capacity = serializers.IntegerField(required=False, allow_null=True, min_value=1)
     location = serializers.CharField(required=False, allow_blank=True, max_length=255)
     description = serializers.CharField(required=False, allow_blank=True)
-    
+
     class Meta:
         model = Event
         fields = [
             'id', 'slug', 'name', 'owner', 'owner_email',
-            'category', 'category_display', 
+            'category', 'category_display',
             'day', 'time_from', 'time_to', 'location', 'description',
             'virtual_link', 'ticket_price', 'capacity', 'transferable',
+            'show_remaining_count',
             'event_image', 'event_image_url', 'visibility', 'timezone', 'hosted_by',
             'is_active', 'created_at', 'updated_at',
-            'cohosts', 'role' 
+            'cohosts', 'role', 'tiers',
         ]
         read_only_fields = ['id', 'slug', 'owner', 'is_active', 'created_at', 'updated_at']
     
@@ -196,12 +238,15 @@ class TicketSerializer(serializers.ModelSerializer):
     event_image_url = serializers.SerializerMethodField()
     transferable = serializers.BooleanField(source='event.transferable', read_only=True)
     form_answers = EventFormAnswerSerializer(many=True, read_only=True)
+    tier_name = serializers.CharField(source='tier.name', read_only=True, default=None)
+    tier_price = serializers.DecimalField(source='tier.price', max_digits=10, decimal_places=2, read_only=True, default=None)
 
     class Meta:
         model = Ticket
         fields = [
             'ticket_id', 'event', 'event_name', 'event_slug',
             'event_date', 'event_time', 'event_location', 'event_image_url',
+            'tier', 'tier_name', 'tier_price',
             'original_owner_name', 'original_owner_email',
             'current_owner_name', 'current_owner_email',
             'is_transferred', 'payment_status',
@@ -213,7 +258,7 @@ class TicketSerializer(serializers.ModelSerializer):
             'ticket_id', 'is_transferred', 'created_at',
             'checked_in', 'checked_in_at', 'qr_token',
             'event_name', 'event_slug', 'event_date', 'event_time',
-            'event_location', 'event_image_url',
+            'event_location', 'event_image_url', 'tier_name', 'tier_price',
         ]
 
     def get_event_image_url(self, obj):
@@ -321,6 +366,7 @@ class PaymentInitializeSerializer(serializers.Serializer):
     customer_email = serializers.EmailField()
     customer_name = serializers.CharField(max_length=255)
     quantity = serializers.IntegerField(min_value=1, default=1)
+    tier_id = serializers.IntegerField(required=False, allow_null=True)
     
     def validate_event_slug(self, value):
         """Validate that event exists and is active"""

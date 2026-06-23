@@ -145,14 +145,13 @@ class Payment(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     event = models.ForeignKey('Event', on_delete=models.CASCADE, related_name='payments')
-    ticket = models.OneToOneField(
-        'Ticket', 
-        on_delete=models.CASCADE, 
-        related_name='payment',
+    tier = models.ForeignKey(
+        'TicketTier',
+        on_delete=models.SET_NULL,
         null=True,
-        blank=True
+        blank=True,
+        related_name='payments',
     )
-    
     # Customer details
     customer_email = models.EmailField()
     customer_name = models.CharField(max_length=255)
@@ -214,6 +213,12 @@ class Event(models.Model):
         ('conference', 'Conference'),
         ('technology', 'Technology'),
         ('other', 'Other'),
+        # Added to match the "Create event" category picker (Concerts, Sports,
+        # Nightlife, Conferences) — kept alongside the existing choices above.
+        ('concerts', 'Concerts'),
+        ('sports', 'Sports'),
+        ('nightlife', 'Nightlife'),
+        ('conferences', 'Conferences'),
     ]
 
     name = models.CharField(max_length=100)
@@ -248,6 +253,10 @@ class Event(models.Model):
     )
     capacity = models.IntegerField(blank=False, null=True)
     transferable = models.BooleanField(default=False)
+    show_remaining_count = models.BooleanField(
+        default=False,
+        help_text="If enabled, expose remaining ticket counts to attendees"
+    )
     event_image = models.ImageField(
         upload_to='event_images/', 
         null=True, 
@@ -448,9 +457,55 @@ class EventFormQuestion(models.Model):
         return f"{self.event.name} — {self.question}"
 
 
+class TicketTier(models.Model):
+    """
+    A priced/capacity tier for an event (e.g. "General Admission", "VIP").
+    Events with no tiers fall back to Event.ticket_price / Event.capacity.
+    """
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='tiers')
+    name = models.CharField(max_length=100)
+    price = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    # Total tickets available for this tier. Null = unlimited.
+    capacity = models.PositiveIntegerField(null=True, blank=True)
+    order = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['order', 'created_at']
+
+    def sold_count(self):
+        return self.tickets.filter(payment_status__in=['paid', 'free']).count()
+
+    def remaining(self):
+        if self.capacity is None:
+            return None
+        return max(self.capacity - self.sold_count(), 0)
+
+    def __str__(self):
+        return f"{self.event.name} - {self.name}"
+
+
 class Ticket(models.Model):
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='tickets')
     ticket_id = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
+    tier = models.ForeignKey(
+        TicketTier,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='tickets',
+        help_text="Null = event has no tiers (legacy flat pricing)",
+    )
+    # The payment that produced this ticket. A single payment can cover
+    # several tickets (quantity > 1), so this is a plain FK, not 1-to-1.
+    payment = models.ForeignKey(
+        'Payment',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='tickets_purchased',
+    )
 
     # Link to authenticated user account (null = guest registration)
     user = models.ForeignKey(

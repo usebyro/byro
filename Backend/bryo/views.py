@@ -26,9 +26,10 @@ from .services.auth_factory import get_auth_service, SUPPORTED_PROVIDERS
 from .models import (
     PrivyUser, WaitList, Event, Ticket, TicketTransfer,
     EventCoHost, Payment, UserProfile, EventFormQuestion, EventFormAnswer,
+    TicketTier,
 )
 from django.urls import reverse
-from .serializers import EventSerializer, TicketSerializer, PaymentSerializer
+from .serializers import EventSerializer, TicketSerializer, PaymentSerializer, TicketTierSerializer
 from .permissions import IsEventOwnerOrCoHost, IsEventOwner
 from django.db import transaction
 from django.db import models
@@ -41,6 +42,7 @@ import requests
 import hmac
 import hashlib
 from decimal import Decimal
+from datetime import timedelta
 import os
 import jwt
 import uuid
@@ -53,6 +55,54 @@ User = get_user_model()
 
 logger = logging.getLogger(__name__)
 
+
+class InsufficientCapacityError(Exception):
+    """Raised when a purchase would exceed tier or event capacity."""
+    pass
+
+
+def _pending_reservation_count(payments_qs):
+    """
+    Sum the ticket quantity of recent pending payments (not yet verified).
+    These haven't produced a Ticket row yet but represent reserved slots —
+    counting them prevents two concurrent checkouts from both reserving the
+    last spot while payment is in flight at Paystack.
+    """
+    cutoff = timezone.now() - timedelta(minutes=30)
+    pending = payments_qs.filter(status='pending', created_at__gte=cutoff)
+    return sum(p.metadata.get('quantity', 1) for p in pending)
+
+
+def lock_and_check_capacity(event, tier_id, quantity):
+    """
+    Must be called inside transaction.atomic(). Locks the relevant row
+    (tier or event) so concurrent requests are serialized, preventing
+    overselling. Returns the resolved TicketTier instance, or None if the
+    event has no tiers (legacy flat capacity).
+    Raises InsufficientCapacityError if there isn't enough room.
+    """
+    if tier_id:
+        try:
+            tier = TicketTier.objects.select_for_update().get(pk=tier_id, event=event)
+        except TicketTier.DoesNotExist:
+            raise InsufficientCapacityError("Ticket tier not found for this event")
+        if tier.capacity is not None:
+            sold = tier.tickets.filter(payment_status__in=['paid', 'free']).count()
+            reserved = _pending_reservation_count(tier.payments.all())
+            if sold + reserved + quantity > tier.capacity:
+                raise InsufficientCapacityError("Not enough tickets available in this tier")
+        return tier
+
+    # No tier specified — fall back to legacy event-level capacity, locked.
+    locked_event = Event.objects.select_for_update().get(pk=event.pk)
+    if locked_event.capacity:
+        registered_count = locked_event.tickets.filter(
+            payment_status__in=['paid', 'free']
+        ).count()
+        reserved = _pending_reservation_count(locked_event.payments.all())
+        if registered_count + reserved + quantity > locked_event.capacity:
+            raise InsufficientCapacityError("Not enough tickets available")
+    return None
 
 
 class PaystackPaymentViewSet(viewsets.ViewSet):
@@ -83,53 +133,55 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
         customer_email = request.data.get('customer_email')
         customer_name = request.data.get('customer_name')
         quantity = int(request.data.get('quantity', 1))
-        
+        tier_id = request.data.get('tier_id')
+
         if not all([event_slug, customer_email, customer_name]):
             return Response(
                 {'error': 'event_slug, customer_email, and customer_name are required'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
+
         # Get event
         event = get_object_or_404(Event, slug=event_slug, is_active=True)
-        
-        # Check if event has capacity
-        if event.capacity:
-            registered_count = event.tickets.filter(
-                payment_status__in=['paid', 'free']
-            ).count()
-            
-            if registered_count + quantity > event.capacity:
-                return Response(
-                    {'error': 'Not enough tickets available'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-        
-        # Calculate amount
-        amount = event.ticket_price * quantity
-        
-        # For free events, create ticket directly
+
+        try:
+            with transaction.atomic():
+                tier = lock_and_check_capacity(event, tier_id, quantity)
+        except InsufficientCapacityError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Calculate amount (tier price takes precedence over the legacy flat price)
+        unit_price = tier.price if tier is not None else event.ticket_price
+        amount = unit_price * quantity
+
+        # For free events/tiers, create ticket(s) directly
         linked_user = request.user if request.user.is_authenticated else None
         if amount == 0:
             tickets = []
-            for _ in range(quantity):
-                ticket = Ticket.objects.create(
-                    event=event,
-                    user=linked_user,
-                    original_owner_name=customer_name,
-                    original_owner_email=customer_email,
-                    current_owner_name=customer_name,
-                    current_owner_email=customer_email,
-                    payment_status='free'
-                )
-                tickets.append(ticket)
-            
+            with transaction.atomic():
+                # Re-check capacity under lock right before creating tickets,
+                # in case another request consumed the remaining slots since
+                # the check above.
+                lock_and_check_capacity(event, tier_id, quantity)
+                for _ in range(quantity):
+                    ticket = Ticket.objects.create(
+                        event=event,
+                        tier=tier,
+                        user=linked_user,
+                        original_owner_name=customer_name,
+                        original_owner_email=customer_email,
+                        current_owner_name=customer_name,
+                        current_owner_email=customer_email,
+                        payment_status='free'
+                    )
+                    tickets.append(ticket)
+
             return Response({
                 'status': 'success',
                 'message': 'Free ticket(s) created successfully',
                 'tickets': TicketSerializer(tickets, many=True).data
             }, status=status.HTTP_201_CREATED)
-        
+
         # Initialize Paystack payment
         paystack_secret_key = settings.PAYSTACK_SECRET_KEY.strip()
         paystack_url = 'https://api.paystack.co/transaction/initialize'
@@ -150,6 +202,7 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                 'event_name': event.name,
                 'customer_name': customer_name,
                 'quantity': quantity,
+                'tier_id': tier.id if tier is not None else None,
             },
             'callback_url': settings.PAYSTACK_CALLBACK_URL
         }
@@ -172,6 +225,7 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                 # Create Payment record
                 payment = Payment.objects.create(
                     event=event,
+                    tier=tier,
                     customer_email=customer_email,
                     customer_name=customer_name,
                     amount=amount,
@@ -184,6 +238,7 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                     metadata={
                         'quantity': quantity,
                         'user_id': linked_user.id if linked_user else None,
+                        'tier_id': tier.id if tier is not None else None,
                     }
                 )
                 
@@ -248,23 +303,26 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                         ticket_user = User.objects.filter(pk=stored_uid).first()
 
                 if payment.status == 'successful':
-                    # Recover missing ticket if it wasn't created (e.g. due to prior bug)
-                    if payment.ticket is None:
-                        ticket = Ticket.objects.create(
+                    # Recover any missing tickets (e.g. due to a prior bug,
+                    # or a partial failure on an earlier verify/webhook call)
+                    existing_tickets = list(payment.tickets_purchased.all())
+                    quantity = payment.metadata.get('quantity', 1)
+                    for _ in range(quantity - len(existing_tickets)):
+                        existing_tickets.append(Ticket.objects.create(
                             event=payment.event,
+                            tier=payment.tier,
+                            payment=payment,
                             user=ticket_user,
                             original_owner_name=payment.customer_name,
                             original_owner_email=payment.customer_email,
                             current_owner_name=payment.customer_name,
                             current_owner_email=payment.customer_email,
                             payment_status='paid',
-                        )
-                        payment.ticket = ticket
-                        payment.save()
+                        ))
                     return Response({
                         'status': 'success',
                         'message': 'Payment already verified',
-                        'tickets': TicketSerializer([payment.ticket], many=True).data,
+                        'tickets': TicketSerializer(existing_tickets, many=True).data,
                         'payment': PaymentSerializer(payment).data,
                     }, status=status.HTTP_200_OK)
 
@@ -282,6 +340,8 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                     for _ in range(quantity):
                         ticket = Ticket.objects.create(
                             event=payment.event,
+                            tier=payment.tier,
+                            payment=payment,
                             user=ticket_user,
                             original_owner_name=payment.customer_name,
                             original_owner_email=payment.customer_email,
@@ -290,10 +350,6 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                             payment_status='paid',
                         )
                         tickets.append(ticket)
-
-                    if tickets:
-                        payment.ticket = tickets[0]
-                        payment.save()
 
                     return Response({
                         'status': 'success',
@@ -362,33 +418,30 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                     payment.channel = data.get('channel')
                     payment.paid_at = timezone.now()
                     payment.save()
-                    
-                    if not hasattr(payment, 'ticket') or payment.ticket is None:
-                        quantity = payment.metadata.get('quantity', 1)
-                        stored_uid = payment.metadata.get('user_id')
-                        webhook_user = None
-                        if stored_uid:
-                            from django.contrib.auth import get_user_model
-                            User = get_user_model()
-                            webhook_user = User.objects.filter(pk=stored_uid).first()
-                        tickets = []
 
-                        for _ in range(quantity):
-                            ticket = Ticket.objects.create(
-                                event=payment.event,
-                                user=webhook_user,
-                                original_owner_name=payment.customer_name,
-                                original_owner_email=payment.customer_email,
-                                current_owner_name=payment.customer_name,
-                                current_owner_email=payment.customer_email,
-                                payment_status='paid',
-                            )
-                            tickets.append(ticket)
+                existing_count = payment.tickets_purchased.count()
+                quantity = payment.metadata.get('quantity', 1)
+                if existing_count < quantity:
+                    stored_uid = payment.metadata.get('user_id')
+                    webhook_user = None
+                    if stored_uid:
+                        from django.contrib.auth import get_user_model
+                        User = get_user_model()
+                        webhook_user = User.objects.filter(pk=stored_uid).first()
 
-                        if tickets:
-                            payment.ticket = tickets[0]
-                            payment.save()
-                    
+                    for _ in range(quantity - existing_count):
+                        Ticket.objects.create(
+                            event=payment.event,
+                            tier=payment.tier,
+                            payment=payment,
+                            user=webhook_user,
+                            original_owner_name=payment.customer_name,
+                            original_owner_email=payment.customer_email,
+                            current_owner_name=payment.customer_name,
+                            current_owner_email=payment.customer_email,
+                            payment_status='paid',
+                        )
+
                     # TODO: Send ticket email to customer
                     
             except Payment.DoesNotExist:
@@ -988,7 +1041,7 @@ class EventViewSet(viewsets.ModelViewSet):
         - Create: Authenticated users only
         - Update, delete: Owner/co-host only (both can edit)
         """
-        if self.action in ['list', 'retrieve', 'register', 'categories']:
+        if self.action in ['list', 'retrieve', 'register', 'categories', 'tiers', 'tier_detail']:
             permission_classes = [AllowAny]
         elif self.action in ['create']:
             permission_classes = [IsAuthenticated]
@@ -1003,15 +1056,27 @@ class EventViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         """
-        Show appropriate events based on user with category filtering
+        Show appropriate events based on user with category/date/price/area
+        filtering and sorting.
+
+        Query params:
+          category   - comma-separated category values, e.g. "concerts,sports"
+          search     - free-text search over name/description/location/hosted_by
+          area       - comma-separated location substrings, e.g. "Lekki,Ikoyi"
+          when       - "today" | "this_weekend" | "this_month"
+          date       - exact date "YYYY-MM-DD" (takes precedence over `when`)
+          min_price / max_price - filter on the event's effective ticket price
+                       (cheapest tier price if tiers exist, else ticket_price)
+          sort       - "trending" | "newest" (default) | "date" | "price_low" | "price_high"
         """
-        queryset = Event.objects.select_related('owner').prefetch_related('cohosts__user')
-        
-        # Category filtering
+        queryset = Event.objects.select_related('owner').prefetch_related('cohosts__user', 'tiers')
+
+        # Category filtering (supports multiple comma-separated values)
         category = self.request.query_params.get('category', None)
         if category:
-            queryset = queryset.filter(category=category)
-        
+            categories = [c.strip() for c in category.split(',') if c.strip()]
+            queryset = queryset.filter(category__in=categories)
+
         # Search filtering
         search = self.request.query_params.get('search', None)
         if search:
@@ -1021,19 +1086,78 @@ class EventViewSet(viewsets.ModelViewSet):
                 Q(location__icontains=search) |
                 Q(hosted_by__icontains=search)
             )
-        
+
+        # Area filtering — location is free text, so match by substring
+        area = self.request.query_params.get('area', None)
+        if area:
+            areas = [a.strip() for a in area.split(',') if a.strip()]
+            area_q = Q()
+            for a in areas:
+                area_q |= Q(location__icontains=a)
+            queryset = queryset.filter(area_q)
+
+        # Date filtering: exact date takes precedence over the "when" shortcuts
+        exact_date = self.request.query_params.get('date', None)
+        when = self.request.query_params.get('when', None)
+        if exact_date:
+            queryset = queryset.filter(day=exact_date)
+        elif when:
+            today = timezone.localdate()
+            if when == 'today':
+                queryset = queryset.filter(day=today)
+            elif when == 'this_weekend':
+                # Next Saturday/Sunday (or today, if it already is the weekend)
+                saturday = today + timedelta(days=(5 - today.weekday()) % 7)
+                sunday = saturday + timedelta(days=1)
+                queryset = queryset.filter(day__in=[saturday, sunday])
+            elif when == 'this_month':
+                queryset = queryset.filter(day__year=today.year, day__month=today.month)
+
+        # Effective price = cheapest tier price if the event has tiers,
+        # otherwise the legacy flat ticket_price.
+        queryset = queryset.annotate(
+            effective_price=models.Case(
+                models.When(tiers__isnull=False, then=models.Min('tiers__price')),
+                default=models.F('ticket_price'),
+                output_field=models.DecimalField(max_digits=10, decimal_places=2),
+            )
+        )
+
+        min_price = self.request.query_params.get('min_price', None)
+        max_price = self.request.query_params.get('max_price', None)
+        if min_price is not None:
+            queryset = queryset.filter(effective_price__gte=min_price)
+        if max_price is not None:
+            queryset = queryset.filter(effective_price__lte=max_price)
+
         # Permission-based filtering
         if not self.request.user.is_authenticated:
-            return queryset.filter(is_active=True, visibility='public').order_by('-created_at')
-        
-        if self.request.user.is_superuser:
-            return queryset.order_by('-created_at')
-        else:
-            return queryset.filter(
-                Q(is_active=True, visibility='public') | 
+            queryset = queryset.filter(is_active=True, visibility='public')
+        elif not self.request.user.is_superuser:
+            queryset = queryset.filter(
+                Q(is_active=True, visibility='public') |
                 Q(owner=self.request.user) |
                 Q(cohosts__user=self.request.user)
-            ).distinct().order_by('-created_at')
+            )
+        queryset = queryset.distinct()
+
+        sort = self.request.query_params.get('sort', 'newest')
+        if sort == 'trending':
+            queryset = queryset.annotate(
+                ticket_count=models.Count(
+                    'tickets', filter=Q(tickets__payment_status__in=['paid', 'free']), distinct=True
+                )
+            ).order_by('-ticket_count', '-created_at')
+        elif sort == 'date':
+            queryset = queryset.order_by('day', 'time_from')
+        elif sort == 'price_low':
+            queryset = queryset.order_by('effective_price', '-created_at')
+        elif sort == 'price_high':
+            queryset = queryset.order_by('-effective_price', '-created_at')
+        else:
+            queryset = queryset.order_by('-created_at')
+
+        return queryset
     
     @action(detail=False, methods=['GET'], permission_classes=[AllowAny])
     def categories(self, request):
@@ -1310,6 +1434,60 @@ class EventViewSet(viewsets.ModelViewSet):
 #             'total_events': Event.objects.filter(is_active=True).count()
 #         })
     
+    @action(detail=True, methods=['GET', 'POST'], url_path='tiers', permission_classes=[AllowAny])
+    def tiers(self, request, slug=None):
+        """
+        GET  /api/events/{slug}/tiers/  — list tiers (public)
+        POST /api/events/{slug}/tiers/  — create a tier (owner/co-host only)
+        """
+        event = self.get_object()
+
+        if request.method == 'GET':
+            queryset = event.tiers.all()
+            serializer = TicketTierSerializer(queryset, many=True, context={'request': request})
+            return Response(serializer.data)
+
+        if not request.user.is_authenticated or not event.is_owner_or_cohost(request.user):
+            return Response(
+                {"error": "You don't have permission to manage tiers for this event"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        serializer = TicketTierSerializer(data=request.data, context={'request': request})
+        serializer.is_valid(raise_exception=True)
+        serializer.save(event=event)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    @action(
+        detail=True, methods=['PATCH', 'DELETE'],
+        url_path=r'tiers/(?P<tier_id>\d+)', permission_classes=[AllowAny],
+    )
+    def tier_detail(self, request, slug=None, tier_id=None):
+        """
+        PATCH  /api/events/{slug}/tiers/{tier_id}/ — update a tier (owner/co-host only)
+        DELETE /api/events/{slug}/tiers/{tier_id}/ — delete a tier (owner/co-host only)
+        """
+        event = self.get_object()
+
+        if not request.user.is_authenticated or not event.is_owner_or_cohost(request.user):
+            return Response(
+                {"error": "You don't have permission to manage tiers for this event"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        tier = get_object_or_404(TicketTier, pk=tier_id, event=event)
+
+        if request.method == 'DELETE':
+            tier.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+
+        serializer = TicketTierSerializer(
+            tier, data=request.data, partial=True, context={'request': request}
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
     @action(detail=True, methods=['GET'], permission_classes=[IsAuthenticated])
     def my_role(self, request, slug=None):
         """
@@ -1338,17 +1516,7 @@ class EventViewSet(viewsets.ModelViewSet):
         """
         try:
             event = self.get_object()
-
-            # Capacity check (only count confirmed tickets)
-            if event.capacity:
-                confirmed = event.tickets.filter(
-                    payment_status__in=['paid', 'free']
-                ).count()
-                if confirmed >= event.capacity:
-                    return Response(
-                        {"error": "This event is at full capacity"},
-                        status=status.HTTP_400_BAD_REQUEST,
-                    )
+            tier_id = request.data.get('tier_id')
 
             name = request.data.get('name', '').strip()
             email = request.data.get('email', '').strip()
@@ -1379,31 +1547,39 @@ class EventViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            with transaction.atomic():
-                # Link to logged-in account if available
-                linked_user = request.user if request.user.is_authenticated else None
+            try:
+                with transaction.atomic():
+                    tier = lock_and_check_capacity(event, tier_id, 1)
 
-                ticket = Ticket.objects.create(
-                    event=event,
-                    user=linked_user,
-                    original_owner_name=name,
-                    original_owner_email=email,
-                    current_owner_name=name,
-                    current_owner_email=email,
-                    payment_status='free' if event.ticket_price == 0 else 'pending',
-                )
+                    unit_price = tier.price if tier is not None else event.ticket_price
 
-                # Save form answers
-                question_map = {q.id: q for q in questions}
-                for item in answers_input:
-                    q_id = item.get('question_id')
-                    answer = item.get('answer')
-                    if q_id in question_map and answer is not None:
-                        EventFormAnswer.objects.create(
-                            ticket=ticket,
-                            question=question_map[q_id],
-                            answer=answer,
-                        )
+                    # Link to logged-in account if available
+                    linked_user = request.user if request.user.is_authenticated else None
+
+                    ticket = Ticket.objects.create(
+                        event=event,
+                        tier=tier,
+                        user=linked_user,
+                        original_owner_name=name,
+                        original_owner_email=email,
+                        current_owner_name=name,
+                        current_owner_email=email,
+                        payment_status='free' if unit_price == 0 else 'pending',
+                    )
+
+                    # Save form answers
+                    question_map = {q.id: q for q in questions}
+                    for item in answers_input:
+                        q_id = item.get('question_id')
+                        answer = item.get('answer')
+                        if q_id in question_map and answer is not None:
+                            EventFormAnswer.objects.create(
+                                ticket=ticket,
+                                question=question_map[q_id],
+                                answer=answer,
+                            )
+            except InsufficientCapacityError as e:
+                return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
             serializer = TicketSerializer(ticket, context={'request': request})
             ticket_url = request.build_absolute_uri(
