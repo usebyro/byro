@@ -5,7 +5,7 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import EventCard from "@/components/landing/EventCard";
 import Link from "next/link";
-import axiosInstance from "@/utils/axios";
+import API from "@/services/api";
 
 interface Event {
   id: number;
@@ -22,12 +22,11 @@ interface Event {
   is_active: boolean;
 }
 
-const CATEGORIES = [
-  { value: "entertainment", label: "Concerts & Music", count: 320 },
-  { value: "fitness", label: "Sports", count: 148 },
-  { value: "art_culture", label: "Nightlife", count: 205 },
-  { value: "conference", label: "Conferences", count: 96 },
-];
+interface Category {
+  value: string;
+  label: string;
+  count: number;
+}
 
 const WHEN_OPTIONS = [
   { value: "today", label: "Today", count: 24 },
@@ -53,6 +52,7 @@ const SORT_OPTIONS = [
 export default function DiscoverPage() {
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedWhen, setSelectedWhen] = useState<string[]>([]);
   const [selectedAreas, setSelectedAreas] = useState<string[]>([]);
@@ -63,10 +63,26 @@ export default function DiscoverPage() {
   const [visibleCount, setVisibleCount] = useState(6);
 
   useEffect(() => {
+    API.getCategories()
+      .then((data) => {
+        const cats: Category[] = data?.categories || [];
+        if (cats.length > 0) setCategories(cats);
+      })
+      .catch(() => {/* keep empty, sidebar won't show categories */});
+  }, []);
+
+  useEffect(() => {
     const fetchEvents = async () => {
+      setLoading(true);
       try {
-        const response = await axiosInstance.get("events/");
-        const data = response.data;
+        const params: Record<string, string | number> = {};
+        if (selectedCategories.length > 0) params.category = selectedCategories[0];
+        if (selectedWhen.length > 0) params.when = selectedWhen[0];
+        if (selectedAreas.length > 0) params.area = selectedAreas[0];
+        if (priceMax < 50000) params.max_price = priceMax;
+        params.sort = sortBy;
+
+        const data = await API.getEvents(params);
         const eventList = Array.isArray(data) ? data : data.events || data.data || [];
         setEvents(eventList);
       } catch (error) {
@@ -76,7 +92,7 @@ export default function DiscoverPage() {
       }
     };
     fetchEvents();
-  }, []);
+  }, [selectedCategories, selectedWhen, selectedAreas, priceMax, sortBy]);
 
   useEffect(() => {
     if (!navigator.geolocation) return;
@@ -127,7 +143,7 @@ export default function DiscoverPage() {
 
   const activeFilters = [
     ...selectedCategories.map(
-      (v) => CATEGORIES.find((c) => c.value === v)?.label || v
+      (v) => categories.find((c) => c.value === v)?.label || v
     ),
     ...selectedWhen.map(
       (v) => WHEN_OPTIONS.find((w) => w.value === v)?.label || v
@@ -146,7 +162,7 @@ export default function DiscoverPage() {
   };
 
   const removeFilter = (label: string) => {
-    const cat = CATEGORIES.find((c) => c.label === label);
+    const cat = categories.find((c) => c.label === label);
     if (cat) setSelectedCategories((prev) => prev.filter((c) => c !== cat.value));
     const when = WHEN_OPTIONS.find((w) => w.label === label);
     if (when) setSelectedWhen((prev) => prev.filter((w) => w !== when.value));
@@ -154,11 +170,9 @@ export default function DiscoverPage() {
     if (area) setSelectedAreas((prev) => prev.filter((a) => a !== area.value));
   };
 
+  // Server handles single-value filters; client-side handles multi-select edge cases
   let filteredEvents = events.filter((event) => {
-    if (
-      selectedCategories.length > 0 &&
-      !selectedCategories.includes(event.category)
-    ) {
+    if (selectedCategories.length > 1 && !selectedCategories.includes(event.category)) {
       return false;
     }
     if (event.ticket_price > priceMax) {
@@ -235,7 +249,7 @@ export default function DiscoverPage() {
                   Category
                 </h4>
                 <div className="space-y-2.5">
-                  {CATEGORIES.map((cat) => (
+                  {categories.map((cat) => (
                     <label
                       key={cat.value}
                       className="flex items-center gap-2.5 cursor-pointer group"

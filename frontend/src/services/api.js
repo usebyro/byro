@@ -159,9 +159,27 @@ const API = {
     }
   },
 
-  getEvents: async () => {
+  getEvents: async (params = {}) => {
     try {
-      const response = await axiosInstance.get("events/");
+      const response = await axiosInstance.get("events/", { params });
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  getEventTiers: async (slug) => {
+    try {
+      const response = await axiosInstance.get(`events/${slug}/tiers/`);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  getCategories: async () => {
+    try {
+      const response = await axiosInstance.get("events/categories/");
       return response.data;
     } catch (error) {
       throw handleApiError(error);
@@ -289,6 +307,15 @@ const API = {
     }
   },
 
+  getMyTickets: async () => {
+    try {
+      const response = await axiosInstance.get("tickets/");
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
 
   // Privy Authentication
   /**
@@ -328,14 +355,11 @@ const API = {
   },
 
   // ===== PAYMENTS =====
-  initializePayment: async ({ event_slug, customer_email, customer_name, quantity = 1 }) => {
+  initializePayment: async ({ event_slug, customer_email, customer_name, quantity = 1, tier_id }) => {
     try {
-      const response = await axiosInstance.post("payments/initialize/", {
-        event_slug,
-        customer_email,
-        customer_name,
-        quantity,
-      });
+      const body = { event_slug, customer_email, customer_name, quantity };
+      if (tier_id !== undefined && tier_id !== null) body.tier_id = tier_id;
+      const response = await axiosInstance.post("payments/initialize/", body);
       return response.data;
     } catch (error) {
       throw handleApiError(error);

@@ -19,7 +19,7 @@ const footerLinks = {
     { label: "Careers", href: "/careers" },
     { label: "Press", href: "/press" },
     { label: "Blog", href: "/blog" },
-    { label: "Contact", href: "/contact" },
+    { label: "Contact", href: "/faq" },
   ],
   support: [
     { label: "Help center", href: "/faq" },
@@ -33,7 +33,7 @@ const footerLinks = {
 const socialIcons = [
   {
     label: "Instagram",
-    href: "https://instagram.com/usebyro",
+    href: "https://instagram.com/usebyro_",
     icon: InstagramIcon,
   },
   {

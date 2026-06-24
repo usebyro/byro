@@ -23,9 +23,9 @@ interface Event {
 }
 
 interface TicketTier {
-  id: string;
+  id: string | number;
   name: string;
-  description: string;
+  description?: string;
   price: number;
 }
 
@@ -93,39 +93,26 @@ const STEPS = ["Tickets", "Details", "Payment", "Done"];
 interface Props {
   event: Event;
   onClose: () => void;
+  tiers?: TicketTier[];
 }
 
-export default function CheckoutModal({ event, onClose }: Props) {
+export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Props) {
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [isProcessing, setIsProcessing] = useState(false);
 
   /* ── Tickets ── */
-  const tiers: TicketTier[] = [
-    {
-      id: "general",
-      name: "General Admission",
-      description: "Standing · main floor",
-      price: event.ticket_price,
-    },
-    {
-      id: "vip",
-      name: "VIP Lounge",
-      description: "Seated balcony · open bar",
-      price: Math.round(event.ticket_price * 2.5),
-    },
-    {
-      id: "table",
-      name: "Table for 4",
-      description: "Premium · bottle service",
-      price: Math.round(event.ticket_price * 14),
-    },
-  ];
+  const tiers: TicketTier[] = (tiersProp && tiersProp.length > 0)
+    ? tiersProp
+    : [{ id: "general", name: "General Admission", description: "Standing · main floor", price: event.ticket_price }];
 
-  const [quantities, setQuantities] = useState<Record<string, number>>({
-    general: 1,
-    vip: 0,
-    table: 0,
+  const [quantities, setQuantities] = useState<Record<string, number>>(() => {
+    const init: Record<string, number> = {};
+    const src = (tiersProp && tiersProp.length > 0)
+      ? tiersProp
+      : [{ id: "general", name: "General Admission", description: "Standing · main floor", price: event.ticket_price }];
+    src.forEach((t, i) => { init[String(t.id)] = i === 0 ? 1 : 0; });
+    return init;
   });
   const [promoCode, setPromoCode] = useState("");
   const [promoApplied, setPromoApplied] = useState(false);
@@ -145,13 +132,13 @@ export default function CheckoutModal({ event, onClose }: Props) {
 
   /* ── Calculations ── */
   const subtotal = tiers.reduce(
-    (s, t) => s + t.price * (quantities[t.id] || 0),
+    (s, t) => s + t.price * (quantities[String(t.id)] || 0),
     0
   );
   const serviceFee = Math.round(subtotal * 0.05);
   const discount = promoApplied ? promoDiscount : 0;
   const total = subtotal + serviceFee - discount;
-  const totalQty = Object.values(quantities).reduce((a, b) => a + b, 0);
+  const totalQty = Object.values(quantities).reduce((a: number, b: number) => a + b, 0);
 
   const applyPromo = () => {
     if (promoCode.trim().toUpperCase() === "EARLYBIRD") setPromoApplied(true);
@@ -165,12 +152,17 @@ export default function CheckoutModal({ event, onClose }: Props) {
 
     setIsProcessing(true);
     try {
+      // Find the first tier with quantity > 0 to pass as tier_id
+      const activeTierForPayment = tiers.find(t => (quantities[String(t.id)] || 0) > 0);
+      const tier_id = typeof activeTierForPayment?.id === "number" ? activeTierForPayment.id : undefined;
+
       if (total === 0) {
         const result = await API.initializePayment({
           event_slug: event.slug,
           customer_email: email,
           customer_name: fullName,
           quantity: totalQty,
+          tier_id,
         });
         const ticket = result.tickets?.[0];
         const ticketData = {
@@ -192,6 +184,7 @@ export default function CheckoutModal({ event, onClose }: Props) {
         customer_email: email,
         customer_name: fullName,
         quantity: totalQty,
+        tier_id,
       });
 
       if (result?.data?.authorization_url) {
@@ -346,7 +339,7 @@ export default function CheckoutModal({ event, onClose }: Props) {
                     <div
                       key={tier.id}
                       className={`rounded-xl border p-4 flex items-center justify-between transition-colors ${
-                        quantities[tier.id] > 0
+                        (quantities[String(tier.id)] || 0) > 0
                           ? "border-blue-300 bg-blue-50/50"
                           : "border-gray-100"
                       }`}
@@ -368,7 +361,7 @@ export default function CheckoutModal({ event, onClose }: Props) {
                             onClick={() =>
                               setQuantities((p) => ({
                                 ...p,
-                                [tier.id]: Math.max(0, (p[tier.id] || 0) - 1),
+                                [String(tier.id)]: Math.max(0, (p[String(tier.id)] || 0) - 1),
                               }))
                             }
                             className="w-8 h-8 rounded-full border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-50 transition-colors"
@@ -385,13 +378,13 @@ export default function CheckoutModal({ event, onClose }: Props) {
                             </svg>
                           </button>
                           <span className="w-5 text-center font-semibold text-gray-900 text-sm">
-                            {quantities[tier.id]}
+                            {quantities[String(tier.id)]}
                           </span>
                           <button
                             onClick={() =>
                               setQuantities((p) => ({
                                 ...p,
-                                [tier.id]: (p[tier.id] || 0) + 1,
+                                [String(tier.id)]: (p[String(tier.id)] || 0) + 1,
                               }))
                             }
                             className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white hover:bg-blue-700 transition-colors"
@@ -883,7 +876,7 @@ export default function CheckoutModal({ event, onClose }: Props) {
                   {subtotal > 0 && (
                     <div className="mt-4 pt-4 border-t border-gray-100 space-y-2">
                       {tiers.map((t) => {
-                        const q = quantities[t.id] || 0;
+                        const q = quantities[String(t.id)] || 0;
                         if (!q) return null;
                         return (
                           <div

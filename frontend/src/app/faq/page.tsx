@@ -221,7 +221,9 @@ export default function FAQPage() {
           </p>
           <div className="flex items-center justify-center gap-3 flex-wrap">
             <Link
-              href="/contact"
+              href="https://app.notion.com/p/26e027404f2948ef8b15a77d16ddddf4?pvs=106"
+              target="_blank"
+              rel="noopener noreferrer"
               className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-6 py-3 rounded-full transition-colors"
             >
               <HugeiconsIcon icon={Mail01Icon} size={16} color="white" />

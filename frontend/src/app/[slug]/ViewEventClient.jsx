@@ -50,6 +50,7 @@ export default function ViewEventClient({ slug }) {
   /* Ticket tier selection */
   const [selectedTier, setSelectedTier] = useState("general");
   const [qty, setQty] = useState(1);
+  const [realTiers, setRealTiers] = useState([]);
 
   /* Image URL helper */
   const getImageUrl = useCallback(() => {
@@ -98,6 +99,20 @@ export default function ViewEventClient({ slug }) {
     };
     doFetch();
   }, [slug, router]);
+
+  /* Fetch ticket tiers for paid events */
+  useEffect(() => {
+    if (!event || !slug) return;
+    if (parseFloat(event.ticket_price ?? 0) === 0) return;
+    API.getEventTiers(slug)
+      .then(data => {
+        if (Array.isArray(data) && data.length > 0) {
+          setRealTiers(data);
+          setSelectedTier(String(data[0].id));
+        }
+      })
+      .catch(err => console.error("Failed to load tiers:", err));
+  }, [event, slug]);
 
   /* Transfer */
   const [showTransfer, setShowTransfer] = useState(false);
@@ -163,13 +178,11 @@ export default function ViewEventClient({ slug }) {
   const badgeLabel   = categoryLabels[event.category] || event.category?.toUpperCase();
   const imageUrl     = getImageUrl();
 
-  const tiers = [
-    { id: "general", name: "General Admission", desc: "Standing · main floor",       price: ticketPrice },
-    { id: "vip",     name: "VIP Lounge",         desc: "Seated balcony · open bar",   price: Math.round(ticketPrice * 2.5) },
-    { id: "table",   name: "Table for 4",         desc: "Premium · bottle service",    price: Math.round(ticketPrice * 14) },
-  ];
+  const tiers = realTiers.length > 0
+    ? realTiers.map(t => ({ ...t, desc: t.description || "" }))
+    : (isFree ? [] : [{ id: "general", name: "General Admission", desc: "", price: ticketPrice }]);
 
-  const activeTier   = tiers.find(t => t.id === selectedTier) || tiers[0];
+  const activeTier   = tiers.find(t => String(t.id) === String(selectedTier)) || tiers[0] || { price: 0, name: "" };
   const tierSubtotal = activeTier.price * qty;
   const serviceFee   = isFree ? 0 : Math.round(tierSubtotal * 0.05);
   const tierTotal    = tierSubtotal + serviceFee;
@@ -362,16 +375,16 @@ export default function ViewEventClient({ slug }) {
                     {tiers.map(tier => (
                       <button
                         key={tier.id}
-                        onClick={() => setSelectedTier(tier.id)}
+                        onClick={() => setSelectedTier(String(tier.id))}
                         className={`w-full flex items-center justify-between p-3.5 rounded-xl border transition-colors text-left ${
-                          selectedTier === tier.id ? "border-blue-400 bg-blue-50" : "border-gray-100 hover:border-gray-200"
+                          String(selectedTier) === String(tier.id) ? "border-blue-400 bg-blue-50" : "border-gray-100 hover:border-gray-200"
                         }`}
                       >
                         <div className="flex items-center gap-3">
                           <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
-                            selectedTier === tier.id ? "border-blue-600" : "border-gray-300"
+                            String(selectedTier) === String(tier.id) ? "border-blue-600" : "border-gray-300"
                           }`}>
-                            {selectedTier === tier.id && <div className="w-2 h-2 rounded-full bg-blue-600" />}
+                            {String(selectedTier) === String(tier.id) && <div className="w-2 h-2 rounded-full bg-blue-600" />}
                           </div>
                           <div>
                             <p className="text-sm font-semibold text-gray-900 leading-tight">{tier.name}</p>
@@ -465,7 +478,7 @@ export default function ViewEventClient({ slug }) {
         <Footer />
 
         {showCheckout && (
-          <CheckoutModal event={event} onClose={() => setShowCheckout(false)} />
+          <CheckoutModal event={event} onClose={() => setShowCheckout(false)} tiers={realTiers} />
         )}
       </div>
     </Providers>
