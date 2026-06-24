@@ -27,6 +27,8 @@ interface TicketTier {
   name: string;
   description?: string;
   price: number;
+  capacity?: number | null;
+  remaining?: number | null;
 }
 
 const categoryGradients: Record<string, string> = {
@@ -103,7 +105,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
 
   /* ── Tickets ── */
   const tiers: TicketTier[] = (tiersProp && tiersProp.length > 0)
-    ? tiersProp
+    ? tiersProp.map(t => ({ ...t, price: parseFloat(String(t.price)) || 0 }))
     : [{ id: "general", name: "General Admission", description: "Standing · main floor", price: event.ticket_price }];
 
   const [quantities, setQuantities] = useState<Record<string, number>>(() => {
@@ -329,9 +331,14 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                 </h1>
                 <p className="text-sm text-gray-500 mb-6">
                   Select the tiers and quantities you want.{" "}
-                  <span className="text-orange-500 font-semibold">
-                    340 tickets left.
-                  </span>
+                  {(() => {
+                    const totalRemaining = tiers.reduce((s, t) => s + (t.remaining ?? 0), 0);
+                    return totalRemaining > 0 ? (
+                      <span className="text-orange-500 font-semibold">
+                        {totalRemaining.toLocaleString()} tickets left.
+                      </span>
+                    ) : null;
+                  })()}
                 </p>
 
                 <div className="space-y-3">
@@ -350,6 +357,12 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                         </p>
                         <p className="text-xs text-gray-500 mt-0.5">
                           {tier.description}
+                          {tier.remaining != null && tier.remaining > 0 && (
+                            <span className="text-orange-500 ml-1">· {tier.remaining} left</span>
+                          )}
+                          {tier.remaining === 0 && (
+                            <span className="text-red-500 ml-1">· Sold out</span>
+                          )}
                         </p>
                       </div>
                       <div className="flex items-center gap-3 flex-shrink-0">
@@ -387,7 +400,8 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                                 [String(tier.id)]: (p[String(tier.id)] || 0) + 1,
                               }))
                             }
-                            className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white hover:bg-blue-700 transition-colors"
+                            disabled={tier.remaining === 0}
+                            className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white hover:bg-blue-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                           >
                             <svg
                               width="13"

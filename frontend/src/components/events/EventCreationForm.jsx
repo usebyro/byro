@@ -17,6 +17,7 @@ import {
   DragDropVerticalIcon,
 } from "@hugeicons/core-free-icons";
 import API from "../../services/api";
+import RichTextEditor from "./RichTextEditor";
 
 /* ── Category options ── */
 const CATEGORIES = [
@@ -73,6 +74,23 @@ const fmt = (n) =>
 
 const convertTo24Hour = (t) => (!t ? "00:00:00" : `${t}:00`);
 
+const formatDisplayDate = (dateStr) => {
+  if (!dateStr) return null;
+  const d = new Date(dateStr + "T00:00:00");
+  return {
+    main: d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+    day: d.toLocaleDateString("en-US", { weekday: "long" }),
+  };
+};
+
+const formatDisplayTime = (timeStr) => {
+  if (!timeStr) return null;
+  const [h, m] = timeStr.split(":").map(Number);
+  const ampm = h >= 12 ? "PM" : "AM";
+  const hour = h % 12 || 12;
+  return `${hour}:${String(m).padStart(2, "0")} ${ampm}`;
+};
+
 const formatDateForServer = (d) => {
   if (!d?.trim()) { toast.error("Event date is required"); return null; }
   if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) { toast.error("Invalid date format"); return null; }
@@ -80,9 +98,7 @@ const formatDateForServer = (d) => {
 };
 
 /* ── Default tiers ── */
-const DEFAULT_TIERS = [
-  { id: "general", name: "General Admission", available: "2,000", price: "" },
-];
+const DEFAULT_TIERS = [];
 
 export default function EventCreationForm({ editSlug = null, initialData = null }) {
   const router = useRouter();
@@ -136,14 +152,31 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
     setTicketsTransferable(d.transferable || false);
     setCategory(d.category || "entertainment");
     setEventVisibility(d.visibility === "public");
-    const price = d.ticket_price ? parseFloat(d.ticket_price) : 0;
-    setTiers([{ id: "general", name: "General Admission", available: "2,000", price: price > 0 ? String(price) : "" }]);
     if (d.event_image_url || d.event_image) {
       const base = (process.env.NEXT_PUBLIC_API_URL || "https://byro.onrender.com").replace(/\/api\/?$/, "");
       const imgUrl = d.event_image_url || (d.event_image?.startsWith("http") ? d.event_image : `${base}${d.event_image}`);
       setImagePreview(imgUrl);
     }
   }, [initialData]);
+
+  /* Load existing tiers when editing */
+  useEffect(() => {
+    if (!editSlug) return;
+    API.getEventTiers(editSlug)
+      .then((data) => {
+        if (Array.isArray(data) && data.length > 0) {
+          setTiers(
+            data.map((t) => ({
+              id: t.id, // real numeric backend ID — won't match "tier_" filter, so won't be re-POSTed
+              name: t.name,
+              price: t.price != null ? String(t.price) : "",
+              available: t.capacity != null ? String(t.capacity) : "Unlimited",
+            }))
+          );
+        }
+      })
+      .catch(() => {}); // silently fail — form still works without pre-loaded tiers
+  }, [editSlug]);
 
   const handleImageChange = useCallback((e) => {
     const file = e.target.files?.[0];
@@ -169,7 +202,6 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
   };
 
   const deleteTier = (id) => {
-    if (tiers.length <= 1) { toast.error("At least one ticket tier is required"); return; }
     setTiers(prev => prev.filter(t => t.id !== id));
   };
 
@@ -248,6 +280,12 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
     Object.entries(fields).forEach(([k, v]) => formData.append(k, v));
     if (eventImage instanceof File) formData.append("event_image", eventImage);
 
+    const parseCapacity = (val) => {
+      if (!val || val === "Unlimited") return null;
+      const n = parseInt(String(val).replace(/,/g, ""), 10);
+      return isNaN(n) ? null : n;
+    };
+
     try {
       setIsSubmitting(true);
       const response = editSlug
@@ -255,6 +293,29 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
         : await API.createEvent(formData);
 
       if (response) {
+        const slug = editSlug || response.slug;
+
+        const tiersToCreate = editSlug
+          ? tiers.filter((t) => String(t.id).startsWith("tier_"))
+          : tiers;
+
+        if (tiersToCreate.length > 0) {
+          const results = await Promise.allSettled(
+            tiersToCreate.map((tier, idx) =>
+              API.createTier(slug, {
+                name: tier.name,
+                price: parseFloat(tier.price) || 0,
+                capacity: parseCapacity(tier.available),
+                order: idx,
+              })
+            )
+          );
+          const failures = results.filter((r) => r.status === "rejected");
+          if (failures.length > 0) {
+            toast.error(`Event saved but ${failures.length} tier(s) failed: ${failures[0]?.reason?.message || "unknown error"}`);
+          }
+        }
+
         toast.success(editSlug ? "Event updated!" : isDraft ? "Draft saved!" : "Event published!");
         if (editSlug) {
           router.push(`/dashboard/${editSlug}`);
@@ -361,12 +422,9 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
             {/* Description */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Description</label>
-              <textarea
+              <RichTextEditor
                 value={description}
-                onChange={e => setDescription(e.target.value)}
-                placeholder="Tell attendees what to expect..."
-                rows={4}
-                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-400 resize-none"
+                onChange={setDescription}
               />
             </div>
           </div>
@@ -561,7 +619,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
             </div>
 
             <p className="text-xs text-gray-400 mt-4">
-              Note: The first tier&apos;s price is used as the event ticket price. Multiple tiers are displayed to attendees during checkout.
+              Free event? Skip this section. For paid events, add at least one tier with a price — the first tier&apos;s price becomes the event ticket price.
             </p>
           </div>
         </div>

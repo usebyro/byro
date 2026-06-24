@@ -179,7 +179,7 @@ export default function ViewEventClient({ slug }) {
   const imageUrl     = getImageUrl();
 
   const tiers = realTiers.length > 0
-    ? realTiers.map(t => ({ ...t, desc: t.description || "" }))
+    ? realTiers.map(t => ({ ...t, desc: t.description || "", price: parseFloat(String(t.price)) || 0 }))
     : (isFree ? [] : [{ id: "general", name: "General Admission", desc: "", price: ticketPrice }]);
 
   const activeTier   = tiers.find(t => String(t.id) === String(selectedTier)) || tiers[0] || { price: 0, name: "" };
@@ -268,9 +268,14 @@ export default function ViewEventClient({ slug }) {
             {/* About */}
             <section className="mb-10">
               <h2 className="text-xl font-bold text-gray-900 mb-3">About this event</h2>
-              <p className="text-gray-600 text-sm leading-relaxed">
-                {event.description || "No description provided for this event."}
-              </p>
+              {event.description ? (
+                <div
+                  className="text-gray-600 text-sm leading-relaxed prose prose-sm max-w-none prose-headings:text-gray-900 prose-headings:font-bold prose-p:text-gray-600 prose-ul:text-gray-600 prose-ol:text-gray-600 prose-hr:border-gray-200"
+                  dangerouslySetInnerHTML={{ __html: event.description }}
+                />
+              ) : (
+                <p className="text-gray-600 text-sm leading-relaxed">No description provided for this event.</p>
+              )}
             </section>
 
 
