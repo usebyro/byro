@@ -25,10 +25,10 @@ interface Event {
 interface TicketTier {
   id: string | number;
   name: string;
-  description?: string;
-  price: number;
+  price: number | string;
   capacity?: number | null;
   remaining?: number | null;
+  sold?: number | null;
 }
 
 const categoryGradients: Record<string, string> = {
@@ -104,15 +104,16 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
   const [isProcessing, setIsProcessing] = useState(false);
 
   /* ── Tickets ── */
-  const tiers: TicketTier[] = (tiersProp && tiersProp.length > 0)
-    ? tiersProp.map(t => ({ ...t, price: parseFloat(String(t.price)) || 0 }))
-    : [{ id: "general", name: "General Admission", description: "Standing · main floor", price: event.ticket_price }];
+  const hasTiers = tiersProp && tiersProp.length > 0;
+  const tiers: TicketTier[] = hasTiers
+    ? tiersProp!.map(t => ({ ...t, price: parseFloat(String(t.price)) || 0 }))
+    : [{ id: "general", name: "General Admission", price: event.ticket_price }];
 
   const [quantities, setQuantities] = useState<Record<string, number>>(() => {
     const init: Record<string, number> = {};
     const src = (tiersProp && tiersProp.length > 0)
       ? tiersProp
-      : [{ id: "general", name: "General Admission", description: "Standing · main floor", price: event.ticket_price }];
+      : [{ id: "general", name: "General Admission", price: event.ticket_price }];
     src.forEach((t, i) => { init[String(t.id)] = i === 0 ? 1 : 0; });
     return init;
   });
@@ -134,7 +135,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
 
   /* ── Calculations ── */
   const subtotal = tiers.reduce(
-    (s, t) => s + t.price * (quantities[String(t.id)] || 0),
+    (s, t) => s + parseFloat(String(t.price)) * (quantities[String(t.id)] || 0),
     0
   );
   const serviceFee = Math.round(subtotal * 0.05);
@@ -332,7 +333,9 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                 <p className="text-sm text-gray-500 mb-6">
                   Select the tiers and quantities you want.{" "}
                   {(() => {
-                    const totalRemaining = tiers.reduce((s, t) => s + (t.remaining ?? 0), 0);
+                    const trackedTiers = tiers.filter(t => t.remaining != null);
+                    if (trackedTiers.length === 0) return null;
+                    const totalRemaining = trackedTiers.reduce((s, t) => s + (t.remaining as number), 0);
                     return totalRemaining > 0 ? (
                       <span className="text-orange-500 font-semibold">
                         {totalRemaining.toLocaleString()} tickets left.
@@ -356,18 +359,20 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                           {tier.name}
                         </p>
                         <p className="text-xs text-gray-500 mt-0.5">
-                          {tier.description}
                           {tier.remaining != null && tier.remaining > 0 && (
-                            <span className="text-orange-500 ml-1">· {tier.remaining} left</span>
+                            <span className="text-orange-500">{tier.remaining} left</span>
                           )}
                           {tier.remaining === 0 && (
-                            <span className="text-red-500 ml-1">· Sold out</span>
+                            <span className="text-red-500">Sold out</span>
+                          )}
+                          {tier.remaining == null && tier.capacity != null && (
+                            <span>{tier.capacity} capacity</span>
                           )}
                         </p>
                       </div>
                       <div className="flex items-center gap-3 flex-shrink-0">
                         <span className="font-semibold text-gray-900 text-sm">
-                          {fmt(tier.price)}
+                          {parseFloat(String(tier.price)) === 0 ? "Free" : fmt(parseFloat(String(tier.price)))}
                         </span>
                         <div className="flex items-center gap-2">
                           <button
@@ -901,7 +906,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                               {q} × {t.name}
                             </span>
                             <span className="font-medium text-gray-900">
-                              {fmt(t.price * q)}
+                              {fmt(parseFloat(String(t.price)) * q)}
                             </span>
                           </div>
                         );
