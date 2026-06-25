@@ -116,6 +116,16 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const web3authInitialState = cookieToWeb3AuthState(headersList.get('cookie'));
   return (
     <html lang="en">
+      <Script
+        src="https://www.googletagmanager.com/gtag/js?id=G-PKLCDNL7QC"
+        strategy="afterInteractive"
+      />
+      <Script id="gtag-init" strategy="afterInteractive">{`
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', 'G-PKLCDNL7QC');
+      `}</Script>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
