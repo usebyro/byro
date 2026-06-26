@@ -30,7 +30,13 @@ const TrendingEvents = () => {
       try {
         const response = await axiosInstance.get("events/");
         const data = response.data;
-        const eventList = Array.isArray(data) ? data : data.events || data.data || [];
+        const raw = Array.isArray(data) ? data : data.events || data.data || [];
+        const seen = new Set<number>();
+        const eventList = raw.filter((e: Event) => {
+          if (seen.has(e.id)) return false;
+          seen.add(e.id);
+          return true;
+        });
         setEvents(eventList.slice(0, 4));
       } catch (error) {
         console.error("Error fetching events:", error);

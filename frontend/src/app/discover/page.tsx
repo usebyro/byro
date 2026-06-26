@@ -83,7 +83,13 @@ export default function DiscoverPage() {
         params.sort = sortBy;
 
         const data = await API.getEvents(params);
-        const eventList = Array.isArray(data) ? data : data.events || data.data || [];
+        const raw = Array.isArray(data) ? data : data.events || data.data || [];
+        const seen = new Set<number>();
+        const eventList = raw.filter((e: { id: number }) => {
+          if (seen.has(e.id)) return false;
+          seen.add(e.id);
+          return true;
+        });
         setEvents(eventList);
       } catch (error) {
         console.error("Error fetching events:", error);
