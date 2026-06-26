@@ -34,6 +34,7 @@ urlpatterns = [
 
     # Events (explicit routes that need to come before the router catch-all)
     path('api/events/categories/', EventViewSet.as_view({'get': 'categories'}), name='event-categories'),
+    path('api/events/locations/', EventViewSet.as_view({'get': 'locations'}), name='event-locations'),
     path('api/events/<slug:slug>/register/',
          EventViewSet.as_view({'post': 'register'}),
          name='event-register'),

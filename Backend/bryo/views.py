@@ -1040,7 +1040,7 @@ class EventViewSet(viewsets.ModelViewSet):
         - Create: Authenticated users only
         - Update, delete: Owner/co-host only (both can edit)
         """
-        if self.action in ['list', 'retrieve', 'register', 'categories', 'tiers', 'tier_detail']:
+        if self.action in ['list', 'retrieve', 'register', 'categories', 'locations', 'tiers', 'tier_detail']:
             permission_classes = [AllowAny]
         elif self.action in ['create']:
             permission_classes = [IsAuthenticated]
@@ -1194,10 +1194,51 @@ class EventViewSet(viewsets.ModelViewSet):
         except Exception as e:
             logger.error(f"Error in categories endpoint: {str(e)}", exc_info=True)
             return Response(
-                {"error": "Unable to fetch categories"}, 
+                {"error": "Unable to fetch categories"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
-    
+
+    @action(detail=False, methods=['GET'], permission_classes=[AllowAny])
+    def locations(self, request):
+        """
+        Get distinct event locations/areas with counts.
+        GET /api/events/locations/
+
+        Unlike `categories`, location is free text on the Event model, so the
+        list is derived from whatever values event hosts have actually entered
+        (e.g. "Victoria Island", "Mainland", "Ibadan") rather than a fixed
+        set of choices.
+        """
+        try:
+            base_qs = Event.objects.filter(
+                is_active=True,
+                visibility='public'
+            ).exclude(location='').exclude(location__isnull=True)
+
+            counts = (
+                base_qs
+                .values('location')
+                .annotate(count=models.Count('id'))
+                .order_by('-count', 'location')
+            )
+
+            locations = [
+                {'value': row['location'], 'label': row['location'], 'count': row['count']}
+                for row in counts
+            ]
+
+            return Response({
+                'locations': locations,
+                'total_events': base_qs.count()
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            logger.error(f"Error in locations endpoint: {str(e)}", exc_info=True)
+            return Response(
+                {"error": "Unable to fetch locations"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
     @method_decorator(never_cache)
     def list(self, request, *args, **kwargs):
         """

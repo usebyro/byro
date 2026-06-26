@@ -51,10 +51,10 @@ export const sampleEvents = [
 
 
 
-export const fetchHappeningEvents = async () => {
+export const fetchHappeningEvents = async (params = {}) => {
   try {
-    const data = await API.getEvents();
-    
+    const data = await API.getEvents(params);
+
     // Handle different response structures
     if (Array.isArray(data)) {
       return data;
@@ -74,6 +74,22 @@ export const fetchHappeningEvents = async () => {
   }
 
 
+
+/**
+ * Fetch distinct event locations/areas (e.g. "Victoria Island", "Mainland",
+ * "Ibadan"), derived dynamically from existing events rather than a
+ * hardcoded list.
+ * @returns {Promise<Array>} - Promise resolving to array of {value, label, count}
+ */
+export const fetchEventLocations = async () => {
+  try {
+    const data = await API.getEventLocations();
+    return Array.isArray(data?.locations) ? data.locations : [];
+  } catch (error) {
+    console.error('Error fetching event locations:', error);
+    return [];
+  }
+};
 
 /**
  * Fetch all events

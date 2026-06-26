@@ -159,9 +159,18 @@ const API = {
     }
   },
 
-  getEvents: async () => {
+  getEvents: async (params = {}) => {
     try {
-      const response = await axiosInstance.get("events/");
+      const response = await axiosInstance.get("events/", { params });
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  getEventLocations: async () => {
+    try {
+      const response = await axiosInstance.get("events/locations/");
       return response.data;
     } catch (error) {
       throw handleApiError(error);
