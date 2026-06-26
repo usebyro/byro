@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, notFound } from "next/navigation";
 import Image from "next/image";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Share01Icon, FavouriteIcon, Calendar01Icon, Location01Icon, UserGroupIcon } from "@hugeicons/core-free-icons";
@@ -78,13 +78,26 @@ export default function ViewEventClient({ slug }) {
           localStorage.getItem("token") ||
           localStorage.getItem("accessToken")
         );
-        const [eventData, ticketData] = await Promise.all([
+        const [eventData, ticketData, tiersData] = await Promise.all([
           API.getEvent(slug),
           hasToken ? API.getMyTicket(slug) : Promise.resolve({ registered: false }),
+          API.getEventTiers(slug).catch(() => []),
         ]);
         if (eventData?.id || eventData?.slug) {
           setEvent(eventData);
           if (eventData.slug && eventData.slug !== slug) router.replace(`/${eventData.slug}`);
+          // Try tiers embedded in event first, then fall back to dedicated endpoint
+          const embeddedTiers = Array.isArray(eventData.tiers) ? eventData.tiers : [];
+          const fetchedTiers = Array.isArray(tiersData)
+            ? tiersData
+            : Array.isArray(tiersData?.results)
+            ? tiersData.results
+            : [];
+          const resolvedTiers = embeddedTiers.length > 0 ? embeddedTiers : fetchedTiers;
+          if (resolvedTiers.length > 0) {
+            setRealTiers(resolvedTiers);
+            setSelectedTier(String(resolvedTiers[0].id));
+          }
         } else {
           throw new Error("Invalid event data");
         }
@@ -100,19 +113,6 @@ export default function ViewEventClient({ slug }) {
     doFetch();
   }, [slug, router]);
 
-  /* Fetch ticket tiers for paid events */
-  useEffect(() => {
-    if (!event || !slug) return;
-    if (parseFloat(event.ticket_price ?? 0) === 0) return;
-    API.getEventTiers(slug)
-      .then(data => {
-        if (Array.isArray(data) && data.length > 0) {
-          setRealTiers(data);
-          setSelectedTier(String(data[0].id));
-        }
-      })
-      .catch(err => console.error("Failed to load tiers:", err));
-  }, [event, slug]);
 
   /* Transfer */
   const [showTransfer, setShowTransfer] = useState(false);
@@ -159,20 +159,16 @@ export default function ViewEventClient({ slug }) {
     </div>
   );
 
-  if (error) return (
-    <div className="flex flex-col items-center justify-center min-h-screen gap-4 text-center px-4">
-      <h2 className="text-2xl font-bold text-gray-900">Event Not Found</h2>
-      <p className="text-gray-500 text-sm">{error}</p>
-      <button onClick={() => router.push("/discover")} className="bg-blue-600 text-white px-6 py-2.5 rounded-full text-sm font-semibold">
-        Browse Events
-      </button>
-    </div>
-  );
+  if (error || (!loading && !event)) return notFound();
 
   if (!event) return null;
 
-  const ticketPrice  = parseFloat(event.ticket_price ?? 0);
-  const isFree       = ticketPrice === 0;
+  const rawTicketPrice = parseFloat(event.ticket_price ?? 0);
+  // If tiers are present, use the lowest tier price; otherwise fall back to event.ticket_price
+  const ticketPrice = realTiers.length > 0
+    ? Math.min(...realTiers.map(t => parseFloat(String(t.price)) || 0))
+    : rawTicketPrice;
+  const isFree = ticketPrice === 0 && realTiers.every(t => parseFloat(String(t.price)) === 0);
   const attendeeCount = event.attendee_count ?? 0;
   const gradient     = categoryGradients[event.category] || categoryGradients.other;
   const badgeLabel   = categoryLabels[event.category] || event.category?.toUpperCase();
@@ -361,19 +357,9 @@ export default function ViewEventClient({ slug }) {
           {/* ── Right sticky panel ── */}
           <div className="lg:w-72 xl:w-80 shrink-0 w-full order-1 lg:order-2">
             <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-5 lg:sticky lg:top-24">
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-xs text-gray-400 font-medium">From</span>
-                {event.capacity && (
-                  <span className="text-[10px] font-bold text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full">
-                    ● {event.capacity} LEFT
-                  </span>
-                )}
-              </div>
-              <p className="text-3xl font-bold text-gray-900 mb-5">
-                {isFree ? "Free" : fmt(ticketPrice)}
-              </p>
-
-              {!isFree && (
+              {isFree ? (
+                <p className="text-3xl font-bold text-gray-900 mb-5">Free</p>
+              ) : tiers.length > 0 ? (
                 <>
                   <p className="text-[10px] font-bold text-gray-400 tracking-widest uppercase mb-3">Select ticket tier</p>
                   <div className="space-y-2 mb-5">
@@ -393,10 +379,12 @@ export default function ViewEventClient({ slug }) {
                           </div>
                           <div>
                             <p className="text-sm font-semibold text-gray-900 leading-tight">{tier.name}</p>
-                            <p className="text-xs text-gray-400">{tier.desc}</p>
+                            {tier.desc && <p className="text-xs text-gray-400">{tier.desc}</p>}
                           </div>
                         </div>
-                        <span className="text-sm font-bold text-gray-900 ml-2 shrink-0">{fmt(tier.price)}</span>
+                        <span className="text-sm font-bold text-gray-900 ml-2 shrink-0">
+                          {tier.price === 0 ? "Free" : fmt(tier.price)}
+                        </span>
                       </button>
                     ))}
                   </div>
@@ -439,6 +427,11 @@ export default function ViewEventClient({ slug }) {
                       <span className="text-lg">{fmt(tierTotal)}</span>
                     </div>
                   </div>
+                </>
+              ) : (
+                /* No tiers — flat price */
+                <>
+                  <p className="text-3xl font-bold text-gray-900 mb-5">{fmt(ticketPrice)}</p>
                 </>
               )}
 

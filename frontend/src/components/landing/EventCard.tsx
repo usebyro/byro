@@ -4,6 +4,16 @@ import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import CheckoutModal from "@/components/checkout/CheckoutModal";
+import API from "@/services/api";
+
+interface TicketTier {
+  id: string | number;
+  name: string;
+  price: number | string;
+  capacity?: number | null;
+  remaining?: number | null;
+  sold?: number | null;
+}
 
 interface Event {
   id: number;
@@ -15,10 +25,11 @@ interface Event {
   time_from: string;
   time_to: string;
   location: string;
-  ticket_price: number;
+  ticket_price: number | string;
   event_image_url?: string;
   is_active: boolean;
   is_sold_out?: boolean;
+  tiers?: TicketTier[];
 }
 
 const categoryGradients: Record<string, string> = {
@@ -84,6 +95,24 @@ const EventCard = ({ event }: { event: Event }) => {
   const [showCheckout, setShowCheckout] = useState(false);
   const [saved, setSaved] = useState(false);
   const [imageError, setImageError] = useState(false);
+  const [tiers, setTiers] = useState<TicketTier[]>(event.tiers || []);
+  const [loadingTiers, setLoadingTiers] = useState(false);
+
+  const handleGetTickets = async () => {
+    if (tiers.length === 0) {
+      setLoadingTiers(true);
+      try {
+        const data = await API.getEventTiers(event.slug);
+        const fetched = Array.isArray(data) ? data : Array.isArray(data?.results) ? data.results : [];
+        setTiers(fetched);
+      } catch {
+        // fall through — modal will show general admission
+      } finally {
+        setLoadingTiers(false);
+      }
+    }
+    setShowCheckout(true);
+  };
 
   const isSoldOut = event.is_sold_out ?? false;
   const gradient = categoryGradients[event.category] || categoryGradients.other;
@@ -197,11 +226,18 @@ const EventCard = ({ event }: { event: Event }) => {
               <p className="text-[10px] text-gray-400 uppercase tracking-wider font-medium">
                 From
               </p>
-              <p className="text-lg font-bold text-gray-900 leading-tight">
-                {event.ticket_price === 0
-                  ? "Free"
-                  : formatPrice(event.ticket_price)}
-              </p>
+              {(() => {
+                const activeTiers = event.tiers && event.tiers.length > 0 ? event.tiers : null;
+                const basePrice = parseFloat(String(event.ticket_price ?? 0));
+                const displayPrice = activeTiers
+                  ? Math.min(...activeTiers.map(t => parseFloat(String(t.price)) || 0))
+                  : basePrice;
+                return (
+                  <p className="text-lg font-bold text-gray-900 leading-tight">
+                    {displayPrice === 0 ? "Free" : formatPrice(displayPrice)}
+                  </p>
+                );
+              })()}
             </div>
             {isSoldOut ? (
               <span className="text-red-500 text-xs font-bold uppercase tracking-wide">
@@ -209,20 +245,23 @@ const EventCard = ({ event }: { event: Event }) => {
               </span>
             ) : (
               <button
-                onClick={() => setShowCheckout(true)}
-                className="bg-blue-600 text-white text-sm font-medium px-4 py-2 rounded-full flex items-center gap-1 hover:bg-blue-700 transition-colors whitespace-nowrap"
+                onClick={handleGetTickets}
+                disabled={loadingTiers}
+                className="bg-blue-600 text-white text-sm font-medium px-4 py-2 rounded-full flex items-center gap-1 hover:bg-blue-700 transition-colors whitespace-nowrap disabled:opacity-60"
               >
-                Get tickets
-                <svg
-                  width="13"
-                  height="13"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                >
-                  <path d="M5 12h14M12 5l7 7-7 7" />
-                </svg>
+                {loadingTiers ? "Loading..." : "Get tickets"}
+                {!loadingTiers && (
+                  <svg
+                    width="13"
+                    height="13"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                  >
+                    <path d="M5 12h14M12 5l7 7-7 7" />
+                  </svg>
+                )}
               </button>
             )}
           </div>
@@ -234,6 +273,7 @@ const EventCard = ({ event }: { event: Event }) => {
         <CheckoutModal
           event={event}
           onClose={() => setShowCheckout(false)}
+          tiers={tiers}
         />
       )}
     </>

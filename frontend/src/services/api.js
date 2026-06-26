@@ -84,6 +84,11 @@ const API = {
       const response = await axiosInstance.get(`events/${slug}/`);
       return response.data;
     } catch (error) {
+      if (error.response?.status === 404) {
+        const err = new Error("Event not found");
+        err.status = 404;
+        throw err;
+      }
       throw handleApiError(error);
     }
   },
@@ -181,6 +186,15 @@ const API = {
       } else if (error.response?.status === 400) {
         throw new Error(error.response.data?.message || 'Invalid registration data');
       }
+      throw handleApiError(error);
+    }
+  },
+
+  deleteEvent: async (slug) => {
+    try {
+      const response = await axiosInstance.delete(`events/${slug}/`);
+      return response.data;
+    } catch (error) {
       throw handleApiError(error);
     }
   },
