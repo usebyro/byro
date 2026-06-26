@@ -1,4 +1,4 @@
-from django.db import models
+from django.db import models, transaction, IntegrityError
 from django.contrib.auth.models import AbstractUser, UserManager
 from django.db.models.signals import post_save
 from django.dispatch import receiver
@@ -273,11 +273,23 @@ class Event(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def save(self, *args, **kwargs):
-        if not self.slug:  
-            self.slug = get_random_string(6)  
-            while Event.objects.filter(slug=self.slug).exists():
-                self.slug = get_random_string(6)
-        super().save(*args, **kwargs)
+        if self.slug:
+            super().save(*args, **kwargs)
+            return
+
+        # Slug is unique at the DB level, so retry on collision instead of
+        # relying on a check-then-set exists() call, which races under
+        # concurrent creates and can let two events land on the same slug.
+        attempts = 10
+        for attempt in range(attempts):
+            self.slug = get_random_string(6)
+            try:
+                with transaction.atomic():
+                    super().save(*args, **kwargs)
+                return
+            except IntegrityError:
+                if attempt == attempts - 1:
+                    raise
     
     def is_owner_or_cohost(self, user):
         """Check if user is owner or co-host of this event"""

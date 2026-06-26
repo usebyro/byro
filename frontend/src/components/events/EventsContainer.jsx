@@ -3,7 +3,7 @@ import React, { useState, useEffect } from "react";
 import { fetchHappeningEvents } from "@/services/eventServices";
 import EventCard from "./EventCard";
 
-const EventsContainer = () => {
+const EventsContainer = ({ area } = {}) => {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -14,7 +14,7 @@ const EventsContainer = () => {
         setLoading(true);
         setError(null);
 
-        const happeningEvents = await fetchHappeningEvents();
+        const happeningEvents = await fetchHappeningEvents(area ? { area } : {});
 
         if (Array.isArray(happeningEvents)) {
           setEvents(happeningEvents);
@@ -31,7 +31,7 @@ const EventsContainer = () => {
     };
 
     loadEvents();
-  }, []);
+  }, [area]);
 
   if (loading) {
     return (

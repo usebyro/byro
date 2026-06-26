@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -11,6 +11,48 @@ import {
   Settings01Icon,
 } from "@hugeicons/core-free-icons";
 import EventsContainer from "./EventsContainer";
+import { fetchEventLocations } from "@/services/eventServices";
+
+const LocationFilter = ({ selectedArea, onChange }) => {
+  const [locations, setLocations] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+    fetchEventLocations().then((data) => {
+      if (isMounted) {
+        setLocations(data);
+        setLoading(false);
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  if (!loading && locations.length === 0) return null;
+
+  return (
+    <div className="mb-6">
+      <label className="font-medium text-sm text-[#1E1E1E] mb-2 block">
+        Filter by location
+      </label>
+      <select
+        value={selectedArea || ""}
+        onChange={(e) => onChange(e.target.value || null)}
+        disabled={loading}
+        className="w-full sm:w-64 p-3 border border-[#B3BBC3] rounded-lg text-black"
+      >
+        <option value="">{loading ? "Loading locations..." : "All locations"}</option>
+        {locations.map((loc) => (
+          <option key={loc.value} value={loc.value}>
+            {loc.label} ({loc.count})
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+};
 
 const CategoryCard = ({
   title,
@@ -38,6 +80,7 @@ const CategoryCard = ({
 
 export default function Categories() {
   const [selectedCategory, setSelectedCategory] = useState(null);
+  const [selectedArea, setSelectedArea] = useState(null);
 
   const handleCategoryClick = (category) => {
     setSelectedCategory(selectedCategory === category ? null : category);
@@ -126,10 +169,12 @@ export default function Categories() {
           </button>
         </div>
       )}
+      <LocationFilter selectedArea={selectedArea} onChange={setSelectedArea} />
+
       <div className="flex flex-col py-4 sm:py-6 gap-y-2 sm:gap-y-1">
         <p className="text-black font-extrabold text-2xl sm:text-3xl lg:text-[36px]">Feature Events</p>
         <div>
-          <EventsContainer />
+          <EventsContainer area={selectedArea} />
         </div>
       </div>
     </div>
