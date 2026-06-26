@@ -17,7 +17,7 @@ interface Event {
   time_from: string;
   time_to: string;
   location: string;
-  ticket_price: number;
+  ticket_price: number | string;
   event_image_url?: string;
   is_active: boolean;
 }
