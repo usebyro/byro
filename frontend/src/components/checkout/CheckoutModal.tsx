@@ -400,10 +400,12 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                           </span>
                           <button
                             onClick={() =>
-                              setQuantities((p) => ({
-                                ...p,
-                                [String(tier.id)]: (p[String(tier.id)] || 0) + 1,
-                              }))
+                              setQuantities((p) => {
+                                // Reset all other tiers to 0 — only one tier can be selected at a time
+                                const reset: Record<string, number> = {};
+                                tiers.forEach((t) => { reset[String(t.id)] = 0; });
+                                return { ...reset, [String(tier.id)]: (p[String(tier.id)] || 0) + 1 };
+                              })
                             }
                             disabled={tier.remaining === 0}
                             className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white hover:bg-blue-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
