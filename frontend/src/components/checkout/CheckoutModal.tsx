@@ -143,7 +143,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
       ? 0
       : subtotal > 2500
       ? Math.round(subtotal * 0.08) + 100
-      : Math.round(subtotal * 0.015);
+      : Math.round(subtotal * 0.08);
   const discount = promoApplied ? promoDiscount : 0;
   const total = subtotal + serviceFee - discount;
   const totalQty = Object.values(quantities).reduce((a: number, b: number) => a + b, 0);

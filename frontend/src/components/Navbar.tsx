@@ -266,12 +266,44 @@ const Navbar = () => {
                 >
                   + Create
                 </Link>
-                <button
-                  onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
-                  className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-medium"
-                >
-                  {user?.display_name?.charAt(0)?.toUpperCase() || "U"}
-                </button>
+                <div className="relative" ref={profileDropdownRef}>
+                  <button
+                    onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
+                    className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-medium"
+                  >
+                    {user?.display_name?.charAt(0)?.toUpperCase() || user?.email?.charAt(0)?.toUpperCase() || "U"}
+                  </button>
+                  {isProfileDropdownOpen && (
+                    <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-100 rounded-xl shadow-lg z-50 overflow-hidden">
+                      <div className="p-3 border-b border-gray-100">
+                        <p className="font-semibold text-gray-900 text-sm">{user?.display_name || "User"}</p>
+                        <p className="text-xs text-gray-500 truncate">{user?.email || ""}</p>
+                      </div>
+                      <div className="p-2">
+                        <Link
+                          href="/profile"
+                          className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg"
+                          onClick={() => setIsProfileDropdownOpen(false)}
+                        >
+                          Profile
+                        </Link>
+                        <Link
+                          href="/events"
+                          className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg"
+                          onClick={() => setIsProfileDropdownOpen(false)}
+                        >
+                          My Events
+                        </Link>
+                        <button
+                          onClick={handleLogout}
+                          className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg"
+                        >
+                          Log Out
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </>
             ) : (
               <>
