@@ -4,7 +4,6 @@ import axiosInstance from "../utils/axios";
 const handleApiError = (error) => {
   if (error.response) {
     const data = error.response.data;
-    console.error("API Error Response:", { status: error.response.status, data });
 
     // DRF returns errors as { detail: "..." } or { field: ["msg", ...] }
     const message =
@@ -19,10 +18,8 @@ const handleApiError = (error) => {
 
     throw new Error(message);
   } else if (error.request) {
-    console.error("API No Response:", error.request);
     throw new Error("No response from server. Please check your connection.");
   } else {
-    console.error("API Request Error:", error.message);
     throw new Error("Error setting up request: " + error.message);
   }
 };
@@ -44,20 +41,11 @@ const setAuthToken = (token) => {
   if (t) {
     localStorage.setItem("authToken", t);
     axiosInstance.defaults.headers.common["Authorization"] = `Bearer ${t}`;
-    console.log("[API] setAuthToken -> Bearer", t.slice(0, 8) + "..."); // safe logging
   } else {
     localStorage.removeItem("authToken");
     delete axiosInstance.defaults.headers.common["Authorization"];
-    console.log("[API] cleared auth token");
   }
 };
-
-// request interceptor: ensure header and log it
-axiosInstance.interceptors.request.use((config) => {
-  const hdr = config.headers?.Authorization || axiosInstance.defaults.headers.common["Authorization"];
-  console.log("[API] Request Authorization header:", hdr);
-  return config;
-});
 
 const API = {
   // Set auth token
@@ -66,54 +54,27 @@ const API = {
   // ===== EVENTS =====
   createEvent: async (formData) => {
     try {
-      console.log("Sending form data to API:", formData);
-
       // Ensure we're always using FormData for file uploads
       let body;
       if (formData instanceof FormData) {
-        // Already FormData, use it directly
         body = formData;
-        console.log("Using provided FormData");
       } else {
-        // Convert object to FormData
         body = new FormData();
         Object.keys(formData || {}).forEach((key) => {
           const val = formData[key];
           if (val !== undefined && val !== null) {
             if (Array.isArray(val)) {
               val.forEach(v => body.append(key, v));
-            } else if (val instanceof File || val instanceof Blob) {
-              // Handle File/Blob objects
-              body.append(key, val);
             } else {
               body.append(key, val);
             }
           }
         });
-        console.log("Converted object to FormData");
       }
 
-      // Log FormData entries for debugging (note: FormData.entries() is not enumerable)
-      if (body instanceof FormData) {
-        console.log("FormData prepared for upload");
-        // Check if file is present
-        if (body.has('event_image')) {
-          console.log("event_image field found in FormData");
-        }
-      }
-
-      // Send with FormData - axios will automatically set Content-Type with boundary
-      const response = await axiosInstance.post("events/", body, {
-        headers: {
-          // Don't set Content-Type - axios will set it automatically as:
-          // Content-Type: multipart/form-data; boundary=----WebKitFormBoundary...
-        },
-      });
-
-      console.log("API Response:", response.data);
+      const response = await axiosInstance.post("events/", body);
       return response.data;
     } catch (error) {
-      console.error("API Error:", error.response?.data || error);
       throw handleApiError(error);
     }
   },
@@ -123,6 +84,11 @@ const API = {
       const response = await axiosInstance.get(`events/${slug}/`);
       return response.data;
     } catch (error) {
+      if (error.response?.status === 404) {
+        const err = new Error("Event not found");
+        err.status = 404;
+        throw err;
+      }
       throw handleApiError(error);
     }
   },
@@ -154,7 +120,6 @@ const API = {
       const response = await axiosInstance.get(`events/${slug}/`);
       return response.data;
     } catch (error) {
-      console.error('Error fetching event by slug:', error);
       throw error;
     }
   },
@@ -168,9 +133,27 @@ const API = {
     }
   },
 
-  getEventLocations: async () => {
+  getEventTiers: async (slug) => {
     try {
-      const response = await axiosInstance.get("events/locations/");
+      const response = await axiosInstance.get(`events/${slug}/tiers/`);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  createTier: async (slug, tierData) => {
+    try {
+      const response = await axiosInstance.post(`events/${slug}/tiers/`, tierData);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  getCategories: async () => {
+    try {
+      const response = await axiosInstance.get("events/categories/");
       return response.data;
     } catch (error) {
       throw handleApiError(error);
@@ -189,11 +172,6 @@ const API = {
   // Register for an event
   registerEvent: async (eventSlug, userData) => {
     try {
-      console.log("Registration request details:", {
-        url: `events/${eventSlug}/register/`,
-        userData
-      });
-      
       const response = await axiosInstance.post(
         `events/${eventSlug}/register/`,
         {
@@ -201,29 +179,25 @@ const API = {
           email: userData.email
         }
       );
-      console.log("Registration response:", response.data);
       return response.data;
     } catch (error) {
-      console.error("Registration error details:", {
-        status: error.response?.status,
-        data: error.response?.data,
-        message: error.message,
-        requestData: {
-          url: `events/${eventSlug}/register/`,
-          userData
-        }
-      });
-      
       if (error.response?.status === 404) {
         throw new Error('Event not found');
       } else if (error.response?.status === 400) {
         throw new Error(error.response.data?.message || 'Invalid registration data');
       }
-      
       throw handleApiError(error);
     }
   },
 
+  deleteEvent: async (slug) => {
+    try {
+      const response = await axiosInstance.delete(`events/${slug}/`);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
 
   // Update an event (PATCH = partial update, no need to send all fields)
   updateEvent: async (slug, formData) => {
@@ -298,6 +272,14 @@ const API = {
     }
   },
 
+  getMyTickets: async () => {
+    try {
+      const response = await axiosInstance.get("tickets/");
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
 
   // Privy Authentication
   /**
@@ -307,18 +289,17 @@ const API = {
    * @param {string} email - Optional email to avoid Privy API call
    * @returns {Promise} Backend JWT tokens and user data
    */
-  authenticateWithPrivy: async (privyAccessToken, email = null) => { 
+  authenticateWithPrivy: async (privyAccessToken, email = null) => {
     try {
-      const payload = { 
+      const payload = {
         privy_access_token: privyAccessToken,
         token: privyAccessToken, // Fallback field name
       };
-      
-      // Include email if provided
+
       if (email) {
         payload.email = email;
       }
-      
+
       const response = await axiosInstance.post("auth/privy/", payload, {
         headers: {
           'Content-Type': 'application/json',
@@ -337,14 +318,11 @@ const API = {
   },
 
   // ===== PAYMENTS =====
-  initializePayment: async ({ event_slug, customer_email, customer_name, quantity = 1 }) => {
+  initializePayment: async ({ event_slug, customer_email, customer_name, quantity = 1, tier_id }) => {
     try {
-      const response = await axiosInstance.post("payments/initialize/", {
-        event_slug,
-        customer_email,
-        customer_name,
-        quantity,
-      });
+      const body = { event_slug, customer_email, customer_name, quantity };
+      if (tier_id !== undefined && tier_id !== null) body.tier_id = tier_id;
+      const response = await axiosInstance.post("payments/initialize/", body);
       return response.data;
     } catch (error) {
       throw handleApiError(error);

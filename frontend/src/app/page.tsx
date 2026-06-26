@@ -1,16 +1,18 @@
-import React from "react";
-import HeroPage from "@/components/HeroPage";
-import { ImageCollage} from "@/components/ImageCollage";
-import RegisterSteps from "@/components/RegisterSteps"
-// import App from "next/app";
-import AppLayout from "@/layout/app";
+import Navbar from "@/components/Navbar";
+import Footer from "@/components/Footer";
+import { Hero, BrowseByCategory, TrendingEvents, AppBanner } from "@/components/landing";
 
 export default function Home() {
   return (
-    <AppLayout>
-      <HeroPage />
-      <ImageCollage />
-      <RegisterSteps />
-    </AppLayout>
+    <>
+      <Navbar />
+      <main>
+        <Hero />
+        {/* <BrowseByCategory /> */}
+        <TrendingEvents />
+        <AppBanner />
+      </main>
+      <Footer />
+    </>
   );
 }

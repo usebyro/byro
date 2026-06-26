@@ -1,6 +1,7 @@
 import "./globals.css";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import Script from "next/script";
 import { Providers } from "@/redux/Providers";
 import Provider from "./web3auth/provider"
 import { headers } from "next/headers";
@@ -115,6 +116,16 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const web3authInitialState = cookieToWeb3AuthState(headersList.get('cookie'));
   return (
     <html lang="en">
+      <Script
+        src="https://www.googletagmanager.com/gtag/js?id=G-PKLCDNL7QC"
+        strategy="afterInteractive"
+      />
+      <Script id="gtag-init" strategy="afterInteractive">{`
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', 'G-PKLCDNL7QC');
+      `}</Script>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
@@ -132,6 +143,17 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             </div>
           </Providers>
        </Provider>
+        <Script id="tawk-to" strategy="afterInteractive">{`
+          var Tawk_API=Tawk_API||{}, Tawk_LoadStart=new Date();
+          (function(){
+            var s1=document.createElement("script"),s0=document.getElementsByTagName("script")[0];
+            s1.async=true;
+            s1.src='https://embed.tawk.to/6a36e24716fcef1d436fc177/1jrj67qeb';
+            s1.charset='UTF-8';
+            s1.setAttribute('crossorigin','*');
+            s0.parentNode.insertBefore(s1,s0);
+          })();
+        `}</Script>
       </body>
     </html>
   );

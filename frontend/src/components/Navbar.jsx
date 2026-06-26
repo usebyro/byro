@@ -376,9 +376,9 @@ const Navbar = () => {
 
                     <div className="flex items-center space-x-2 cursor-pointer rounded-full py-2 px-4 hover:text-gray-600 transition-colors">
                       <Link
-                        href="/events/browse"
+                        href="/discover"
                         className={`${
-                          isActive("/events/browse")
+                          isActive("/discover")
                             ? "text-blue-600"
                             : "text-gray-400 hover:text-gray-600"
                         }`}

@@ -121,7 +121,7 @@ axiosInstance.interceptors.response.use(
         });
         // Only redirect if this was not already a login/auth request
         const url = error.config?.url || "";
-        if (!url.includes("auth/") && !url.includes("token/")) {
+        if (!url.includes("auth/") && !url.includes("token/") && !url.includes("my_ticket")) {
           window.location.href = "/";
         }
       }
