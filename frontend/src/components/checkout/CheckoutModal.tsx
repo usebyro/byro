@@ -138,7 +138,12 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
     (s, t) => s + parseFloat(String(t.price)) * (quantities[String(t.id)] || 0),
     0
   );
-  const serviceFee = Math.round(subtotal * 0.05);
+  const serviceFee =
+    subtotal === 0
+      ? 0
+      : subtotal > 2500
+      ? Math.round(subtotal * 0.08) + 100
+      : Math.round(subtotal * 0.015);
   const discount = promoApplied ? promoDiscount : 0;
   const total = subtotal + serviceFee - discount;
   const totalQty = Object.values(quantities).reduce((a: number, b: number) => a + b, 0);
@@ -914,7 +919,28 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                         );
                       })}
                       <div className="flex justify-between text-sm">
-                        <span className="text-gray-500">Service fee</span>
+                        <span className="flex items-center gap-1 text-gray-500">
+                          Service fee
+                          <span className="relative group cursor-default">
+                            <svg
+                              width="12"
+                              height="12"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              className="text-gray-400"
+                            >
+                              <circle cx="12" cy="12" r="10" />
+                              <line x1="12" y1="16" x2="12" y2="12" />
+                              <line x1="12" y1="8" x2="12.01" y2="8" />
+                            </svg>
+                            <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block whitespace-nowrap bg-gray-800 text-white text-[10px] leading-tight px-2.5 py-1.5 rounded-lg pointer-events-none shadow-lg z-10">
+                              To serve you better
+                              <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
+                            </span>
+                          </span>
+                        </span>
                         <span className="text-gray-700">{fmt(serviceFee)}</span>
                       </div>
                       {promoApplied && (
@@ -953,13 +979,13 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                         toast.error("Please fill in your name and email before proceeding.");
                         return;
                       }
-                      if (step === 3) {
+                      if (step === 3 || (step === 2 && total === 0)) {
                         handlePayment();
                       } else {
                         setStep((s) => Math.min(s + 1, 4));
                       }
                     }}
-                    disabled={(step === 1 && totalQty === 0) || isProcessing}
+                    disabled={(step === 1 && totalQty === 0) || (step === 2 && isProcessing) || (step === 3 && isProcessing)}
                     className="mt-4 w-full bg-blue-600 text-white font-semibold py-3 rounded-full hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed text-sm"
                   >
                     {step === 1 && (
@@ -979,17 +1005,60 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                     )}
                     {step === 2 && (
                       <>
-                        Continue to payment
-                        <svg
-                          width="15"
-                          height="15"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                        >
-                          <path d="M5 12h14M12 5l7 7-7 7" />
-                        </svg>
+                        {isProcessing ? (
+                          <>
+                            <svg
+                              className="animate-spin"
+                              width="13"
+                              height="13"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                            >
+                              <circle
+                                cx="12"
+                                cy="12"
+                                r="10"
+                                stroke="currentColor"
+                                strokeWidth="4"
+                                className="opacity-25"
+                              />
+                              <path
+                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                                fill="currentColor"
+                                className="opacity-75"
+                              />
+                            </svg>
+                            Processing...
+                          </>
+                        ) : total === 0 ? (
+                          <>
+                            Get tickets
+                            <svg
+                              width="15"
+                              height="15"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                            >
+                              <polyline points="20 6 9 17 4 12" />
+                            </svg>
+                          </>
+                        ) : (
+                          <>
+                            Continue to payment
+                            <svg
+                              width="15"
+                              height="15"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                            >
+                              <path d="M5 12h14M12 5l7 7-7 7" />
+                            </svg>
+                          </>
+                        )}
                       </>
                     )}
                     {step === 3 && (
