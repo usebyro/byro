@@ -21,9 +21,9 @@ def _email_wrapper(content):
     </tr>
     <tr>
       <td style="text-align:center;padding:24px 16px;">
-        <p style="color:#666666;font-size:12px;margin:0;">&copy; 2026 Byro. All rights reserved.</p>
-        <p style="color:#666666;font-size:12px;margin:4px 0 0;">
-          Need help? <a href="mailto:support@usebyro.com" style="color:#007AFF;text-decoration:none;">support@usebyro.com</a>
+        <p style="color:#999999;font-size:12px;margin:0;">
+          You're getting this because you signed up for an event on Byro.
+          <a href="mailto:support@usebyro.com?subject=Unsubscribe" style="color:#999999;text-decoration:underline;">Unsubscribe</a>
         </p>
       </td>
     </tr>
@@ -32,9 +32,9 @@ def _email_wrapper(content):
 """
 
 
-def ticket_confirmation_email(name, event_name, date, time, location, ticket_id):
+def ticket_confirmation_email(name, event_name, date, time, location, ticket_id, form_answers=None):
     """
-    Ticket purchase confirmation email.
+    Ticket confirmation email — sent for both free and paid tickets.
 
     Args:
         name (str): Customer's name.
@@ -43,6 +43,7 @@ def ticket_confirmation_email(name, event_name, date, time, location, ticket_id)
         time (str): Formatted start time e.g. "6:00 PM".
         location (str): Event location.
         ticket_id (str): UUID of the ticket.
+        form_answers (list[dict], optional): List of {"question": str, "answer": str}.
     """
     ticket_row = ""
     if ticket_id:
@@ -76,6 +77,35 @@ def ticket_confirmation_email(name, event_name, date, time, location, ticket_id)
         </td>
       </tr>"""
 
+    # Registration details from form answers
+    form_rows_html = ""
+    form_rows_text = ""
+    if form_answers:
+        rows = ""
+        first = True
+        for entry in form_answers:
+            q = entry.get("question", "")
+            a = entry.get("answer", "")
+            if not q or not a:
+                continue
+            border = "" if first else "border-top:1px solid #e5e7eb;"
+            rows += f"""
+      <tr>
+        <td style="padding:8px 0;{border}">
+          <p style="color:#666666;font-size:12px;margin:0;">{q}</p>
+          <p style="color:#171717;font-size:14px;margin:2px 0 0;">{a}</p>
+        </td>
+      </tr>"""
+            form_rows_text += f"{q}: {a}\n"
+            first = False
+
+        if rows:
+            form_rows_html = f"""
+    <p style="color:#171717;font-size:13px;font-weight:600;margin:0 0 12px;">Registration details</p>
+    <table cellpadding="0" cellspacing="0" style="width:100%;background:#F5F7FA;border-radius:8px;padding:16px;margin-bottom:20px;">
+      {rows}
+    </table>"""
+
     content = f"""
     <div style="text-align:center;margin-bottom:24px;">
       <div style="width:56px;height:56px;background:#E8F8F2;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;margin-bottom:16px;">
@@ -106,9 +136,11 @@ def ticket_confirmation_email(name, event_name, date, time, location, ticket_id)
       {location_row}
     </table>
 
+    {form_rows_html}
+
     <p style="color:#171717;font-size:14px;line-height:1.6;margin:0 0 16px;">Hi {name},</p>
     <p style="color:#666666;font-size:14px;line-height:1.6;margin:0 0 16px;">
-      Thank you for your purchase! Your ticket for <strong>{event_name}</strong> has been confirmed.
+      Your ticket for <strong>{event_name}</strong> has been confirmed.
       Present this email or your ticket ID at the event for entry.
     </p>
     <p style="color:#666666;font-size:14px;line-height:1.6;margin:0 0 16px;">
@@ -124,9 +156,14 @@ def ticket_confirmation_email(name, event_name, date, time, location, ticket_id)
         f"Date: {date}\n"
         f"Time: {time}\n"
         f"Location: {location}\n"
-        f"Ticket ID: {ticket_id}\n\n"
-        f"Present this email or your ticket ID at the event for entry.\n\n"
-        f"Best regards,\nByro Team\nsupport@usebyro.com"
+        f"Ticket ID: {ticket_id}\n"
+    )
+    if form_rows_text:
+        plain_text += f"\nRegistration details:\n{form_rows_text}"
+    plain_text += (
+        f"\nPresent this email or your ticket ID at the event for entry.\n\n"
+        f"Best regards,\nByro Team\nsupport@usebyro.com\n\n"
+        f"You're getting this because you signed up for an event on Byro."
     )
 
     return {

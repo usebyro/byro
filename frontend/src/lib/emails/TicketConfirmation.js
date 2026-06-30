@@ -21,11 +21,9 @@ const emailWrapper = (content) => `
       </tr>
       <tr>
         <td style="text-align: center; padding: 24px 16px;">
-          <p style="color: ${brandGray}; font-size: 12px; margin: 0;">
-            &copy; 2026 Byro Africa. All rights reserved.
-          </p>
-          <p style="color: ${brandGray}; font-size: 12px; margin: 4px 0 0;">
-            Need help? <a href="mailto:hello@byro.africa" style="color: ${brandPrimary}; text-decoration: none;">hello@byro.africa</a>
+          <p style="color: #999999; font-size: 12px; margin: 0;">
+            You're getting this because you signed up for an event on Byro.
+            <a href="mailto:support@usebyro.com?subject=Unsubscribe" style="color: #999999; text-decoration: underline;">Unsubscribe</a>
           </p>
         </td>
       </tr>

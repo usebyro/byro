@@ -19,55 +19,26 @@ function PaymentCallbackContent() {
     }
 
     API.verifyPayment(reference)
-      .then(async (data) => {
+      .then((data) => {
         if (data.status === "success") {
           const ticket = data.tickets?.[0];
           const payment = data.payment;
           const event = payment?.event || {};
-          const eventDate = event?.day || ticket?.event_date || "";
-          const eventTime = event?.time_from || ticket?.event_time || "";
-          const eventLocation = event?.location || ticket?.event_location || "";
-          const eventName = event?.name || ticket?.event_name || "";
-          const attendeeEmail = payment?.customer_email || ticket?.current_owner_email || "";
 
           const ticketData = {
             attendeeName: payment?.customer_name || "",
-            attendeeEmail,
-            eventName,
-            eventDate,
-            timeFrom: eventTime,
-            eventLocation,
+            attendeeEmail: payment?.customer_email || ticket?.current_owner_email || "",
+            eventName: event?.name || ticket?.event_name || "",
+            eventDate: event?.day || ticket?.event_date || "",
+            timeFrom: event?.time_from || ticket?.event_time || "",
+            eventLocation: event?.location || ticket?.event_location || "",
             ticketId: ticket?.ticket_id || ticket?.id,
           };
 
           localStorage.setItem("ticketData", JSON.stringify(ticketData));
 
-          if (attendeeEmail) {
-            try {
-              await fetch("/api/send-email", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  emails: [
-                    {
-                      type: "ticket",
-                      to: attendeeEmail,
-                      data: {
-                        name: ticketData.attendeeName,
-                        eventName,
-                        date: eventDate,
-                        time: eventTime,
-                        location: eventLocation,
-                        ticketId: ticketData.ticketId,
-                      },
-                    },
-                  ],
-                }),
-              });
-            } catch (e) {
-              console.error("Failed to send ticket email:", e);
-            }
-          }
+          // Confirmation email is sent by the backend (Django verify_payment).
+          // Do not send it here to avoid duplicates.
 
           setStatus("success");
           setTimeout(() => router.push("/ticket-confirmation"), 1500);

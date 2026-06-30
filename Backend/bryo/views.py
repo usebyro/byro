@@ -179,6 +179,35 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                     )
                     tickets.append(ticket)
 
+            # Send confirmation email for free tickets
+            try:
+                from .mailer import send_email
+                from .emails import ticket_confirmation_email
+                from .models import EventFormAnswer
+                form_answers = [
+                    {"question": a.question.question, "answer": str(a.answer)}
+                    for a in EventFormAnswer.objects.filter(
+                        ticket=tickets[0]
+                    ).select_related('question')
+                ] if tickets else []
+                email_data = ticket_confirmation_email(
+                    name=customer_name,
+                    event_name=event.name,
+                    date=event.day.strftime('%A, %B %d, %Y') if event.day else '',
+                    time=event.time_from.strftime('%I:%M %p') if event.time_from else '',
+                    location=event.location or '',
+                    ticket_id=str(tickets[0].ticket_id) if tickets else '',
+                    form_answers=form_answers,
+                )
+                send_email(
+                    to=customer_email,
+                    subject=email_data['subject'],
+                    html=email_data['html'],
+                    text=email_data['text'],
+                )
+            except Exception as email_err:
+                logger.error(f"Failed to send free ticket email: {email_err}")
+
             return Response({
                 'status': 'success',
                 'message': 'Free ticket(s) created successfully',
@@ -358,7 +387,14 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                     try:
                         from .mailer import send_email
                         from .emails import ticket_confirmation_email
+                        from .models import EventFormAnswer
                         event = payment.event
+                        form_answers = [
+                            {"question": a.question.question, "answer": str(a.answer)}
+                            for a in EventFormAnswer.objects.filter(
+                                ticket=tickets[0]
+                            ).select_related('question')
+                        ] if tickets else []
                         email_data = ticket_confirmation_email(
                             name=payment.customer_name,
                             event_name=event.name,
@@ -366,6 +402,7 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                             time=event.time_from.strftime('%I:%M %p') if event.time_from else '',
                             location=event.location or '',
                             ticket_id=str(tickets[0].ticket_id) if tickets else '',
+                            form_answers=form_answers,
                         )
                         send_email(
                             to=payment.customer_email,
@@ -473,7 +510,14 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                     try:
                         from .mailer import send_email
                         from .emails import ticket_confirmation_email
+                        from .models import EventFormAnswer
                         event = payment.event
+                        form_answers = [
+                            {"question": a.question.question, "answer": str(a.answer)}
+                            for a in EventFormAnswer.objects.filter(
+                                ticket=all_tickets[0]
+                            ).select_related('question')
+                        ] if all_tickets else []
                         email_data = ticket_confirmation_email(
                             name=payment.customer_name,
                             event_name=event.name,
@@ -481,6 +525,7 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                             time=event.time_from.strftime('%I:%M %p') if event.time_from else '',
                             location=event.location or '',
                             ticket_id=str(all_tickets[0].ticket_id) if all_tickets else '',
+                            form_answers=form_answers,
                         )
                         send_email(
                             to=payment.customer_email,
