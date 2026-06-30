@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import axiosInstance from "@/utils/axios";
 import EventCard from "./EventCard";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { FireIcon } from "@hugeicons/core-free-icons";
 
 interface Event {
   id: number;
@@ -78,7 +80,7 @@ const TrendingEvents = () => {
         <div className="flex items-end justify-between mb-8">
           <div>
             <p className="text-orange-500 text-sm font-semibold uppercase tracking-wide mb-2 flex items-center gap-1.5">
-              <span>🔥</span> Trending this week
+              <HugeiconsIcon icon={FireIcon} size={16} color="currentColor" /> Trending this week
             </p>
             <h2 className="text-3xl font-bold text-gray-900">Selling fast</h2>
           </div>

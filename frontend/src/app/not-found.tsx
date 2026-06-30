@@ -1,7 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Home01Icon, Search01Icon, Calendar01Icon, Location01Icon } from "@hugeicons/core-free-icons";
+import { Home01Icon, Search01Icon, Calendar01Icon, Location01Icon, MusicNote01Icon } from "@hugeicons/core-free-icons";
 
 export default function NotFound() {
   return (
@@ -30,7 +30,8 @@ export default function NotFound() {
               {/* Category badge */}
               <div className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 mb-8"
                 style={{ background: "rgba(0,0,0,0.35)" }}>
-                <span className="text-white text-[10px] font-bold tracking-widest">🎵 CONCERTS &amp; MUSIC</span>
+                <HugeiconsIcon icon={MusicNote01Icon} size={10} color="white" />
+                <span className="text-white text-[10px] font-bold tracking-widest">CONCERTS &amp; MUSIC</span>
               </div>
 
               {/* "Event name" = 404 */}

@@ -12,16 +12,22 @@ import {
   Logout01Icon,
   Camera01Icon,
   Location01Icon,
+  MusicNote01Icon,
+  Moon02Icon,
+  FootballIcon,
+  Mic01Icon,
+  HappyIcon,
+  FireworksIcon,
 } from "@hugeicons/core-free-icons";
 import AppLayout from "@/layout/app";
 
 const PREFERENCES = [
-  { id: "entertainment", label: "Concerts", emoji: "🎵" },
-  { id: "art_culture", label: "Nightlife", emoji: "🌙" },
-  { id: "fitness", label: "Sports", emoji: "⚽" },
-  { id: "conference", label: "Conferences", emoji: "🎤" },
-  { id: "comedy", label: "Comedy", emoji: "😂" },
-  { id: "festivals", label: "Festivals", emoji: "🎪" },
+  { id: "entertainment", label: "Concerts", icon: MusicNote01Icon },
+  { id: "art_culture", label: "Nightlife", icon: Moon02Icon },
+  { id: "fitness", label: "Sports", icon: FootballIcon },
+  { id: "conference", label: "Conferences", icon: Mic01Icon },
+  { id: "comedy", label: "Comedy", icon: HappyIcon },
+  { id: "festivals", label: "Festivals", icon: FireworksIcon },
 ];
 
 const NAV = [
@@ -256,7 +262,7 @@ export default function ProfilePage() {
                           : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                       }`}
                     >
-                      <span>{cat.emoji}</span>
+                      <HugeiconsIcon icon={cat.icon} size={14} color="currentColor" />
                       {cat.label}
                     </button>
                   ))}

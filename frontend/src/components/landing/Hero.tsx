@@ -2,13 +2,15 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { MusicNote01Icon, FootballIcon, Moon02Icon, Mic01Icon, Calendar03Icon } from "@hugeicons/core-free-icons";
 
 const categories = [
-  { label: "Concerts", icon: "🎵", value: "entertainment" },
-  { label: "Sports", icon: "⚽", value: "fitness" },
-  { label: "Nightlife", icon: "🌙", value: "art_culture" },
-  { label: "Conferences", icon: "🎤", value: "conference" },
-  { label: "This weekend", icon: "📅", value: "weekend" },
+  { label: "Concerts", icon: MusicNote01Icon, value: "entertainment" },
+  { label: "Sports", icon: FootballIcon, value: "fitness" },
+  { label: "Nightlife", icon: Moon02Icon, value: "art_culture" },
+  { label: "Conferences", icon: Mic01Icon, value: "conference" },
+  { label: "This weekend", icon: Calendar03Icon, value: "weekend" },
 ];
 
 const Hero = () => {
@@ -150,7 +152,7 @@ const Hero = () => {
                   : "bg-white border border-gray-200 text-gray-600 hover:border-blue-300 hover:text-blue-600 shadow-sm"
               }`}
             >
-              <span>{cat.icon}</span>
+              <HugeiconsIcon icon={cat.icon} size={15} color="currentColor" />
               <span>{cat.label}</span>
             </button>
           ))}
