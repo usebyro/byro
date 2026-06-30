@@ -175,6 +175,7 @@ referencing==0.36.2
 regex==2024.11.6
 requests==2.32.3
 requests-toolbelt==1.0.0
+resend>=2.0.0
 rlp==4.1.0
 rpds-py==0.24.0
 rsa==4.9.1

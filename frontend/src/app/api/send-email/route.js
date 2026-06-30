@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { transporter, mailOptions } from "@/lib/mailer";
+import { sendEmail } from "@/lib/mailer";
 import { TicketConfirmation } from "@/lib/emails/TicketConfirmation";
 import { PayoutRequest } from "@/lib/emails/PayoutRequest";
 import { EventReminder } from "@/lib/emails/EventReminder";
@@ -28,25 +28,24 @@ export async function POST(request) {
       }
 
       let template;
-      if (type === 'ticket') {
+      if (type === "ticket") {
         template = emailTemplates[type](data.name, data.eventName, data.date, data.time, data.location, data.ticketId);
-      } else if (type === 'payout') {
+      } else if (type === "payout") {
         template = emailTemplates[type](data.name, data.amount, data.eventName);
-      } else if (type === 'reminder') {
+      } else if (type === "reminder") {
         template = emailTemplates[type](data.name, data.subject, data.message, data.eventName);
-      } else if (type === 'event_created') {
+      } else if (type === "event_created") {
         template = emailTemplates[type](data.name, data.eventName, data.eventDate, data.eventTime, data.eventLocation, data.eventLink);
       }
 
       try {
-        await transporter.sendMail({
-          ...mailOptions,
+        const result = await sendEmail({
           to,
           subject: template.subject,
           text: template.text,
-          html: template.html
+          html: template.html,
         });
-        results.push({ to, success: true });
+        results.push({ to, success: true, provider: result.provider });
       } catch (error) {
         results.push({ to, success: false, error: error.message });
       }

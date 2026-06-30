@@ -41,12 +41,15 @@ from django.utils import timezone
 import requests
 import hmac
 import hashlib
+import logging
 from decimal import Decimal
 from datetime import timedelta
 import os
 import jwt
 import uuid
 import requests
+
+logger = logging.getLogger(__name__)
 import json
 import logging
 
@@ -351,6 +354,28 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                         )
                         tickets.append(ticket)
 
+                    # Send ticket confirmation email
+                    try:
+                        from .mailer import send_email
+                        from .emails import ticket_confirmation_email
+                        event = payment.event
+                        email_data = ticket_confirmation_email(
+                            name=payment.customer_name,
+                            event_name=event.name,
+                            date=event.day.strftime('%A, %B %d, %Y') if event.day else '',
+                            time=event.time_from.strftime('%I:%M %p') if event.time_from else '',
+                            location=event.location or '',
+                            ticket_id=str(tickets[0].ticket_id) if tickets else '',
+                        )
+                        send_email(
+                            to=payment.customer_email,
+                            subject=email_data['subject'],
+                            html=email_data['html'],
+                            text=email_data['text'],
+                        )
+                    except Exception as email_err:
+                        logger.error(f"Failed to send ticket confirmation email: {email_err}")
+
                     return Response({
                         'status': 'success',
                         'message': 'Payment verified successfully',
@@ -429,8 +454,9 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                         User = get_user_model()
                         webhook_user = User.objects.filter(pk=stored_uid).first()
 
+                    new_tickets = []
                     for _ in range(quantity - existing_count):
-                        Ticket.objects.create(
+                        new_tickets.append(Ticket.objects.create(
                             event=payment.event,
                             tier=payment.tier,
                             payment=payment,
@@ -440,9 +466,30 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                             current_owner_name=payment.customer_name,
                             current_owner_email=payment.customer_email,
                             payment_status='paid',
-                        )
+                        ))
 
-                    # TODO: Send ticket email to customer
+                    # Send ticket confirmation email
+                    all_tickets = list(payment.tickets_purchased.all())
+                    try:
+                        from .mailer import send_email
+                        from .emails import ticket_confirmation_email
+                        event = payment.event
+                        email_data = ticket_confirmation_email(
+                            name=payment.customer_name,
+                            event_name=event.name,
+                            date=event.day.strftime('%A, %B %d, %Y') if event.day else '',
+                            time=event.time_from.strftime('%I:%M %p') if event.time_from else '',
+                            location=event.location or '',
+                            ticket_id=str(all_tickets[0].ticket_id) if all_tickets else '',
+                        )
+                        send_email(
+                            to=payment.customer_email,
+                            subject=email_data['subject'],
+                            html=email_data['html'],
+                            text=email_data['text'],
+                        )
+                    except Exception as email_err:
+                        logger.error(f"Failed to send webhook ticket email: {email_err}")
                     
             except Payment.DoesNotExist:
                 pass  # Ignore if payment doesn't exist

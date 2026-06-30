@@ -46,6 +46,10 @@ PAYSTACK_PUBLIC_KEY = config('PAYSTACK_PUBLIC_KEY', default='')
 PAYSTACK_CALLBACK_URL = config('PAYSTACK_CALLBACK_URL', default='http://localhost:3000/payment/callback')
 PAYSTACK_CALLBACK_URL = config('PAYSTACK_CALLBACK_URL', default='https://usebyro.com/payment/callback')
 
+# Email
+RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')
+BREVO_SMTP_KEY = os.environ.get('BREVO_SMTP_KEY', '')
+
 
 # Web3Auth Settings
 # WEB3AUTH_CLIENT_ID: Your Web3Auth project's Client ID from the Web3Auth dashboard.
