@@ -1,13 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  Calendar03Icon,
-  Logout03Icon,
-  DashboardSquare01Icon,
-} from "@hugeicons/core-free-icons";
+import { Calendar03Icon } from "@hugeicons/core-free-icons";
 
 const navItems = [
   { label: "Events", href: "/admin/events", icon: Calendar03Icon },
@@ -15,12 +11,6 @@ const navItems = [
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const router = useRouter();
-
-  const handleLogout = async () => {
-    await fetch("/api/admin-auth", { method: "DELETE" });
-    router.replace("/admin/login");
-  };
 
   return (
     <div className="min-h-screen bg-[#0f1117] flex">
@@ -54,17 +44,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             );
           })}
         </nav>
-
-        {/* Logout */}
-        <div className="px-3 py-4 border-t border-white/10">
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-3 px-3 py-2 w-full rounded-lg text-sm text-gray-400 hover:text-white hover:bg-white/5 transition-colors"
-          >
-            <HugeiconsIcon icon={Logout03Icon} size={16} color="currentColor" />
-            Sign out
-          </button>
-        </div>
       </aside>
 
       {/* Main content */}
