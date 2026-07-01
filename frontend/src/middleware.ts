@@ -9,12 +9,18 @@ export function middleware(request: NextRequest) {
 
   if (!isAdminSubdomain) return NextResponse.next();
 
-  // Skip rewrites for Next.js internals
+  // Skip Next.js internals and API routes (API routes map to /api directly)
   if (
     pathname.startsWith("/_next") ||
     pathname.startsWith("/favicon") ||
-    pathname.startsWith("/assets")
+    pathname.startsWith("/assets") ||
+    pathname.startsWith("/api/")
   ) {
+    return NextResponse.next();
+  }
+
+  // Already rewritten internally — don't double-prefix
+  if (pathname.startsWith("/admin")) {
     return NextResponse.next();
   }
 

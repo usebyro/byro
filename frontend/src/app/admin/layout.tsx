@@ -6,7 +6,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { Calendar03Icon } from "@hugeicons/core-free-icons";
 
 const navItems = [
-  { label: "Events", href: "/admin/events", icon: Calendar03Icon },
+  { label: "Events", href: "/events", icon: Calendar03Icon },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
