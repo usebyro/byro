@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Calendar03Icon } from "@hugeicons/core-free-icons";
@@ -17,9 +18,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       {/* Sidebar */}
       <aside className="w-56 bg-[#1a1d27] border-r border-white/10 flex flex-col">
         {/* Logo */}
-        <div className="px-5 py-5 border-b border-white/10">
-          <span className="text-white font-bold text-base">Byro</span>
-          <span className="ml-2 text-xs text-gray-500 bg-white/5 px-2 py-0.5 rounded-full">
+        <div className="px-5 py-5 border-b border-white/10 flex items-center gap-2">
+          <Image
+            src="/assets/images/logo.svg"
+            alt="Byro"
+            width={60}
+            height={24}
+            className="h-6 w-auto brightness-0 invert"
+          />
+          <span className="text-xs text-gray-500 bg-white/5 px-2 py-0.5 rounded-full">
             Admin
           </span>
         </div>
