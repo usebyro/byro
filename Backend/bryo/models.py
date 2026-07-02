@@ -299,56 +299,7 @@ class Event(models.Model):
             return True
         return self.cohosts.filter(user=user).exists()
     
-    # def get_user_role(self, user):
-    #     """
-    #     Get the user's role for this event.
-    #     Returns a dict similar to Luma's API response.
-    #     """
-    #     if not user.is_authenticated:
-    #         return {
-    #             'type': 'guest',
-    #             'is_host': False,
-    #             'is_cohost': False,
-    #             'is_owner': False,
-    #             'can_edit': False,
-    #             'can_manage': False
-    #         }
-        
-    #     # Check if user is the owner
-    #     if self.owner == user:
-    #         return {
-    #             'type': 'host',
-    #             'is_host': True,
-    #             'is_cohost': False,
-    #             'is_owner': True,
-    #             'can_edit': True,
-    #             'can_manage': True,
-    #             'access_level': 'owner'
-    #         }
-        
-    #     # Check if user is a co-host
-    #     cohost = self.cohosts.filter(user=user).first()
-    #     if cohost:
-    #         return {
-    #             'type': 'host',
-    #             'is_host': True,
-    #             'is_cohost': True,
-    #             'is_owner': False,
-    #             'can_edit': True,
-    #             'can_manage': True,
-    #             'access_level': 'cohost',
-    #             'cohost_id': cohost.id
-    #         }
-        
-    #     # Default: guest
-    #     return {
-    #         'type': 'guest',
-    #         'is_host': False,
-    #         'is_cohost': False,
-    #         'is_owner': False,
-    #         'can_edit': False,
-    #         'can_manage': False
-    #     }
+    
     def get_user_role(self, user):
         """
         Determine user's role for this event

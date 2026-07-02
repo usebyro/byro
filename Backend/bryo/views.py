@@ -33,7 +33,8 @@ from .serializers import EventSerializer, TicketSerializer, PaymentSerializer, T
 from .permissions import IsEventOwnerOrCoHost, IsEventOwner
 from django.db import transaction
 from django.db import models
-from django.db.models import Q
+from django.db.models import Q, Min, OuterRef, Subquery
+from django.db.models.functions import Coalesce
 from django.http import JsonResponse
 from django.conf import settings
 from django.shortcuts import get_object_or_404
@@ -887,72 +888,6 @@ def social_login(request):
         )
 
 
-# class EventViewSet(viewsets.ModelViewSet):
-#     """
-#     EventViewSet with role-based permissions and category filtering
-    
-#     Filtering examples:
-#     - /api/events/?category=web3_crypto
-#     - /api/events/?search=bitcoin
-#     - /api/events/?category=technology&search=AI
-#     """
-#     queryset = Event.objects.all()
-#     serializer_class = EventSerializer
-#     parser_classes = (JSONParser, MultiPartParser, FormParser)
-#     lookup_field = 'slug'
-    
-#     def get_permissions(self):
-#         """
-#         - List, retrieve, register: Public access
-#         - Create: Authenticated users only
-#         - Update, delete: Owner/co-host only (both can edit)
-#         """
-#         if self.action in ['list', 'retrieve', 'register', 'categories']:
-#             permission_classes = [AllowAny]
-#         elif self.action in ['create']:
-#             permission_classes = [IsAuthenticated]
-#         elif self.action in ['update', 'partial_update', 'destroy']:
-#             permission_classes = [IsAuthenticated, IsEventOwnerOrCoHost]
-#         elif self.action in ['add_cohost', 'remove_cohost']:
-#             permission_classes = [IsAuthenticated, IsEventOwner]
-#         else:
-#             permission_classes = [IsAuthenticated]
-        
-#         return [permission() for permission in permission_classes]
-    
-#     def get_queryset(self):
-#         """
-#         Show appropriate events based on user with category filtering
-#         """
-#         queryset = Event.objects.all()
-        
-#         category = self.request.query_params.get('category', None)
-#         if category:
-#             queryset = queryset.filter(category=category)
-        
-#         search = self.request.query_params.get('search', None)
-#         if search:
-#             queryset = queryset.filter(
-#                 Q(name__icontains=search) |
-#                 Q(description__icontains=search) |
-#                 Q(location__icontains=search) |
-#                 Q(hosted_by__icontains=search)
-#             )
-        
-#         # User-based filtering
-#         if not self.request.user.is_authenticated:
-#             return queryset.filter(is_active=True).order_by('-created_at')
-        
-#         if self.request.user.is_superuser:
-#             return queryset.order_by('-created_at')
-#         else:
-#             return queryset.filter(
-#                 Q(is_active=True) | 
-#                 Q(owner=self.request.user) |
-#                 Q(cohosts__user=self.request.user)
-#             ).distinct().order_by('-created_at')
-
-
 
 # ---------------------------------------------------------------------------
 # Profile
@@ -1207,11 +1142,19 @@ class EventViewSet(viewsets.ModelViewSet):
 
         # Effective price = cheapest tier price if the event has tiers,
         # otherwise the legacy flat ticket_price.
+        # Uses a Subquery (not a JOIN) so events with multiple tiers don't
+        # fan out into duplicate rows in the queryset.
+        from bryo.models import TicketTier
+        cheapest_tier = (
+            TicketTier.objects
+            .filter(event=OuterRef('pk'))
+            .order_by('price')
+            .values('price')[:1]
+        )
         queryset = queryset.annotate(
-            effective_price=models.Case(
-                models.When(tiers__isnull=False, then=models.Min('tiers__price')),
-                default=models.F('ticket_price'),
-                output_field=models.DecimalField(max_digits=10, decimal_places=2),
+            effective_price=Coalesce(
+                Subquery(cheapest_tier, output_field=models.DecimalField(max_digits=10, decimal_places=2)),
+                models.F('ticket_price'),
             )
         )
 
@@ -1377,6 +1320,12 @@ class EventViewSet(viewsets.ModelViewSet):
         
         return Response(response_data, status=status.HTTP_201_CREATED)
     
+    def perform_destroy(self, instance):
+        """Delete the event image from Supabase Storage before removing the row."""
+        if instance.event_image:
+            instance.event_image.delete(save=False)
+        instance.delete()
+
     def update(self, request, *args, **kwargs):
         """Update event - both owner and co-hosts can edit"""
         partial = kwargs.pop('partial', False)
@@ -1390,182 +1339,20 @@ class EventViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_403_FORBIDDEN
             )
         
+        old_image = instance.event_image.name if instance.event_image else None
+
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
-        
+
+        # Delete old image from Supabase if a new one was uploaded
+        new_image = serializer.instance.event_image.name if serializer.instance.event_image else None
+        if old_image and old_image != new_image:
+            serializer.instance.event_image.storage.delete(old_image)
+
         return Response(serializer.data)
-    
-# class EventViewSet(viewsets.ModelViewSet):
-#     """
-#     EventViewSet with role-based permissions and category filtering
-#     Filtering examples:
-#      - /api/events/?category=web3_crypto
-#      - /api/events/?search=bitcoin
-#      - /api/events/?category=technology&search=AI
-#     """
-#     queryset = Event.objects.all()
-#     serializer_class = EventSerializer
-#     parser_classes = (JSONParser, MultiPartParser, FormParser)
-#     lookup_field = 'slug'
-    
-#     def get_permissions(self):
-#         """
-#         - List, retrieve, register: Public access
-#         - Create: Authenticated users only
-#         - Update, delete: Owner/co-host only (both can edit)
-#         """
-#         if self.action in ['list', 'retrieve', 'register', 'categories']:
-#             permission_classes = [AllowAny]
-#         elif self.action in ['create']:
-#             permission_classes = [IsAuthenticated]
-#         elif self.action in ['update', 'partial_update', 'destroy']:
-#             permission_classes = [IsAuthenticated, IsEventOwnerOrCoHost]
-#         elif self.action in ['add_cohost', 'remove_cohost']:
-#             permission_classes = [IsAuthenticated, IsEventOwner]
-#         else:
-#             permission_classes = [IsAuthenticated]
-        
-#         return [permission() for permission in permission_classes]
-    
-#     def get_queryset(self):
-#         """
-#         Show appropriate events based on user with category filtering
-#         """
-#         queryset = Event.objects.select_related('owner').prefetch_related('cohosts__user')
-        
-#         category = self.request.query_params.get('category', None)
-#         if category:
-#             queryset = queryset.filter(category=category)
-        
-#         search = self.request.query_params.get('search', None)
-#         if search:
-#             queryset = queryset.filter(
-#                 Q(name__icontains=search) |
-#                 Q(description__icontains=search) |
-#                 Q(location__icontains=search) |
-#                 Q(hosted_by__icontains=search)
-#             )
-        
-#         if not self.request.user.is_authenticated:
-#             return queryset.filter(is_active=True, visibility='public').order_by('-created_at')
-        
-#         if self.request.user.is_superuser:
-#             return queryset.order_by('-created_at')
-#         else:
-#             return queryset.filter(
-#                 Q(is_active=True, visibility='public') | 
-#                 Q(owner=self.request.user) |
-#                 Q(cohosts__user=self.request.user)
-#             ).distinct().order_by('-created_at')
-    
-#     @action(detail=False, methods=['GET'], permission_classes=[AllowAny])
-#     def categories(self, request):
-#         """
-#         Get all available event categories
-#         GET /api/events/categories/
-#         """
-#         try:
-#             categories = []
-#             for choice_value, choice_label in Event.CATEGORY_CHOICES:
-#                 count = Event.objects.filter(
-#                     category=choice_value, 
-#                     is_active=True,
-#                     visibility='public'
-#                 ).count()
-                
-#                 categories.append({
-#                     'value': choice_value,
-#                     'label': choice_label,
-#                     'count': count
-#                 })
-            
-#             total_events = Event.objects.filter(is_active=True, visibility='public').count()
-            
-#             return Response({
-#                 'categories': categories,
-#                 'total_events': total_events
-#             })
-            
-#         except Exception as e:
-#             logger.error(f"Error in categories endpoint: {e}")
-#             return Response(
-#                 {"error": "Unable to fetch categories"}, 
-#                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
-#             )
-    
-#     @method_decorator(never_cache)
-#     def retrieve(self, request, *args, **kwargs):
-#         """Get single event with role information"""
-#         return super().retrieve(request, *args, **kwargs)
-    
-#     def create(self, request, *args, **kwargs):
-#         """Create event - automatically sets owner"""
-#         serializer = self.get_serializer(data=request.data)
-#         serializer.is_valid(raise_exception=True)
-        
-#         if 'ticket_price' not in request.data:
-#             serializer.validated_data['ticket_price'] = 0.00
-        
-#         if 'capacity' not in request.data:
-#             serializer.validated_data['capacity'] = None
-        
-#         if 'transferable' not in request.data:
-#             serializer.validated_data['transferable'] = True
-        
-#         self.perform_create(serializer)
-        
-#         event_url = request.build_absolute_uri(
-#             reverse('event-detail', kwargs={'slug': serializer.data['slug']})
-#         )
-        
-#         response_data = serializer.data
-#         response_data['event_url'] = event_url
-        
-#         if serializer.instance.event_image:
-#             response_data['event_image'] = request.build_absolute_uri(
-#                 serializer.instance.event_image.url
-#             )
-        
-#         return Response(response_data, status=status.HTTP_201_CREATED)
-    
-#     def update(self, request, *args, **kwargs):
-#         """Update event - both owner and co-hosts can edit"""
-#         partial = kwargs.pop('partial', False)
-#         instance = self.get_object()
-        
-#         user_role = instance.get_user_role(request.user)
-#         if not user_role.get('can_edit', False):
-#             return Response(
-#                 {"error": "You don't have permission to edit this event"},
-#                 status=status.HTTP_403_FORBIDDEN
-#             )
-        
-#         serializer = self.get_serializer(instance, data=request.data, partial=partial)
-#         serializer.is_valid(raise_exception=True)
-#         self.perform_update(serializer)
-        
-#         return Response(serializer.data)
-    
-#     @action(detail=False, methods=['GET'], permission_classes=[AllowAny])
-#     def categories(self, request):
-#         """
-#         Get all available event categories
-#         GET /api/events/categories/
-#         """
-#         categories = [
-#             {
-#                 'value': choice[0],
-#                 'label': choice[1],
-#                 'count': Event.objects.filter(category=choice[0], is_active=True).count()
-#             }
-#             for choice in Event.CATEGORY_CHOICES
-#         ]
-        
-#         return Response({
-#             'categories': categories,
-#             'total_events': Event.objects.filter(is_active=True).count()
-#         })
+
+
     
     @action(detail=True, methods=['GET', 'POST'], url_path='tiers', permission_classes=[AllowAny])
     def tiers(self, request, slug=None):
