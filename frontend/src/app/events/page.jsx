@@ -167,7 +167,7 @@ function EventRow({ item, isPast }) {
           </>
         ) : role === "hosting" ? (
           <Link
-            href={`/studio/events/${event.slug}`}
+            href={`/dashboard/events/${event.slug}`}
             className="flex flex-col items-center gap-1 text-blue-600 hover:text-blue-700 text-center"
           >
             <span className="text-[11px] font-extrabold tracking-wide">Manage</span>

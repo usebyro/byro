@@ -232,7 +232,7 @@ export default function StudioDashboard() {
       <div className="bg-white rounded-2xl border border-gray-100 p-5">
         <div className="flex items-center justify-between mb-5">
           <p className="font-semibold text-gray-900">Your events</p>
-          <Link href="/studio/events" className="text-sm text-[#4F6EF7] font-medium hover:text-blue-700">
+          <Link href="/dashboard/events" className="text-sm text-[#4F6EF7] font-medium hover:text-blue-700">
             View all
           </Link>
         </div>
@@ -270,7 +270,7 @@ export default function StudioDashboard() {
               return (
                 <Link
                   key={event.slug}
-                  href={`/studio/events/${event.slug}`}
+                  href={`/dashboard/events/${event.slug}`}
                   className="flex items-center gap-4 py-3.5 -mx-2 px-2 rounded-xl hover:bg-gray-50 transition-colors group"
                 >
                   {/* Thumbnail */}

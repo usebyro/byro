@@ -17,11 +17,11 @@ import { Providers } from "@/redux/Providers";
 import { useSelector } from "react-redux";
 
 const NAV = [
-  { label: "Dashboard", href: "/studio",         icon: Home01Icon,     exact: true },
-  { label: "Events",    href: "/studio/events",   icon: Ticket01Icon },
-  { label: "Check-in", href: "/studio/check-in", icon: QrCodeIcon },
-  { label: "Payouts",  href: "/studio/payouts",  icon: Money01Icon },
-  { label: "Settings", href: "/studio/settings", icon: Settings01Icon },
+  { label: "Dashboard", href: "/dashboard",         icon: Home01Icon,     exact: true },
+  { label: "Events",    href: "/dashboard/events",   icon: Ticket01Icon },
+  { label: "Check-in", href: "/dashboard/check-in", icon: QrCodeIcon },
+  { label: "Payouts",  href: "/dashboard/payouts",  icon: Money01Icon },
+  { label: "Settings", href: "/dashboard/settings", icon: Settings01Icon },
 ];
 
 function StudioShell({ children }) {

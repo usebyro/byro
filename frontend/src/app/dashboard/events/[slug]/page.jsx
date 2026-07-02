@@ -174,7 +174,7 @@ export default function StudioEventPage() {
     try {
       await API.deleteEvent(slug);
       toast.success("Event deleted.");
-      router.push("/studio/events");
+      router.push("/dashboard/events");
     } catch (err) {
       toast.error(err?.message || "Failed to delete.");
       setDeleting(false);
@@ -202,7 +202,7 @@ export default function StudioEventPage() {
   return (
     <div className="p-6 max-w-5xl mx-auto">
       {/* Back */}
-      <Link href="/studio/events" className="inline-flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-700 mb-5 transition-colors">
+      <Link href="/dashboard/events" className="inline-flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-700 mb-5 transition-colors">
         <HugeiconsIcon icon={ArrowLeft01Icon} size={15} color="currentColor" />
         Events
       </Link>

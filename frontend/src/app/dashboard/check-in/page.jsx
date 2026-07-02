@@ -57,7 +57,7 @@ export default function StudioCheckIn() {
           {upcoming.map((event) => (
             <Link
               key={event.slug}
-              href={`/studio/events/${event.slug}`}
+              href={`/dashboard/events/${event.slug}`}
               className="bg-white rounded-2xl border border-gray-100 p-4 flex items-center gap-4 hover:shadow-sm hover:border-indigo-100 transition-all group"
             >
               <div className="w-12 h-12 rounded-xl bg-indigo-50 flex items-center justify-center shrink-0 group-hover:bg-indigo-100 transition-colors">

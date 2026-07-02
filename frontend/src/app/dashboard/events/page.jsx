@@ -58,7 +58,7 @@ function EventRow({ event }) {
 
   return (
     <Link
-      href={`/studio/events/${event.slug}`}
+      href={`/dashboard/events/${event.slug}`}
       className="flex items-center gap-4 px-5 py-4 hover:bg-gray-50 transition-colors group"
     >
       {/* Thumbnail */}
