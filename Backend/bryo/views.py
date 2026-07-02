@@ -1016,6 +1016,8 @@ class DashboardView(APIView):
                 'location': event.location,
                 'category': event.category,
                 'ticket_price': str(event.ticket_price),
+                'is_active': event.is_active,
+                'capacity': event.capacity,
                 'is_owner': event.owner_id == user.id,
                 'attendee_count': event.tickets.filter(
                     payment_status__in=['paid', 'free']

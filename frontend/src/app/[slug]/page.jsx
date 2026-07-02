@@ -6,7 +6,7 @@ const API_BASE = (() => {
   return raw.endsWith("/api") ? raw + "/" : raw + "/api/";
 })();
 
-const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://byro.africa").replace(/\/+$/, "");
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://usebyro.com").replace(/\/+$/, "");
 
 async function fetchEventData(slug) {
   try {

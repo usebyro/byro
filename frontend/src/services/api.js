@@ -360,6 +360,55 @@ const API = {
     }
   },
 
+  // ===== PROFILE =====
+  getProfile: async () => {
+    try {
+      const response = await axiosInstance.get("profile/me/");
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  updateProfile: async (profileData) => {
+    try {
+      const response = await axiosInstance.patch("profile/me/", profileData);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  uploadAvatar: async (file) => {
+    try {
+      const body = new FormData();
+      body.append("avatar", file);
+      const response = await axiosInstance.post("profile/me/avatar/", body, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  getPublicProfile: async (handle) => {
+    try {
+      const response = await axiosInstance.get(`profile/${handle}/`);
+      return response.data;
+    } catch (error) {
+      if (error.response?.status === 404) {
+        const err = new Error("Profile not found");
+        err.status = 404;
+        throw err;
+      }
+      throw handleApiError(error);
+    }
+  },
+
 };
 
 export default API;
+

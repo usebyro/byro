@@ -22,12 +22,19 @@ interface Event {
   is_active: boolean;
 }
 
-const TrendingEvents = () => {
+interface Props {
+  initialEvents?: Event[];
+}
+
+const TrendingEvents = ({ initialEvents }: Props) => {
   const router = useRouter();
-  const [events, setEvents] = useState<Event[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [events, setEvents] = useState<Event[]>(initialEvents ?? []);
+  const [loading, setLoading] = useState(!initialEvents);
 
   useEffect(() => {
+    // Skip client-side fetch if the server already provided data
+    if (initialEvents) return;
+
     const fetchEvents = async () => {
       try {
         const response = await axiosInstance.get("events/");
@@ -47,7 +54,7 @@ const TrendingEvents = () => {
       }
     };
     fetchEvents();
-  }, []);
+  }, [initialEvents]);
 
   if (loading) {
     return (

@@ -126,7 +126,6 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [address, setAddress] = useState("");
   const [delivery, setDelivery] = useState("email");
   const [agreed, setAgreed] = useState(false);
 
@@ -576,33 +575,6 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                     </div>
                   </div>
 
-                  {/* Billing address */}
-                  <div>
-                    <label className="text-sm font-medium text-gray-700 block mb-1.5">
-                      Billing address
-                    </label>
-                    <div className="relative">
-                      <svg
-                        className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                        width="15"
-                        height="15"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                      >
-                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-                        <circle cx="12" cy="10" r="3" />
-                      </svg>
-                      <input
-                        type="text"
-                        value={address}
-                        onChange={(e) => setAddress(e.target.value)}
-                        placeholder="12 Karimu Kotun St, Victoria Island"
-                        className="w-full border border-gray-200 text-black rounded-xl pl-9 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-400"
-                      />
-                    </div>
-                  </div>
                 </div>
 
                 {/* Ticket delivery */}

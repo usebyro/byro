@@ -30,7 +30,7 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: 'https',
-        hostname: 'byro.africa',
+        hostname: 'www.usebyro.com',
         pathname: '/**',
       },
       {

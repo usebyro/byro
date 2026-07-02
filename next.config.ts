@@ -12,7 +12,7 @@ const nextConfig: NextConfig = {
       'byro-32ux.onrender.com',
       'byro.onrender.com',
       'localhost',
-     'byro.africa',
+     'www.usebyro.com',
      'usebyro.com'
     ],
     remotePatterns: [
