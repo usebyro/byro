@@ -39,11 +39,9 @@ const RegisterModal = ({ isOpen, onClose, eventSlug, eventPrice = "Free" }) => {
   };
 
 
-  const sendTicketEmail = async (eventData) => {
+  const sendTicketEmail = async (eventData, ticketId) => {
 
     try {
-      console.log("Sending ticket email...");
-      
       const emailResponse = await fetch("/api/send-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -55,10 +53,10 @@ const RegisterModal = ({ isOpen, onClose, eventSlug, eventPrice = "Free" }) => {
               data: {
                 name: formData.name || "User",
                 date: eventData.day || eventData.event_date || "Date to be announced",
-                time: `${eventData.time_from || eventData.event_time || "Time to be announced"}${eventData.time_to ? ` - ${eventData.time_to}` : ''}`,
+                time: `${eventData.time_from || eventData.event_time || "Time to be announced"}${eventData.time_to ? ` - ${eventData.time_to}` : ""}`,
                 location: eventData.location || eventData.virtual_link || eventData.event_location || "Location to be announced",
                 eventName: eventData.name || eventData.event_name || "Event",
-                timezone: eventData.timezone || "",
+                ticketId: ticketId || null,
               },
             },
           ],
@@ -123,7 +121,8 @@ const RegisterModal = ({ isOpen, onClose, eventSlug, eventPrice = "Free" }) => {
       }
 
       // Step 3: Send email after successful registration
-      const emailSent = await sendTicketEmail(eventData);
+      const ticketId = response.ticket_id || response.id || null;
+      const emailSent = await sendTicketEmail(eventData, ticketId);
 
       if (eventPrice === "Free") {
         // For free events, store ticket data and redirect to confirmation page
