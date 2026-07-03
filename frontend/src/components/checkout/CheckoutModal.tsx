@@ -157,6 +157,11 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
       return;
     }
 
+    if (!agreed) {
+      toast.error("Please agree to Byro's Terms and Refund policy to continue.");
+      return;
+    }
+
     setIsProcessing(true);
     try {
       // Find the first tier with quantity > 0 to pass as tier_id
@@ -638,13 +643,14 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                     )}
                   </div>
                   <span className="text-sm text-gray-500 leading-relaxed">
-                    Send me event updates and reminders. I agree to Byro&apos;s{" "}
-                    <a href="/terms" className="text-blue-600 hover:underline">
+                    I agree to Byro&apos;s{" "}
+                    <a href="/terms" target="_blank" className="text-blue-600 hover:underline">
                       Terms
                     </a>{" "}
                     and{" "}
                     <a
                       href="/refund-policy"
+                      target="_blank"
                       className="text-blue-600 hover:underline"
                     >
                       Refund policy
@@ -957,7 +963,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                         setStep((s) => Math.min(s + 1, 4));
                       }
                     }}
-                    disabled={(step === 1 && totalQty === 0) || (step === 2 && isProcessing) || (step === 3 && isProcessing)}
+                    disabled={(step === 1 && totalQty === 0) || (step === 2 && !agreed) || (step === 2 && isProcessing) || (step === 3 && isProcessing)}
                     className="mt-4 w-full bg-blue-600 text-white font-semibold py-3 rounded-full hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed text-sm"
                   >
                     {step === 1 && (
