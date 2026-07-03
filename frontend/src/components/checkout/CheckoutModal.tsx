@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import API from "@/services/api";
 import { toast } from "sonner";
+import { trackPurchase, trackSelectTicket } from "@/lib/analytics";
 
 interface Event {
   id: number;
@@ -187,6 +188,14 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
           ticketId: ticket?.id || ticket?.ticket_id,
         };
         localStorage.setItem("ticketData", JSON.stringify(ticketData));
+        trackPurchase({
+          transactionId: ticket?.ticket_id || ticket?.id || 'free',
+          eventName: event.name,
+          eventSlug: event.slug,
+          value: 0,
+          quantity: totalQty,
+          isFree: true,
+        });
         setStep(4);
         return;
       }
@@ -200,6 +209,14 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
       });
 
       if (result?.data?.authorization_url) {
+        trackPurchase({
+          transactionId: result?.data?.reference || event.slug,
+          eventName: event.name,
+          eventSlug: event.slug,
+          value: total,
+          quantity: totalQty,
+          isFree: false,
+        });
         window.location.href = result.data.authorization_url;
       } else {
         toast.error("Could not get payment link. Please try again.");
@@ -960,6 +977,16 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                       if (step === 3 || (step === 2 && total === 0)) {
                         handlePayment();
                       } else {
+                        if (step === 1) {
+                          const activeTier = tiers.find(t => (quantities[String(t.id)] || 0) > 0);
+                          trackSelectTicket({
+                            eventName: event.name,
+                            eventSlug: event.slug,
+                            tierName: activeTier?.name ?? 'General',
+                            quantity: totalQty,
+                            value: total,
+                          });
+                        }
                         setStep((s) => Math.min(s + 1, 4));
                       }
                     }}

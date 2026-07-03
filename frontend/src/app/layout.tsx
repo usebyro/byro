@@ -39,7 +39,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     locale: "en_US",
-    url: "https://byro.africa",
+    url: "https://usebyro.com",
     siteName: "Byro",
     title: "Byro - Create and Host Unforgettable Events",
     description:

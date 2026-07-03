@@ -24,7 +24,7 @@ const emailWrapper = (content) => `
             &copy; 2026 Byro Africa. All rights reserved.
           </p>
           <p style="color: ${brandGray}; font-size: 12px; margin: 4px 0 0;">
-            Need help? <a href="mailto:hello@byro.africa" style="color: ${brandPrimary}; text-decoration: none;">hello@byro.africa</a>
+            Need help? <a href="mailto:hello@usebyro.com" style="color: ${brandPrimary}; text-decoration: none;">hello@usebyro.com</a>
           </p>
         </td>
       </tr>

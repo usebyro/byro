@@ -11,6 +11,7 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { Providers } from "@/redux/Providers";
 import CheckoutModal from "@/components/checkout/CheckoutModal";
+import { trackViewEvent, trackShareEvent, trackSaveEvent, trackBeginCheckout } from "@/lib/analytics";
 
 /* ── helpers ── */
 const fmt = (price) =>
@@ -62,9 +63,17 @@ export default function ViewEventClient({ slug }) {
     return `${base}${event.event_image}`;
   }, [event]);
 
-  /* Set browser tab title */
+  /* Set browser tab title + fire GA4 view_event */
   useEffect(() => {
-    if (event?.name) document.title = `${event.name} | Byro`;
+    if (event?.name) {
+      document.title = `${event.name} | Byro`;
+      trackViewEvent({
+        eventName: event.name,
+        eventSlug: event.slug,
+        category: event.category,
+        isFree: parseFloat(event.ticket_price ?? 0) === 0,
+      });
+    }
   }, [event?.name]);
 
   /* Fetch event */
@@ -201,6 +210,7 @@ export default function ViewEventClient({ slug }) {
           <div className="absolute top-5 right-5 flex items-center gap-2">
             <button
               onClick={() => {
+                trackShareEvent({ eventName: event.name, eventSlug: event.slug });
                 if (navigator.share) {
                   navigator.share({ title: event.name, url: window.location.href });
                 } else {
@@ -212,7 +222,7 @@ export default function ViewEventClient({ slug }) {
               <HugeiconsIcon icon={Share01Icon} size={16} color="white" />
             </button>
             <button
-              onClick={() => setSaved(s => !s)}
+              onClick={() => { setSaved(s => !s); if (!saved) trackSaveEvent({ eventName: event.name, eventSlug: event.slug }); }}
               className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill={saved ? "white" : "none"} stroke="white" strokeWidth="2">
@@ -452,7 +462,14 @@ export default function ViewEventClient({ slug }) {
                 </div>
               ) : (
                 <button
-                  onClick={() => setShowCheckout(true)}
+                  onClick={() => {
+                  trackBeginCheckout({
+                    eventName: event.name,
+                    eventSlug: event.slug,
+                    value: parseFloat(event.ticket_price ?? 0),
+                  });
+                  setShowCheckout(true);
+                }}
                   className="w-full bg-blue-600 text-white font-bold py-3.5 rounded-full hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 text-sm"
                 >
                   Buy ticket

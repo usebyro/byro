@@ -20,7 +20,7 @@ export function generateICS({ eventName, description, location, startDate, endDa
     `SUMMARY:${eventName}`,
     `DESCRIPTION:${description || ''}`,
     `LOCATION:${location || ''}`,
-    organizer ? `ORGANIZER;CN=${organizer}:mailto:hello@byro.africa` : '',
+    organizer ? `ORGANIZER;CN=${organizer}:mailto:hello@usebyro.com` : '',
     `DTSTAMP:${now}`,
     `SEQUENCE:0`,
     'END:VEVENT',
