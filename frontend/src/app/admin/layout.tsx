@@ -34,6 +34,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     setMobileOpen(false);
   }, [pathname]);
 
+  // Reflect the current admin section in the browser tab title
+  useEffect(() => {
+    const page = navItems.find((item) => isActive(pathname, item.href));
+    document.title = page ? `${page.label} · Byro Admin` : "Byro Admin";
+  }, [pathname]);
+
   const sidebarContent = (
     <>
       {/* Logo */}
