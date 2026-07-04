@@ -44,7 +44,7 @@ function StatusBadge({ status }: { status: PayoutStatus }) {
 }
 
 export default function AdminPayoutsPage() {
-  const [payouts, setPayouts] = useState<PayoutRequest[]>(MOCK_PAYOUT_REQUESTS);
+  const [payouts, setPayouts] = useState<PayoutRequest[]>(MOCK_PAYOUT_REQUESTS as PayoutRequest[]);
 
   const markProcessed = (id: string) => {
     setPayouts((prev) => prev.map((p) => (p.id === id ? { ...p, status: "processed" } : p)));
