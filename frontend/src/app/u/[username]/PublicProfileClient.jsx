@@ -55,6 +55,7 @@ export default function PublicProfileClient({ username }) {
   const [error, setError] = useState("");
   const [isFollowing, setIsFollowing] = useState(false);
   const [activeTab, setActiveTab] = useState("upcoming");
+  const [avatarError, setAvatarError] = useState(false);
 
   useEffect(() => {
     if (!username) return;
@@ -187,8 +188,15 @@ export default function PublicProfileClient({ username }) {
             <div className="flex flex-col md:flex-row items-center md:items-start gap-6 text-center md:text-left">
               {/* Avatar Box (Squircle box overlapping banner style) */}
               <div className="w-24 h-24 md:w-28 md:h-28 rounded-2xl md:rounded-3xl bg-gradient-to-br from-blue-500 to-indigo-600 border-4 border-white shadow-md flex items-center justify-center text-white text-3xl md:text-4xl font-extrabold shrink-0 relative overflow-hidden">
-                {profile.avatar_url ? (
-                  <img src={profile.avatar_url} alt={profile.display_name} className="w-full h-full object-cover" />
+                {profile.avatar_url && !avatarError ? (
+                  <Image
+                    src={profile.avatar_url}
+                    alt={profile.display_name}
+                    fill
+                    sizes="112px"
+                    className="object-cover"
+                    onError={() => setAvatarError(true)}
+                  />
                 ) : (
                   <span>{initials}</span>
                 )}
@@ -396,6 +404,7 @@ export default function PublicProfileClient({ username }) {
 // ── Card component for event grid (matches the style of Eko Live Entertainment cards) ──
 function EventCard({ event }) {
   const router = useRouter();
+  const [imageError, setImageError] = useState(false);
 
   const formattedDate = useMemo(() => {
     if (!event.day) return "";
@@ -434,11 +443,14 @@ function EventCard({ event }) {
     >
       {/* Event Image / Gradient */}
       <div className="h-[200px] w-full relative overflow-hidden shrink-0 bg-gradient-to-br from-[#4a148c] via-[#7b1fa2] to-[#ec407a]">
-        {imageUrl ? (
-          <img
+        {imageUrl && !imageError ? (
+          <Image
             src={imageUrl}
             alt={event.name}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+            fill
+            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+            className="object-cover group-hover:scale-105 transition-transform duration-500"
+            onError={() => setImageError(true)}
           />
         ) : (
           <div className="absolute inset-0 bg-gradient-to-tr from-purple-900/90 via-purple-700/60 to-pink-500/40" />

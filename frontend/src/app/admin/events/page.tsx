@@ -120,7 +120,7 @@ export default function AdminEventsPage() {
   const paidEvents = events.filter((e) => Number(e.ticket_price) > 0);
 
   return (
-    <div className="p-8">
+    <div className="p-5 md:p-8">
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-white text-xl font-bold">Events</h1>
@@ -128,7 +128,7 @@ export default function AdminEventsPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
         {[
           { label: "Total Events", value: events.length },
           { label: "Free Events", value: freeEvents.length },
