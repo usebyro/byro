@@ -163,6 +163,8 @@ class EventCoHostSerializer(serializers.ModelSerializer):
 
 class EventSerializer(serializers.ModelSerializer):
     owner_email = serializers.EmailField(source='owner.email', read_only=True)
+    owner_handle = serializers.SerializerMethodField()
+    owner_events_count = serializers.SerializerMethodField()
     cohosts = EventCoHostSerializer(many=True, read_only=True)
 
     # Role information for the current user
@@ -185,7 +187,7 @@ class EventSerializer(serializers.ModelSerializer):
     class Meta:
         model = Event
         fields = [
-            'id', 'slug', 'name', 'owner', 'owner_email',
+            'id', 'slug', 'name', 'owner', 'owner_email', 'owner_handle', 'owner_events_count',
             'category', 'category_display',
             'day', 'time_from', 'time_to', 'location', 'description',
             'virtual_link', 'ticket_price', 'capacity', 'transferable',
@@ -195,7 +197,20 @@ class EventSerializer(serializers.ModelSerializer):
             'cohosts', 'role', 'tiers',
         ]
         read_only_fields = ['id', 'slug', 'owner', 'is_active', 'created_at', 'updated_at']
-    
+
+    def get_owner_handle(self, obj):
+        """Public handle for the owner's profile (/u/<handle>), if they have one."""
+        if not obj.owner:
+            return None
+        profile = getattr(obj.owner, 'profile', None)
+        return profile.handle if profile else None
+
+    def get_owner_events_count(self, obj):
+        """Number of active events this owner has hosted, for the public 'Organised by' card."""
+        if not obj.owner:
+            return 0
+        return Event.objects.filter(owner=obj.owner, is_active=True).count()
+
     def get_role(self, obj):
         """
         Get user's role for this event

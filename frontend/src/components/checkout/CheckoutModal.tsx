@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import API from "@/services/api";
 import { toast } from "sonner";
 import { trackPurchase, trackSelectTicket } from "@/lib/analytics";
+import { calculateTicketFees } from "@/lib/pricing";
 
 interface Event {
   id: number;
@@ -138,12 +139,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
     (s, t) => s + parseFloat(String(t.price)) * (quantities[String(t.id)] || 0),
     0
   );
-  const serviceFee =
-    subtotal === 0
-      ? 0
-      : subtotal > 2500
-      ? Math.round(subtotal * 0.08) + 100
-      : Math.round(subtotal * 0.08);
+  const { serviceFee } = calculateTicketFees(subtotal);
   const discount = promoApplied ? promoDiscount : 0;
   const total = subtotal + serviceFee - discount;
   const totalQty = Object.values(quantities).reduce((a: number, b: number) => a + b, 0);

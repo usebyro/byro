@@ -30,7 +30,7 @@ const CATEGORY_GRADIENT = {
   fitness:       "from-orange-500 to-amber-400",
   art_culture:   "from-pink-600 to-rose-400",
   conference:    "from-teal-600 to-emerald-400",
-  technology:    "from-indigo-600 to-violet-500",
+  technology:    "from-blue-600 to-violet-500",
   web3_crypto:   "from-amber-600 to-orange-400",
   other:         "from-gray-500 to-slate-400",
 };

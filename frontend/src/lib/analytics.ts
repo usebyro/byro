@@ -93,6 +93,26 @@ export function trackShareEvent(params: { eventName: string; eventSlug: string }
   });
 }
 
+/**
+ * Appends UTM params to a shared URL so visits coming back through it are
+ * attributed to "share" traffic in GA4 rather than lumped in with
+ * direct/organic traffic. `campaign` distinguishes what was shared
+ * (e.g. "event_share", "profile_share"); `content` identifies the specific
+ * item (event slug, username, etc).
+ */
+export function withShareUtm(url: string, campaign: string, content: string): string {
+  try {
+    const u = new URL(url);
+    u.searchParams.set('utm_source', 'byro_share');
+    u.searchParams.set('utm_medium', 'social');
+    u.searchParams.set('utm_campaign', campaign);
+    u.searchParams.set('utm_content', content);
+    return u.toString();
+  } catch {
+    return url;
+  }
+}
+
 /** Fired when user saves/bookmarks an event. */
 export function trackSaveEvent(params: { eventName: string; eventSlug: string }) {
   gtag('event', 'save_event', {

@@ -58,13 +58,13 @@ export default function StudioCheckIn() {
             <Link
               key={event.slug}
               href={`/dashboard/events/${event.slug}`}
-              className="bg-white rounded-2xl border border-gray-100 p-4 flex items-center gap-4 hover:shadow-sm hover:border-indigo-100 transition-all group"
+              className="bg-white rounded-2xl border border-gray-100 p-4 flex items-center gap-4 hover:shadow-sm hover:border-blue-100 transition-all group"
             >
-              <div className="w-12 h-12 rounded-xl bg-indigo-50 flex items-center justify-center shrink-0 group-hover:bg-indigo-100 transition-colors">
+              <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center shrink-0 group-hover:bg-blue-100 transition-colors">
                 <HugeiconsIcon icon={QrCodeIcon} size={22} color="#6366f1" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-gray-900 truncate group-hover:text-indigo-600 transition-colors">
+                <p className="text-sm font-semibold text-gray-900 truncate group-hover:text-blue-600 transition-colors">
                   {event.name}
                 </p>
                 <div className="flex items-center gap-3 mt-0.5 text-xs text-gray-400">
@@ -80,7 +80,7 @@ export default function StudioCheckIn() {
                   )}
                 </div>
               </div>
-              <span className="text-xs font-semibold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-xl shrink-0 group-hover:bg-indigo-100 transition-colors">
+              <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-3 py-1.5 rounded-xl shrink-0 group-hover:bg-blue-100 transition-colors">
                 Start check-in →
               </span>
             </Link>

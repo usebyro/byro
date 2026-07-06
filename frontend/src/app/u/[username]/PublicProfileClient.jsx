@@ -19,6 +19,7 @@ import API from "@/services/api";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { toast } from "sonner";
+import { withShareUtm } from "@/lib/analytics";
 
 const CATEGORY_ICONS = {
   entertainment: MusicNote01Icon,
@@ -120,10 +121,11 @@ export default function PublicProfileClient({ username }) {
   }, [events]);
 
   const handleShare = () => {
+    const shareUrl = withShareUtm(window.location.href, "profile_share", username);
     if (navigator.share) {
-      navigator.share({ title: profile?.display_name, url: window.location.href });
+      navigator.share({ title: profile?.display_name, url: shareUrl });
     } else {
-      navigator.clipboard.writeText(window.location.href).then(() => {
+      navigator.clipboard.writeText(shareUrl).then(() => {
         toast.success("Profile link copied to clipboard!");
       });
     }

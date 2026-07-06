@@ -14,7 +14,7 @@ const CATEGORY_GRADIENT = {
   fitness:       "from-orange-500 to-amber-400",
   art_culture:   "from-pink-600 to-rose-400",
   conference:    "from-teal-600 to-emerald-400",
-  technology:    "from-indigo-600 to-violet-500",
+  technology:    "from-blue-600 to-violet-500",
   web3_crypto:   "from-amber-600 to-orange-400",
   other:         "from-gray-500 to-slate-400",
 };
@@ -72,7 +72,7 @@ function EventRow({ event }) {
 
       {/* Name + meta */}
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-gray-900 truncate group-hover:text-indigo-600 transition-colors">
+        <p className="text-sm font-semibold text-gray-900 truncate group-hover:text-blue-600 transition-colors">
           {event.name}
         </p>
         <div className="flex items-center gap-3 mt-0.5 text-xs text-gray-400">
@@ -153,7 +153,7 @@ export default function StudioEvents() {
         <h1 className="text-xl font-bold text-gray-900">Events</h1>
         <Link
           href="/events/create"
-          className="flex items-center gap-2 bg-indigo-600 text-white text-sm font-semibold px-4 py-2.5 rounded-xl hover:bg-indigo-700 transition-colors"
+          className="flex items-center gap-2 bg-blue-600 text-white text-sm font-semibold px-4 py-2.5 rounded-xl hover:bg-blue-700 transition-colors"
         >
           <HugeiconsIcon icon={Add01Icon} size={14} color="white" />
           Create event
@@ -171,7 +171,7 @@ export default function StudioEvents() {
             placeholder="Search events..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-100"
+            className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-100"
           />
         </div>
         <div className="flex gap-1 bg-white border border-gray-200 p-1 rounded-xl">
@@ -181,7 +181,7 @@ export default function StudioEvents() {
               onClick={() => setFilter(f)}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize transition-colors ${
                 filter === f
-                  ? "bg-indigo-600 text-white"
+                  ? "bg-blue-600 text-white"
                   : "text-gray-500 hover:text-gray-800"
               }`}
             >
@@ -205,7 +205,7 @@ export default function StudioEvents() {
               {search ? "No events match your search" : "No events yet"}
             </p>
             {!search && (
-              <Link href="/events/create" className="text-sm font-semibold text-indigo-600 hover:text-indigo-700">
+              <Link href="/events/create" className="text-sm font-semibold text-blue-600 hover:text-blue-700">
                 Create your first event →
               </Link>
             )}

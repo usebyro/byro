@@ -158,14 +158,14 @@ export default function StudioPayouts() {
       {/* Summary cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         {/* Available */}
-        <div className="sm:col-span-1 bg-gradient-to-br from-indigo-700 to-purple-700 rounded-2xl p-5 text-white">
+        <div className="sm:col-span-1 bg-gradient-to-br from-blue-700 to-purple-700 rounded-2xl p-5 text-white">
           <p className="text-sm text-white/70 mb-3">Available to withdraw</p>
           <p className="text-3xl font-bold mb-1">—</p>
           <p className="text-xs text-white/50 mb-5">Pending clearance after events</p>
           <div className="flex items-center gap-2">
             <button
               onClick={() => setWithdrawModalOpen(true)}
-              className="flex items-center gap-1.5 bg-white text-indigo-700 text-xs font-bold px-4 py-2 rounded-xl hover:bg-white/90 transition-colors"
+              className="flex items-center gap-1.5 bg-white text-blue-700 text-xs font-bold px-4 py-2 rounded-xl hover:bg-white/90 transition-colors"
             >
               <HugeiconsIcon icon={WalletAdd01Icon} size={13} color="currentColor" />
               Withdraw
@@ -196,7 +196,7 @@ export default function StudioPayouts() {
         <div className="bg-white rounded-2xl border border-gray-100 p-5">
           <div className="flex items-start justify-between mb-4">
             <p className="text-sm text-gray-400">Next payout</p>
-            <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
               <HugeiconsIcon icon={Calendar01Icon} size={16} color="currentColor" />
             </div>
           </div>
@@ -214,7 +214,7 @@ export default function StudioPayouts() {
               <button
                 key={f}
                 className={`text-xs font-semibold px-3 py-1.5 rounded-full transition-colors ${
-                  i === 0 ? "bg-indigo-600 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                  i === 0 ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"
                 }`}
               >
                 {f}
@@ -265,7 +265,7 @@ export default function StudioPayouts() {
                 value={bankForm.bankName}
                 onChange={(e) => setBankForm((p) => ({ ...p, bankName: e.target.value }))}
                 placeholder="e.g. GTBank"
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
             <div>
@@ -276,7 +276,7 @@ export default function StudioPayouts() {
                 value={bankForm.accountNumber}
                 onChange={(e) => setBankForm((p) => ({ ...p, accountNumber: e.target.value }))}
                 placeholder="0123456789"
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
             <div>
@@ -286,12 +286,12 @@ export default function StudioPayouts() {
                 value={bankForm.accountName}
                 onChange={(e) => setBankForm((p) => ({ ...p, accountName: e.target.value }))}
                 placeholder="As it appears on your bank account"
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
             <button
               type="submit"
-              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors mt-2"
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors mt-2"
             >
               Save
             </button>
@@ -315,7 +315,7 @@ export default function StudioPayouts() {
                   onChange={(e) => setWithdrawAmount(e.target.value)}
                   placeholder="0.00"
                   autoFocus
-                  className="w-full border border-gray-200 rounded-lg pl-7 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full border border-gray-200 rounded-lg pl-7 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
             </div>
@@ -327,7 +327,7 @@ export default function StudioPayouts() {
             <button
               type="submit"
               disabled={submitting}
-              className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors mt-2"
+              className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors mt-2"
             >
               {submitting ? "Submitting..." : "Request withdrawal"}
             </button>

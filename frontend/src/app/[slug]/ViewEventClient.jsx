@@ -11,7 +11,8 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { Providers } from "@/redux/Providers";
 import CheckoutModal from "@/components/checkout/CheckoutModal";
-import { trackViewEvent, trackShareEvent, trackSaveEvent, trackBeginCheckout } from "@/lib/analytics";
+import { trackViewEvent, trackShareEvent, trackSaveEvent, trackBeginCheckout, withShareUtm } from "@/lib/analytics";
+import { calculateTicketFees } from "@/lib/pricing";
 
 /* ── helpers ── */
 const fmt = (price) =>
@@ -188,9 +189,7 @@ export default function ViewEventClient({ slug }) {
     : (isFree ? [] : [{ id: "general", name: "General Admission", desc: "", price: ticketPrice }]);
 
   const activeTier   = tiers.find(t => String(t.id) === String(selectedTier)) || tiers[0] || { price: 0, name: "" };
-  const tierSubtotal = activeTier.price * qty;
-  const serviceFee   = isFree ? 0 : Math.round(tierSubtotal * 0.05);
-  const tierTotal    = tierSubtotal + serviceFee;
+  const { subtotal: tierSubtotal, serviceFee, total: tierTotal } = calculateTicketFees(activeTier.price * qty);
 
   return (
     <Providers>
@@ -211,10 +210,11 @@ export default function ViewEventClient({ slug }) {
             <button
               onClick={() => {
                 trackShareEvent({ eventName: event.name, eventSlug: event.slug });
+                const shareUrl = withShareUtm(window.location.href, "event_share", event.slug);
                 if (navigator.share) {
-                  navigator.share({ title: event.name, url: window.location.href });
+                  navigator.share({ title: event.name, url: shareUrl });
                 } else {
-                  navigator.clipboard.writeText(window.location.href).then(() => toast.success("Link copied!"));
+                  navigator.clipboard.writeText(shareUrl).then(() => toast.success("Link copied!"));
                 }
               }}
               className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
@@ -234,7 +234,7 @@ export default function ViewEventClient({ slug }) {
           {/* Owner: Manage button */}
           {event?.role?.is_owner && (
             <button
-              onClick={() => router.push(`/dashboard/${event.slug}`)}
+              onClick={() => router.push(`/dashboard/events/${event.slug}`)}
               className="absolute top-5 left-5 bg-blue-600 text-white text-xs font-semibold px-4 py-2 rounded-full hover:bg-blue-700 transition-colors"
             >
               Manage Event
@@ -288,16 +288,25 @@ export default function ViewEventClient({ slug }) {
             {/* Organizer */}
             <section className="mb-10">
               <div className="flex items-center justify-between p-5 border border-gray-100 rounded-2xl">
-                <div className="flex items-center gap-4">
+                <button
+                  type="button"
+                  onClick={() => event.owner_handle && router.push(`/u/${event.owner_handle}`)}
+                  disabled={!event.owner_handle}
+                  className={`flex items-center gap-4 text-left ${event.owner_handle ? "cursor-pointer" : "cursor-default"}`}
+                >
                   <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-sm shrink-0">
-                    {(event.hosted_by || "EL")[0].toUpperCase()}
+                    {(event.owner_handle || event.owner_email || "EL")[0].toUpperCase()}
                   </div>
                   <div>
                     <p className="text-xs text-gray-400 uppercase tracking-wide font-medium mb-0.5">Organised by</p>
-                    <p className="font-semibold text-gray-900 text-sm">{event.hosted_by || event.owner_email || "Byro Africa"}</p>
-                    <p className="text-xs text-gray-400">48 events · 12k followers</p>
+                    <p className="font-semibold text-gray-900 text-sm">
+                      {event.owner_handle ? `@${event.owner_handle}` : event.owner_email || "Byro Africa"}
+                    </p>
+                    <p className="text-xs text-gray-400">
+                      {event.owner_events_count ?? 0} event{event.owner_events_count === 1 ? "" : "s"} · Followers coming soon
+                    </p>
                   </div>
-                </div>
+                </button>
                 <button className="border border-gray-200 text-gray-700 text-xs font-semibold px-4 py-2 rounded-full hover:bg-gray-50 transition-colors">
                   Follow
                 </button>

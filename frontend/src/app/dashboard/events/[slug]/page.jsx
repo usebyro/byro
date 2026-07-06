@@ -29,7 +29,7 @@ const CATEGORY_GRADIENT = {
   fitness:       "from-orange-600 via-orange-500 to-amber-400",
   art_culture:   "from-pink-700 via-pink-600 to-rose-400",
   conference:    "from-teal-700 via-teal-600 to-emerald-400",
-  technology:    "from-indigo-700 via-indigo-600 to-violet-500",
+  technology:    "from-blue-700 via-blue-600 to-violet-500",
   web3_crypto:   "from-amber-600 via-amber-500 to-orange-400",
   other:         "from-slate-700 via-slate-600 to-gray-500",
 };
@@ -58,7 +58,7 @@ function getImageUrl(event) {
 
 function Avatar({ name, size = 8 }) {
   const initials = (name || "?").split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
-  const colors = ["from-indigo-400 to-purple-500", "from-teal-400 to-emerald-500", "from-pink-400 to-rose-500", "from-amber-400 to-orange-500", "from-blue-400 to-indigo-500"];
+  const colors = ["from-blue-400 to-purple-500", "from-teal-400 to-emerald-500", "from-pink-400 to-rose-500", "from-amber-400 to-orange-500", "from-blue-400 to-blue-500"];
   const color = colors[initials.charCodeAt(0) % colors.length];
   return (
     <div className={`w-${size} h-${size} rounded-full bg-gradient-to-br ${color} flex items-center justify-center text-white text-xs font-bold shrink-0 select-none`}>
@@ -244,7 +244,7 @@ export default function StudioEventPage() {
             </button>
             <Link
               href={`/${slug}/edit`}
-              className="flex items-center gap-1.5 bg-indigo-600 text-white text-sm font-semibold px-4 py-2 rounded-xl hover:bg-indigo-700 transition-colors"
+              className="flex items-center gap-1.5 bg-blue-600 text-white text-sm font-semibold px-4 py-2 rounded-xl hover:bg-blue-700 transition-colors"
             >
               <HugeiconsIcon icon={Edit03Icon} size={14} color="white" />
               Edit
@@ -257,7 +257,7 @@ export default function StudioEventPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {[
           { label: "Gross revenue", value: "—", icon: Money01Icon, iconBg: "bg-teal-50 text-teal-600", trend: null },
-          { label: "Tickets sold", value: loadingAttendees ? "—" : attendees.length, icon: Ticket01Icon, iconBg: "bg-indigo-50 text-indigo-600", trend: null },
+          { label: "Tickets sold", value: loadingAttendees ? "—" : attendees.length, icon: Ticket01Icon, iconBg: "bg-blue-50 text-blue-600", trend: null },
           { label: "Checked in", value: loadingAttendees ? "—" : checkedInCount, icon: UserMultiple02Icon, iconBg: "bg-violet-50 text-violet-600", trend: "live" },
           { label: "Page views", value: "—", icon: BarChartIcon, iconBg: "bg-amber-50 text-amber-600", trend: null },
         ].map((card) => (
@@ -284,7 +284,7 @@ export default function StudioEventPage() {
             onClick={() => setActiveTab(tab)}
             className={`pb-3 text-sm font-semibold capitalize border-b-2 -mb-px transition-colors ${
               activeTab === tab
-                ? "border-indigo-600 text-gray-900"
+                ? "border-blue-600 text-gray-900"
                 : "border-transparent text-gray-400 hover:text-gray-600"
             }`}
           >
@@ -309,7 +309,7 @@ export default function StudioEventPage() {
                   onClick={() => setFilter(f)}
                   className={`text-xs font-semibold px-3 py-1.5 rounded-full transition-colors ${
                     filter === f
-                      ? "bg-indigo-600 text-white"
+                      ? "bg-blue-600 text-white"
                       : "bg-gray-100 text-gray-500 hover:bg-gray-200"
                   }`}
                 >
@@ -326,13 +326,13 @@ export default function StudioEventPage() {
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Search..."
-                  className="pl-8 pr-3 py-1.5 bg-gray-50 border border-gray-100 rounded-xl text-xs w-36 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+                  className="pl-8 pr-3 py-1.5 bg-gray-50 border border-gray-100 rounded-xl text-xs w-36 focus:outline-none focus:ring-2 focus:ring-blue-100"
                 />
               </div>
               {/* Check in */}
               <button
                 onClick={() => setCheckInModal(true)}
-                className="flex items-center gap-1.5 bg-indigo-600 text-white text-xs font-semibold px-3 py-1.5 rounded-xl hover:bg-indigo-700 transition-colors"
+                className="flex items-center gap-1.5 bg-blue-600 text-white text-xs font-semibold px-3 py-1.5 rounded-xl hover:bg-blue-700 transition-colors"
               >
                 <HugeiconsIcon icon={QrCodeIcon} size={12} color="white" />
                 Check in
@@ -464,7 +464,7 @@ export default function StudioEventPage() {
               onKeyDown={(e) => e.key === "Enter" && handleCheckIn()}
               placeholder="email@example.com or QR token"
               autoFocus
-              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 mb-4"
+              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-200 mb-4"
             />
             <div className="flex gap-2">
               <button
@@ -476,7 +476,7 @@ export default function StudioEventPage() {
               <button
                 onClick={handleCheckIn}
                 disabled={checkingIn || !checkInValue.trim()}
-                className="flex-1 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                className="flex-1 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 transition-colors"
               >
                 {checkingIn ? "Checking in..." : "Check In"}
               </button>

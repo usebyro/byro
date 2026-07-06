@@ -318,7 +318,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
 
         toast.success(editSlug ? "Event updated!" : isDraft ? "Draft saved!" : "Event published!");
         if (editSlug) {
-          router.push(`/dashboard/${editSlug}`);
+          router.push(`/dashboard/events/${editSlug}`);
         } else {
           setEventSlug(response.slug || response.id);
           setEventCreated(true);
@@ -685,7 +685,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
           {editSlug && (
             <button
               type="button"
-              onClick={() => router.push(`/dashboard/${editSlug}`)}
+              onClick={() => router.push(`/dashboard/events/${editSlug}`)}
               className="w-full border border-gray-200 text-gray-600 font-medium py-2.5 rounded-xl hover:bg-gray-50 transition-colors text-sm"
             >
               Cancel

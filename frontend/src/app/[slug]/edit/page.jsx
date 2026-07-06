@@ -51,7 +51,7 @@ export default function EditEventPage() {
           {/* Header */}
           <div className="flex items-center gap-3 mb-6">
             <button
-              onClick={() => router.push(`/dashboard/${slug}`)}
+              onClick={() => router.push(`/dashboard/events/${slug}`)}
               className="text-gray-500 hover:text-gray-700 text-sm flex items-center gap-1"
             >
               ← Back

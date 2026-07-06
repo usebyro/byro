@@ -28,6 +28,7 @@ from .models import (
     EventCoHost, Payment, UserProfile, EventFormQuestion, EventFormAnswer,
     TicketTier,
 )
+from .pricing import calculate_ticket_fees
 from django.urls import reverse
 from .serializers import EventSerializer, TicketSerializer, PaymentSerializer, TicketTierSerializer
 from .permissions import IsEventOwnerOrCoHost, IsEventOwner
@@ -156,7 +157,9 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
 
         # Calculate amount (tier price takes precedence over the legacy flat price)
         unit_price = tier.price if tier is not None else event.ticket_price
-        amount = unit_price * quantity
+        subtotal = unit_price * quantity
+        fees = calculate_ticket_fees(subtotal)
+        amount = fees['total']
 
         # For free events/tiers, create ticket(s) directly
         linked_user = request.user if request.user.is_authenticated else None
@@ -236,6 +239,8 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                 'customer_name': customer_name,
                 'quantity': quantity,
                 'tier_id': tier.id if tier is not None else None,
+                'subtotal': str(fees['subtotal']),
+                'service_fee': str(fees['service_fee']),
             },
             'callback_url': settings.PAYSTACK_CALLBACK_URL
         }
@@ -272,9 +277,13 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                         'quantity': quantity,
                         'user_id': linked_user.id if linked_user else None,
                         'tier_id': tier.id if tier is not None else None,
+                        'subtotal': str(fees['subtotal']),
+                        'service_fee': str(fees['service_fee']),
+                        'paystack_fee': str(fees['paystack_fee']),
+                        'platform_fee': str(fees['platform_fee']),
                     }
                 )
-                
+
                 return Response({
                     'status': 'success',
                     'message': 'Payment initialized successfully',
@@ -283,6 +292,8 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                         'access_code': response_data['data']['access_code'],
                         'reference': reference,
                         'amount': float(amount),
+                        'subtotal': float(fees['subtotal']),
+                        'service_fee': float(fees['service_fee']),
                         'currency': 'NGN'
                     }
                 }, status=status.HTTP_200_OK)
