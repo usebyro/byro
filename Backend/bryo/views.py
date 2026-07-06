@@ -10,7 +10,7 @@ from .serializers import (
     PaymentVerifySerializer, PaymentSerializer,
     UserProfileSerializer, EventFormQuestionSerializer,
 )
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
@@ -110,6 +110,53 @@ def lock_and_check_capacity(event, tier_id, quantity):
     return None
 
 
+def send_ticket_confirmation_email(ticket, customer_name, customer_email, event):
+    """Send the "you're in" email for a single ticket, with a ticket image (QR + event details) attached."""
+    from .emails import ticket_confirmation_email
+    from .mailer import send_email
+    from .models import EventFormAnswer
+    from .ticket_image import generate_ticket_png
+
+    form_answers = [
+        {"question": a.question.question, "answer": str(a.answer)}
+        for a in EventFormAnswer.objects.filter(ticket=ticket).select_related('question')
+    ]
+    frontend_url = settings.FRONTEND_URL or "https://usebyro.com"
+    ticket_url = f"{frontend_url}/ticket/{ticket.ticket_id}"
+    date_str = event.day.strftime('%A, %B %d, %Y') if event.day else ''
+    time_str = event.time_from.strftime('%I:%M %p') if event.time_from else ''
+    email_data = ticket_confirmation_email(
+        name=customer_name,
+        event_name=event.name,
+        date=date_str,
+        time=time_str,
+        location=event.location or '',
+        ticket_id=str(ticket.ticket_id),
+        form_answers=form_answers,
+        ticket_url=ticket_url,
+    )
+    ticket_png = generate_ticket_png(
+        event_name=event.name,
+        date_str=date_str,
+        time_str=time_str,
+        location=event.location or '',
+        attendee_name=customer_name,
+        ticket_id=str(ticket.ticket_id),
+        qr_data=str(ticket.qr_token),
+    )
+    send_email(
+        to=customer_email,
+        subject=email_data['subject'],
+        html=email_data['html'],
+        text=email_data['text'],
+        attachments=[{
+            "filename": "ticket.png",
+            "content": ticket_png,
+            "content_type": "image/png",
+        }],
+    )
+
+
 class PaystackPaymentViewSet(viewsets.ViewSet):
     """
     ViewSet for handling Paystack payment operations for event tickets
@@ -185,30 +232,8 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
 
             # Send confirmation email for free tickets
             try:
-                from .mailer import send_email
-                from .emails import ticket_confirmation_email
-                from .models import EventFormAnswer
-                form_answers = [
-                    {"question": a.question.question, "answer": str(a.answer)}
-                    for a in EventFormAnswer.objects.filter(
-                        ticket=tickets[0]
-                    ).select_related('question')
-                ] if tickets else []
-                email_data = ticket_confirmation_email(
-                    name=customer_name,
-                    event_name=event.name,
-                    date=event.day.strftime('%A, %B %d, %Y') if event.day else '',
-                    time=event.time_from.strftime('%I:%M %p') if event.time_from else '',
-                    location=event.location or '',
-                    ticket_id=str(tickets[0].ticket_id) if tickets else '',
-                    form_answers=form_answers,
-                )
-                send_email(
-                    to=customer_email,
-                    subject=email_data['subject'],
-                    html=email_data['html'],
-                    text=email_data['text'],
-                )
+                if tickets:
+                    send_ticket_confirmation_email(tickets[0], customer_name, customer_email, event)
             except Exception as email_err:
                 logger.error(f"Failed to send free ticket email: {email_err}")
 
@@ -397,31 +422,10 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
 
                     # Send ticket confirmation email
                     try:
-                        from .mailer import send_email
-                        from .emails import ticket_confirmation_email
-                        from .models import EventFormAnswer
-                        event = payment.event
-                        form_answers = [
-                            {"question": a.question.question, "answer": str(a.answer)}
-                            for a in EventFormAnswer.objects.filter(
-                                ticket=tickets[0]
-                            ).select_related('question')
-                        ] if tickets else []
-                        email_data = ticket_confirmation_email(
-                            name=payment.customer_name,
-                            event_name=event.name,
-                            date=event.day.strftime('%A, %B %d, %Y') if event.day else '',
-                            time=event.time_from.strftime('%I:%M %p') if event.time_from else '',
-                            location=event.location or '',
-                            ticket_id=str(tickets[0].ticket_id) if tickets else '',
-                            form_answers=form_answers,
-                        )
-                        send_email(
-                            to=payment.customer_email,
-                            subject=email_data['subject'],
-                            html=email_data['html'],
-                            text=email_data['text'],
-                        )
+                        if tickets:
+                            send_ticket_confirmation_email(
+                                tickets[0], payment.customer_name, payment.customer_email, payment.event
+                            )
                     except Exception as email_err:
                         logger.error(f"Failed to send ticket confirmation email: {email_err}")
 
@@ -520,31 +524,10 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                     # Send ticket confirmation email
                     all_tickets = list(payment.tickets_purchased.all())
                     try:
-                        from .mailer import send_email
-                        from .emails import ticket_confirmation_email
-                        from .models import EventFormAnswer
-                        event = payment.event
-                        form_answers = [
-                            {"question": a.question.question, "answer": str(a.answer)}
-                            for a in EventFormAnswer.objects.filter(
-                                ticket=all_tickets[0]
-                            ).select_related('question')
-                        ] if all_tickets else []
-                        email_data = ticket_confirmation_email(
-                            name=payment.customer_name,
-                            event_name=event.name,
-                            date=event.day.strftime('%A, %B %d, %Y') if event.day else '',
-                            time=event.time_from.strftime('%I:%M %p') if event.time_from else '',
-                            location=event.location or '',
-                            ticket_id=str(all_tickets[0].ticket_id) if all_tickets else '',
-                            form_answers=form_answers,
-                        )
-                        send_email(
-                            to=payment.customer_email,
-                            subject=email_data['subject'],
-                            html=email_data['html'],
-                            text=email_data['text'],
-                        )
+                        if all_tickets:
+                            send_ticket_confirmation_email(
+                                all_tickets[0], payment.customer_name, payment.customer_email, payment.event
+                            )
                     except Exception as email_err:
                         logger.error(f"Failed to send webhook ticket email: {email_err}")
                     
@@ -1864,6 +1847,14 @@ class TicketViewSet(viewsets.ModelViewSet):
             }, status=status.HTTP_201_CREATED)
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['get'], permission_classes=[AllowAny])
+    def qr(self, request, ticket_id=None):
+        """PNG QR code encoding this ticket's check-in token."""
+        from .qr import generate_qr_png
+        ticket = self.get_object()
+        png_bytes = generate_qr_png(str(ticket.qr_token))
+        return HttpResponse(png_bytes, content_type='image/png')
 
 class TicketTransferViewSet(viewsets.ModelViewSet):
     """

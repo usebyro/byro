@@ -102,6 +102,17 @@ const API = {
     }
   },
 
+  getTicket: async (ticketId) => {
+    try {
+      const response = await axiosInstance.get(`tickets/${ticketId}/`);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  getTicketQrUrl: (ticketId) => `${axiosInstance.defaults.baseURL}tickets/${ticketId}/qr/`,
+
   getMyTicket: async (slug) => {
     try {
       const response = await axiosInstance.get(`events/${slug}/my_ticket/`);
@@ -257,15 +268,6 @@ const API = {
   cancelRegistration: async (ticketId) => {
     try {
       const response = await axiosInstance.delete(`tickets/${ticketId}/`);
-      return response.data;
-    } catch (error) {
-      throw handleApiError(error);
-    }
-  },
-
-  getTicket: async (ticketId) => {
-    try {
-      const response = await axiosInstance.get(`tickets/${ticketId}/`);
       return response.data;
     } catch (error) {
       throw handleApiError(error);

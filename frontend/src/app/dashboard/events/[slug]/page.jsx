@@ -17,9 +17,12 @@ import {
   Delete02Icon,
   CircleXIcon,
   QrCodeIcon,
+  Camera01Icon,
+  KeyboardIcon,
 } from "@hugeicons/core-free-icons";
 import { useReactToPrint } from "react-to-print";
 import { toast } from "sonner";
+import jsQR from "jsqr";
 import API from "@/services/api";
 
 const BASE_URL = (process.env.NEXT_PUBLIC_API_URL || "https://byro.onrender.com").replace(/\/api\/?$/, "");
@@ -112,6 +115,14 @@ export default function StudioEventPage() {
   const [checkingIn, setCheckingIn] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [checkInMode, setCheckInMode] = useState("scan"); // scan | manual
+  const [cameraError, setCameraError] = useState("");
+
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const streamRef = useRef(null);
+  const scanFrameRef = useRef(null);
+  const scanLockRef = useRef(false);
 
   const printRef = useRef();
   const handlePrint = useReactToPrint({
@@ -149,11 +160,12 @@ export default function StudioEventPage() {
 
   useEffect(() => { loadAttendees(); }, [slug]);
 
-  const handleCheckIn = async () => {
-    if (!checkInValue.trim()) return;
+  const handleCheckIn = async (valueOverride) => {
+    const value = (valueOverride ?? checkInValue).trim();
+    if (!value) return;
     setCheckingIn(true);
     try {
-      const res = await API.checkInAttendee(slug, checkInValue.trim());
+      const res = await API.checkInAttendee(slug, value);
       if (res.already_checked_in) {
         toast.info(`${res.attendee?.name || "Attendee"} already checked in.`);
       } else {
@@ -164,10 +176,71 @@ export default function StudioEventPage() {
       setCheckInModal(false);
     } catch (err) {
       toast.error(err?.message || "Check-in failed.");
+      scanLockRef.current = false; // let scanning resume after a failed/unknown code
     } finally {
       setCheckingIn(false);
     }
   };
+
+  // Stop the camera stream and scan loop (modal close, mode switch, unmount).
+  const stopScanner = () => {
+    if (scanFrameRef.current) {
+      cancelAnimationFrame(scanFrameRef.current);
+      scanFrameRef.current = null;
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    }
+    scanLockRef.current = false;
+  };
+
+  // Grab a video frame, decode it for a QR code, and check in on a hit.
+  const scanTick = () => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas || video.readyState !== video.HAVE_ENOUGH_DATA) {
+      scanFrameRef.current = requestAnimationFrame(scanTick);
+      return;
+    }
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const code = jsQR(imageData.data, imageData.width, imageData.height);
+
+    if (code?.data && !scanLockRef.current) {
+      scanLockRef.current = true; // avoid re-submitting the same held-up code every frame
+      handleCheckIn(code.data);
+    }
+    scanFrameRef.current = requestAnimationFrame(scanTick);
+  };
+
+  // Start the camera once the modal is open in scan mode.
+  useEffect(() => {
+    if (!checkInModal || checkInMode !== "scan") {
+      stopScanner();
+      return;
+    }
+    setCameraError("");
+    navigator.mediaDevices
+      ?.getUserMedia({ video: { facingMode: "environment" } })
+      .then((stream) => {
+        streamRef.current = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.play().catch(() => {});
+        }
+        scanFrameRef.current = requestAnimationFrame(scanTick);
+      })
+      .catch(() => {
+        setCameraError("Couldn't access the camera. Check permissions, or enter the code manually.");
+      });
+
+    return stopScanner;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [checkInModal, checkInMode]);
 
   const handleDelete = async () => {
     setDeleting(true);
@@ -331,7 +404,7 @@ export default function StudioEventPage() {
               </div>
               {/* Check in */}
               <button
-                onClick={() => setCheckInModal(true)}
+                onClick={() => { setCheckInMode("scan"); setCheckInModal(true); }}
                 className="flex items-center gap-1.5 bg-blue-600 text-white text-xs font-semibold px-3 py-1.5 rounded-xl hover:bg-blue-700 transition-colors"
               >
                 <HugeiconsIcon icon={QrCodeIcon} size={12} color="white" />
@@ -456,16 +529,62 @@ export default function StudioEventPage() {
                 <HugeiconsIcon icon={CircleXIcon} size={20} color="#9ca3af" />
               </button>
             </div>
-            <p className="text-sm text-gray-400 mb-4">Enter the attendee's email or paste their QR token.</p>
-            <input
-              type="text"
-              value={checkInValue}
-              onChange={(e) => setCheckInValue(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleCheckIn()}
-              placeholder="email@example.com or QR token"
-              autoFocus
-              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-200 mb-4"
-            />
+
+            {/* Mode toggle */}
+            <div className="flex bg-gray-100 rounded-xl p-1 mb-4">
+              <button
+                onClick={() => setCheckInMode("scan")}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-colors ${
+                  checkInMode === "scan" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"
+                }`}
+              >
+                <HugeiconsIcon icon={Camera01Icon} size={14} color="currentColor" />
+                Scan QR
+              </button>
+              <button
+                onClick={() => setCheckInMode("manual")}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-colors ${
+                  checkInMode === "manual" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"
+                }`}
+              >
+                <HugeiconsIcon icon={KeyboardIcon} size={14} color="currentColor" />
+                Enter manually
+              </button>
+            </div>
+
+            {checkInMode === "scan" ? (
+              <div className="mb-4">
+                <div className="relative w-full aspect-square bg-black rounded-xl overflow-hidden">
+                  <video ref={videoRef} muted playsInline className="w-full h-full object-cover" />
+                  <canvas ref={canvasRef} className="hidden" />
+                  {!cameraError && (
+                    <div className="absolute inset-6 border-2 border-white/70 rounded-xl pointer-events-none" />
+                  )}
+                  {cameraError && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/80 px-4">
+                      <p className="text-white text-xs text-center">{cameraError}</p>
+                    </div>
+                  )}
+                </div>
+                <p className="text-xs text-gray-400 text-center mt-3">
+                  {checkingIn ? "Checking in..." : "Point the camera at the attendee's ticket QR code"}
+                </p>
+              </div>
+            ) : (
+              <>
+                <p className="text-sm text-gray-400 mb-4">Enter the attendee's email or paste their QR token.</p>
+                <input
+                  type="text"
+                  value={checkInValue}
+                  onChange={(e) => setCheckInValue(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleCheckIn()}
+                  placeholder="email@example.com or QR token"
+                  autoFocus
+                  className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-200 mb-4"
+                />
+              </>
+            )}
+
             <div className="flex gap-2">
               <button
                 onClick={() => setCheckInModal(false)}
@@ -473,13 +592,15 @@ export default function StudioEventPage() {
               >
                 Cancel
               </button>
-              <button
-                onClick={handleCheckIn}
-                disabled={checkingIn || !checkInValue.trim()}
-                className="flex-1 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 transition-colors"
-              >
-                {checkingIn ? "Checking in..." : "Check In"}
-              </button>
+              {checkInMode === "manual" && (
+                <button
+                  onClick={() => handleCheckIn()}
+                  disabled={checkingIn || !checkInValue.trim()}
+                  className="flex-1 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                >
+                  {checkingIn ? "Checking in..." : "Check In"}
+                </button>
+              )}
             </div>
           </div>
         </div>

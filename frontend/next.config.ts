@@ -38,6 +38,11 @@ const nextConfig: NextConfig = {
         hostname: 'usebyro.com',
         pathname: '/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'fzskkmpslegcicobaamt.supabase.co',
+        pathname: '/**',
+      },
     ],
   },
 };

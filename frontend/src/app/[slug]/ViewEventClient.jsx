@@ -457,7 +457,7 @@ export default function ViewEventClient({ slug }) {
               {registered ? (
                 <div className="space-y-2">
                   <button
-                    onClick={() => router.push("/ticket-confirmation")}
+                    onClick={() => router.push(`/ticket/${ticketId}`)}
                     className="w-full bg-emerald-500 text-white font-semibold py-3 rounded-full hover:bg-emerald-600 transition-colors text-sm"
                   >
                     View Ticket

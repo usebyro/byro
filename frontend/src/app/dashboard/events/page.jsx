@@ -171,7 +171,7 @@ export default function StudioEvents() {
             placeholder="Search events..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-100"
+            className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm text-black focus:outline-none focus:ring-2 focus:ring-blue-100"
           />
         </div>
         <div className="flex gap-1 bg-white border border-gray-200 p-1 rounded-xl">

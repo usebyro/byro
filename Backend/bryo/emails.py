@@ -4,7 +4,7 @@ Each function returns a dict: { subject, html, text }
 """
 
 
-def ticket_confirmation_email(name, event_name, date, time, location, ticket_id, form_answers=None):
+def ticket_confirmation_email(name, event_name, date, time, location, ticket_id, form_answers=None, ticket_url=None):
     """
     Ticket confirmation email — sent for both free and paid tickets.
 
@@ -16,7 +16,11 @@ def ticket_confirmation_email(name, event_name, date, time, location, ticket_id,
         location (str): Event location.
         ticket_id (str): UUID of the ticket.
         form_answers (list[dict], optional): List of {"question": str, "answer": str}.
+        ticket_url (str, optional): Link to the attendee's ticket page. A ticket
+            image (event details + QR code) is attached to this email
+            separately (see mailer.send_email's `attachments` param).
     """
+    view_ticket_url = ticket_url or "https://usebyro.com"
 
     # Details grid
     time_cell = ""
@@ -58,7 +62,7 @@ def ticket_confirmation_email(name, event_name, date, time, location, ticket_id,
         <td>
           <p style="color:#94a3b8;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;margin:0 0 6px;">Scan at entry</p>
           <p style="color:#0f172a;font-size:15px;font-weight:700;font-family:'Courier New',Courier,monospace;margin:0 0 4px;letter-spacing:0.04em;">{ticket_id}</p>
-          <p style="color:#94a3b8;font-size:12px;margin:0;">Present this ID at the gate for entry</p>
+          <p style="color:#94a3b8;font-size:12px;margin:0;">Your ticket is attached to this email — present it at the gate for entry</p>
         </td>
       </tr>
     </table>"""
@@ -150,7 +154,7 @@ def ticket_confirmation_email(name, event_name, date, time, location, ticket_id,
         <table cellpadding="0" cellspacing="0" style="width:100%;">
           <tr>
             <td style="text-align:center;">
-              <a href="https://usebyro.com" style="display:block;background:#3b82f6;color:#ffffff;text-decoration:none;font-size:15px;font-weight:700;padding:16px 32px;border-radius:12px;text-align:center;">View my tickets</a>
+              <a href="{view_ticket_url}" style="display:block;background:#3b82f6;color:#ffffff;text-decoration:none;font-size:15px;font-weight:700;padding:16px 32px;border-radius:12px;text-align:center;">View my tickets</a>
             </td>
           </tr>
         </table>
@@ -185,7 +189,8 @@ def ticket_confirmation_email(name, event_name, date, time, location, ticket_id,
     if form_rows_text:
         plain_text += f"\nRegistration Details:\n{form_rows_text}"
     plain_text += (
-        f"\nPresent your ticket ID at the gate for entry.\n\n"
+        f"\nYour ticket is attached to this email — present it at the gate for entry.\n"
+        f"View your ticket online: {view_ticket_url}\n\n"
         f"Best regards,\nByro Team\nsupport@usebyro.com\n\n"
         f"You're getting this because you signed up for an event on Byro."
     )
