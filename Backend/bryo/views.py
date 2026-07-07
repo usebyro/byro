@@ -9,6 +9,7 @@ from .serializers import (
     TicketTransferSerializer, PaymentInitializeSerializer,
     PaymentVerifySerializer, PaymentSerializer,
     UserProfileSerializer, EventFormQuestionSerializer,
+    PayoutRequestSerializer,
 )
 from django.http import JsonResponse, HttpResponse
 from django.views.decorators.csrf import csrf_exempt
@@ -26,15 +27,16 @@ from .services.auth_factory import get_auth_service, SUPPORTED_PROVIDERS
 from .models import (
     PrivyUser, WaitList, Event, Ticket, TicketTransfer,
     EventCoHost, Payment, UserProfile, EventFormQuestion, EventFormAnswer,
-    TicketTier,
+    TicketTier, PayoutRequest,
 )
 from .pricing import calculate_ticket_fees
 from django.urls import reverse
 from .serializers import EventSerializer, TicketSerializer, PaymentSerializer, TicketTierSerializer
-from .permissions import IsEventOwnerOrCoHost, IsEventOwner
+from .permissions import IsEventOwnerOrCoHost, IsEventOwner, IsAdminSecret
 from django.db import transaction
 from django.db import models
-from django.db.models import Q, Min, OuterRef, Subquery
+from django.db.models import Q, Min, OuterRef, Subquery, Sum, Count
+from django.db.models.functions import TruncDate
 from django.db.models.functions import Coalesce
 from django.http import JsonResponse
 from django.conf import settings
@@ -1894,3 +1896,158 @@ class TicketTransferViewSet(viewsets.ModelViewSet):
             "ticket_url": ticket_url,
             "message": "Transfer completed successfully"
         }, status=status.HTTP_200_OK)
+
+
+# ---------------------------------------------------------------------------
+# Payout endpoints
+# ---------------------------------------------------------------------------
+
+class PayoutRequestView(APIView):
+    """
+    GET  /api/payouts/  — organizer's own payout history
+    POST /api/payouts/  — organizer submits a new payout request
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        qs = PayoutRequest.objects.filter(user=request.user)
+        return Response(PayoutRequestSerializer(qs, many=True).data)
+
+    def post(self, request):
+        serializer = PayoutRequestSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        payout = serializer.save(user=request.user)
+
+        # Persist bank details to user profile for pre-fill next time
+        if payout.method == 'bank':
+            profile = request.user.profile
+            profile.bank_name = payout.bank_name or profile.bank_name
+            profile.account_number = payout.account_number or profile.account_number
+            profile.account_name = payout.account_name or profile.account_name
+            profile.save(update_fields=['bank_name', 'account_number', 'account_name'])
+
+        return Response(PayoutRequestSerializer(payout).data, status=status.HTTP_201_CREATED)
+
+
+class AdminPayoutView(APIView):
+    """
+    GET   /api/admin/payouts/      — list all payout requests
+    PATCH /api/admin/payouts/:id/  — update status
+    """
+    permission_classes = [IsAdminSecret]
+
+    def get(self, request):
+        qs = PayoutRequest.objects.select_related('user', 'event').all()
+        return Response(PayoutRequestSerializer(qs, many=True).data)
+
+    def patch(self, request, pk):
+        try:
+            payout = PayoutRequest.objects.get(pk=pk)
+        except PayoutRequest.DoesNotExist:
+            return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        new_status = request.data.get('status')
+        if new_status not in dict(PayoutRequest.STATUS_CHOICES):
+            return Response({'error': 'Invalid status'}, status=status.HTTP_400_BAD_REQUEST)
+
+        payout.status = new_status
+        if new_status == 'processed':
+            payout.processed_at = timezone.now()
+        payout.save(update_fields=['status', 'processed_at'])
+        return Response(PayoutRequestSerializer(payout).data)
+
+
+class PaystackBankListView(APIView):
+    """GET /api/paystack/banks/?country=nigeria — list supported banks."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        country = request.query_params.get('country', 'nigeria')
+        headers = {'Authorization': f'Bearer {settings.PAYSTACK_SECRET_KEY.strip()}'}
+        try:
+            response = requests.get(
+                'https://api.paystack.co/bank',
+                params={'country': country},
+                headers=headers,
+                timeout=30,
+            )
+        except requests.RequestException:
+            return Response({'error': 'Could not reach Paystack'}, status=status.HTTP_502_BAD_GATEWAY)
+
+        return Response(response.json(), status=response.status_code)
+
+
+class PaystackResolveAccountView(APIView):
+    """GET /api/paystack/resolve-account/?account_number=...&bank_code=... — verify account name."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        account_number = request.query_params.get('account_number')
+        bank_code = request.query_params.get('bank_code')
+        if not account_number or not bank_code:
+            return Response(
+                {'error': 'account_number and bank_code are required'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        headers = {'Authorization': f'Bearer {settings.PAYSTACK_SECRET_KEY.strip()}'}
+        try:
+            response = requests.get(
+                'https://api.paystack.co/bank/resolve',
+                params={'account_number': account_number, 'bank_code': bank_code},
+                headers=headers,
+                timeout=30,
+            )
+        except requests.RequestException:
+            return Response({'error': 'Could not reach Paystack'}, status=status.HTTP_502_BAD_GATEWAY)
+
+        return Response(response.json(), status=response.status_code)
+
+
+# ---------------------------------------------------------------------------
+# Admin analytics endpoints
+# ---------------------------------------------------------------------------
+
+class AdminAnalyticsSummaryView(APIView):
+    """GET /api/admin/analytics/summary/"""
+    permission_classes = [IsAdminSecret]
+
+    def get(self, request):
+        total_tickets = Ticket.objects.filter(payment_status__in=['paid', 'free']).count()
+        total_revenue = Payment.objects.filter(status='successful').aggregate(
+            total=Sum('amount')
+        )['total'] or 0
+        total_events = Event.objects.count()
+        active_events = Event.objects.filter(is_active=True).count()
+
+        return Response({
+            'total_tickets_sold': total_tickets,
+            'total_revenue': total_revenue,
+            'total_events': total_events,
+            'active_events': active_events,
+        })
+
+
+class AdminAnalyticsRevenueTrendView(APIView):
+    """GET /api/admin/analytics/revenue-trend/?days=30"""
+    permission_classes = [IsAdminSecret]
+
+    def get(self, request):
+        try:
+            days = int(request.query_params.get('days', 30))
+        except ValueError:
+            days = 30
+
+        since = timezone.now() - timedelta(days=days)
+        rows = (
+            Payment.objects
+            .filter(status='successful', paid_at__gte=since)
+            .annotate(date=TruncDate('paid_at'))
+            .values('date')
+            .annotate(revenue=Sum('amount'))
+            .order_by('date')
+        )
+        data = [{'date': str(r['date']), 'revenue': r['revenue']} for r in rows]
+        return Response(data)

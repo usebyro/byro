@@ -9,6 +9,12 @@ from .views import (
     PaystackPaymentViewSet,
     ProfileViewSet,
     DashboardView,
+    PayoutRequestView,
+    AdminPayoutView,
+    PaystackBankListView,
+    PaystackResolveAccountView,
+    AdminAnalyticsSummaryView,
+    AdminAnalyticsRevenueTrendView,
 )
 
 
@@ -48,6 +54,21 @@ urlpatterns = [
     path('api/transfers/<uuid:transfer_key>/accept/',
          TicketTransferViewSet.as_view({'post': 'accept'}),
          name='accept-transfer'),
+
+    # Payouts (organizer)
+    path('api/payouts/', PayoutRequestView.as_view(), name='payout-list-create'),
+
+    # Admin — payouts
+    path('api/admin/payouts/', AdminPayoutView.as_view(), name='admin-payout-list'),
+    path('api/admin/payouts/<int:pk>/', AdminPayoutView.as_view(), name='admin-payout-detail'),
+
+    # Paystack — bank verification
+    path('api/paystack/banks/', PaystackBankListView.as_view(), name='paystack-banks'),
+    path('api/paystack/resolve-account/', PaystackResolveAccountView.as_view(), name='paystack-resolve-account'),
+
+    # Admin — analytics
+    path('api/admin/analytics/summary/', AdminAnalyticsSummaryView.as_view(), name='admin-analytics-summary'),
+    path('api/admin/analytics/revenue-trend/', AdminAnalyticsRevenueTrendView.as_view(), name='admin-analytics-revenue-trend'),
 
     # Public short-URL for events (must be last — catch-all slug)
     path('<slug:slug>/', EventViewSet.as_view({'get': 'retrieve'}), name='event-short-url'),

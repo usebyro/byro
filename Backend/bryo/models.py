@@ -99,6 +99,11 @@ class UserProfile(models.Model):
     linkedin = models.CharField(max_length=100, blank=True)
     telegram = models.CharField(max_length=100, blank=True)
 
+    # Saved bank details for payout pre-fill
+    bank_name = models.CharField(max_length=100, blank=True)
+    account_number = models.CharField(max_length=20, blank=True)
+    account_name = models.CharField(max_length=100, blank=True)
+
     # Flag used by frontend to redirect new users to profile setup
     is_complete = models.BooleanField(default=False)
 
@@ -543,6 +548,40 @@ class TicketTransfer(models.Model):
 
     def __str__(self):
         return f"Transfer {self.transfer_key} - {self.ticket.event.name}"
+
+
+class PayoutRequest(models.Model):
+    METHOD_CHOICES = [('bank', 'Bank Transfer'), ('wallet', 'Crypto Wallet')]
+    STATUS_CHOICES = [('pending', 'Pending'), ('processed', 'Processed'), ('rejected', 'Rejected')]
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='payout_requests'
+    )
+    event = models.ForeignKey(
+        Event, on_delete=models.SET_NULL, null=True, blank=True, related_name='payout_requests'
+    )
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    currency = models.CharField(max_length=3, default='NGN')
+    method = models.CharField(max_length=10, choices=METHOD_CHOICES)
+
+    # Bank fields
+    bank_name = models.CharField(max_length=100, blank=True)
+    account_number = models.CharField(max_length=20, blank=True)
+    account_name = models.CharField(max_length=100, blank=True)
+
+    # Wallet fields
+    wallet_address = models.CharField(max_length=255, blank=True)
+    wallet_type = models.CharField(max_length=50, blank=True)
+
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    requested_at = models.DateTimeField(auto_now_add=True)
+    processed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-requested_at']
+
+    def __str__(self):
+        return f"PayoutRequest #{self.pk} — {self.user.email} — {self.status}"
 
 
 # ---------------------------------------------------------------------------

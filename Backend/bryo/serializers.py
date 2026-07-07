@@ -4,7 +4,7 @@ from django.utils.text import slugify
 from .models import (
     Payment, WaitList, PrivyUser, Ticket, Event, EventCoHost,
     TicketTransfer, Payment, UserProfile, EventFormQuestion, EventFormAnswer,
-    TicketTier,
+    TicketTier, PayoutRequest,
 )
 from django.core.mail import send_mail
 from django.contrib.auth import get_user_model
@@ -398,3 +398,17 @@ class PaymentVerifySerializer(serializers.Serializer):
     message = serializers.CharField()
     tickets = TicketSerializer(many=True, required=False)
     payment = PaymentSerializer(required=False)
+
+
+class PayoutRequestSerializer(serializers.ModelSerializer):
+    user_email = serializers.EmailField(source='user.email', read_only=True)
+    event_name = serializers.CharField(source='event.name', read_only=True, default=None)
+
+    class Meta:
+        model = PayoutRequest
+        fields = [
+            'id', 'user_email', 'event', 'event_name', 'amount', 'currency',
+            'method', 'bank_name', 'account_number', 'account_name',
+            'wallet_address', 'wallet_type', 'status', 'requested_at', 'processed_at',
+        ]
+        read_only_fields = ['id', 'user_email', 'event_name', 'status', 'requested_at', 'processed_at']

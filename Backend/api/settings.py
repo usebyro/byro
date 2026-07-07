@@ -265,6 +265,8 @@ SUPABASE_URL = os.getenv('SUPABASE_URL', '')
 SUPABASE_KEY = os.getenv('SUPABASE_KEY', '')
 SUPABASE_STORAGE_BUCKET = os.getenv('SUPABASE_STORAGE_BUCKET', 'event-images')
 
+ADMIN_SECRET = os.getenv('ADMIN_SECRET', '')
+
 STORAGES = {
     "default": {
         "BACKEND": (
