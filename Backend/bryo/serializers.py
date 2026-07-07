@@ -412,3 +412,18 @@ class PayoutRequestSerializer(serializers.ModelSerializer):
             'wallet_address', 'wallet_type', 'status', 'requested_at', 'processed_at',
         ]
         read_only_fields = ['id', 'user_email', 'event_name', 'status', 'requested_at', 'processed_at']
+
+    def validate(self, attrs):
+        method = attrs.get('method')
+        if method == 'bank':
+            missing = [f for f in ('bank_name', 'account_number', 'account_name') if not attrs.get(f)]
+            if missing:
+                raise serializers.ValidationError(
+                    {f: 'This field is required for bank payouts.' for f in missing}
+                )
+        elif method == 'wallet':
+            if not attrs.get('wallet_address'):
+                raise serializers.ValidationError(
+                    {'wallet_address': 'This field is required for wallet payouts.'}
+                )
+        return attrs

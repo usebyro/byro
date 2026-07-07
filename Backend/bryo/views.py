@@ -1918,6 +1918,13 @@ class PayoutRequestView(APIView):
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+        event = serializer.validated_data.get('event')
+        if event is not None and not event.is_owner_or_cohost(request.user):
+            return Response(
+                {'error': 'You can only request a payout for an event you own or co-host'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         payout = serializer.save(user=request.user)
 
         # Persist bank details to user profile for pre-fill next time

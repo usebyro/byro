@@ -100,9 +100,9 @@ class UserProfile(models.Model):
     telegram = models.CharField(max_length=100, blank=True)
 
     # Saved bank details for payout pre-fill
-    bank_name = models.CharField(max_length=100, blank=True)
-    account_number = models.CharField(max_length=20, blank=True)
-    account_name = models.CharField(max_length=100, blank=True)
+    bank_name = models.CharField(max_length=100, blank=True, default="")
+    account_number = models.CharField(max_length=20, blank=True, default="")
+    account_name = models.CharField(max_length=100, blank=True, default="")
 
     # Flag used by frontend to redirect new users to profile setup
     is_complete = models.BooleanField(default=False)
