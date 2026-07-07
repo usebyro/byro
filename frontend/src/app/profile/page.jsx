@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { useWeb3AuthDisconnect } from "@web3auth/modal/react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Share01Icon,
@@ -34,15 +34,16 @@ const PREFERENCES = [
   { id: "festivals",     label: "Festivals",   icon: FireworksIcon },
 ];
 
-export default function ProfilePage() {
+function ProfilePageContent() {
   const router   = useRouter();
+  const searchParams = useSearchParams();
   const dispatch = useDispatch();
   const { user, token } = useSelector((s) => s.auth);
   const { disconnect } = useWeb3AuthDisconnect();
 
   const [profile,     setProfile]     = useState(null);
   const [loading,     setLoading]     = useState(true);
-  const [isEditing,   setIsEditing]   = useState(false);
+  const [isEditing,   setIsEditing]   = useState(() => searchParams.get("onboarding") === "1");
   const [isSaving,    setIsSaving]    = useState(false);
   const [avatarFile,  setAvatarFile]  = useState(null);
   const [avatarPreview, setAvatarPreview] = useState("");
@@ -103,6 +104,13 @@ export default function ProfilePage() {
       router.push("/");
     }
   }, [loading, token, user, router]);
+
+  // ── Welcome new users into profile setup ──
+  useEffect(() => {
+    if (searchParams.get("onboarding") === "1") {
+      toast.message("Welcome to Byro!", { description: "Let's finish setting up your profile." });
+    }
+  }, [searchParams]);
 
   const field = (key, val) => setForm((f) => ({ ...f, [key]: val }));
 
@@ -402,6 +410,14 @@ export default function ProfilePage() {
 
       </div>
     </AppLayout>
+  );
+}
+
+export default function ProfilePage() {
+  return (
+    <Suspense fallback={null}>
+      <ProfilePageContent />
+    </Suspense>
   );
 }
 

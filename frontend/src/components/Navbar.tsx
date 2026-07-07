@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useWeb3AuthConnect, useWeb3AuthDisconnect, useIdentityToken } from "@web3auth/modal/react";
@@ -9,6 +9,7 @@ import { useSelector, useDispatch } from "react-redux";
 import { toast } from "react-toastify";
 import API from "@/services/api";
 import { signOut, authSuccess } from "@/redux/auth/authSlice";
+import UserMenu from "@/components/auth/UserMenu";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -26,8 +27,6 @@ const Navbar = () => {
   const { disconnect } = useWeb3AuthDisconnect();
   const { getIdentityToken } = useIdentityToken();
   const pathname = usePathname();
-  const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
-  const profileDropdownRef = useRef<HTMLDivElement>(null);
   const dispatch = useDispatch();
   const router = useRouter();
   const { user, token } = useSelector(
@@ -38,7 +37,7 @@ const Navbar = () => {
   const exchangeWithBackend = useCallback(async () => {
     try {
       const idToken = await getIdentityToken();
-      if (!idToken) return false;
+      if (!idToken) return null;
       const res = await fetch(`${API_URL}auth/social/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -48,15 +47,15 @@ const Navbar = () => {
       if (data.success) {
         API.setAuthToken(data.tokens.access);
         dispatch(authSuccess({ user: data.user, token: data.tokens.access }));
-        return true;
+        return data.user;
       }
       console.error("[Auth] backend rejected:", data.error);
       await disconnect();
-      return false;
+      return null;
     } catch (err) {
       console.error("[Auth] exchange failed:", err);
       await disconnect();
-      return false;
+      return null;
     }
   }, [getIdentityToken, disconnect, dispatch]);
 
@@ -65,9 +64,10 @@ const Navbar = () => {
     try {
       const provider = await connect();
       if (!provider) return;
-      const success = await exchangeWithBackend();
-      if (success) {
-        router.push("/events");
+      const newUser = await exchangeWithBackend();
+      if (newUser) {
+        const needsProfile = !newUser.display_name && !newUser.displayName && !newUser.handle;
+        router.push(needsProfile ? "/profile?onboarding=1" : "/events");
       } else {
         toast.error("Sign in failed. Please try again.");
       }
@@ -91,29 +91,11 @@ const Navbar = () => {
     }
   }, [token]);
 
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (
-        profileDropdownRef.current &&
-        !profileDropdownRef.current.contains(event.target as Node)
-      ) {
-        setIsProfileDropdownOpen(false);
-      }
-    }
-    if (isProfileDropdownOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [isProfileDropdownOpen]);
-
   const isActive = (href: string) => pathname === href;
 
   const handleLogout = async () => {
     await disconnect();
     dispatch(signOut());
-    setIsProfileDropdownOpen(false);
   };
 
   return (
@@ -185,44 +167,7 @@ const Navbar = () => {
                   </svg>
                   Create event
                 </Link>
-                <div className="relative" ref={profileDropdownRef}>
-                  <button
-                    onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
-                    className="w-9 h-9 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-medium hover:bg-blue-700 transition-colors"
-                  >
-                    {user?.display_name?.charAt(0)?.toUpperCase() || user?.email?.charAt(0)?.toUpperCase() || "U"}
-                  </button>
-                  {isProfileDropdownOpen && (
-                    <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-100 rounded-xl shadow-lg z-50 overflow-hidden">
-                      <div className="p-3 border-b border-gray-100">
-                        <p className="font-semibold text-gray-900 text-sm">{user?.display_name || "User"}</p>
-                        <p className="text-xs text-gray-500 truncate">{user?.email || ""}</p>
-                      </div>
-                      <div className="p-2">
-                        <Link
-                          href="/profile"
-                          className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg"
-                          onClick={() => setIsProfileDropdownOpen(false)}
-                        >
-                          Profile
-                        </Link>
-                        <Link
-                          href="/events"
-                          className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg"
-                          onClick={() => setIsProfileDropdownOpen(false)}
-                        >
-                          My Events
-                        </Link>
-                        <button
-                          onClick={handleLogout}
-                          className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg"
-                        >
-                          Log Out
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
+                <UserMenu user={user} onLogout={handleLogout} eventsHref="/events" />
               </>
             ) : (
               <>
@@ -268,44 +213,7 @@ const Navbar = () => {
                 >
                   + Create
                 </Link>
-                <div className="relative" ref={profileDropdownRef}>
-                  <button
-                    onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
-                    className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-medium"
-                  >
-                    {user?.display_name?.charAt(0)?.toUpperCase() || user?.email?.charAt(0)?.toUpperCase() || "U"}
-                  </button>
-                  {isProfileDropdownOpen && (
-                    <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-100 rounded-xl shadow-lg z-50 overflow-hidden">
-                      <div className="p-3 border-b border-gray-100">
-                        <p className="font-semibold text-gray-900 text-sm">{user?.display_name || "User"}</p>
-                        <p className="text-xs text-gray-500 truncate">{user?.email || ""}</p>
-                      </div>
-                      <div className="p-2">
-                        <Link
-                          href="/profile"
-                          className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg"
-                          onClick={() => setIsProfileDropdownOpen(false)}
-                        >
-                          Profile
-                        </Link>
-                        <Link
-                          href="/events"
-                          className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg"
-                          onClick={() => setIsProfileDropdownOpen(false)}
-                        >
-                          My Events
-                        </Link>
-                        <button
-                          onClick={handleLogout}
-                          className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg"
-                        >
-                          Log Out
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
+                <UserMenu user={user} onLogout={handleLogout} eventsHref="/events" size="sm" />
               </>
             ) : (
               <>

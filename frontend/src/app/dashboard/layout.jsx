@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Home01Icon,
@@ -13,8 +13,11 @@ import {
   Notification01Icon,
   Ticket01Icon,
 } from "@hugeicons/core-free-icons";
+import { useWeb3AuthDisconnect } from "@web3auth/modal/react";
 import { Providers } from "@/redux/Providers";
-import { useSelector } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
+import { signOut } from "@/redux/auth/authSlice";
+import UserMenu from "@/components/auth/UserMenu";
 
 const NAV = [
   { label: "Dashboard", href: "/dashboard",         icon: Home01Icon,     exact: true },
@@ -26,9 +29,16 @@ const NAV = [
 
 function StudioShell({ children }) {
   const pathname = usePathname();
+  const router   = useRouter();
+  const dispatch = useDispatch();
   const user     = useSelector((s) => s.auth?.user);
-  const name     = user?.displayName || user?.name || user?.email || "U";
-  const initials = name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
+  const { disconnect } = useWeb3AuthDisconnect();
+
+  const handleLogout = async () => {
+    await disconnect();
+    dispatch(signOut());
+    router.push("/");
+  };
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#F5F7FB]">
@@ -110,9 +120,13 @@ function StudioShell({ children }) {
           <button className="relative p-2 text-gray-400 hover:text-gray-600 rounded-xl hover:bg-gray-50 transition-colors">
             <HugeiconsIcon icon={Notification01Icon} size={18} color="currentColor" />
           </button>
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500 to-purple-700 flex items-center justify-center text-white text-xs font-bold shrink-0 select-none">
-            {initials}
-          </div>
+          <UserMenu
+            user={user}
+            onLogout={handleLogout}
+            eventsHref="/dashboard/events"
+            eventsLabel="Events"
+            size="sm"
+          />
         </header>
 
         {/* Page content */}
