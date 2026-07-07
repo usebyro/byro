@@ -1,40 +1,36 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useSelector } from "react-redux";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { toast } from "sonner";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
-  Money01Icon,
   ArrowUpRight01Icon,
   Calendar01Icon,
   WalletAdd01Icon,
   Cancel01Icon,
 } from "@hugeicons/core-free-icons";
-
-// Placeholder page — replace with real API data when backend supports it
-const MOCK_TRANSACTIONS = [
-  { id: 1, label: "Payout to GTBank", date: "18 Jul 2026 · 09:24", status: "PAID", amount: 3200000, icon: "bank" },
-  { id: 2, label: "Afrorave: Lights Out — sales", date: "15 Jul 2026", status: "PENDING", amount: 2400000, icon: "event" },
-  { id: 3, label: "Payout to GTBank", date: "12 Jul 2026 · 14:02", status: "PAID", amount: 5100000, icon: "bank" },
-  { id: 4, label: "Derby Day — sales", date: "10 Jul 2026", status: "CLEARED", amount: 3000000, icon: "event" },
-  { id: 5, label: "Afrobeats Arena — sales", date: "8 Jul 2026", status: "CLEARED", amount: 6100000, icon: "event" },
-];
+import API from "@/services/api";
 
 const STATUS_STYLE = {
-  PAID:    "bg-teal-50 text-teal-600 border border-teal-100",
-  PENDING: "bg-amber-50 text-amber-600 border border-amber-100",
-  CLEARED: "bg-gray-100 text-gray-500",
+  processed: "bg-teal-50 text-teal-600 border border-teal-100",
+  pending: "bg-amber-50 text-amber-600 border border-amber-100",
+  rejected: "bg-red-50 text-red-600 border border-red-100",
 };
 
-// No backend field for this yet — persisted locally until the Payout Requests
-// API exists (see BACKEND_REQUIREMENTS.md).
 const BANK_DETAILS_STORAGE_KEY = "byro_payout_bank_details";
 
-const EMPTY_BANK_DETAILS = { bankName: "", accountNumber: "", accountName: "" };
+const EMPTY_BANK_DETAILS = { bankCode: "", bankName: "", accountNumber: "", accountName: "" };
 
 function fmt(n) {
-  return `₦${n.toLocaleString()}`;
+  return `₦${Number(n).toLocaleString()}`;
+}
+
+function fmtDate(iso) {
+  return new Date(iso).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
 }
 
 function Modal({ title, onClose, children }) {
@@ -55,16 +51,27 @@ function Modal({ title, onClose, children }) {
 }
 
 export default function StudioPayouts() {
-  const user = useSelector((s) => s.auth?.user);
+  const [payouts, setPayouts] = useState([]);
+  const [loadingPayouts, setLoadingPayouts] = useState(true);
+
+  const [banks, setBanks] = useState([]);
+  const [loadingBanks, setLoadingBanks] = useState(false);
 
   const [bankDetails, setBankDetails] = useState(EMPTY_BANK_DETAILS);
   const [bankForm, setBankForm] = useState(EMPTY_BANK_DETAILS);
   const [bankModalOpen, setBankModalOpen] = useState(false);
 
+  const [resolvedName, setResolvedName] = useState("");
+  const [resolving, setResolving] = useState(false);
+  const [resolveError, setResolveError] = useState("");
+  const resolveTimer = useRef(null);
+
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [withdrawModalOpen, setWithdrawModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
+  // Load saved bank details (local cache — backend doesn't expose a
+  // standalone "saved bank details" read; it's inferred from payout history).
   useEffect(() => {
     try {
       const stored = localStorage.getItem(BANK_DETAILS_STORAGE_KEY);
@@ -74,15 +81,97 @@ export default function StudioPayouts() {
     }
   }, []);
 
+  const loadPayouts = useCallback(async () => {
+    setLoadingPayouts(true);
+    try {
+      const data = await API.getPayouts();
+      setPayouts(Array.isArray(data) ? data : []);
+
+      // Fall back to the most recent bank payout for pre-fill if nothing cached locally.
+      const lastBank = (Array.isArray(data) ? data : []).find((p) => p.method === "bank");
+      if (lastBank) {
+        setBankDetails((prev) =>
+          prev.accountNumber
+            ? prev
+            : {
+                bankCode: "",
+                bankName: lastBank.bank_name || "",
+                accountNumber: lastBank.account_number || "",
+                accountName: lastBank.account_name || "",
+              }
+        );
+      }
+    } catch {
+      toast.error("Couldn't load payout history.");
+    } finally {
+      setLoadingPayouts(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadPayouts();
+  }, [loadPayouts]);
+
+  const loadBanks = useCallback(async () => {
+    if (banks.length) return;
+    setLoadingBanks(true);
+    try {
+      const res = await API.getBanks("nigeria");
+      setBanks(Array.isArray(res?.data) ? res.data : []);
+    } catch {
+      toast.error("Couldn't load the bank list. Please try again.");
+    } finally {
+      setLoadingBanks(false);
+    }
+  }, [banks.length]);
+
   const openBankModal = () => {
     setBankForm(bankDetails);
+    setResolvedName(bankDetails.accountName || "");
+    setResolveError("");
     setBankModalOpen(true);
+    loadBanks();
   };
+
+  // Debounced account-name lookup: fires once a bank + full account number are set,
+  // so the user can confirm details before they get sent anywhere.
+  useEffect(() => {
+    if (!bankModalOpen) return;
+    clearTimeout(resolveTimer.current);
+    setResolveError("");
+
+    if (!bankForm.bankCode || bankForm.accountNumber.length < 10) {
+      setResolvedName("");
+      return;
+    }
+
+    resolveTimer.current = setTimeout(async () => {
+      setResolving(true);
+      try {
+        const res = await API.resolveAccount(bankForm.accountNumber, bankForm.bankCode);
+        const name = res?.data?.account_name;
+        if (name) {
+          setResolvedName(name);
+          setBankForm((p) => ({ ...p, accountName: name }));
+        } else {
+          setResolvedName("");
+          setResolveError(res?.message || "Couldn't verify this account.");
+        }
+      } catch (err) {
+        setResolvedName("");
+        setResolveError(err?.message || "Couldn't verify this account.");
+      } finally {
+        setResolving(false);
+      }
+    }, 600);
+
+    return () => clearTimeout(resolveTimer.current);
+  }, [bankForm.bankCode, bankForm.accountNumber, bankModalOpen]);
 
   const saveBankDetails = (e) => {
     e.preventDefault();
-    if (!bankForm.bankName || !bankForm.accountNumber || !bankForm.accountName) {
-      toast.error("Please fill in all bank details.");
+    if (!bankForm.bankCode || !bankForm.accountNumber || !bankForm.accountName) {
+      toast.error("Select a bank and enter your account number to confirm your details.");
       return;
     }
     setBankDetails(bankForm);
@@ -104,43 +193,23 @@ export default function StudioPayouts() {
       openBankModal();
       return;
     }
-    const email = user?.email;
-    if (!email) {
-      toast.error("Couldn't find your account email. Please try again after signing in.");
-      return;
-    }
 
     setSubmitting(true);
     try {
-      const res = await fetch("/api/send-email", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          emails: [
-            {
-              type: "payout",
-              to: email,
-              data: {
-                name: bankDetails.accountName,
-                amount: withdrawAmount,
-                method: "bank",
-                accountNumber: bankDetails.accountNumber,
-                bankName: bankDetails.bankName,
-              },
-            },
-          ],
-        }),
+      await API.createPayout({
+        method: "bank",
+        amount,
+        currency: "NGN",
+        bank_name: bankDetails.bankName,
+        account_number: bankDetails.accountNumber,
+        account_name: bankDetails.accountName,
       });
-
-      if (res.ok) {
-        toast.success("Withdrawal request submitted! You'll receive a confirmation email within 24 hours.");
-        setWithdrawAmount("");
-        setWithdrawModalOpen(false);
-      } else {
-        toast.error("Failed to submit withdrawal request. Please try again.");
-      }
-    } catch {
-      toast.error("Something went wrong. Please try again.");
+      toast.success("Withdrawal request submitted!");
+      setWithdrawAmount("");
+      setWithdrawModalOpen(false);
+      loadPayouts();
+    } catch (err) {
+      toast.error(err?.message || "Failed to submit withdrawal request. Please try again.");
     } finally {
       setSubmitting(false);
     }
@@ -183,75 +252,61 @@ export default function StudioPayouts() {
         {/* Paid out */}
         <div className="bg-white rounded-2xl border border-gray-100 p-5">
           <div className="flex items-start justify-between mb-4">
-            <p className="text-sm text-gray-400">Paid out (2026)</p>
+            <p className="text-sm text-gray-400">Paid out</p>
             <div className="w-8 h-8 rounded-xl bg-green-50 text-green-600 flex items-center justify-center">
               <HugeiconsIcon icon={ArrowUpRight01Icon} size={16} color="currentColor" />
             </div>
           </div>
-          <p className="text-2xl font-bold text-gray-900 mb-1">—</p>
-          <p className="text-xs text-green-500">+22% vs last month</p>
+          <p className="text-2xl font-bold text-gray-900 mb-1">
+            {fmt(payouts.filter((p) => p.status === "processed").reduce((sum, p) => sum + Number(p.amount), 0))}
+          </p>
         </div>
 
-        {/* Next payout */}
+        {/* Pending */}
         <div className="bg-white rounded-2xl border border-gray-100 p-5">
           <div className="flex items-start justify-between mb-4">
-            <p className="text-sm text-gray-400">Next payout</p>
+            <p className="text-sm text-gray-400">Pending</p>
             <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
               <HugeiconsIcon icon={Calendar01Icon} size={16} color="currentColor" />
             </div>
           </div>
-          <p className="text-2xl font-bold text-gray-900 mb-1">—</p>
-          <p className="text-xs text-gray-400">Clears after your next event</p>
+          <p className="text-2xl font-bold text-gray-900 mb-1">
+            {fmt(payouts.filter((p) => p.status === "pending").reduce((sum, p) => sum + Number(p.amount), 0))}
+          </p>
         </div>
       </div>
 
-      {/* Transaction history */}
+      {/* Payout history */}
       <div className="bg-white rounded-2xl border border-gray-100 p-5">
         <div className="flex items-center justify-between mb-5">
-          <p className="font-semibold text-gray-900">Transaction history</p>
-          <div className="flex items-center gap-1">
-            {["All", "Payouts", "Sales"].map((f, i) => (
-              <button
-                key={f}
-                className={`text-xs font-semibold px-3 py-1.5 rounded-full transition-colors ${
-                  i === 0 ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"
-                }`}
-              >
-                {f}
-              </button>
+          <p className="font-semibold text-gray-900">Payout history</p>
+        </div>
+
+        {loadingPayouts ? (
+          <p className="text-sm text-gray-400 py-6 text-center">Loading…</p>
+        ) : payouts.length === 0 ? (
+          <p className="text-sm text-gray-400 py-6 text-center">No payout requests yet.</p>
+        ) : (
+          <div className="divide-y divide-gray-50">
+            {payouts.map((p) => (
+              <div key={p.id} className="flex items-center gap-4 py-3.5">
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 bg-teal-50 text-teal-600">
+                  <HugeiconsIcon icon={WalletAdd01Icon} size={16} color="currentColor" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-gray-900 truncate">
+                    {p.method === "bank" ? `Payout to ${p.bank_name}` : "Payout to wallet"}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-0.5">{fmtDate(p.requested_at)}</p>
+                </div>
+                <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full shrink-0 ${STATUS_STYLE[p.status] || ""}`}>
+                  {p.status?.toUpperCase()}
+                </span>
+                <p className="text-sm font-bold text-gray-900 shrink-0 w-24 text-right">{fmt(p.amount)}</p>
+              </div>
             ))}
-            <button className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-full bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 ml-1">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
-              </svg>
-              Statement
-            </button>
           </div>
-        </div>
-
-        <div className="divide-y divide-gray-50">
-          {MOCK_TRANSACTIONS.map((tx) => (
-            <div key={tx.id} className="flex items-center gap-4 py-3.5">
-              <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
-                tx.icon === "bank" ? "bg-teal-50 text-teal-600" : "bg-amber-50 text-amber-600"
-              }`}>
-                <HugeiconsIcon icon={tx.icon === "bank" ? WalletAdd01Icon : Money01Icon} size={16} color="currentColor" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-gray-900 truncate">{tx.label}</p>
-                <p className="text-xs text-gray-400 mt-0.5">{tx.date}</p>
-              </div>
-              <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full shrink-0 ${STATUS_STYLE[tx.status]}`}>
-                {tx.status}
-              </span>
-              <p className="text-sm font-bold text-gray-900 shrink-0 w-24 text-right">{fmt(tx.amount)}</p>
-            </div>
-          ))}
-        </div>
-
-        <p className="text-xs text-gray-400 text-center mt-5 pt-4 border-t border-gray-50">
-          Revenue data will update automatically once backend integration is complete.
-        </p>
+        )}
       </div>
 
       {/* Bank details modal */}
@@ -259,14 +314,25 @@ export default function StudioPayouts() {
         <Modal title="Bank details" onClose={() => setBankModalOpen(false)}>
           <form onSubmit={saveBankDetails} className="space-y-3">
             <div>
-              <label className="text-xs text-gray-500 block mb-1">Bank name</label>
-              <input
-                type="text"
-                value={bankForm.bankName}
-                onChange={(e) => setBankForm((p) => ({ ...p, bankName: e.target.value }))}
-                placeholder="e.g. GTBank"
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+              <label className="text-xs text-gray-500 block mb-1">Bank</label>
+              <select
+                value={bankForm.bankCode}
+                onChange={(e) => {
+                  const code = e.target.value;
+                  const bank = banks.find((b) => String(b.code) === code);
+                  setBankForm((p) => ({ ...p, bankCode: code, bankName: bank?.name || "" }));
+                }}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+              >
+                <option value="" className="text-gray-500">
+                  {loadingBanks ? "Loading banks…" : "Select your bank"}
+                </option>
+                {banks.map((b) => (
+                  <option key={b.code} value={b.code} className="text-gray-900">
+                    {b.name}
+                  </option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="text-xs text-gray-500 block mb-1">Account number</label>
@@ -274,24 +340,27 @@ export default function StudioPayouts() {
                 type="text"
                 inputMode="numeric"
                 value={bankForm.accountNumber}
-                onChange={(e) => setBankForm((p) => ({ ...p, accountNumber: e.target.value }))}
+                onChange={(e) =>
+                  setBankForm((p) => ({ ...p, accountNumber: e.target.value.replace(/\D/g, "") }))
+                }
                 placeholder="0123456789"
+                maxLength={10}
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
-            </div>
-            <div>
-              <label className="text-xs text-gray-500 block mb-1">Account name</label>
-              <input
-                type="text"
-                value={bankForm.accountName}
-                onChange={(e) => setBankForm((p) => ({ ...p, accountName: e.target.value }))}
-                placeholder="As it appears on your bank account"
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+              <p className="text-xs mt-1.5 min-h-[1rem]">
+                {resolving && <span className="text-gray-400">Verifying account…</span>}
+                {!resolving && resolvedName && (
+                  <span className="text-green-600 font-medium">{resolvedName}</span>
+                )}
+                {!resolving && !resolvedName && resolveError && (
+                  <span className="text-red-500">{resolveError}</span>
+                )}
+              </p>
             </div>
             <button
               type="submit"
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors mt-2"
+              disabled={!resolvedName}
+              className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors mt-2"
             >
               Save
             </button>
