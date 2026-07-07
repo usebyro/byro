@@ -15,11 +15,13 @@ function TicketConfirmationContent() {
  
 
   useEffect(() => {
- 
     const storedData = localStorage.getItem("ticketData");
     if (storedData) {
+      // One-time read of localStorage on mount; this can't run during render
+      // (no access to localStorage during SSR) or be deferred to a callback.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setTicketData(JSON.parse(storedData));
-      
+
       localStorage.removeItem("ticketData");
     }
   }, []);
@@ -114,11 +116,11 @@ function TicketConfirmationContent() {
 
               <div className="border-t border-gray-200 pt-4 sm:pt-6">
                 <h3 className="text-base sm:text-lg font-bold text-gray-900">
-                  What's Next?
+                  What&apos;s Next?
                 </h3>
                 <div className="mt-2 text-gray-600 text-sm sm:text-base">
                   <p>
-                    We've sent a confirmation email to{" "}
+                    We&apos;ve sent a confirmation email to{" "}
                     {ticketData.attendeeEmail}
                   </p>
                   <p>Please check your inbox for your ticket.</p>

@@ -20,7 +20,7 @@ export default function TermsPage() {
           <section>
             <h2 className="text-lg font-semibold text-gray-900 mb-2">1. Acceptance of Terms</h2>
             <p>
-              By accessing or using Byro ("the Platform"), you agree to be bound by these Terms of Service.
+              By accessing or using Byro (&quot;the Platform&quot;), you agree to be bound by these Terms of Service.
               If you do not agree, please do not use the Platform. Byro reserves the right to update these
               terms at any time. Continued use of the Platform after changes constitutes your acceptance.
             </p>
@@ -37,7 +37,7 @@ export default function TermsPage() {
               <li>You must be at least 18 years old to create an organizer account.</li>
               <li>You are responsible for maintaining the confidentiality of your account credentials.</li>
               <li>You must not use the Platform to post false, misleading, or fraudulent event information.</li>
-              <li>You must not attempt to disrupt or interfere with the Platform's security or functionality.</li>
+              <li>You must not attempt to disrupt or interfere with the Platform&apos;s security or functionality.</li>
             </ul>
           </section>
 

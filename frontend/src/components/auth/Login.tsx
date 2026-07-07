@@ -9,7 +9,7 @@ import { useSelector } from "react-redux";
 
 export default function Login() {
   const { connect, isConnected, error: connectError } = useWeb3AuthConnect();
-  const { token } = useSelector((state: any) => state.auth);
+  const { token } = useSelector((state: { auth: { token: string | null } }) => state.auth);
   const router = useRouter();
 
   // Trigger Web3Auth modal if not yet connected

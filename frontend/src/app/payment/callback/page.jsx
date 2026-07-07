@@ -8,15 +8,12 @@ import { BadgeCheckIcon, CircleXIcon } from "@hugeicons/core-free-icons";
 function PaymentCallbackContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const [status, setStatus] = useState("verifying");
+  const reference = searchParams.get("reference") || searchParams.get("trxref");
+  const [status, setStatus] = useState(reference ? "verifying" : "failed");
   const [errorMsg, setErrorMsg] = useState("");
 
   useEffect(() => {
-    const reference = searchParams.get("reference") || searchParams.get("trxref");
-    if (!reference) {
-      setStatus("failed");
-      return;
-    }
+    if (!reference) return;
 
     API.verifyPayment(reference)
       .then((data) => {
@@ -52,7 +49,7 @@ function PaymentCallbackContent() {
         setErrorMsg(msg);
         setStatus("failed");
       });
-  }, [searchParams, router]);
+  }, [reference, router]);
 
   if (status === "verifying") {
     return (

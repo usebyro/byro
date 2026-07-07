@@ -21,7 +21,7 @@ export default function RefundPolicyPage() {
             <h2 className="text-lg font-semibold text-gray-900 mb-2">1. Overview</h2>
             <p>
               This Refund Policy explains how ticket refunds are handled on the Byro platform.
-              Refund eligibility depends on the event organizer's refund settings and the
+              Refund eligibility depends on the event organizer&apos;s refund settings and the
               circumstances of the request.
             </p>
           </section>
@@ -31,11 +31,11 @@ export default function RefundPolicyPage() {
             <p>
               Each event on Byro is independently managed by its organizer. Refund availability,
               deadlines, and conditions are set by the organizer at the time of event creation.
-              Before purchasing a ticket, we encourage you to review the event's refund terms.
+              Before purchasing a ticket, we encourage you to review the event&apos;s refund terms.
             </p>
             <p className="mt-2">
               If an organizer offers refunds, you may request one through the Platform up until
-              the organizer's stated deadline. After this deadline, refunds may no longer be available.
+              the organizer&apos;s stated deadline. After this deadline, refunds may no longer be available.
             </p>
           </section>
 
@@ -44,7 +44,7 @@ export default function RefundPolicyPage() {
             <p>
               If an event is cancelled by the organizer, all attendees are entitled to a full refund
               of the ticket price paid. Service fees may be non-refundable depending on the payment
-              provider's policy. Byro will notify attendees of cancellations via email.
+              provider&apos;s policy. Byro will notify attendees of cancellations via email.
             </p>
           </section>
 
@@ -53,7 +53,7 @@ export default function RefundPolicyPage() {
             <p>
               If an event is postponed or rescheduled, the organizer will communicate the new date
               to attendees. If you cannot attend the rescheduled event, please contact the organizer
-              directly. Refunds for rescheduled events are at the organizer's discretion.
+              directly. Refunds for rescheduled events are at the organizer&apos;s discretion.
             </p>
           </section>
 
@@ -71,9 +71,9 @@ export default function RefundPolicyPage() {
             <p>Refunds will not be issued in the following situations:</p>
             <ul className="list-disc pl-5 space-y-1 mt-2">
               <li>You were unable to attend an event that was not cancelled.</li>
-              <li>The refund request is made after the organizer's stated deadline.</li>
+              <li>The refund request is made after the organizer&apos;s stated deadline.</li>
               <li>The ticket was purchased using a promotional code or discount that explicitly excluded refunds.</li>
-              <li>The event occurred and you were denied entry due to a violation of the organizer's rules.</li>
+              <li>The event occurred and you were denied entry due to a violation of the organizer&apos;s rules.</li>
             </ul>
           </section>
 

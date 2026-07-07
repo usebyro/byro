@@ -30,7 +30,9 @@ const Navbar = () => {
   const profileDropdownRef = useRef<HTMLDivElement>(null);
   const dispatch = useDispatch();
   const router = useRouter();
-  const { user, token } = useSelector((state: any) => state.auth);
+  const { user, token } = useSelector(
+    (state: { auth: { user: { display_name?: string; email?: string } | null; token: string | null } }) => state.auth
+  );
   const isLoggedIn = !!token;
 
   const exchangeWithBackend = useCallback(async () => {

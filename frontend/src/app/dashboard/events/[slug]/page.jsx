@@ -572,7 +572,7 @@ export default function StudioEventPage() {
               </div>
             ) : (
               <>
-                <p className="text-sm text-gray-400 mb-4">Enter the attendee's email or paste their QR token.</p>
+                <p className="text-sm text-gray-400 mb-4">Enter the attendee&apos;s email or paste their QR token.</p>
                 <input
                   type="text"
                   value={checkInValue}

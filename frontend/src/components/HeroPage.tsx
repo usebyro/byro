@@ -9,7 +9,7 @@ import { useRouter } from "next/navigation";
 
 const HeroPage = () => {
   const { connect } = useWeb3AuthConnect();
-  const { token } = useSelector((state: any) => state.auth);
+  const { token } = useSelector((state: { auth: { token: string | null } }) => state.auth);
   const router = useRouter();
 
   const handleGetStarted = async () => {

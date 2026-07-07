@@ -200,7 +200,7 @@ export default function Login() {
                     Welcome
                   </h2>
                   <p className="text-xs sm:text-sm text-gray-600 leading-relaxed">
-                    Please note the name here will be used as "Host name" when
+                    Please note the name here will be used as &quot;Host name&quot; when
                     you create an event.
                   </p>
                 </div>
