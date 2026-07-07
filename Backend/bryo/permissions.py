@@ -1,4 +1,15 @@
 from rest_framework.permissions import BasePermission
+from django.conf import settings
+
+
+class IsAdminSecret(BasePermission):
+    """Checks X-Admin-Token header against ADMIN_SECRET env var."""
+
+    def has_permission(self, request, view):
+        secret = getattr(settings, 'ADMIN_SECRET', None)
+        if not secret:
+            return False
+        return request.headers.get('X-Admin-Token') == secret
 
 
 class IsEventOwner(BasePermission):
