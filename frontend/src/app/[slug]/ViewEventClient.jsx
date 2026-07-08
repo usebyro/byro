@@ -11,7 +11,8 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { Providers } from "@/redux/Providers";
 import CheckoutModal from "@/components/checkout/CheckoutModal";
-import { trackViewEvent, trackShareEvent, trackSaveEvent, trackBeginCheckout, withShareUtm } from "@/lib/analytics";
+import ShareMenu from "@/components/ShareMenu";
+import { trackViewEvent, trackShareEvent, trackSaveEvent, trackBeginCheckout } from "@/lib/analytics";
 import { calculateTicketFees } from "@/lib/pricing";
 
 /* ── helpers ── */
@@ -207,20 +208,16 @@ export default function ViewEventClient({ slug }) {
 
           {/* Top-right actions */}
           <div className="absolute top-5 right-5 flex items-center gap-2">
-            <button
-              onClick={() => {
-                trackShareEvent({ eventName: event.name, eventSlug: event.slug });
-                const shareUrl = withShareUtm(window.location.href, "event_share", event.slug);
-                if (navigator.share) {
-                  navigator.share({ title: event.name, url: shareUrl });
-                } else {
-                  navigator.clipboard.writeText(shareUrl).then(() => toast.success("Link copied!"));
-                }
-              }}
+            <ShareMenu
+              url={typeof window !== "undefined" ? window.location.href : ""}
+              title={event.name}
+              campaign="event_share"
+              content={event.slug}
+              onShare={(method) => trackShareEvent({ eventName: event.name, eventSlug: event.slug, method })}
               className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
             >
               <HugeiconsIcon icon={Share01Icon} size={16} color="white" />
-            </button>
+            </ShareMenu>
             <button
               onClick={() => { setSaved(s => !s); if (!saved) trackSaveEvent({ eventName: event.name, eventSlug: event.slug }); }}
               className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
@@ -303,7 +300,7 @@ export default function ViewEventClient({ slug }) {
                       {event.owner_handle ? `@${event.owner_handle}` : event.owner_email || "Byro Africa"}
                     </p>
                     <p className="text-xs text-gray-400">
-                      {event.owner_events_count ?? 0} event{event.owner_events_count === 1 ? "" : "s"} · Followers coming soon
+                      {event.owner_events_count ?? 0} event{event.owner_events_count === 1 ? "" : "s"} · 0 Followers
                     </p>
                   </div>
                 </button>

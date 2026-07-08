@@ -35,8 +35,8 @@ export default function EditEventPage() {
   if (loading) {
     return (
       <AppLayout>
-        <div className="flex justify-center items-center min-h-[60vh]">
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500" />
+        <div className="flex justify-center items-center min-h-screen bg-white">
+          <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-blue-600" />
         </div>
       </AppLayout>
     );

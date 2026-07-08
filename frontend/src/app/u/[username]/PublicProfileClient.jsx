@@ -19,7 +19,7 @@ import API from "@/services/api";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { toast } from "sonner";
-import { withShareUtm } from "@/lib/analytics";
+import ShareMenu from "@/components/ShareMenu";
 
 const CATEGORY_ICONS = {
   entertainment: MusicNote01Icon,
@@ -119,17 +119,6 @@ export default function PublicProfileClient({ username }) {
 
     return { upcomingEvents: upcoming, pastEvents: past };
   }, [events]);
-
-  const handleShare = () => {
-    const shareUrl = withShareUtm(window.location.href, "profile_share", username);
-    if (navigator.share) {
-      navigator.share({ title: profile?.display_name, url: shareUrl });
-    } else {
-      navigator.clipboard.writeText(shareUrl).then(() => {
-        toast.success("Profile link copied to clipboard!");
-      });
-    }
-  };
 
   const handleFollowToggle = () => {
     setIsFollowing((f) => !f);
@@ -250,13 +239,16 @@ export default function PublicProfileClient({ username }) {
               >
                 {isFollowing ? "Following" : "Follow"}
               </button>
-              <button
-                onClick={handleShare}
+              <ShareMenu
+                url={typeof window !== "undefined" ? window.location.href : ""}
+                title={profile?.display_name || username}
+                campaign="profile_share"
+                content={username}
                 className="px-4 py-2.5 border border-gray-200 rounded-full hover:bg-gray-50 text-gray-600 transition-colors shadow-sm"
                 aria-label="Share Profile"
               >
                 <HugeiconsIcon icon={Share01Icon} size={16} />
-              </button>
+              </ShareMenu>
             </div>
 
           </div>

@@ -24,6 +24,7 @@ import AppLayout from "@/layout/app";
 import { authSuccess, signOut } from "@/redux/auth/authSlice";
 import API from "@/services/api";
 import { toast } from "sonner";
+import ShareMenu from "@/components/ShareMenu";
 
 const PREFERENCES = [
   { id: "entertainment", label: "Concerts",    icon: MusicNote01Icon },
@@ -273,13 +274,26 @@ function ProfilePageContent() {
                     <HugeiconsIcon icon={Settings01Icon} size={14} />
                     Edit Profile
                   </button>
-                  <button
-                    onClick={handleShare}
-                    className="px-4 py-2.5 border border-gray-200 rounded-full text-gray-500 hover:bg-gray-50 transition-colors"
-                    aria-label="Share"
-                  >
-                    <HugeiconsIcon icon={Share01Icon} size={16} />
-                  </button>
+                  {profile?.handle ? (
+                    <ShareMenu
+                      url={typeof window !== "undefined" ? `${window.location.origin}/u/${profile.handle}` : ""}
+                      title={profile?.display_name || profile.handle}
+                      campaign="profile_share"
+                      content={profile.handle}
+                      className="px-4 py-2.5 border border-gray-200 rounded-full text-gray-500 hover:bg-gray-50 transition-colors"
+                      aria-label="Share"
+                    >
+                      <HugeiconsIcon icon={Share01Icon} size={16} />
+                    </ShareMenu>
+                  ) : (
+                    <button
+                      onClick={handleShare}
+                      className="px-4 py-2.5 border border-gray-200 rounded-full text-gray-500 hover:bg-gray-50 transition-colors"
+                      aria-label="Share"
+                    >
+                      <HugeiconsIcon icon={Share01Icon} size={16} />
+                    </button>
+                  )}
                   <button
                     onClick={handleSignOut}
                     className="px-4 py-2.5 border border-red-200 hover:bg-red-50 text-red-500 rounded-full transition-colors"
