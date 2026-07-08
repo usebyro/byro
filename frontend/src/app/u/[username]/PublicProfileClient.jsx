@@ -20,6 +20,7 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { toast } from "sonner";
 import ShareMenu from "@/components/ShareMenu";
+import { FaXTwitter, FaInstagram, FaLinkedinIn, FaTelegram } from "react-icons/fa6";
 
 const CATEGORY_ICONS = {
   entertainment: MusicNote01Icon,
@@ -363,22 +364,26 @@ export default function PublicProfileClient({ username }) {
                 <h4 className="font-bold text-gray-900 text-sm mb-3">Connect on Socials</h4>
                 <div className="flex flex-wrap gap-4">
                   {profile.twitter && (
-                    <a href={`https://twitter.com/${profile.twitter}`} target="_blank" rel="noopener noreferrer" className="text-sm px-4 py-2 bg-gray-50 rounded-xl hover:bg-gray-100 text-gray-700 transition-colors font-medium">
+                    <a href={`https://twitter.com/${profile.twitter}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-sm px-4 py-2 bg-gray-50 rounded-xl hover:bg-gray-100 text-gray-700 transition-colors font-medium">
+                      <FaXTwitter size={15} color="#000000" />
                       Twitter
                     </a>
                   )}
                   {profile.instagram && (
-                    <a href={`https://instagram.com/${profile.instagram}`} target="_blank" rel="noopener noreferrer" className="text-sm px-4 py-2 bg-gray-50 rounded-xl hover:bg-gray-100 text-gray-700 transition-colors font-medium">
+                    <a href={`https://instagram.com/${profile.instagram}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-sm px-4 py-2 bg-gray-50 rounded-xl hover:bg-gray-100 text-gray-700 transition-colors font-medium">
+                      <FaInstagram size={15} color="#E4405F" />
                       Instagram
                     </a>
                   )}
                   {profile.linkedin && (
-                    <a href={`https://linkedin.com/in/${profile.linkedin}`} target="_blank" rel="noopener noreferrer" className="text-sm px-4 py-2 bg-gray-50 rounded-xl hover:bg-gray-100 text-gray-700 transition-colors font-medium">
+                    <a href={`https://linkedin.com/in/${profile.linkedin}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-sm px-4 py-2 bg-gray-50 rounded-xl hover:bg-gray-100 text-gray-700 transition-colors font-medium">
+                      <FaLinkedinIn size={15} color="#0A66C2" />
                       LinkedIn
                     </a>
                   )}
                   {profile.telegram && (
-                    <a href={`https://t.me/${profile.telegram}`} target="_blank" rel="noopener noreferrer" className="text-sm px-4 py-2 bg-gray-50 rounded-xl hover:bg-gray-100 text-gray-700 transition-colors font-medium">
+                    <a href={`https://t.me/${profile.telegram}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-sm px-4 py-2 bg-gray-50 rounded-xl hover:bg-gray-100 text-gray-700 transition-colors font-medium">
+                      <FaTelegram size={15} color="#26A5E4" />
                       Telegram
                     </a>
                   )}

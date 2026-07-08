@@ -24,6 +24,7 @@ import { useReactToPrint } from "react-to-print";
 import { toast } from "sonner";
 import jsQR from "jsqr";
 import API from "@/services/api";
+import ShareMenu from "@/components/ShareMenu";
 
 const BASE_URL = (process.env.NEXT_PUBLIC_API_URL || "https://byro.onrender.com").replace(/\/api\/?$/, "");
 
@@ -304,17 +305,16 @@ export default function StudioEventPage() {
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <button
-              onClick={() => {
-                const url = `${window.location.origin}/${slug}`;
-                navigator.clipboard?.writeText(url);
-                toast.success("Link copied!");
-              }}
+            <ShareMenu
+              url={typeof window !== "undefined" ? `${window.location.origin}/${slug}` : ""}
+              title={event?.name || ""}
+              campaign="event_share"
+              content={slug}
               className="flex items-center gap-1.5 bg-white/10 backdrop-blur-sm text-white text-sm font-semibold px-4 py-2 rounded-xl hover:bg-white/20 transition-colors border border-white/20"
             >
               <HugeiconsIcon icon={Share01Icon} size={14} color="white" />
               Share
-            </button>
+            </ShareMenu>
             <Link
               href={`/${slug}/edit`}
               className="flex items-center gap-1.5 bg-blue-600 text-white text-sm font-semibold px-4 py-2 rounded-xl hover:bg-blue-700 transition-colors"
