@@ -315,24 +315,30 @@ export default function StudioPayouts() {
           <form onSubmit={saveBankDetails} className="space-y-3">
             <div>
               <label className="text-xs text-gray-500 block mb-1">Bank</label>
-              <select
-                value={bankForm.bankCode}
+              <input
+                type="text"
+                list="bank-options"
+                value={bankForm.bankName}
                 onChange={(e) => {
-                  const code = e.target.value;
-                  const bank = banks.find((b) => String(b.code) === code);
-                  setBankForm((p) => ({ ...p, bankCode: code, bankName: bank?.name || "" }));
+                  const typed = e.target.value;
+                  const match = banks.find(
+                    (b) => b.name.toLowerCase() === typed.trim().toLowerCase()
+                  );
+                  setBankForm((p) => ({
+                    ...p,
+                    bankName: typed,
+                    bankCode: match ? String(match.code) : "",
+                  }));
                 }}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-              >
-                <option value="" className="text-gray-500">
-                  {loadingBanks ? "Loading banks…" : "Select your bank"}
-                </option>
+                placeholder={loadingBanks ? "Loading banks…" : "Type your bank name"}
+                autoComplete="off"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+              />
+              <datalist id="bank-options">
                 {banks.map((b) => (
-                  <option key={b.code} value={b.code} className="text-gray-900">
-                    {b.name}
-                  </option>
+                  <option key={b.code} value={b.name} />
                 ))}
-              </select>
+              </datalist>
             </div>
             <div>
               <label className="text-xs text-gray-500 block mb-1">Account number</label>
@@ -345,12 +351,27 @@ export default function StudioPayouts() {
                 }
                 placeholder="0123456789"
                 maxLength={10}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
               <p className="text-xs mt-1.5 min-h-[1rem]">
                 {resolving && <span className="text-gray-400">Verifying account…</span>}
                 {!resolving && resolvedName && (
-                  <span className="text-green-600 font-medium">{resolvedName}</span>
+                  <span className="text-green-600 font-medium inline-flex items-center gap-1">
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="3"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="shrink-0"
+                    >
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                    {resolvedName}
+                  </span>
                 )}
                 {!resolving && !resolvedName && resolveError && (
                   <span className="text-red-500">{resolveError}</span>
@@ -384,7 +405,7 @@ export default function StudioPayouts() {
                   onChange={(e) => setWithdrawAmount(e.target.value)}
                   placeholder="0.00"
                   autoFocus
-                  className="w-full border border-gray-200 rounded-lg pl-7 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full border border-gray-200 rounded-lg pl-7 pr-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
             </div>
