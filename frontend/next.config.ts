@@ -43,6 +43,11 @@ const nextConfig: NextConfig = {
         hostname: 'fzskkmpslegcicobaamt.supabase.co',
         pathname: '/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'res.cloudinary.com',
+        pathname: '/**',
+      },
     ],
   },
 };
