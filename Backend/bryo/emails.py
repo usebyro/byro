@@ -152,7 +152,7 @@ def ticket_confirmation_email(name, event_name, date, time, location, ticket_id,
         <table cellpadding="0" cellspacing="0" style="width:100%;">
           <tr>
             <td style="text-align:center;">
-              <a href="{view_ticket_url}" style="display:block;background:#3b82f6;color:#ffffff;text-decoration:none;font-size:15px;font-weight:700;padding:16px 32px;border-radius:12px;text-align:center;">View my tickets</a>
+              <a href="{view_ticket_url}" style="display:block;background:#3b82f6;color:#ffffff;text-decoration:none;font-size:15px;font-weight:700;padding:16px 32px;border-radius:12px;text-align:center;">View my ticket</a>
             </td>
           </tr>
         </table>

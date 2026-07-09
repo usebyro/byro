@@ -2,8 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { useParams, notFound } from "next/navigation";
-import Navbar from "@/components/Navbar";
-import Footer from "@/components/Footer";
 import TicketCard from "@/components/tickets/TicketCard";
 import API from "@/services/api";
 
@@ -33,8 +31,6 @@ export default function TicketPage() {
 
   return (
     <div className="min-h-screen bg-white flex flex-col">
-      <Navbar />
-
       <main className="flex-1 flex items-start justify-center px-4 py-10 sm:py-16">
         <div className="w-full max-w-md">
           <p className="text-center text-xs font-bold tracking-widest text-blue-600 uppercase mb-2">
@@ -47,8 +43,6 @@ export default function TicketPage() {
           <TicketCard ticket={ticket} />
         </div>
       </main>
-
-      <Footer />
     </div>
   );
 }
