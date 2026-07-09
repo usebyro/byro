@@ -123,8 +123,7 @@ def send_ticket_confirmation_email(ticket, customer_name, customer_email, event)
         {"question": a.question.question, "answer": str(a.answer)}
         for a in EventFormAnswer.objects.filter(ticket=ticket).select_related('question')
     ]
-    frontend_url = settings.FRONTEND_URL or "https://usebyro.com"
-    ticket_url = f"{frontend_url}/ticket/{ticket.ticket_id}"
+    ticket_url = f"{settings.SITE_URL}/ticket/{ticket.ticket_id}"
     date_str = event.day.strftime('%A, %B %d, %Y') if event.day else ''
     time_str = event.time_from.strftime('%I:%M %p') if event.time_from else ''
     email_data = ticket_confirmation_email(

@@ -171,7 +171,17 @@ export default function StudioEventPage() {
         toast.info(`${res.attendee?.name || "Attendee"} already checked in.`);
       } else {
         toast.success(`${res.attendee?.name || "Attendee"} checked in!`);
-        loadAttendees();
+        // Update in place — flip the attendee's state to checked in and bump the
+        // count, so the row shows the checkmark without a full page refresh.
+        const checkedId = res.attendee?.ticket_id;
+        setAttendees((prev) =>
+          prev.map((a) =>
+            a.id === checkedId || a.email === res.attendee?.email
+              ? { ...a, checkedIn: true }
+              : a
+          )
+        );
+        setCheckedInCount((c) => c + 1);
       }
       setCheckInValue("");
       setCheckInModal(false);

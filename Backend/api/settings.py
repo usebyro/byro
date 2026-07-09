@@ -41,6 +41,10 @@ PRIVY_VERIFICATION_KEY = os.environ.get('PRIVY_VERIFICATION_KEY')
 PRIVY_VERIFICATION_KEY_URL = f"https://auth.privy.io/api/v1/apps/{PRIVY_APP_ID}/verification_key"
 PRIVY_APP_SECRET = os.environ.get('PRIVY_APP_SECRET')
 FRONTEND_URL = os.environ.get('FRONTEND_URL')
+# Canonical public site URL used in outbound emails (ticket links, etc.).
+# Defaults to the production custom domain so confirmation emails never point
+# at an internal/preview host even if FRONTEND_URL is set elsewhere.
+SITE_URL = os.environ.get('SITE_URL', 'https://usebyro.com')
 PAYSTACK_SECRET_KEY = config('PAYSTACK_SECRET_KEY', default='')
 PAYSTACK_PUBLIC_KEY = config('PAYSTACK_PUBLIC_KEY', default='')
 PAYSTACK_CALLBACK_URL = config('PAYSTACK_CALLBACK_URL', default='http://localhost:3000/payment/callback')

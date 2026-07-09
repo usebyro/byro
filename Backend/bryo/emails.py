@@ -53,16 +53,14 @@ def ticket_confirmation_email(name, event_name, date, time, location, ticket_id,
       {location_row}
     </table>"""
 
-    # Ticket ID section
+    # Ticket attachment note — the scannable ticket (with QR) is attached to the email.
     ticket_id_section = ""
     if ticket_id:
-        ticket_id_section = f"""
+        ticket_id_section = """
     <table cellpadding="0" cellspacing="0" style="width:100%;">
       <tr>
         <td>
-          <p style="color:#94a3b8;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;margin:0 0 6px;">Scan at entry</p>
-          <p style="color:#0f172a;font-size:15px;font-weight:700;font-family:'Courier New',Courier,monospace;margin:0 0 4px;letter-spacing:0.04em;">{ticket_id}</p>
-          <p style="color:#94a3b8;font-size:12px;margin:0;">Your ticket is attached to this email — present it at the gate for entry</p>
+          <p style="color:#0f172a;font-size:15px;font-weight:700;margin:0;">Your ticket is attached to this email &#8212; present it at the gate for entry</p>
         </td>
       </tr>
     </table>"""
@@ -117,7 +115,7 @@ def ticket_confirmation_email(name, event_name, date, time, location, ticket_id,
 
         <!-- Intro -->
         <p style="color:#64748b;font-size:15px;line-height:1.6;margin:0 0 28px;">
-          Hi {name} &#8212; your booking is confirmed. Show your ticket ID at the gate for entry.
+          Hi {name} &#8212; your booking is confirmed. Show your ticket at the gate for entry.
         </p>
 
         <!-- Ticket card -->
@@ -184,8 +182,6 @@ def ticket_confirmation_email(name, event_name, date, time, location, ticket_id,
         plain_text += f"Doors: {time}\n"
     if location:
         plain_text += f"Venue: {location}\n"
-    if ticket_id:
-        plain_text += f"Ticket ID: {ticket_id}\n"
     if form_rows_text:
         plain_text += f"\nRegistration Details:\n{form_rows_text}"
     plain_text += (

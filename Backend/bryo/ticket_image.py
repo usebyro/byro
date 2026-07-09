@@ -169,11 +169,6 @@ def generate_ticket_png(*, event_name, date_str, time_str, location, attendee_na
     )
     img.paste(qr_img, (qr_x, qr_y))
 
-    short_id = str(ticket_id)[:8].upper()
-    id_font = _font(15)
-    id_w = draw.textlength(short_id, font=id_font)
-    draw.text((stub_center_x - id_w / 2, qr_y + qr_size + 22), short_id, font=id_font, fill=NAVY)
-
     footer_font = _font(11)
     footer_text = "Present at the gate"
     footer_w = draw.textlength(footer_text, font=footer_font)
