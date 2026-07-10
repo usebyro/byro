@@ -70,8 +70,8 @@ const Footer = () => {
               />
             </Link>
             <p className="text-gray-400 text-sm leading-relaxed mb-6 max-w-xs">
-              The home of live events in Lagos. Discover concerts, sport, nightlife
-              and conferences — book in seconds.
+              Byro is where events become communities. Discover, attend and never
+              lose your people.
             </p>
             <div className="flex items-center gap-3">
               {socialIcons.map((social) => (
@@ -152,7 +152,7 @@ const Footer = () => {
               Stay in the loop
             </h4>
             <p className="text-sm text-gray-400 mb-4">
-              New drops every week. No spam.
+              New events, new communities. No spam.
             </p>
             <form onSubmit={handleSubscribe} className="flex flex-col gap-2">
               <input
@@ -175,7 +175,7 @@ const Footer = () => {
         {/* Bottom Bar */}
         <div className="mt-12 pt-8 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-4">
           <p className="text-sm text-gray-500">
-            © {new Date().getFullYear()} Byro Ticketing Solutions. Lagos, Nigeria.
+            © {new Date().getFullYear()} Byro Ticketing Solutions. All rights reserved.
           </p>
           <div className="flex items-center gap-6">
             <Link href="/terms" className="text-sm text-gray-500 hover:text-white transition-colors">
