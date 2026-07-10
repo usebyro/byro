@@ -206,7 +206,7 @@ export default function StudioEvents() {
             </p>
             {!search && (
               <Link href="/events/create" className="text-sm font-semibold text-blue-600 hover:text-blue-700">
-                Create your first event →
+                Create your first event
               </Link>
             )}
           </div>

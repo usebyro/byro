@@ -18,13 +18,17 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://usebyro.com").replace(/\/+$/, "");
+
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: {
     default: "Byro - Create and Host Unforgettable Events",
     template: "%s | Byro",
   },
   description:
     "Create your event page and host an unforgettable event today with Byro!",
+  alternates: { canonical: "/" },
   keywords: [
     "event management",
     "ticket sales",
@@ -126,6 +130,27 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify([
+              {
+                "@context": "https://schema.org",
+                "@type": "Organization",
+                name: "Byro",
+                url: SITE_URL,
+                logo: `${SITE_URL}/favicon_io/android-chrome-512x512.png`,
+                sameAs: ["https://twitter.com/byroafrica"],
+              },
+              {
+                "@context": "https://schema.org",
+                "@type": "WebSite",
+                name: "Byro",
+                url: SITE_URL,
+              },
+            ]),
+          }}
+        />
         <Toaster
           position="top-right"
           richColors

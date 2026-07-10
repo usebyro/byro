@@ -108,7 +108,10 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
 
   /* form state */
   const [eventName, setEventName] = useState("");
+  const [categories, setCategories] = useState(CATEGORIES);
   const [category, setCategory] = useState("entertainment");
+  const [showAddCategoryInput, setShowAddCategoryInput] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
   const [description, setDescription] = useState("");
   const [date, setDate] = useState("");
   const [timeFrom, setTimeFrom] = useState("");
@@ -336,34 +339,33 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
   return (
     <div className="min-h-screen bg-[#F5F6FA]">
       {/* ── Top bar ── */}
-      <div className="bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between sticky top-0 z-10">
-        <div className="flex items-center gap-4">
-          <button onClick={() => router.back()} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors">
-            <HugeiconsIcon icon={ArrowLeft01Icon} size={16} color="#6b7280" />
-            Events
+      <div className="bg-white border-b border-gray-100 px-3 sm:px-6 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sticky top-0 z-10">
+        <div className="flex items-center gap-2">
+          <button onClick={() => router.back()} className="flex items-center justify-center w-7 h-7 rounded-lg text-gray-500 hover:text-gray-800 hover:bg-gray-50 transition-colors shrink-0">
+            <HugeiconsIcon icon={ArrowLeft01Icon} size={14} color="#6b7280" />
           </button>
-          <span className="text-gray-200">/</span>
-          <h1 className="text-xl font-bold text-gray-900">
+          <span className="text-gray-200 text-sm">/</span>
+          <h1 className="text-base sm:text-lg font-bold text-gray-900 truncate">
             {editSlug ? "Edit event" : "Create event"}
           </h1>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="grid grid-cols-2 gap-2 w-full sm:flex sm:w-auto sm:items-center sm:gap-2.5">
           <button
             onClick={() => handleSubmit(true)}
             disabled={isSubmitting}
-            className="border border-gray-200 text-gray-700 text-sm font-semibold px-5 py-2.5 rounded-xl hover:bg-gray-50 transition-colors disabled:opacity-40"
+            className="border border-gray-200 text-gray-700 text-[11px] sm:text-xs font-semibold px-2.5 py-2 rounded-xl hover:bg-gray-50 transition-colors disabled:opacity-40 text-center w-full sm:w-auto"
           >
             Save draft
           </button>
           <button
             onClick={() => handleSubmit(false)}
             disabled={isSubmitting}
-            className="bg-blue-600 text-white text-sm font-semibold px-5 py-2.5 rounded-xl hover:bg-blue-700 transition-colors flex items-center gap-2 disabled:opacity-40"
+            className="bg-blue-600 text-white text-[11px] sm:text-xs font-semibold px-2.5 py-2 rounded-xl hover:bg-blue-700 transition-colors flex items-center justify-center gap-1 sm:gap-1.5 disabled:opacity-40 w-full sm:w-auto"
           >
             {isSubmitting ? (
-              <svg className="animate-spin" width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25" /><path d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" fill="currentColor" className="opacity-75" /></svg>
+              <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25" /><path d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" fill="currentColor" className="opacity-75" /></svg>
             ) : (
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12" /></svg>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12" /></svg>
             )}
             {isSubmitting ? "Saving..." : "Publish event"}
           </button>
@@ -396,7 +398,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
             <div className="mb-5">
               <label className="block text-sm font-medium text-gray-700 mb-3">Category</label>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {CATEGORIES.map(cat => (
+                {categories.map(cat => (
                   <button
                     key={cat.id}
                     type="button"
@@ -416,7 +418,71 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
                     )}
                   </button>
                 ))}
+
+                {!showAddCategoryInput && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAddCategoryInput(true)}
+                    className="flex flex-col items-center justify-center p-5 rounded-2xl border-2 border-dashed border-gray-200 hover:border-blue-500 hover:bg-blue-50/20 transition-all text-gray-400 hover:text-blue-600 min-h-[108px]"
+                  >
+                    <HugeiconsIcon icon={Add01Icon} size={24} color="currentColor" />
+                    <span className="text-xs font-semibold mt-2">Add New</span>
+                  </button>
+                )}
               </div>
+
+              {showAddCategoryInput && (
+                <div className="mt-3 p-4 border border-blue-100 bg-blue-50/30 rounded-xl flex flex-col sm:flex-row items-center gap-2">
+                  <input
+                    type="text"
+                    value={newCategoryName}
+                    onChange={e => setNewCategoryName(e.target.value)}
+                    placeholder="e.g. Workshops, Festivals"
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <div className="flex gap-2 w-full sm:w-auto shrink-0 justify-end">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!newCategoryName.trim()) return;
+                        const id = newCategoryName.trim().toLowerCase().replace(/\s+/g, "_");
+                        if (categories.some(c => c.id === id)) {
+                          toast.error("Category already exists");
+                          return;
+                        }
+                        const newCat = {
+                          id,
+                          label: newCategoryName.trim(),
+                          gradient: "from-indigo-600 to-blue-500",
+                          icon: (
+                            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+                              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+                            </svg>
+                          )
+                        };
+                        setCategories(prev => [...prev, newCat]);
+                        setCategory(id);
+                        setNewCategoryName("");
+                        setShowAddCategoryInput(false);
+                        toast.success(`Category "${newCategoryName.trim()}" added!`);
+                      }}
+                      className="bg-blue-600 text-white text-xs font-semibold px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      Add
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowAddCategoryInput(false);
+                        setNewCategoryName("");
+                      }}
+                      className="border border-gray-200 text-gray-600 text-xs font-medium px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Description */}
@@ -619,7 +685,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
             </div>
 
             <p className="text-xs text-gray-400 mt-4">
-              Free event? Skip this section. For paid events, add at least one tier with a price — the first tier&apos;s price becomes the event ticket price.
+              Free event? Skip this section. For paid events, add at least one tier with a price, the first tier&apos;s price becomes the event ticket price.
             </p>
           </div>
         </div>

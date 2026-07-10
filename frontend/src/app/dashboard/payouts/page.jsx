@@ -70,6 +70,8 @@ export default function StudioPayouts() {
   const [withdrawModalOpen, setWithdrawModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
+  const [balance, setBalance] = useState(null);
+
   // Load saved bank details (local cache — backend doesn't expose a
   // standalone "saved bank details" read; it's inferred from payout history).
   useEffect(() => {
@@ -111,6 +113,20 @@ export default function StudioPayouts() {
   useEffect(() => {
     loadPayouts();
   }, [loadPayouts]);
+
+  const loadBalance = useCallback(async () => {
+    try {
+      const data = await API.getPayoutBalance();
+      setBalance(data);
+    } catch {
+      // Non-fatal — the page still works without the balance summary.
+      setBalance(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadBalance();
+  }, [loadBalance]);
 
   const loadBanks = useCallback(async () => {
     if (banks.length) return;
@@ -187,6 +203,15 @@ export default function StudioPayouts() {
       toast.error("Please enter a valid amount.");
       return;
     }
+    const available = balance ? Number(balance.available) : 0;
+    if (available <= 0) {
+      toast.error("You have no funds available to withdraw.");
+      return;
+    }
+    if (amount > available) {
+      toast.error(`Amount exceeds your available balance of ${fmt(available)}.`);
+      return;
+    }
     if (!bankDetails.bankName || !bankDetails.accountNumber || !bankDetails.accountName) {
       toast.error("Add your bank details before withdrawing.");
       setWithdrawModalOpen(false);
@@ -208,6 +233,7 @@ export default function StudioPayouts() {
       setWithdrawAmount("");
       setWithdrawModalOpen(false);
       loadPayouts();
+      loadBalance();
     } catch (err) {
       toast.error(err?.message || "Failed to submit withdrawal request. Please try again.");
     } finally {
@@ -216,6 +242,8 @@ export default function StudioPayouts() {
   };
 
   const hasBankDetails = Boolean(bankDetails.bankName);
+  const availableAmount = balance ? Number(balance.available) : null;
+  const canWithdraw = availableAmount !== null && availableAmount > 0;
 
   return (
     <div className="p-6 max-w-4xl mx-auto">
@@ -229,12 +257,15 @@ export default function StudioPayouts() {
         {/* Available */}
         <div className="sm:col-span-1 bg-gradient-to-br from-blue-700 to-purple-700 rounded-2xl p-5 text-white">
           <p className="text-sm text-white/70 mb-3">Available to withdraw</p>
-          <p className="text-3xl font-bold mb-1">—</p>
+          <p className="text-3xl font-bold mb-1">
+            {balance ? fmt(balance.available) : "—"}
+          </p>
           <p className="text-xs text-white/50 mb-5">Pending clearance after events</p>
           <div className="flex items-center gap-2">
             <button
               onClick={() => setWithdrawModalOpen(true)}
-              className="flex items-center gap-1.5 bg-white text-blue-700 text-xs font-bold px-4 py-2 rounded-xl hover:bg-white/90 transition-colors"
+              disabled={!canWithdraw}
+              className="flex items-center gap-1.5 bg-white text-blue-700 text-xs font-bold px-4 py-2 rounded-xl hover:bg-white/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <HugeiconsIcon icon={WalletAdd01Icon} size={13} color="currentColor" />
               Withdraw

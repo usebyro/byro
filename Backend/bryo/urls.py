@@ -10,6 +10,7 @@ from .views import (
     ProfileViewSet,
     DashboardView,
     PayoutRequestView,
+    PayoutBalanceView,
     AdminPayoutView,
     PaystackBankListView,
     PaystackResolveAccountView,
@@ -57,6 +58,7 @@ urlpatterns = [
 
     # Payouts (organizer)
     path('api/payouts/', PayoutRequestView.as_view(), name='payout-list-create'),
+    path('api/payouts/balance/', PayoutBalanceView.as_view(), name='payout-balance'),
 
     # Admin — payouts
     path('api/admin/payouts/', AdminPayoutView.as_view(), name='admin-payout-list'),

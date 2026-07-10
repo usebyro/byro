@@ -1,4 +1,4 @@
-const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://usebyro.com';
+const BASE_URL = (process.env.NEXT_PUBLIC_SITE_URL || 'https://usebyro.com').replace(/\/+$/, '');
 
 // Static pages that are always indexed
 const staticPages = [
@@ -24,7 +24,8 @@ export default async function sitemap() {
 
   // Fetch live event pages
   try {
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/events`, {
+    const apiBase = (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/+$/, '');
+    const res = await fetch(`${apiBase}/events`, {
       next: { revalidate: 3600 }, // revalidate every hour
     });
 

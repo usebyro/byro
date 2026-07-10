@@ -420,6 +420,15 @@ const API = {
     }
   },
 
+  getPayoutBalance: async () => {
+    try {
+      const response = await axiosInstance.get("payouts/balance/");
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
   createPayout: async (payoutData) => {
     try {
       const response = await axiosInstance.post("payouts/", payoutData);

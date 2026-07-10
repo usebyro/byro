@@ -35,7 +35,7 @@ from .serializers import EventSerializer, TicketSerializer, PaymentSerializer, T
 from .permissions import IsEventOwnerOrCoHost, IsEventOwner, IsAdminSecret
 from django.db import transaction
 from django.db import models
-from django.db.models import Q, Min, OuterRef, Subquery, Sum, Count
+from django.db.models import Q, Min, OuterRef, Subquery, Sum, Count, F
 from django.db.models.functions import TruncDate
 from django.db.models.functions import Coalesce
 from django.http import JsonResponse
@@ -1901,6 +1901,49 @@ class TicketTransferViewSet(viewsets.ModelViewSet):
 # Payout endpoints
 # ---------------------------------------------------------------------------
 
+def compute_available_balance(user, event=None):
+    """
+    Funds an organizer can currently withdraw.
+
+    = ticket revenue on events they own or co-host
+      (price of every sold/paid ticket — tier price, or the event's flat
+      ticket_price for tier-less events; free tickets contribute nothing)
+    − sum of payout requests that are still pending or already processed
+      (rejected requests don't hold funds).
+
+    Revenue is taken from tickets actually sold, not from Payment.amount,
+    since the payment total also includes the service fee that never
+    belongs to the organizer.
+
+    When `event` is given, the balance is scoped to that single event.
+    """
+    if event is not None:
+        event_ids = [event.pk]
+    else:
+        event_ids = list(
+            Event.objects.filter(
+                Q(owner=user) | Q(cohosts__user=user)
+            ).values_list('pk', flat=True).distinct()
+        )
+
+    ticket_price = Coalesce(
+        F('tier__price'), F('event__ticket_price'), Decimal('0')
+    )
+    earned = (
+        Ticket.objects.filter(event_id__in=event_ids, payment_status='paid')
+        .aggregate(total=Coalesce(Sum(ticket_price), Decimal('0')))['total']
+    )
+
+    payouts = PayoutRequest.objects.filter(
+        user=user, status__in=['pending', 'processed']
+    )
+    if event is not None:
+        payouts = payouts.filter(event=event)
+    withdrawn = payouts.aggregate(total=Coalesce(Sum('amount'), Decimal('0')))['total']
+
+    return earned - withdrawn
+
+
 class PayoutRequestView(APIView):
     """
     GET  /api/payouts/  — organizer's own payout history
@@ -1924,6 +1967,20 @@ class PayoutRequestView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
+        available = compute_available_balance(request.user, event=event)
+        if available <= 0:
+            return Response(
+                {'error': 'You have no funds available to withdraw.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        amount = serializer.validated_data.get('amount')
+        if amount is not None and amount > available:
+            return Response(
+                {'error': f'Amount exceeds your available balance of {available}.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         payout = serializer.save(user=request.user)
 
         # Persist bank details to user profile for pre-fill next time
@@ -1935,6 +1992,27 @@ class PayoutRequestView(APIView):
             profile.save(update_fields=['bank_name', 'account_number', 'account_name'])
 
         return Response(PayoutRequestSerializer(payout).data, status=status.HTTP_201_CREATED)
+
+
+class PayoutBalanceView(APIView):
+    """GET /api/payouts/balance/ — organizer's available/paid-out/pending totals."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        available = compute_available_balance(request.user)
+        payouts = PayoutRequest.objects.filter(user=request.user)
+        paid_out = sum(
+            (p.amount for p in payouts if p.status == 'processed'), Decimal('0')
+        )
+        pending = sum(
+            (p.amount for p in payouts if p.status == 'pending'), Decimal('0')
+        )
+        return Response({
+            'available': str(available),
+            'paid_out': str(paid_out),
+            'pending': str(pending),
+            'currency': 'NGN',
+        })
 
 
 class AdminPayoutView(APIView):

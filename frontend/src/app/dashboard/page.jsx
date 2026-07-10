@@ -120,16 +120,16 @@ export default function StudioDashboard() {
     <div className="p-6 max-w-6xl mx-auto">
 
       {/* ── Header ── */}
-      <div className="flex items-start justify-between mb-7">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-7">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-1">
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">
             Welcome back, {firstName} 👋
           </h1>
-          <p className="text-sm text-gray-400">Here is how your events are performing.</p>
+          <p className="text-xs sm:text-sm text-gray-400">Here is how your events are performing.</p>
         </div>
         <Link
           href="/events/create"
-          className="flex items-center gap-2 bg-[#4F6EF7] text-white text-sm font-semibold px-4 py-2.5 rounded-xl hover:bg-blue-700 transition-colors shrink-0"
+          className="flex items-center justify-center gap-2 bg-[#4F6EF7] text-white text-sm font-semibold px-4 py-2.5 rounded-xl hover:bg-blue-700 transition-colors w-full sm:w-auto shrink-0"
         >
           <HugeiconsIcon icon={Add01Icon} size={14} color="white" />
           Create event
