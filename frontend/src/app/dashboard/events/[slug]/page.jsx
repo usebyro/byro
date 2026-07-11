@@ -60,12 +60,12 @@ function getImageUrl(event) {
   );
 }
 
-function Avatar({ name, size = 8 }) {
+function Avatar({ name }) {
   const initials = (name || "?").split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
   const colors = ["from-blue-400 to-purple-500", "from-teal-400 to-emerald-500", "from-pink-400 to-rose-500", "from-amber-400 to-orange-500", "from-blue-400 to-blue-500"];
   const color = colors[initials.charCodeAt(0) % colors.length];
   return (
-    <div className={`w-${size} h-${size} rounded-full bg-gradient-to-br ${color} flex items-center justify-center text-white text-xs font-bold shrink-0 select-none`}>
+    <div className={`w-7 h-7 rounded-full bg-gradient-to-br ${color} flex items-center justify-center text-white text-[10px] font-bold shrink-0 select-none shadow-sm`}>
       {initials}
     </div>
   );
@@ -116,6 +116,7 @@ export default function StudioEventPage() {
   const [checkingIn, setCheckingIn] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState("");
   const [checkInMode, setCheckInMode] = useState("scan"); // scan | manual
   const [cameraError, setCameraError] = useState("");
 
@@ -171,8 +172,6 @@ export default function StudioEventPage() {
         toast.info(`${res.attendee?.name || "Attendee"} already checked in.`);
       } else {
         toast.success(`${res.attendee?.name || "Attendee"} checked in!`);
-        // Update in place — flip the attendee's state to checked in and bump the
-        // count, so the row shows the checkmark without a full page refresh.
         const checkedId = res.attendee?.ticket_id;
         setAttendees((prev) =>
           prev.map((a) =>
@@ -187,13 +186,12 @@ export default function StudioEventPage() {
       setCheckInModal(false);
     } catch (err) {
       toast.error(err?.message || "Check-in failed.");
-      scanLockRef.current = false; // let scanning resume after a failed/unknown code
+      scanLockRef.current = false;
     } finally {
       setCheckingIn(false);
     }
   };
 
-  // Stop the camera stream and scan loop (modal close, mode switch, unmount).
   const stopScanner = () => {
     if (scanFrameRef.current) {
       cancelAnimationFrame(scanFrameRef.current);
@@ -206,7 +204,6 @@ export default function StudioEventPage() {
     scanLockRef.current = false;
   };
 
-  // Grab a video frame, decode it for a QR code, and check in on a hit.
   const scanTick = () => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
@@ -222,13 +219,12 @@ export default function StudioEventPage() {
     const code = jsQR(imageData.data, imageData.width, imageData.height);
 
     if (code?.data && !scanLockRef.current) {
-      scanLockRef.current = true; // avoid re-submitting the same held-up code every frame
+      scanLockRef.current = true;
       handleCheckIn(code.data);
     }
     scanFrameRef.current = requestAnimationFrame(scanTick);
   };
 
-  // Start the camera once the modal is open in scan mode.
   useEffect(() => {
     if (!checkInModal || checkInMode !== "scan") {
       stopScanner();
@@ -250,10 +246,10 @@ export default function StudioEventPage() {
       });
 
     return stopScanner;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [checkInModal, checkInMode]);
 
   const handleDelete = async () => {
+    if (deleteConfirm.trim() !== (event?.name || "").trim()) return;
     setDeleting(true);
     try {
       await API.deleteEvent(slug);
@@ -263,6 +259,7 @@ export default function StudioEventPage() {
       toast.error(err?.message || "Failed to delete.");
       setDeleting(false);
       setShowDelete(false);
+      setDeleteConfirm("");
     }
   };
 
@@ -284,52 +281,54 @@ export default function StudioEventPage() {
   });
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
+    <div className="p-4 sm:p-6 max-w-5xl mx-auto space-y-5">
       {/* Back */}
-      <Link href="/dashboard/events" className="inline-flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-700 mb-5 transition-colors">
-        <HugeiconsIcon icon={ArrowLeft01Icon} size={15} color="currentColor" />
-        Events
-      </Link>
+      <div>
+        <Link href="/dashboard/events" className="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-700 transition-colors">
+          <HugeiconsIcon icon={ArrowLeft01Icon} size={13} color="currentColor" />
+          Back to events
+        </Link>
+      </div>
 
       {/* Event hero */}
-      <div className={`relative rounded-2xl overflow-hidden mb-6 ${img ? "bg-gray-900" : `bg-gradient-to-br ${grad}`}`} style={{ minHeight: 140 }}>
+      <div className={`relative rounded-xl overflow-hidden shadow-sm bg-gray-950 ${img ? "" : `bg-gradient-to-br ${grad}`}`} style={{ minHeight: 130 }}>
         {img && (
-          <Image src={img} alt={event.name} fill className="object-cover" />
+          <Image src={img} alt={event?.name || "Event Banner"} fill className="object-cover opacity-85" />
         )}
-        <div className={`absolute inset-0 ${img ? "bg-black/45" : "bg-black/20"}`} />
-        <div className="relative z-10 p-6 flex items-end justify-between gap-4">
+        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-black/10" />
+        <div className="relative z-10 p-5 sm:p-6 flex flex-col sm:flex-row sm:items-end justify-between gap-4 h-full min-h-[130px]">
           <div className="flex-1 min-w-0">
             {isLive && (
-              <span className="inline-flex items-center gap-1.5 text-[10px] font-bold bg-white/15 backdrop-blur-sm text-white px-3 py-1 rounded-full mb-3">
+              <span className="inline-flex items-center gap-1 text-[9px] font-extrabold bg-white/15 backdrop-blur-sm text-white px-2 py-0.5 rounded uppercase tracking-wider mb-2">
                 <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
                 LIVE · SELLING
               </span>
             )}
             {loadingEvent ? (
-              <div className="h-7 bg-white/20 rounded w-64 animate-pulse" />
+              <div className="h-6 bg-white/20 rounded w-60 animate-pulse" />
             ) : (
-              <h1 className="text-2xl font-bold text-white mb-1">{event?.name}</h1>
+              <h1 className="text-xl sm:text-2xl font-black text-white leading-tight mb-1">{event?.name}</h1>
             )}
-            <p className="text-white/70 text-sm">
+            <p className="text-white/70 text-xs sm:text-sm">
               {event && `${formatDate(event.day)}${event.time_from ? ` · ${formatTime(event.time_from)}` : ""}${event.location ? ` · ${event.location}` : ""}`}
             </p>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto">
             <ShareMenu
               url={typeof window !== "undefined" ? `${window.location.origin}/${slug}` : ""}
               title={event?.name || ""}
               campaign="event_share"
               content={slug}
-              className="flex items-center gap-1.5 bg-white/10 backdrop-blur-sm text-white text-sm font-semibold px-4 py-2 rounded-xl hover:bg-white/20 transition-colors border border-white/20"
+              className="flex-1 sm:flex-initial flex items-center justify-center gap-1 bg-white/10 backdrop-blur-sm text-white text-xs font-semibold px-3 py-2 rounded-lg hover:bg-white/20 transition-colors border border-white/15"
             >
-              <HugeiconsIcon icon={Share01Icon} size={14} color="white" />
+              <HugeiconsIcon icon={Share01Icon} size={13} color="white" />
               Share
             </ShareMenu>
             <Link
               href={`/${slug}/edit`}
-              className="flex items-center gap-1.5 bg-blue-600 text-white text-sm font-semibold px-4 py-2 rounded-xl hover:bg-blue-700 transition-colors"
+              className="flex-1 sm:flex-initial flex items-center justify-center gap-1 bg-[#4F6EF7] text-white text-xs font-semibold px-3 py-2 rounded-lg hover:bg-blue-700 transition-colors shadow-sm shadow-[#4F6EF7]/10"
             >
-              <HugeiconsIcon icon={Edit03Icon} size={14} color="white" />
+              <HugeiconsIcon icon={Edit03Icon} size={13} color="white" />
               Edit
             </Link>
           </div>
@@ -337,37 +336,46 @@ export default function StudioEventPage() {
       </div>
 
       {/* Stat cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {[
-          { label: "Gross revenue", value: "—", icon: Money01Icon, iconBg: "bg-teal-50 text-teal-600", trend: null },
+          { label: "Gross revenue", value: "—", icon: Money01Icon, iconBg: "bg-teal-50 text-teal-600", trend: null, note: "Pending integration" },
           { label: "Tickets sold", value: loadingAttendees ? "—" : attendees.length, icon: Ticket01Icon, iconBg: "bg-blue-50 text-blue-600", trend: null },
-          { label: "Checked in", value: loadingAttendees ? "—" : checkedInCount, icon: UserMultiple02Icon, iconBg: "bg-violet-50 text-violet-600", trend: "live" },
-          { label: "Page views", value: "—", icon: BarChartIcon, iconBg: "bg-amber-50 text-amber-600", trend: null },
-        ].map((card) => (
-          <div key={card.label} className="bg-white rounded-2xl border border-gray-100 p-4">
-            <div className="flex items-start justify-between mb-3">
-              <p className="text-xs text-gray-400">{card.label}</p>
-              <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${card.iconBg}`}>
-                <HugeiconsIcon icon={card.icon} size={15} color="currentColor" />
+          { label: "Checked in", value: loadingAttendees ? "—" : checkedInCount, icon: UserMultiple02Icon, iconBg: "bg-violet-50 text-violet-600", trend: null, note: "Live sync" },
+          { label: "Page views", value: "—", icon: BarChartIcon, iconBg: "bg-amber-50 text-amber-600", trend: null, note: "Pending integration" },
+        ].map((card) => {
+          const isPending = card.value === "—";
+          return (
+            <div key={card.label} className={`bg-white rounded-xl border p-4 transition-all duration-200 ${
+              isPending ? "border-gray-100/80 opacity-95" : "border-gray-100 shadow-sm hover:shadow-md"
+            }`}>
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider truncate">{card.label}</p>
+                <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${card.iconBg}`}>
+                  <HugeiconsIcon icon={card.icon} size={14} color="currentColor" />
+                </div>
               </div>
+              <p className={`text-xl font-extrabold mb-0.5 tracking-tight ${isPending ? "text-gray-300" : "text-gray-900"}`}>
+                {card.value}
+              </p>
+              {card.trend ? (
+                <p className="text-[10px] font-semibold text-green-500 mt-0.5 flex items-center gap-0.5">• {card.trend}</p>
+              ) : (
+                card.note && <p className="text-[10px] text-gray-400 mt-0.5 truncate">{card.note}</p>
+              )}
             </div>
-            <p className="text-2xl font-bold text-gray-900">{card.value}</p>
-            {card.trend && (
-              <p className="text-xs text-green-500 mt-0.5 font-medium">• {card.trend} vs last month</p>
-            )}
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-6 border-b border-gray-200 mb-5">
+      <div className="flex gap-4 border-b border-gray-100 pb-0.5">
         {["attendees", "tiers"].map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`pb-3 text-sm font-semibold capitalize border-b-2 -mb-px transition-colors ${
+            className={`pb-2 text-xs sm:text-sm font-bold capitalize border-b-2 -mb-px transition-colors ${
               activeTab === tab
-                ? "border-blue-600 text-gray-900"
+                ? "border-[#4F6EF7] text-gray-900"
                 : "border-transparent text-gray-400 hover:text-gray-600"
             }`}
           >
@@ -377,31 +385,33 @@ export default function StudioEventPage() {
       </div>
 
       {activeTab === "attendees" && (
-        <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+        <div className="bg-white rounded-xl border border-gray-100/80 shadow-sm overflow-hidden">
           {/* Table header */}
-          <div className="flex items-center justify-between px-5 py-4 border-b border-gray-50">
-            <div className="flex items-center gap-2">
-              <p className="font-semibold text-gray-900 text-sm">Guest list</p>
-              <span className="text-gray-400 text-sm">· {attendees.length}</span>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-3 border-b border-gray-100 bg-white">
+            <div className="flex items-center gap-1.5">
+              <p className="font-bold text-gray-800 text-sm">Guest list</p>
+              <span className="text-gray-400 text-xs">({attendees.length})</span>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap w-full sm:w-auto justify-between sm:justify-end">
               {/* Filter pills */}
-              {["all", "checkedin"].map((f) => (
-                <button
-                  key={f}
-                  onClick={() => setFilter(f)}
-                  className={`text-xs font-semibold px-3 py-1.5 rounded-full transition-colors ${
-                    filter === f
-                      ? "bg-blue-600 text-white"
-                      : "bg-gray-100 text-gray-500 hover:bg-gray-200"
-                  }`}
-                >
-                  {f === "all" ? "All" : "Checked in"}
-                </button>
-              ))}
+              <div className="flex gap-0.5 bg-gray-50 p-0.5 rounded-lg border border-gray-100/50">
+                {["all", "checkedin"].map((f) => (
+                  <button
+                    key={f}
+                    onClick={() => setFilter(f)}
+                    className={`text-[11px] font-semibold px-2.5 py-1 rounded-md transition-all ${
+                      filter === f
+                        ? "bg-[#4F6EF7] text-white shadow-sm shadow-[#4F6EF7]/10"
+                        : "text-gray-500 hover:text-gray-800"
+                    }`}
+                  >
+                    {f === "all" ? "All" : "Checked in"}
+                  </button>
+                ))}
+              </div>
               {/* Search */}
-              <div className="relative">
-                <svg className="absolute left-2.5 top-1/2 -translate-y-1/2" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2">
+              <div className="relative flex-1 sm:flex-initial">
+                <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
                 </svg>
                 <input
@@ -409,91 +419,93 @@ export default function StudioEventPage() {
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Search..."
-                  className="pl-8 pr-3 py-1.5 bg-gray-50 border border-gray-100 rounded-xl text-xs w-36 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                  className="pl-7 pr-3 py-1.5 bg-gray-50 border border-gray-100 rounded-lg text-xs text-gray-900 placeholder-gray-400 w-full sm:w-28 focus:outline-none focus:ring-2 focus:ring-[#4F6EF7]/20 transition-all"
                 />
               </div>
-              {/* Check in */}
-              <button
-                onClick={() => { setCheckInMode("scan"); setCheckInModal(true); }}
-                className="flex items-center gap-1.5 bg-blue-600 text-white text-xs font-semibold px-3 py-1.5 rounded-xl hover:bg-blue-700 transition-colors"
-              >
-                <HugeiconsIcon icon={QrCodeIcon} size={12} color="white" />
-                Check in
-              </button>
-              {/* Export */}
-              <button
-                onClick={handlePrint}
-                className="flex items-center gap-1.5 bg-white border border-gray-200 text-gray-600 text-xs font-semibold px-3 py-1.5 rounded-xl hover:bg-gray-50 transition-colors"
-              >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                Export CSV
-              </button>
+              <div className="flex items-center gap-1.5 w-full sm:w-auto">
+                {/* Check in */}
+                <button
+                  onClick={() => { setCheckInMode("scan"); setCheckInModal(true); }}
+                  className="flex-1 sm:flex-initial flex items-center justify-center gap-1 bg-[#4F6EF7] text-white text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-blue-700 transition-colors shadow-sm shadow-[#4F6EF7]/10"
+                >
+                  <HugeiconsIcon icon={QrCodeIcon} size={11} color="white" />
+                  Check in
+                </button>
+                {/* Export */}
+                <button
+                  onClick={handlePrint}
+                  className="flex-1 sm:flex-initial flex items-center justify-center gap-1 bg-white border border-gray-200 text-gray-600 text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  Export
+                </button>
+              </div>
             </div>
           </div>
 
           {/* Column headers */}
-          <div className="grid grid-cols-12 px-5 py-2.5 border-b border-gray-50 bg-gray-50/60">
-            <div className="col-span-5 text-[10px] font-bold text-gray-400 tracking-wider uppercase">Attendee</div>
-            <div className="col-span-3 text-[10px] font-bold text-gray-400 tracking-wider uppercase">Tier</div>
-            <div className="col-span-2 text-[10px] font-bold text-gray-400 tracking-wider uppercase">Ref</div>
-            <div className="col-span-2 text-[10px] font-bold text-gray-400 tracking-wider uppercase text-right">Status</div>
+          <div className="grid grid-cols-12 px-4 py-2 border-b border-gray-100 bg-gray-50/50">
+            <div className="col-span-8 md:col-span-5 text-[10px] font-bold text-gray-400 tracking-wider uppercase">Attendee</div>
+            <div className="hidden md:block md:col-span-3 text-[10px] font-bold text-gray-400 tracking-wider uppercase">Tier</div>
+            <div className="hidden md:block md:col-span-2 text-[10px] font-bold text-gray-400 tracking-wider uppercase">Ref</div>
+            <div className="col-span-4 md:col-span-2 text-[10px] font-bold text-gray-400 tracking-wider uppercase text-right">Status</div>
           </div>
 
           {/* Rows */}
           {loadingAttendees ? (
             <div className="divide-y divide-gray-50">
               {[1, 2, 3, 4, 5].map((i) => (
-                <div key={i} className="grid grid-cols-12 px-5 py-3.5 animate-pulse">
-                  <div className="col-span-5 flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-gray-100" />
-                    <div className="space-y-1.5">
-                      <div className="h-3.5 bg-gray-100 rounded w-28" />
-                      <div className="h-3 bg-gray-100 rounded w-36" />
+                <div key={i} className="grid grid-cols-12 px-4 py-3.5 animate-pulse items-center">
+                  <div className="col-span-8 md:col-span-5 flex items-center gap-2.5">
+                    <div className="w-7 h-7 rounded-full bg-gray-100" />
+                    <div className="space-y-1.5 flex-1">
+                      <div className="h-3 bg-gray-100 rounded w-28" />
+                      <div className="h-2.5 bg-gray-100 rounded w-36" />
                     </div>
                   </div>
-                  <div className="col-span-3 flex items-center"><div className="h-5 bg-gray-100 rounded-full w-28" /></div>
-                  <div className="col-span-2 flex items-center"><div className="h-3 bg-gray-100 rounded w-20" /></div>
-                  <div className="col-span-2 flex items-center justify-end"><div className="h-3 bg-gray-100 rounded w-16" /></div>
+                  <div className="hidden md:flex md:col-span-3 items-center"><div className="h-5 bg-gray-100 rounded-full w-24" /></div>
+                  <div className="hidden md:flex md:col-span-2 items-center"><div className="h-3 bg-gray-100 rounded w-16" /></div>
+                  <div className="col-span-4 md:col-span-2 flex items-center justify-end"><div className="h-3 bg-gray-100 rounded w-12" /></div>
                 </div>
               ))}
             </div>
           ) : filteredAttendees.length === 0 ? (
-            <div className="text-center py-12">
-              <p className="text-sm text-gray-400">
+            <div className="text-center py-10">
+              <p className="text-xs text-gray-400">
                 {search ? "No attendees match your search" : "No attendees yet"}
               </p>
             </div>
           ) : (
             <div className="divide-y divide-gray-50">
               {filteredAttendees.map((a) => (
-                <div key={a.id} className="grid grid-cols-12 px-5 py-3.5 hover:bg-gray-50/50 items-center">
+                <div key={a.id} className="grid grid-cols-12 px-4 py-2.5 hover:bg-gray-50/50 items-center transition-colors">
                   {/* Attendee */}
-                  <div className="col-span-5 flex items-center gap-3 min-w-0">
-                    <Avatar name={a.name} size={8} />
+                  <div className="col-span-8 md:col-span-5 flex items-center gap-2.5 min-w-0">
+                    <Avatar name={a.name} />
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold text-gray-900 truncate">{a.name}</p>
-                      <p className="text-xs text-gray-400 truncate">{a.email}</p>
+                      <p className="text-xs font-bold text-gray-800 truncate">{a.name}</p>
+                      <p className="text-[10px] text-gray-400 truncate">{a.email}</p>
                     </div>
                   </div>
                   {/* Tier */}
-                  <div className="col-span-3">
-                    <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-gray-100 text-gray-500">
+                  <div className="hidden md:block md:col-span-3">
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-gray-100 text-gray-500">
                       General Admission
                     </span>
                   </div>
                   {/* Ref */}
-                  <div className="col-span-2">
+                  <div className="hidden md:block md:col-span-2">
                     <span className="text-xs font-mono text-gray-500">{a.ref}</span>
                   </div>
                   {/* Status */}
-                  <div className="col-span-2 text-right">
+                  <div className="col-span-4 md:col-span-2 text-right">
                     {a.checkedIn ? (
-                      <span className="text-xs font-semibold text-green-600 flex items-center justify-end gap-1">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+                      <span className="text-[10px] font-bold text-green-600 inline-flex items-center justify-end gap-0.5">
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M20 6L9 17l-5-5"/></svg>
                         Checked in
                       </span>
                     ) : (
-                      <span className="text-xs text-gray-400">Not arrived</span>
+                      <span className="text-[10px] text-gray-500">Not arrived</span>
                     )}
                   </div>
                 </div>
@@ -503,8 +515,8 @@ export default function StudioEventPage() {
 
           {/* Footer */}
           {filteredAttendees.length > 0 && (
-            <div className="flex items-center justify-between px-5 py-3.5 border-t border-gray-50 bg-gray-50/40">
-              <p className="text-xs text-gray-400">
+            <div className="flex items-center justify-between px-4 py-2.5 border-t border-gray-200 bg-gray-50/30">
+              <p className="text-[10px] font-medium text-gray-400">
                 Showing {filteredAttendees.length} of {attendees.length}
               </p>
             </div>
@@ -513,18 +525,18 @@ export default function StudioEventPage() {
       )}
 
       {activeTab === "tiers" && (
-        <div className="bg-white rounded-2xl border border-gray-100 p-10 text-center">
-          <p className="text-sm text-gray-400">Ticket tiers will appear here once backend integration is ready.</p>
+        <div className="bg-white rounded-xl border border-gray-100/80 shadow-sm p-8 text-center">
+          <p className="text-xs text-gray-400">Ticket tiers will appear here once backend integration is ready.</p>
         </div>
       )}
 
       {/* Delete button */}
-      <div className="mt-6 flex justify-end">
+      <div className="mt-4 flex justify-end">
         <button
           onClick={() => setShowDelete(true)}
-          className="flex items-center gap-1.5 text-red-400 hover:text-red-600 text-xs font-semibold transition-colors"
+          className="flex items-center gap-1.5 text-red-400 hover:text-red-650 text-xs font-bold transition-colors"
         >
-          <HugeiconsIcon icon={Delete02Icon} size={14} color="currentColor" />
+          <HugeiconsIcon icon={Delete02Icon} size={13} color="currentColor" />
           Delete event
         </button>
       </div>
@@ -532,65 +544,65 @@ export default function StudioEventPage() {
       {/* Check-in modal */}
       {checkInModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
-          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-base font-bold text-gray-900">Check In Attendee</h3>
+          <div className="bg-white rounded-xl shadow-xl p-5 w-full max-w-sm">
+            <div className="flex items-center justify-between mb-3.5">
+              <h3 className="text-sm font-bold text-gray-900">Check In Attendee</h3>
               <button onClick={() => setCheckInModal(false)}>
-                <HugeiconsIcon icon={CircleXIcon} size={20} color="#9ca3af" />
+                <HugeiconsIcon icon={CircleXIcon} size={18} color="#9ca3af" />
               </button>
             </div>
 
             {/* Mode toggle */}
-            <div className="flex bg-gray-100 rounded-xl p-1 mb-4">
+            <div className="flex bg-gray-50 rounded-lg p-0.5 mb-3.5 border border-gray-100/50">
               <button
                 onClick={() => setCheckInMode("scan")}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-colors ${
-                  checkInMode === "scan" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"
+                className={`flex-1 flex items-center justify-center gap-1 py-1.5 rounded-md text-[11px] font-bold transition-all ${
+                  checkInMode === "scan" ? "bg-white text-gray-900 shadow-sm" : "text-gray-400"
                 }`}
               >
-                <HugeiconsIcon icon={Camera01Icon} size={14} color="currentColor" />
+                <HugeiconsIcon icon={Camera01Icon} size={13} color="currentColor" />
                 Scan QR
               </button>
               <button
                 onClick={() => setCheckInMode("manual")}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-colors ${
-                  checkInMode === "manual" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"
+                className={`flex-1 flex items-center justify-center gap-1 py-1.5 rounded-md text-[11px] font-bold transition-all ${
+                  checkInMode === "manual" ? "bg-white text-gray-900 shadow-sm" : "text-gray-400"
                 }`}
               >
-                <HugeiconsIcon icon={KeyboardIcon} size={14} color="currentColor" />
-                Enter manually
+                <HugeiconsIcon icon={KeyboardIcon} size={13} color="currentColor" />
+                Enter code
               </button>
             </div>
 
             {checkInMode === "scan" ? (
-              <div className="mb-4">
-                <div className="relative w-full aspect-square bg-black rounded-xl overflow-hidden">
+              <div className="mb-3.5">
+                <div className="relative w-full aspect-square bg-black rounded-lg overflow-hidden border border-gray-900">
                   <video ref={videoRef} muted playsInline className="w-full h-full object-cover" />
                   <canvas ref={canvasRef} className="hidden" />
                   {!cameraError && (
-                    <div className="absolute inset-6 border-2 border-white/70 rounded-xl pointer-events-none" />
+                    <div className="absolute inset-5 border-2 border-white/60 rounded-lg pointer-events-none animate-pulse" />
                   )}
                   {cameraError && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/80 px-4">
-                      <p className="text-white text-xs text-center">{cameraError}</p>
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/90 px-4">
+                      <p className="text-white text-xs text-center leading-relaxed">{cameraError}</p>
                     </div>
                   )}
                 </div>
-                <p className="text-xs text-gray-400 text-center mt-3">
-                  {checkingIn ? "Checking in..." : "Point the camera at the attendee's ticket QR code"}
+                <p className="text-[10px] text-gray-400 text-center mt-2.5">
+                  {checkingIn ? "Verifying ticket..." : "Align QR code inside the camera view"}
                 </p>
               </div>
             ) : (
               <>
-                <p className="text-sm text-gray-400 mb-4">Enter the attendee&apos;s email or paste their QR token.</p>
+                <p className="text-xs text-gray-400 mb-3 leading-relaxed">Enter attendee email address or paste the verification token below.</p>
                 <input
                   type="text"
                   value={checkInValue}
                   onChange={(e) => setCheckInValue(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleCheckIn()}
-                  placeholder="email@example.com or QR token"
+                  placeholder="email@example.com or token"
                   autoFocus
-                  className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-200 mb-4"
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#4F6EF7]/20 mb-4"
                 />
               </>
             )}
@@ -598,7 +610,7 @@ export default function StudioEventPage() {
             <div className="flex gap-2">
               <button
                 onClick={() => setCheckInModal(false)}
-                className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50"
+                className="flex-1 py-2 rounded-lg border border-gray-200 text-xs font-semibold text-gray-500 hover:bg-gray-50"
               >
                 Cancel
               </button>
@@ -606,7 +618,7 @@ export default function StudioEventPage() {
                 <button
                   onClick={() => handleCheckIn()}
                   disabled={checkingIn || !checkInValue.trim()}
-                  className="flex-1 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                  className="flex-1 py-2 rounded-lg bg-[#4F6EF7] text-white text-xs font-bold hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-sm shadow-[#4F6EF7]/10"
                 >
                   {checkingIn ? "Checking in..." : "Check In"}
                 </button>
@@ -619,25 +631,37 @@ export default function StudioEventPage() {
       {/* Delete modal */}
       {showDelete && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
-          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm">
-            <h3 className="text-base font-bold text-gray-900 mb-2">Delete event?</h3>
-            <p className="text-sm text-gray-400 mb-6">
-              This will permanently delete <span className="font-semibold text-gray-900">{event?.name}</span> and all its data. This cannot be undone.
+          <div className="bg-white rounded-xl shadow-xl p-5 w-full max-w-sm border border-gray-100">
+            <h3 className="text-sm font-bold text-gray-900 mb-1.5">Delete event?</h3>
+            <p className="text-xs text-gray-400 leading-relaxed mb-4">
+              This will permanently delete <span className="font-bold text-gray-800">{event?.name}</span>. This action is final and cannot be undone.
             </p>
+            <label className="block text-[11px] font-medium text-gray-500 mb-1.5">
+              Type <span className="font-bold text-gray-800">{event?.name}</span> to confirm.
+            </label>
+            <input
+              type="text"
+              value={deleteConfirm}
+              onChange={(e) => setDeleteConfirm(e.target.value)}
+              placeholder={event?.name || "Event name"}
+              autoFocus
+              disabled={deleting}
+              className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500/20 mb-4 disabled:opacity-50"
+            />
             <div className="flex gap-2">
               <button
-                onClick={() => setShowDelete(false)}
+                onClick={() => { setShowDelete(false); setDeleteConfirm(""); }}
                 disabled={deleting}
-                className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                className="flex-1 py-2 rounded-lg border border-gray-200 text-xs font-semibold text-gray-500 hover:bg-gray-50 disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 onClick={handleDelete}
-                disabled={deleting}
-                className="flex-1 py-2.5 rounded-xl bg-red-500 text-white text-sm font-semibold hover:bg-red-600 disabled:opacity-50 transition-colors"
+                disabled={deleting || deleteConfirm.trim() !== (event?.name || "").trim()}
+                className="flex-1 py-2 rounded-lg bg-red-500 text-white text-xs font-bold hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                {deleting ? "Deleting..." : "Yes, delete"}
+                {deleting ? "Deleting..." : "Delete Event"}
               </button>
             </div>
           </div>

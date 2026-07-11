@@ -248,7 +248,7 @@ function ProfilePageContent() {
                       </span>
                     </div>
                     {profile?.handle && (
-                      <p className="text-xs text-blue-500 font-medium mt-0.5">usebyro.com/u/{profile.handle}</p>
+                      <p className="text-xs text-blue-500 font-medium mt-0.5">@{profile.handle}</p>
                     )}
                     {profile?.email && (
                       <p className="text-xs text-gray-400 mt-0.5">{profile.email}</p>

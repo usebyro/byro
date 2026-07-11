@@ -13,6 +13,7 @@ import {
   Cancel01Icon,
 } from "@hugeicons/core-free-icons";
 import { resolveAdminHref } from "@/lib/adminNav";
+import NotificationBell from "@/components/admin/NotificationBell";
 
 const navItems = [
   { label: "Dashboard", href: "/", icon: DashboardSquare01Icon },
@@ -102,13 +103,21 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             Admin
           </span>
         </div>
-        <button
-          onClick={() => setMobileOpen(true)}
-          aria-label="Open menu"
-          className="text-gray-300 hover:text-white p-1"
-        >
-          <HugeiconsIcon icon={Menu01Icon} size={22} color="currentColor" />
-        </button>
+        <div className="flex items-center gap-1">
+          <NotificationBell />
+          <button
+            onClick={() => setMobileOpen(true)}
+            aria-label="Open menu"
+            className="text-gray-300 hover:text-white p-1"
+          >
+            <HugeiconsIcon icon={Menu01Icon} size={22} color="currentColor" />
+          </button>
+        </div>
+      </div>
+
+      {/* Desktop top bar */}
+      <div className="hidden md:flex fixed top-0 right-0 left-56 z-30 h-14 bg-[#1a1d27]/80 backdrop-blur border-b border-white/10 items-center justify-end px-6">
+        <NotificationBell />
       </div>
 
       {/* Mobile drawer + backdrop */}
@@ -132,7 +141,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       )}
 
       {/* Main content */}
-      <main className="flex-1 overflow-y-auto min-w-0 pt-14 md:pt-0">
+      <main className="flex-1 overflow-y-auto min-w-0 pt-14">
         {children}
       </main>
     </div>

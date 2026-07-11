@@ -59,10 +59,10 @@ function EventRow({ event }) {
   return (
     <Link
       href={`/dashboard/events/${event.slug}`}
-      className="flex items-center gap-4 px-5 py-4 hover:bg-gray-50 transition-colors group"
+      className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition-colors group"
     >
       {/* Thumbnail */}
-      <div className="w-12 h-12 rounded-xl overflow-hidden shrink-0 relative">
+      <div className="w-9 h-9 rounded-lg overflow-hidden shrink-0 relative bg-gray-50 border border-gray-100/50">
         {img ? (
           <Image src={img} alt={event.name} fill className="object-cover" />
         ) : (
@@ -72,10 +72,10 @@ function EventRow({ event }) {
 
       {/* Name + meta */}
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-gray-900 truncate group-hover:text-blue-600 transition-colors">
+        <p className="text-xs font-bold text-gray-800 truncate group-hover:text-[#4F6EF7] transition-colors">
           {event.name}
         </p>
-        <div className="flex items-center gap-3 mt-0.5 text-xs text-gray-400">
+        <div className="flex items-center gap-3 mt-0.5 text-[11px] text-gray-400">
           <span className="flex items-center gap-1">
             <HugeiconsIcon icon={Calendar01Icon} size={11} color="#9ca3af" />
             {formatDate(event.day)}
@@ -91,12 +91,12 @@ function EventRow({ event }) {
       </div>
 
       {/* Status */}
-      <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full shrink-0 ${status.bg} ${status.text}`}>
-        • {status.label}
+      <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md ${status.bg} ${status.text} shrink-0 w-14 justify-center`}>
+        {status.label}
       </span>
 
       {/* Arrow */}
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" strokeWidth="2" className="shrink-0">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2" className="shrink-0 transition-transform group-hover:translate-x-0.5">
         <path d="M9 18l6-6-6-6" />
       </svg>
     </Link>
@@ -105,13 +105,13 @@ function EventRow({ event }) {
 
 function SkeletonRow() {
   return (
-    <div className="flex items-center gap-4 px-5 py-4 animate-pulse">
-      <div className="w-12 h-12 rounded-xl bg-gray-100 shrink-0" />
-      <div className="flex-1 space-y-2">
-        <div className="h-4 bg-gray-100 rounded w-2/5" />
-        <div className="h-3 bg-gray-100 rounded w-1/3" />
+    <div className="flex items-center gap-3 px-4 py-2.5 animate-pulse">
+      <div className="w-9 h-9 rounded-lg bg-gray-100 shrink-0" />
+      <div className="flex-1 space-y-1.5">
+        <div className="h-3 bg-gray-100 rounded w-2/5" />
+        <div className="h-2.5 bg-gray-100 rounded w-1/3" />
       </div>
-      <div className="h-6 w-14 bg-gray-100 rounded-full" />
+      <div className="h-5 w-12 bg-gray-100 rounded-md" />
     </div>
   );
 }
@@ -147,23 +147,23 @@ export default function StudioEvents() {
   });
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
+    <div className="p-4 sm:p-6 max-w-5xl mx-auto space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between gap-3 pb-2 border-b border-gray-100/50">
         <h1 className="text-xl font-bold text-gray-900">Events</h1>
         <Link
           href="/events/create"
-          className="flex items-center gap-2 bg-blue-600 text-white text-sm font-semibold px-4 py-2.5 rounded-xl hover:bg-blue-700 transition-colors"
+          className="flex items-center justify-center gap-1.5 bg-[#4F6EF7] text-white text-xs font-semibold px-3.5 py-2 rounded-lg hover:bg-blue-700 transition-colors shrink-0 shadow-sm shadow-[#4F6EF7]/10"
         >
-          <HugeiconsIcon icon={Add01Icon} size={14} color="white" />
+          <HugeiconsIcon icon={Add01Icon} size={13} color="white" />
           Create event
         </Link>
       </div>
 
       {/* Search + filters */}
-      <div className="flex items-center gap-3 mb-5 flex-wrap">
+      <div className="flex items-center gap-2.5 flex-wrap">
         <div className="relative flex-1 min-w-[200px] max-w-xs">
-          <svg className="absolute left-3 top-1/2 -translate-y-1/2" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2">
+          <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
           </svg>
           <input
@@ -171,17 +171,17 @@ export default function StudioEvents() {
             placeholder="Search events..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm text-black focus:outline-none focus:ring-2 focus:ring-blue-100"
+            className="w-full pl-8 pr-4 py-1.5 bg-gray-50 border border-gray-100/80 rounded-lg text-xs text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#4F6EF7]/20 transition-all"
           />
         </div>
-        <div className="flex gap-1 bg-white border border-gray-200 p-1 rounded-xl">
+        <div className="flex gap-0.5 bg-white border border-gray-100/80 p-0.5 rounded-lg">
           {["all", "upcoming", "past", "draft"].map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize transition-colors ${
+              className={`px-2.5 py-1 rounded-md text-xs font-semibold capitalize transition-all ${
                 filter === f
-                  ? "bg-blue-600 text-white"
+                  ? "bg-[#4F6EF7] text-white shadow-sm shadow-[#4F6EF7]/10"
                   : "text-gray-500 hover:text-gray-800"
               }`}
             >
@@ -192,7 +192,7 @@ export default function StudioEvents() {
       </div>
 
       {/* List */}
-      <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+      <div className="bg-white rounded-xl border border-gray-100/80 shadow-sm overflow-hidden">
         {loading ? (
           <div className="divide-y divide-gray-50">
             <SkeletonRow />
@@ -200,12 +200,12 @@ export default function StudioEvents() {
             <SkeletonRow />
           </div>
         ) : filtered.length === 0 ? (
-          <div className="text-center py-16">
-            <p className="text-sm text-gray-400 mb-1">
+          <div className="text-center py-12">
+            <p className="text-xs text-gray-400 mb-2">
               {search ? "No events match your search" : "No events yet"}
             </p>
             {!search && (
-              <Link href="/events/create" className="text-sm font-semibold text-blue-600 hover:text-blue-700">
+              <Link href="/events/create" className="text-xs font-bold text-[#4F6EF7] hover:text-blue-700">
                 Create your first event
               </Link>
             )}
