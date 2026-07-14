@@ -675,7 +675,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                 {/* Ticket delivery */}
                 <div className="mt-5 border border-gray-100 rounded-xl p-4">
                   <p className="font-semibold text-gray-900 text-sm mb-3">
-                    For Other Guest
+                    Ticket recipient(s)
                   </p>
                   {isMultiSeat ? (
                     <p className="text-sm text-gray-600">
