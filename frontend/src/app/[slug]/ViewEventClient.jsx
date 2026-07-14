@@ -190,7 +190,12 @@ export default function ViewEventClient({ slug }) {
     : (isFree ? [] : [{ id: "general", name: "General Admission", desc: "", price: ticketPrice }]);
 
   const activeTier   = tiers.find(t => String(t.id) === String(selectedTier)) || tiers[0] || { price: 0, name: "" };
-  const { subtotal: tierSubtotal, serviceFee, total: tierTotal } = calculateTicketFees(activeTier.price * qty);
+  // A group tier (admits_count > 1) is a SINGLE ticket that admits several
+  // people, so its quantity is locked at 1 (the admits count becomes attendee
+  // slots at checkout, not extra tickets).
+  const isGroupTier = Number(activeTier?.admits_count) > 1;
+  const effectiveQty = isGroupTier ? 1 : qty;
+  const { subtotal: tierSubtotal, serviceFee, total: tierTotal } = calculateTicketFees(activeTier.price * effectiveQty);
 
   return (
     <Providers>
@@ -382,7 +387,11 @@ export default function ViewEventClient({ slug }) {
                     {tiers.map(tier => (
                       <button
                         key={tier.id}
-                        onClick={() => setSelectedTier(String(tier.id))}
+                        onClick={() => {
+                          setSelectedTier(String(tier.id));
+                          // Group tiers are one ticket — reset qty to 1.
+                          if (Number(tier.admits_count) > 1) setQty(1);
+                        }}
                         className={`w-full flex items-center justify-between p-3.5 rounded-xl border transition-colors text-left ${
                           String(selectedTier) === String(tier.id) ? "border-blue-400 bg-blue-50" : "border-gray-100 hover:border-gray-200"
                         }`}
@@ -415,10 +424,11 @@ export default function ViewEventClient({ slug }) {
                       >
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="5" y1="12" x2="19" y2="12" /></svg>
                       </button>
-                      <span className="w-5 text-center font-bold text-gray-900 text-sm">{qty}</span>
+                      <span className="w-5 text-center font-bold text-gray-900 text-sm">{effectiveQty}</span>
                       <button
-                        onClick={() => setQty(q => q + 1)}
-                        className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white hover:bg-blue-700 transition-colors"
+                        onClick={() => { if (!isGroupTier) setQty(q => q + 1); }}
+                        disabled={isGroupTier}
+                        className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white hover:bg-blue-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                           <line x1="12" y1="5" x2="12" y2="19" />
@@ -431,7 +441,7 @@ export default function ViewEventClient({ slug }) {
                   {/* Price breakdown */}
                   <div className="space-y-2 pb-4 mb-4 border-b border-gray-100 text-sm">
                     <div className="flex justify-between text-gray-600">
-                      <span>{qty} × {activeTier.name}</span>
+                      <span>{effectiveQty} × {activeTier.name}</span>
                       <span>{fmt(tierSubtotal)}</span>
                     </div>
                     <div className="flex justify-between text-gray-400">
