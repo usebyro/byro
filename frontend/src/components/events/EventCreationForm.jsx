@@ -154,6 +154,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
     setVirtualLink(d.virtual_link || "");
     setDescription(d.description || "");
     setTicketsTransferable(d.transferable || false);
+    setShowRemainingCount(d.show_remaining_count || false);
     setCategory(d.category || "entertainment");
     setEventVisibility(d.visibility === "public");
     if (d.event_image_url || d.event_image) {
@@ -274,6 +275,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
       time_to: convertTo24Hour(timeFrom), // same for now; no end-time in design
       ticket_price: ticketPrice,
       transferable: ticketsTransferable.toString(),
+      show_remaining_count: showRemainingCount.toString(),
       visibility: isDraft ? "private" : (eventVisibility ? "public" : "private"),
       category,
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "GMT+01:00",
