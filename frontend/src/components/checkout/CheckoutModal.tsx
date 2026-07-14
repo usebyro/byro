@@ -22,6 +22,7 @@ interface Event {
   ticket_price: number | string;
   event_image_url?: string;
   is_active: boolean;
+  show_remaining_count?: boolean;
 }
 
 interface TicketTier {
@@ -314,6 +315,10 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
   const dateStr = formatDate(event.day);
   const timeStr = formatTime(event.time_from);
 
+  // Respect the organiser's "show remaining count" setting. The API may still
+  // return real counts to the owner/co-host, so gate on the flag here too.
+  const showRemaining = !!event.show_remaining_count;
+
   return (
     <div className="fixed inset-0 z-50 bg-[#F1F4F9] overflow-y-auto">
       {/* ── Checkout header ── */}
@@ -434,6 +439,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                 <p className="text-sm text-gray-500 mb-6">
                   Select the tiers and quantities you want.{" "}
                   {(() => {
+                    if (!showRemaining) return null;
                     const trackedTiers = tiers.filter(t => t.remaining != null);
                     if (trackedTiers.length === 0) return null;
                     const totalRemaining = trackedTiers.reduce((s, t) => s + (t.remaining as number), 0);
@@ -467,13 +473,13 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                           {tier.name}
                         </p>
                         <p className="text-xs text-gray-500 mt-0.5">
-                          {tier.remaining != null && tier.remaining > 0 && (
+                          {showRemaining && tier.remaining != null && tier.remaining > 0 && (
                             <span className="text-orange-500">{tier.remaining} left</span>
                           )}
                           {tier.remaining === 0 && (
                             <span className="text-red-500">Sold out</span>
                           )}
-                          {tier.remaining == null && tier.capacity != null && (
+                          {showRemaining && tier.remaining == null && tier.capacity != null && (
                             <span>{tier.capacity} capacity</span>
                           )}
                         </p>
