@@ -31,6 +31,7 @@ interface TicketTier {
   capacity?: number | null;
   remaining?: number | null;
   sold?: number | null;
+  admits_count?: number | null;
 }
 
 const categoryGradients: Record<string, string> = {
@@ -128,7 +129,8 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [delivery, setDelivery] = useState("email");
+  const [sendToOther, setSendToOther] = useState(false); // single ticket → send to another email
+  const [guests, setGuests] = useState<{ name: string; email: string }[]>([]);
   const [agreed, setAgreed] = useState(false);
 
   /* ── Payment ── */
@@ -144,13 +146,85 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
   const total = subtotal + serviceFee - discount;
   const totalQty = Object.values(quantities).reduce((a: number, b: number) => a + b, 0);
 
+  /* ── Attendees (per-seat guest capture) ──
+     Only one tier can be selected at a time (the + button resets others),
+     so the active tier drives seats = quantity × people-per-ticket.
+       • Multiple seats (group tier OR qty > 1): buyer holds ticket #1 and MUST
+         name a distinct person for every other seat — no "email all to me".
+       • Single seat: buyer may opt in to "Send ticket to another email?" — when
+         chosen, the one ticket goes to that recipient instead of the buyer. */
+  const activeTier = tiers.find((t) => (quantities[String(t.id)] || 0) > 0);
+  const admitsPer = Math.max(Number(activeTier?.admits_count) || 1, 1);
+  const activeQty = activeTier ? quantities[String(activeTier.id)] || 0 : 0;
+  const seats = activeQty * admitsPer;
+
+  const isMultiSeat = seats > 1;
+  const isRedirect = seats === 1 && sendToOther;      // single ticket → another person
+  const buyerHoldsTicket = isMultiSeat || !isRedirect; // buyer keeps a ticket unless redirecting a single one
+  const recipientCount = isMultiSeat ? seats - 1 : isRedirect ? 1 : 0;
+  const requireRecipientName = isMultiSeat;           // redirect only needs an email
+  const recipientBaseLabel = isMultiSeat ? "Guest" : "Recipient";
+  const recipientLabelOffset = isMultiSeat ? 2 : 1;   // group guests start at #2
+
+  const isValidEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
+
+  const setGuest = (i: number, field: "name" | "email", value: string) => {
+    setGuests((prev) => {
+      const next = [...prev];
+      while (next.length <= i) next.push({ name: "", email: "" });
+      next[i] = { ...next[i], [field]: value };
+      return next;
+    });
+  };
+
+  // Validate buyer + all required recipient rows. Returns an error string or null.
+  const validateAttendees = (): string | null => {
+    if (!fullName.trim() || !email.trim()) {
+      return "Please fill in your name and email before proceeding.";
+    }
+    if (!isValidEmail(email)) {
+      return "Please enter a valid email address.";
+    }
+    for (let i = 0; i < recipientCount; i++) {
+      const g = guests[i];
+      const label = `${recipientBaseLabel.toLowerCase()} ${i + recipientLabelOffset}`;
+      if (!g || !g.email.trim()) {
+        return `Please enter an email for ${label}.`;
+      }
+      if (!isValidEmail(g.email)) {
+        return `Please enter a valid email for ${label}.`;
+      }
+      if (requireRecipientName && !g.name.trim()) {
+        return `Please enter a name for ${label}.`;
+      }
+    }
+    return null;
+  };
+
+  // Build the per-seat attendee list for the API (undefined = single ticket to buyer).
+  const buildAttendees = () => {
+    if (recipientCount <= 0) return undefined;
+    const recipients = Array.from({ length: recipientCount }, (_, i) => {
+      const nm = (guests[i]?.name || "").trim();
+      const em = (guests[i]?.email || "").trim();
+      // For an email-only redirect, derive a display name from the address.
+      return { name: nm || em.split("@")[0] || fullName.trim(), email: em };
+    });
+    // Multi-seat: buyer holds seat #1, then the named guests.
+    // Redirect: buyer holds no seat — the ticket goes to the recipient.
+    return buyerHoldsTicket
+      ? [{ name: fullName.trim(), email: email.trim() }, ...recipients]
+      : recipients;
+  };
+
   const applyPromo = () => {
     if (promoCode.trim().toUpperCase() === "EARLYBIRD") setPromoApplied(true);
   };
 
   const handlePayment = async () => {
-    if (!fullName.trim() || !email.trim()) {
-      toast.error("Please fill in your name and email before proceeding.");
+    const attendeeError = validateAttendees();
+    if (attendeeError) {
+      toast.error(attendeeError);
       return;
     }
 
@@ -164,6 +238,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
       // Find the first tier with quantity > 0 to pass as tier_id
       const activeTierForPayment = tiers.find(t => (quantities[String(t.id)] || 0) > 0);
       const tier_id = typeof activeTierForPayment?.id === "number" ? activeTierForPayment.id : undefined;
+      const attendees = buildAttendees();
 
       if (total === 0) {
         const result = await API.initializePayment({
@@ -172,6 +247,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
           customer_name: fullName,
           quantity: totalQty,
           tier_id,
+          attendees,
         });
         const ticket = result.tickets?.[0];
         const ticketData = {
@@ -202,6 +278,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
         customer_name: fullName,
         quantity: totalQty,
         tier_id,
+        attendees,
       });
 
       if (result?.data?.authorization_url) {
@@ -587,7 +664,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                           value={phone}
                           onChange={(e) => setPhone(e.target.value)}
                           placeholder="+234 801 234 5678"
-                          className="w-full border border-gray-200 text-blackrounded-xl pl-9 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-400"
+                          className="w-full border border-gray-200 text-black rounded-xl pl-9 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-400"
                         />
                       </div>
                     </div>
@@ -598,79 +675,80 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                 {/* Ticket delivery */}
                 <div className="mt-5 border border-gray-100 rounded-xl p-4">
                   <p className="font-semibold text-gray-900 text-sm mb-3">
-                    Ticket delivery
+                    For Other Guest
                   </p>
-                  <div className="space-y-3">
-                    {[
-                      {
-                        v: "email",
-                        label: `Email tickets to me${
-                          fullName ? ` (${fullName})` : ""
-                        }`,
-                      },
-                      { v: "each", label: "Send each ticket to a different guest" },
-                    ].map((opt) => (
-                      <label
-                        key={opt.v}
-                        className="flex items-center gap-3 cursor-pointer"
+                  {isMultiSeat ? (
+                    <p className="text-sm text-gray-600">
+                      Enter the details of the guest&apos;s below
+                    </p>
+                  ) : (
+                    /* Single ticket — optional redirect, unselected by default */
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <div
+                        onClick={() => setSendToOther((v) => !v)}
+                        className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 transition-colors cursor-pointer ${
+                          sendToOther ? "bg-blue-600" : "border-2 border-gray-300"
+                        }`}
                       >
-                        <div
-                          onClick={() => setDelivery(opt.v)}
-                          className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors cursor-pointer ${
-                            delivery === opt.v
-                              ? "border-blue-600"
-                              : "border-gray-300"
-                          }`}
-                        >
-                          {delivery === opt.v && (
-                            <div className="w-2.5 h-2.5 rounded-full bg-blue-600" />
+                        {sendToOther && (
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3">
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                        )}
+                      </div>
+                      <span className="text-sm text-gray-700">
+                        Send ticket to another email?
+                      </span>
+                    </label>
+                  )}
+
+                  {/* Per-recipient details */}
+                  {recipientCount > 0 && (
+                    <div className="mt-4 space-y-4 border-t border-gray-100 pt-4">
+                      {isRedirect && (
+                        <p className="text-xs text-gray-500">
+                          You&apos;re paying, but the ticket will be sent to this email — they
+                          get their own QR.
+                        </p>
+                      )}
+                      {Array.from({ length: recipientCount }, (_, i) => (
+                        <div key={i} className="space-y-2">
+                          {isMultiSeat && (
+                            <p className="text-xs font-semibold text-gray-700">
+                              {recipientBaseLabel} {i + recipientLabelOffset}
+                            </p>
+                          )}
+                          {isMultiSeat ? (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              <input
+                                type="text"
+                                value={guests[i]?.name || ""}
+                                onChange={(e) => setGuest(i, "name", e.target.value)}
+                                placeholder="Full name"
+                                className="w-full border border-gray-200 text-black rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-400"
+                              />
+                              <input
+                                type="email"
+                                value={guests[i]?.email || ""}
+                                onChange={(e) => setGuest(i, "email", e.target.value)}
+                                placeholder="Email address"
+                                className="w-full border border-gray-200 text-black rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-400"
+                              />
+                            </div>
+                          ) : (
+                            <input
+                              type="email"
+                              value={guests[i]?.email || ""}
+                              onChange={(e) => setGuest(i, "email", e.target.value)}
+                              placeholder="Recipient's email address"
+                              className="w-full border border-gray-200 text-black rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-400"
+                            />
                           )}
                         </div>
-                        <span className="text-sm text-gray-700">{opt.label}</span>
-                      </label>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-
-                {/* Terms checkbox */}
-                <label className="flex items-start gap-3 mt-4 cursor-pointer">
-                  <div
-                    onClick={() => setAgreed(!agreed)}
-                    className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors cursor-pointer ${
-                      agreed
-                        ? "bg-blue-600"
-                        : "border-2 border-gray-300"
-                    }`}
-                  >
-                    {agreed && (
-                      <svg
-                        width="11"
-                        height="11"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="white"
-                        strokeWidth="3"
-                      >
-                        <polyline points="20 6 9 17 4 12" />
-                      </svg>
-                    )}
-                  </div>
-                  <span className="text-sm text-gray-500 leading-relaxed">
-                    I agree to Byro&apos;s{" "}
-                    <a href="/terms" target="_blank" className="text-blue-600 hover:underline">
-                      Terms
-                    </a>{" "}
-                    and{" "}
-                    <a
-                      href="/refund-policy"
-                      target="_blank"
-                      className="text-blue-600 hover:underline"
-                    >
-                      Refund policy
-                    </a>
-                    .
-                  </span>
-                </label>
               </div>
             )}
 
@@ -966,19 +1044,22 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                   {/* CTA */}
                   <button
                     onClick={() => {
-                      if (step === 2 && (!fullName.trim() || !email.trim())) {
-                        toast.error("Please fill in your name and email before proceeding.");
-                        return;
+                      if (step === 2) {
+                        const err = validateAttendees();
+                        if (err) {
+                          toast.error(err);
+                          return;
+                        }
                       }
                       if (step === 3 || (step === 2 && total === 0)) {
                         handlePayment();
                       } else {
                         if (step === 1) {
-                          const activeTier = tiers.find(t => (quantities[String(t.id)] || 0) > 0);
+                          const selectedTier = tiers.find(t => (quantities[String(t.id)] || 0) > 0);
                           trackSelectTicket({
                             eventName: event.name,
                             eventSlug: event.slug,
-                            tierName: activeTier?.name ?? 'General',
+                            tierName: selectedTier?.name ?? 'General',
                             quantity: totalQty,
                             value: total,
                           });
@@ -1115,6 +1196,46 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                       </>
                     )}
                   </button>
+
+                  {/* Terms — directly under the Get tickets / Continue CTA */}
+                  {step === 2 && (
+                    <label className="flex items-start gap-2.5 mt-3 cursor-pointer">
+                      <div
+                        onClick={() => setAgreed(!agreed)}
+                        className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors cursor-pointer ${
+                          agreed ? "bg-blue-600" : "border-2 border-gray-300"
+                        }`}
+                      >
+                        {agreed && (
+                          <svg
+                            width="11"
+                            height="11"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="white"
+                            strokeWidth="3"
+                          >
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                        )}
+                      </div>
+                      <span className="text-xs text-gray-500 leading-relaxed">
+                        I agree to Byro&apos;s{" "}
+                        <a href="/terms" target="_blank" className="text-blue-600 hover:underline">
+                          Terms
+                        </a>{" "}
+                        and{" "}
+                        <a
+                          href="/refund-policy"
+                          target="_blank"
+                          className="text-blue-600 hover:underline"
+                        >
+                          Refund policy
+                        </a>
+                        .
+                      </span>
+                    </label>
+                  )}
                 </div>
               </div>
             </div>

@@ -121,6 +121,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
   const [showRemainingCount, setShowRemainingCount] = useState(false);
   const [ticketsTransferable, setTicketsTransferable] = useState(false);
   const [capacity, setCapacity] = useState("Unlimited");
+  const [maxTicketsPerEmail, setMaxTicketsPerEmail] = useState("Unlimited");
 
   /* venue autocomplete */
   const [venueCoords, setVenueCoords] = useState(null);
@@ -134,6 +135,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
 
   /* ticket tiers (UI only — we submit the first tier's price to the API) */
   const [tiers, setTiers] = useState(DEFAULT_TIERS);
+  const [originalTiers, setOriginalTiers] = useState([]); // snapshot of saved tiers, for edit diffing
   const [editingTierId, setEditingTierId] = useState(null);
   const [editTierData, setEditTierData] = useState({});
 
@@ -155,6 +157,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
     setTicketsTransferable(d.transferable || false);
     setCategory(d.category || "entertainment");
     setEventVisibility(d.visibility === "public");
+    if (d.max_tickets_per_email != null) setMaxTicketsPerEmail(String(d.max_tickets_per_email));
     if (d.event_image_url || d.event_image) {
       const base = (process.env.NEXT_PUBLIC_API_URL || "https://byro.onrender.com").replace(/\/api\/?$/, "");
       const imgUrl = d.event_image_url || (d.event_image?.startsWith("http") ? d.event_image : `${base}${d.event_image}`);
@@ -168,14 +171,16 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
     API.getEventTiers(editSlug)
       .then((data) => {
         if (Array.isArray(data) && data.length > 0) {
-          setTiers(
-            data.map((t) => ({
-              id: t.id, // real numeric backend ID — won't match "tier_" filter, so won't be re-POSTed
-              name: t.name,
-              price: t.price != null ? String(t.price) : "",
-              available: t.capacity != null ? String(t.capacity) : "Unlimited",
-            }))
-          );
+          const mapped = data.map((t) => ({
+            id: t.id, // real numeric backend ID — won't match "tier_" filter, so won't be re-POSTed
+            name: t.name,
+            price: t.price != null ? String(t.price) : "",
+            available: t.capacity != null ? String(t.capacity) : "Unlimited",
+            admits: t.admits_count != null ? String(t.admits_count) : "1",
+          }));
+          setTiers(mapped);
+          // Deep-copy snapshot so we can diff for PATCH/DELETE on save
+          setOriginalTiers(mapped.map((t) => ({ ...t })));
         }
       })
       .catch(() => {}); // silently fail — form still works without pre-loaded tiers
@@ -196,7 +201,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
   /* Tier editing helpers */
   const startEditTier = (tier) => {
     setEditingTierId(tier.id);
-    setEditTierData({ name: tier.name, available: tier.available, price: tier.price });
+    setEditTierData({ name: tier.name, available: tier.available, price: tier.price, admits: tier.admits ?? "1" });
   };
 
   const saveEditTier = () => {
@@ -210,9 +215,9 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
 
   const addTier = () => {
     const newId = `tier_${Date.now()}`;
-    setTiers(prev => [...prev, { id: newId, name: "New Tier", available: "100", price: "" }]);
+    setTiers(prev => [...prev, { id: newId, name: "New Tier", available: "100", price: "", admits: "1" }]);
     setEditingTierId(newId);
-    setEditTierData({ name: "New Tier", available: "100", price: "" });
+    setEditTierData({ name: "New Tier", available: "100", price: "", admits: "1" });
   };
 
   const handleVenueChange = useCallback((val) => {
@@ -279,6 +284,10 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
     if (virtualLink) fields.virtual_link = virtualLink;
     if (description) fields.description = description;
     if (capacity !== "Unlimited") fields.capacity = capacity;
+    if (maxTicketsPerEmail !== "Unlimited" && String(maxTicketsPerEmail).trim() !== "") {
+      const cap = parseInt(String(maxTicketsPerEmail).replace(/,/g, ""), 10);
+      if (!isNaN(cap) && cap > 0) fields.max_tickets_per_email = cap;
+    }
 
     Object.entries(fields).forEach(([k, v]) => formData.append(k, v));
     if (eventImage instanceof File) formData.append("event_image", eventImage);
@@ -289,6 +298,19 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
       return isNaN(n) ? null : n;
     };
 
+    const parseAdmits = (val) => {
+      const n = parseInt(String(val ?? "1"), 10);
+      return isNaN(n) || n < 1 ? 1 : n;
+    };
+
+    const tierPayload = (tier, idx) => ({
+      name: tier.name,
+      price: parseFloat(tier.price) || 0,
+      capacity: parseCapacity(tier.available),
+      admits_count: parseAdmits(tier.admits),
+      order: idx,
+    });
+
     try {
       setIsSubmitting(true);
       const response = editSlug
@@ -298,24 +320,43 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
       if (response) {
         const slug = editSlug || response.slug;
 
-        const tiersToCreate = editSlug
-          ? tiers.filter((t) => String(t.id).startsWith("tier_"))
-          : tiers;
+        let tierOps;
+        if (editSlug) {
+          // Diff against the snapshot loaded from the server:
+          //  • new tiers (temp "tier_" id)      → POST
+          //  • existing tiers with changed fields → PATCH
+          //  • saved tiers no longer present      → DELETE
+          const currentIds = new Set(tiers.map((t) => String(t.id)));
+          const ops = [];
+          tiers.forEach((tier, idx) => {
+            if (String(tier.id).startsWith("tier_")) {
+              ops.push(API.createTier(slug, tierPayload(tier, idx)));
+              return;
+            }
+            const orig = originalTiers.find((o) => String(o.id) === String(tier.id));
+            const changed =
+              !orig ||
+              orig.name !== tier.name ||
+              orig.price !== tier.price ||
+              orig.available !== tier.available ||
+              (orig.admits ?? "1") !== (tier.admits ?? "1");
+            if (changed) ops.push(API.updateTier(slug, tier.id, tierPayload(tier, idx)));
+          });
+          originalTiers.forEach((orig) => {
+            if (!currentIds.has(String(orig.id))) {
+              ops.push(API.deleteTier(slug, orig.id));
+            }
+          });
+          tierOps = ops;
+        } else {
+          tierOps = tiers.map((tier, idx) => API.createTier(slug, tierPayload(tier, idx)));
+        }
 
-        if (tiersToCreate.length > 0) {
-          const results = await Promise.allSettled(
-            tiersToCreate.map((tier, idx) =>
-              API.createTier(slug, {
-                name: tier.name,
-                price: parseFloat(tier.price) || 0,
-                capacity: parseCapacity(tier.available),
-                order: idx,
-              })
-            )
-          );
+        if (tierOps.length > 0) {
+          const results = await Promise.allSettled(tierOps);
           const failures = results.filter((r) => r.status === "rejected");
           if (failures.length > 0) {
-            toast.error(`Event saved but ${failures.length} tier(s) failed: ${failures[0]?.reason?.message || "unknown error"}`);
+            toast.error(`Event saved but ${failures.length} tier change(s) failed: ${failures[0]?.reason?.message || "unknown error"}`);
           }
         }
 
@@ -652,6 +693,21 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
                           placeholder="e.g. 8500"
                         />
                       </div>
+                      <div>
+                        <label className="text-xs font-medium text-gray-600 mb-1 block">People per ticket</label>
+                        <input
+                          type="number"
+                          min="1"
+                          step="1"
+                          value={editTierData.admits ?? "1"}
+                          onChange={e => setEditTierData(p => ({ ...p, admits: e.target.value }))}
+                          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="1"
+                        />
+                        <p className="text-[11px] text-gray-400 mt-1">
+                          For group tickets (e.g. &quot;Group of 4&quot; → 4). The buyer fills in the other guests&apos; details at checkout.
+                        </p>
+                      </div>
                       <div className="flex gap-2">
                         <button type="button" onClick={saveEditTier} className="bg-blue-600 text-white text-xs font-semibold px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">Save</button>
                         <button type="button" onClick={() => setEditingTierId(null)} className="border border-gray-200 text-gray-600 text-xs font-medium px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors">Cancel</button>
@@ -665,7 +721,10 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
                       </span>
                       <div className="flex-1 min-w-0">
                         <p className="font-semibold text-gray-900 text-sm">{tier.name}</p>
-                        <p className="text-xs text-gray-400 mt-0.5">{tier.available} available</p>
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          {tier.available} available
+                          {parseInt(tier.admits, 10) > 1 ? ` · admits ${tier.admits} per ticket` : ""}
+                        </p>
                       </div>
                       <span className="font-bold text-gray-900 text-sm mr-2">
                         {tier.price ? fmt(parseFloat(tier.price)) : "Free"}
@@ -745,6 +804,21 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
                   </button>
                 </div>
               ))}
+
+              {/* Max tickets per email */}
+              <div className="pt-1">
+                <label className="text-sm text-gray-700 block mb-1.5">Max tickets per email</label>
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={maxTicketsPerEmail === "Unlimited" ? "" : maxTicketsPerEmail}
+                  onChange={e => setMaxTicketsPerEmail(e.target.value.trim() === "" ? "Unlimited" : e.target.value)}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Unlimited"
+                />
+                <p className="text-[11px] text-gray-400 mt-1">Leave blank for no limit. Counts every ticket a guest&apos;s email holds for this event.</p>
+              </div>
             </div>
           </div>
 

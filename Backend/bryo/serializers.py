@@ -119,7 +119,7 @@ class TicketTierSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = TicketTier
-        fields = ['id', 'name', 'price', 'capacity', 'order', 'remaining', 'sold']
+        fields = ['id', 'name', 'price', 'capacity', 'admits_count', 'order', 'remaining', 'sold']
         read_only_fields = ['id']
 
     def get_remaining(self, obj):
@@ -147,6 +147,11 @@ class TicketTierSerializer(serializers.ModelSerializer):
     def validate_price(self, value):
         if value < 0:
             raise serializers.ValidationError("Price cannot be negative.")
+        return value
+
+    def validate_admits_count(self, value):
+        if value is None or value < 1:
+            raise serializers.ValidationError("A ticket must admit at least 1 person.")
         return value
 
 
@@ -181,6 +186,7 @@ class EventSerializer(serializers.ModelSerializer):
 
     # Optional fields that may not be sent by the client
     capacity = serializers.IntegerField(required=False, allow_null=True, min_value=1)
+    max_tickets_per_email = serializers.IntegerField(required=False, allow_null=True, min_value=1)
     location = serializers.CharField(required=False, allow_blank=True, max_length=255)
     description = serializers.CharField(required=False, allow_blank=True)
 
@@ -190,7 +196,7 @@ class EventSerializer(serializers.ModelSerializer):
             'id', 'slug', 'name', 'owner', 'owner_email', 'owner_handle', 'owner_events_count',
             'category', 'category_display',
             'day', 'time_from', 'time_to', 'location', 'description',
-            'virtual_link', 'ticket_price', 'capacity', 'transferable',
+            'virtual_link', 'ticket_price', 'capacity', 'max_tickets_per_email', 'transferable',
             'show_remaining_count',
             'event_image', 'event_image_url', 'visibility', 'timezone', 'hosted_by',
             'is_active', 'created_at', 'updated_at',

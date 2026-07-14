@@ -257,6 +257,11 @@ class Event(models.Model):
         default=0.00
     )
     capacity = models.IntegerField(blank=False, null=True)
+    max_tickets_per_email = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Max tickets a single email may hold for this event. Null = unlimited."
+    )
     transferable = models.BooleanField(default=False)
     show_remaining_count = models.BooleanField(
         default=False,
@@ -435,6 +440,9 @@ class TicketTier(models.Model):
     price = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     # Total tickets available for this tier. Null = unlimited.
     capacity = models.PositiveIntegerField(null=True, blank=True)
+    # People admitted per ticket in this tier (e.g. a "Group of 4" = 4).
+    # Each admitted person still becomes a separate Ticket row (own QR).
+    admits_count = models.PositiveIntegerField(default=1)
     order = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

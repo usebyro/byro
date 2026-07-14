@@ -14,6 +14,7 @@ interface Event {
   ticket_price: number;
   is_active: boolean;
   hosted_by?: string;
+  created_at?: string;
 }
 
 function formatDate(dateStr: string) {
@@ -22,6 +23,17 @@ function formatDate(dateStr: string) {
     day: "numeric",
     month: "short",
     year: "numeric",
+  });
+}
+
+function formatDateTime(dateStr?: string) {
+  if (!dateStr) return "—";
+  return new Date(dateStr).toLocaleString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
   });
 }
 
@@ -57,6 +69,7 @@ function EventTable({ events, emptyText }: { events: Event[]; emptyText: string 
             <th className="pb-3 pr-6 text-xs text-gray-500 uppercase tracking-wider font-medium">Location</th>
             <th className="pb-3 pr-6 text-xs text-gray-500 uppercase tracking-wider font-medium">Category</th>
             <th className="pb-3 pr-6 text-xs text-gray-500 uppercase tracking-wider font-medium">Price</th>
+            <th className="pb-3 pr-6 text-xs text-gray-500 uppercase tracking-wider font-medium">Created</th>
             <th className="pb-3 text-xs text-gray-500 uppercase tracking-wider font-medium">Status</th>
           </tr>
         </thead>
@@ -86,6 +99,9 @@ function EventTable({ events, emptyText }: { events: Event[]; emptyText: string 
                 {event.ticket_price > 0
                   ? `₦${Number(event.ticket_price).toLocaleString()}`
                   : "Free"}
+              </td>
+              <td className="py-3 pr-6 text-gray-400 whitespace-nowrap">
+                {formatDateTime(event.created_at)}
               </td>
               <td className="py-3">
                 <StatusBadge active={event.is_active} />
