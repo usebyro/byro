@@ -121,7 +121,6 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
   const [showRemainingCount, setShowRemainingCount] = useState(false);
   const [ticketsTransferable, setTicketsTransferable] = useState(false);
   const [capacity, setCapacity] = useState("Unlimited");
-  const [maxTicketsPerEmail, setMaxTicketsPerEmail] = useState("Unlimited");
 
   /* venue autocomplete */
   const [venueCoords, setVenueCoords] = useState(null);
@@ -157,7 +156,6 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
     setTicketsTransferable(d.transferable || false);
     setCategory(d.category || "entertainment");
     setEventVisibility(d.visibility === "public");
-    if (d.max_tickets_per_email != null) setMaxTicketsPerEmail(String(d.max_tickets_per_email));
     if (d.event_image_url || d.event_image) {
       const base = (process.env.NEXT_PUBLIC_API_URL || "https://byro.onrender.com").replace(/\/api\/?$/, "");
       const imgUrl = d.event_image_url || (d.event_image?.startsWith("http") ? d.event_image : `${base}${d.event_image}`);
@@ -284,10 +282,6 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
     if (virtualLink) fields.virtual_link = virtualLink;
     if (description) fields.description = description;
     if (capacity !== "Unlimited") fields.capacity = capacity;
-    if (maxTicketsPerEmail !== "Unlimited" && String(maxTicketsPerEmail).trim() !== "") {
-      const cap = parseInt(String(maxTicketsPerEmail).replace(/,/g, ""), 10);
-      if (!isNaN(cap) && cap > 0) fields.max_tickets_per_email = cap;
-    }
 
     Object.entries(fields).forEach(([k, v]) => formData.append(k, v));
     if (eventImage instanceof File) formData.append("event_image", eventImage);
@@ -705,7 +699,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
                           placeholder="1"
                         />
                         <p className="text-[11px] text-gray-400 mt-1">
-                          For group tickets (e.g. &quot;Group of 4&quot; → 4). The buyer fills in the other guests&apos; details at checkout.
+                          For group tickets (e.g. &quot;Group of 4&quot; → 4). This is one ticket that admits that many people; the buyer fills in each guest&apos;s details at checkout.
                         </p>
                       </div>
                       <div className="flex gap-2">
@@ -804,21 +798,6 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
                   </button>
                 </div>
               ))}
-
-              {/* Max tickets per email */}
-              <div className="pt-1">
-                <label className="text-sm text-gray-700 block mb-1.5">Max tickets per email</label>
-                <input
-                  type="number"
-                  min="1"
-                  step="1"
-                  value={maxTicketsPerEmail === "Unlimited" ? "" : maxTicketsPerEmail}
-                  onChange={e => setMaxTicketsPerEmail(e.target.value.trim() === "" ? "Unlimited" : e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Unlimited"
-                />
-                <p className="text-[11px] text-gray-400 mt-1">Leave blank for no limit. Counts every ticket a guest&apos;s email holds for this event.</p>
-              </div>
             </div>
           </div>
 

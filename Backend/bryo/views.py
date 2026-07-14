@@ -159,7 +159,10 @@ def send_ticket_confirmation_email(ticket, customer_name, customer_email, event)
 
 
 def _seats_for(tier, quantity):
-    """Total ticket rows a purchase produces = quantity × people-per-ticket."""
+    """Total attendee slots a purchase produces = quantity × people-per-ticket.
+
+    A group tier (admits_count > 1) is a SINGLE ticket that admits several
+    people, so one ticket yields admits_count attendee slots."""
     admits = tier.admits_count if tier is not None else 1
     return quantity * max(admits or 1, 1)
 
@@ -181,50 +184,6 @@ def _normalize_attendees(attendees_raw, seats, buyer_name, buyer_email):
             'email': email or buyer_email,
         })
     return result
-
-
-def _held_seats_for_email(event, email):
-    """Committed (paid/free) ticket rows this email already holds for the event."""
-    return Ticket.objects.filter(
-        event=event,
-        original_owner_email__iexact=email,
-        payment_status__in=['paid', 'free'],
-    ).count()
-
-
-def _pending_seats_for_email(event, email):
-    """Seats reserved by this email in recent, not-yet-verified payments."""
-    cutoff = timezone.now() - timedelta(minutes=30)
-    key = email.strip().lower()
-    count = 0
-    for p in event.payments.filter(status='pending', created_at__gte=cutoff):
-        for a in (p.metadata.get('attendees') or []):
-            if isinstance(a, dict) and (a.get('email') or '').strip().lower() == key:
-                count += 1
-    return count
-
-
-def _check_per_email_cap(event, attendees):
-    """
-    Enforce Event.max_tickets_per_email across the seats in this purchase.
-    Returns an error string if the cap would be exceeded, else None.
-    """
-    cap = event.max_tickets_per_email
-    if not cap:
-        return None
-    requested = {}
-    for a in attendees:
-        key = a['email'].strip().lower()
-        requested[key] = requested.get(key, 0) + 1
-    for email_key, req_count in requested.items():
-        held = _held_seats_for_email(event, email_key)
-        pending = _pending_seats_for_email(event, email_key)
-        if held + pending + req_count > cap:
-            return (
-                f"{email_key} would exceed the limit of {cap} ticket(s) "
-                f"per email for this event."
-            )
-    return None
 
 
 def _create_tickets(event, tier, attendees, *, payment_status, payment=None, user=None):
@@ -316,13 +275,9 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
         except InsufficientCapacityError as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Resolve per-seat attendees (seat #1 = buyer) and enforce the
-        # per-email cap across every seat in this purchase.
+        # Resolve per-seat attendees (seat #1 = buyer).
         seats = _seats_for(tier, quantity)
         attendees = _normalize_attendees(attendees_raw, seats, customer_name, customer_email)
-        cap_error = _check_per_email_cap(event, attendees)
-        if cap_error:
-            return Response({'error': cap_error}, status=status.HTTP_400_BAD_REQUEST)
 
         # Calculate amount (tier price takes precedence over the legacy flat price)
         unit_price = tier.price if tier is not None else event.ticket_price

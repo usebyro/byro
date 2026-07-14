@@ -186,7 +186,6 @@ class EventSerializer(serializers.ModelSerializer):
 
     # Optional fields that may not be sent by the client
     capacity = serializers.IntegerField(required=False, allow_null=True, min_value=1)
-    max_tickets_per_email = serializers.IntegerField(required=False, allow_null=True, min_value=1)
     location = serializers.CharField(required=False, allow_blank=True, max_length=255)
     description = serializers.CharField(required=False, allow_blank=True)
 
@@ -196,7 +195,7 @@ class EventSerializer(serializers.ModelSerializer):
             'id', 'slug', 'name', 'owner', 'owner_email', 'owner_handle', 'owner_events_count',
             'category', 'category_display',
             'day', 'time_from', 'time_to', 'location', 'description',
-            'virtual_link', 'ticket_price', 'capacity', 'max_tickets_per_email', 'transferable',
+            'virtual_link', 'ticket_price', 'capacity', 'transferable',
             'show_remaining_count',
             'event_image', 'event_image_url', 'visibility', 'timezone', 'hosted_by',
             'is_active', 'created_at', 'updated_at',

@@ -147,9 +147,11 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
   const totalQty = Object.values(quantities).reduce((a: number, b: number) => a + b, 0);
 
   /* ── Attendees (per-seat guest capture) ──
-     Only one tier can be selected at a time (the + button resets others),
-     so the active tier drives seats = quantity × people-per-ticket.
-       • Multiple seats (group tier OR qty > 1): buyer holds ticket #1 and MUST
+     Only one tier can be selected at a time (the + button resets others), so
+     the active tier drives seats = quantity × people-per-ticket. A group tier
+     (admits_count > 1) is ONE ticket that admits several people, so its qty is
+     locked at 1 and it yields admits_count attendee slots.
+       • Multiple seats (group tier OR qty > 1): buyer holds seat #1 and MUST
          name a distinct person for every other seat — no "email all to me".
        • Single seat: buyer may opt in to "Send ticket to another email?" — when
          chosen, the one ticket goes to that recipient instead of the buyer. */
@@ -444,7 +446,14 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                 </p>
 
                 <div className="space-y-3">
-                  {tiers.map((tier) => (
+                  {tiers.map((tier) => {
+                    // A group tier (admits_count > 1) is ONE ticket that admits
+                    // several people — quantity is locked at 1 (the admits count
+                    // becomes attendee slots, not extra tickets).
+                    const isGroupTier = Number(tier.admits_count) > 1;
+                    const currentQty = quantities[String(tier.id)] || 0;
+                    const atCap = isGroupTier && currentQty >= 1;
+                    return (
                     <div
                       key={tier.id}
                       className={`rounded-xl border p-4 flex items-center justify-between transition-colors ${
@@ -500,13 +509,16 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                           <button
                             onClick={() =>
                               setQuantities((p) => {
+                                const cur = p[String(tier.id)] || 0;
+                                // A group tier is a single ticket — never exceed qty 1.
+                                if (isGroupTier && cur >= 1) return p;
                                 // Reset all other tiers to 0 — only one tier can be selected at a time
                                 const reset: Record<string, number> = {};
                                 tiers.forEach((t) => { reset[String(t.id)] = 0; });
-                                return { ...reset, [String(tier.id)]: (p[String(tier.id)] || 0) + 1 };
+                                return { ...reset, [String(tier.id)]: cur + 1 };
                               })
                             }
-                            disabled={tier.remaining === 0}
+                            disabled={tier.remaining === 0 || atCap}
                             className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white hover:bg-blue-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                           >
                             <svg
@@ -524,7 +536,8 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                         </div>
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
 
                 {/* Promo code */}

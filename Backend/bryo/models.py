@@ -257,11 +257,6 @@ class Event(models.Model):
         default=0.00
     )
     capacity = models.IntegerField(blank=False, null=True)
-    max_tickets_per_email = models.PositiveIntegerField(
-        null=True,
-        blank=True,
-        help_text="Max tickets a single email may hold for this event. Null = unlimited."
-    )
     transferable = models.BooleanField(default=False)
     show_remaining_count = models.BooleanField(
         default=False,
