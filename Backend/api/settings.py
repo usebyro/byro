@@ -24,8 +24,11 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 config = AutoConfig(search_path=str(BASE_DIR))
 
 
-SECRET_KEY = 'django-insecure-k%pbsf-0fn&$pbh@%zt6ps=+unneeym49)*&o#l5$u^b%4_(ke'
-DEBUG = config('DEBUG', default=True, cast=bool)
+SECRET_KEY = config(
+    'DJANGO_SECRET_KEY',
+    default='django-insecure-k%pbsf-0fn&$pbh@%zt6ps=+unneeym49)*&o#l5$u^b%4_(ke',
+)
+DEBUG = config('DEBUG', default=False, cast=bool)
 
 from dotenv import load_dotenv
 
@@ -67,10 +70,16 @@ WEB3AUTH_JWKS_URL = os.environ.get('WEB3AUTH_JWKS_URL', 'https://api-auth.web3au
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-k%pbsf-0fn&$pbh@%zt6ps=+unneeym49)*&o#l5$u^b%4_(ke'
+# Read from env in production; falls back to the legacy key so existing
+# sessions/JWTs stay valid until DJANGO_SECRET_KEY is set and rotated.
+SECRET_KEY = config(
+    'DJANGO_SECRET_KEY',
+    default='django-insecure-k%pbsf-0fn&$pbh@%zt6ps=+unneeym49)*&o#l5$u^b%4_(ke',
+)
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+# Defaults to False; set DEBUG=True in the env only for local development.
+DEBUG = config('DEBUG', default=False, cast=bool)
 
 ALLOWED_HOSTS = ["*"]
 
