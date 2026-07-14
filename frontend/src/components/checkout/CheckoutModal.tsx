@@ -707,8 +707,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                     <div className="mt-4 space-y-4 border-t border-gray-100 pt-4">
                       {isRedirect && (
                         <p className="text-xs text-gray-500">
-                          You&apos;re paying, but the ticket will be sent to this email — they
-                          get their own QR.
+                          You&apos;re paying, but the ticket will be sent to this email.
                         </p>
                       )}
                       {Array.from({ length: recipientCount }, (_, i) => (
