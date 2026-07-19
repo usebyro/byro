@@ -142,7 +142,11 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
     (s, t) => s + parseFloat(String(t.price)) * (quantities[String(t.id)] || 0),
     0
   );
-  const { serviceFee } = calculateTicketFees(subtotal);
+  const fees = calculateTicketFees(subtotal);
+  // Buyer-facing "service fee" = everything added on top of the subtotal
+  // (Byro's 6.5% + the simulated Paystack cut), so the shown total equals what
+  // Paystack will actually charge and no fee jumps at checkout.
+  const serviceFee = fees.displayTotal - fees.subtotal;
   const discount = promoApplied ? promoDiscount : 0;
   const total = subtotal + serviceFee - discount;
   const totalQty = Object.values(quantities).reduce((a: number, b: number) => a + b, 0);

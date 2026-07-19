@@ -372,7 +372,7 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                         'subtotal': str(fees['subtotal']),
                         'service_fee': str(fees['service_fee']),
                         'paystack_fee': str(fees['paystack_fee']),
-                        'platform_fee': str(fees['platform_fee']),
+                        'display_total': str(fees['display_total']),
                     }
                 )
 
