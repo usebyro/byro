@@ -3,6 +3,11 @@
 import { useEffect, useState } from "react";
 import axiosInstance from "@/utils/axios";
 
+interface Tier {
+  id: number;
+  sold: number | null;
+}
+
 interface Event {
   id: number;
   slug: string;
@@ -15,6 +20,11 @@ interface Event {
   is_active: boolean;
   hosted_by?: string;
   created_at?: string;
+  tiers?: Tier[];
+}
+
+function getTicketsSold(event: Event): number {
+  return (event.tiers ?? []).reduce((sum, t) => sum + (t.sold ?? 0), 0);
 }
 
 function formatDate(dateStr: string) {
@@ -70,6 +80,7 @@ function EventTable({ events, emptyText }: { events: Event[]; emptyText: string 
             <th className="pb-3 pr-6 text-xs text-gray-500 uppercase tracking-wider font-medium">Category</th>
             <th className="pb-3 pr-6 text-xs text-gray-500 uppercase tracking-wider font-medium">Price</th>
             <th className="pb-3 pr-6 text-xs text-gray-500 uppercase tracking-wider font-medium">Created</th>
+            <th className="pb-3 pr-6 text-xs text-gray-500 uppercase tracking-wider font-medium">Tickets Sold</th>
             <th className="pb-3 text-xs text-gray-500 uppercase tracking-wider font-medium">Status</th>
           </tr>
         </thead>
@@ -102,6 +113,9 @@ function EventTable({ events, emptyText }: { events: Event[]; emptyText: string 
               </td>
               <td className="py-3 pr-6 text-gray-400 whitespace-nowrap">
                 {formatDateTime(event.created_at)}
+              </td>
+              <td className="py-3 pr-6 text-gray-300 whitespace-nowrap">
+                {getTicketsSold(event)}
               </td>
               <td className="py-3">
                 <StatusBadge active={event.is_active} />
