@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 }
 
 const POSTS_QUERY = defineQuery(
-  `*[_type == "post" && defined(slug.current)] | order(publishedAt desc){ _id, title, slug, excerpt, publishedAt, readTime, category, featured, authorName, authorInitials, coverImage }`
+  `*[_type == "post" && defined(slug.current)] | order(publishedAt desc){ _id, title, slug, excerpt, publishedAt, readTime, tags, featured, authorName, authorInitials, coverImage }`
 )
 
 const options = {next: {revalidate: 30}}
@@ -86,15 +86,15 @@ export default async function BlogPage() {
           </div>
         )}
 
-        {/* Category tabs */}
+        {/* Tags filter */}
         <div className="max-w-6xl mx-auto px-4 pb-8">
           <div className="flex gap-2 overflow-x-auto pb-2">
-            {['All', 'For organizers', 'Music', 'Nightlife', 'Sports', 'Product'].map((cat) => (
+            {['All', 'For organizers', 'Music', 'Nightlife', 'Sports', 'Product'].map((tag) => (
               <span
-                key={cat}
+                key={tag}
                 className="px-4 py-2 text-sm font-medium rounded-full border border-gray-200 text-gray-600 hover:bg-gray-100 cursor-pointer whitespace-nowrap"
               >
-                {cat}
+                {tag}
               </span>
             ))}
           </div>
@@ -114,12 +114,12 @@ export default async function BlogPage() {
                     />
                   )}
                 </div>
-                <div className="flex gap-2 mb-2">
-                  {post.category && (
-                    <span className="text-xs font-semibold text-blue-600 uppercase tracking-wider">
-                      {post.category.replace('-', ' ')}
+                <div className="flex gap-2 mb-2 flex-wrap">
+                  {post.tags?.map((tag: string) => (
+                    <span key={tag} className="text-xs font-semibold text-blue-600 uppercase tracking-wider">
+                      {tag}
                     </span>
-                  )}
+                  ))}
                 </div>
                 <div className="flex items-center gap-2 text-sm text-gray-500 mb-2">
                   <span>{formatDate(post.publishedAt)}</span>

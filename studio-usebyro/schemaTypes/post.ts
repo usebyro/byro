@@ -13,17 +13,11 @@ export const post = defineType({
     defineField({name: 'publishedAt', type: 'datetime'}),
     defineField({name: 'readTime', type: 'string', title: 'Read time (e.g. "4 min")'}),
     defineField({
-      name: 'category',
-      type: 'string',
-      options: {
-        list: [
-          {title: 'For organizers', value: 'for-organizers'},
-          {title: 'Music', value: 'music'},
-          {title: 'Nightlife', value: 'nightlife'},
-          {title: 'Sports', value: 'sports'},
-          {title: 'Product', value: 'product'},
-        ],
-      },
+      name: 'tags',
+      type: 'array',
+      of: [{type: 'string'}],
+      options: {layout: 'tags'},
+      validation: (r) => r.unique(),
     }),
     defineField({name: 'featured', type: 'boolean', initialValue: false}),
     defineField({name: 'authorName', type: 'string'}),

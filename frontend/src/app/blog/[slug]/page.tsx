@@ -7,7 +7,7 @@ import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 
 const POST_QUERY = defineQuery(
-  `*[_type == "post" && slug.current == $slug][0]{ _id, title, body, excerpt, publishedAt, readTime, category, authorName, authorInitials, coverImage }`
+  `*[_type == "post" && slug.current == $slug][0]{ _id, title, body, excerpt, publishedAt, readTime, tags, authorName, authorInitials, coverImage }`
 )
 
 const RELATED_QUERY = defineQuery(
@@ -57,11 +57,15 @@ export default async function PostPage({params}: PageProps) {
             ← Back to journal
           </Link>
 
-          {/* Category */}
-          {post.category && (
-            <span className="text-xs font-semibold text-blue-600 uppercase tracking-wider">
-              {post.category.replace('-', ' ')}
-            </span>
+          {/* Tags */}
+          {post.tags && post.tags.length > 0 && (
+            <div className="flex gap-2 mb-4">
+              {post.tags.map((tag: string) => (
+                <span key={tag} className="text-xs font-semibold text-blue-600 uppercase tracking-wider">
+                  {tag}
+                </span>
+              ))}
+            </div>
           )}
 
           {/* Title */}
