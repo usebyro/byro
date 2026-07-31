@@ -2,7 +2,7 @@ import type {Metadata} from 'next'
 import Link from 'next/link'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
-import {fallbackPosts, formatShortDate, getBlogPosts, initialsGradient} from './blog-data'
+import {formatShortDate, getBlogPosts, initialsGradient} from './blog-data'
 import type {BlogPost} from './blog-data'
 
 export const metadata: Metadata = {
@@ -82,9 +82,9 @@ function PostCard({post, index}: {post: BlogPost; index: number}) {
 
 export default async function BlogPage() {
   const posts = await getBlogPosts()
-  const featured = posts.find((post) => post.featured) || posts[0] || fallbackPosts[0]
-  const regular = posts.filter((post) => post.slug !== featured.slug)
-  const cardPosts = regular.length ? regular.slice(0, 3) : fallbackPosts.slice(1)
+  const featured = posts.find((post) => post.featured) || posts[0]
+  const regular = featured ? posts.filter((post) => post.slug !== featured.slug) : posts
+  const cardPosts = regular.slice(0, 3)
 
   return (
     <>
@@ -100,35 +100,46 @@ export default async function BlogPage() {
           </p>
         </section>
 
-        <section className="mx-auto max-w-[1240px] px-6 lg:px-8">
-          <Link
-            href={`/blog/${featured.slug}`}
-            className="group grid overflow-hidden rounded-3xl border border-[#cbd6ed] bg-white shadow-[0_14px_32px_rgba(28,42,88,0.12)] md:grid-cols-[46%_54%]"
-          >
-            <div className="relative min-h-[250px] md:min-h-[300px]">
-              <BlogImage post={featured} className="h-full w-full" />
-              <div className="absolute left-5 top-5">
-                <Tag>Featured</Tag>
-              </div>
-            </div>
-            <div className="flex flex-col justify-center p-8 md:p-10">
-              <p className="mb-4 text-[14px] text-[#8793b0]">
-                {formatShortDate(featured.publishedAt)} · {featured.readTime}
-              </p>
-              <h2 className="max-w-2xl font-serif text-[31px] font-black leading-[1.04] tracking-[-0.01em] text-[#10182f] transition group-hover:text-[#4f84ff] sm:text-[37px]">
-                {featured.title}
-              </h2>
-              <p className="mt-5 max-w-2xl text-[16px] leading-7 text-[#52607e]">{featured.excerpt}</p>
-              <div className="mt-7 flex items-center gap-4">
-                <Avatar post={featured} />
-                <div>
-                  <p className="text-sm font-black text-[#1d273f]">{featured.authorName}</p>
-                  <p className="text-sm text-[#9aa4bd]">{featured.authorRole || 'Editor, The Byro Journal'}</p>
+        {featured ? (
+          <section className="mx-auto max-w-[1240px] px-6 lg:px-8">
+            <Link
+              href={`/blog/${featured.slug}`}
+              className="group grid overflow-hidden rounded-3xl border border-[#cbd6ed] bg-white shadow-[0_14px_32px_rgba(28,42,88,0.12)] md:grid-cols-[46%_54%]"
+            >
+              <div className="relative min-h-[250px] md:min-h-[300px]">
+                <BlogImage post={featured} className="h-full w-full" />
+                <div className="absolute left-5 top-5">
+                  <Tag>Featured</Tag>
                 </div>
               </div>
+              <div className="flex flex-col justify-center p-8 md:p-10">
+                <p className="mb-4 text-[14px] text-[#8793b0]">
+                  {formatShortDate(featured.publishedAt)} · {featured.readTime}
+                </p>
+                <h2 className="max-w-2xl font-serif text-[31px] font-black leading-[1.04] tracking-[-0.01em] text-[#10182f] transition group-hover:text-[#4f84ff] sm:text-[37px]">
+                  {featured.title}
+                </h2>
+                <p className="mt-5 max-w-2xl text-[16px] leading-7 text-[#52607e]">{featured.excerpt}</p>
+                <div className="mt-7 flex items-center gap-4">
+                  <Avatar post={featured} />
+                  <div>
+                    <p className="text-sm font-black text-[#1d273f]">{featured.authorName}</p>
+                    <p className="text-sm text-[#9aa4bd]">{featured.authorRole || 'Editor, The Byro Journal'}</p>
+                  </div>
+                </div>
+              </div>
+            </Link>
+          </section>
+        ) : (
+          <section className="mx-auto max-w-[1240px] px-6 lg:px-8">
+            <div className="rounded-3xl border border-[#cbd6ed] bg-white px-8 py-14 text-center shadow-[0_14px_32px_rgba(28,42,88,0.08)]">
+              <h2 className="font-serif text-[31px] font-black text-[#10182f]">No stories published yet</h2>
+              <p className="mt-3 text-[16px] leading-7 text-[#52607e]">
+                Published Sanity posts will appear here automatically.
+              </p>
             </div>
-          </Link>
-        </section>
+          </section>
+        )}
 
         <section className="mx-auto max-w-[1240px] px-6 py-9 lg:px-8">
           <div className="flex gap-3 overflow-x-auto pb-1">
