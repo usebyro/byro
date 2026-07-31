@@ -4,6 +4,7 @@ import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { CircleDot, Music2, Play, Trophy, Mic2 } from "lucide-react";
+import { FaInstagram, FaXTwitter } from "react-icons/fa6";
 
 const footerLinks = {
   discover: [
@@ -16,9 +17,8 @@ const footerLinks = {
   company: [
     { label: "About Byro", href: "/about" },
     { label: "Careers", href: "/careers" },
-    { label: "Press", href: "/press" },
     { label: "Blog", href: "/blog" },
-    { label: "Contact", href: "/contact" },
+    { label: "Partnership", href: "/partnership" },
   ],
   support: [
     { label: "Help center", href: "/faq" },
@@ -30,10 +30,8 @@ const footerLinks = {
 };
 
 const socialIcons = [
-  { label: "Music", icon: Music2 },
-  { label: "Discover", icon: CircleDot },
-  { label: "Podcast", icon: Mic2 },
-  { label: "Awards", icon: Trophy },
+  { label: "Instagram", icon: FaInstagram, href: "https://instagram.com/usebyro_" },
+  { label: "Twitter / X", icon: FaXTwitter, href: "https://x.com/usebyro" },
 ];
 
 const Footer = () => {
@@ -62,18 +60,21 @@ const Footer = () => {
               />
             </Link>
             <p className="max-w-[240px] text-[15px] leading-7">
-              The home of live events in Lagos. Discover concerts, sport, nightlife
-              and conferences — book in seconds.
+              Byro is where events become communities. Discover, attend and never
+              lose your people.
             </p>
             <div className="mt-6 flex items-center gap-3">
-              {socialIcons.map(({ label, icon: Icon }) => (
-                <span
+              {socialIcons.map(({ label, icon: Icon, href }) => (
+                <a
                   key={label}
-                  className="flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white"
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white hover:bg-white/20 transition-colors"
                   aria-label={label}
                 >
-                  <Icon size={17} strokeWidth={1.8} />
-                </span>
+                  <Icon size={17} />
+                </a>
               ))}
             </div>
           </div>
@@ -121,15 +122,6 @@ const Footer = () => {
                 Subscribe
               </button>
             </form>
-            <div className="mt-5 flex flex-wrap gap-3">
-              <button className="rounded-lg border border-white/20 bg-white/10 px-7 py-2 text-sm text-white">
-                App Store
-              </button>
-              <button className="flex items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-5 py-2 text-sm text-white">
-                <Play size={14} />
-                Google Play
-              </button>
-            </div>
           </div>
         </div>
       </div>
