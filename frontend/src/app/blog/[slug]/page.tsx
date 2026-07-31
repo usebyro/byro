@@ -1,133 +1,177 @@
-import {PortableText, defineQuery, type SanityDocument} from 'next-sanity'
-import {notFound} from 'next/navigation'
-import {client} from '@/sanity/client'
-import Link from 'next/link'
 import type {Metadata} from 'next'
+import Link from 'next/link'
+import {PortableText} from 'next-sanity'
+import {ChevronLeft, Heart, Share2} from 'lucide-react'
+import {notFound} from 'next/navigation'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
-
-const POST_QUERY = defineQuery(
-  `*[_type == "post" && slug.current == $slug][0]{ _id, title, body, excerpt, publishedAt, readTime, tags, authorName, authorInitials, coverImage }`
-)
-
-const RELATED_QUERY = defineQuery(
-  `*[_type == "post" && slug.current != $slug] | order(publishedAt desc)[0...2]{ _id, title, slug, excerpt, readTime, authorName, authorInitials, coverImage }`
-)
-
-const options = {next: {revalidate: 30}}
+import {
+  fallbackPosts,
+  formatLongDate,
+  getBlogPost,
+  getBlogPosts,
+  initialsGradient,
+} from '../blog-data'
+import type {BlogPost} from '../blog-data'
 
 type PageProps = {params: Promise<{slug: string}>}
 
-function getInitialsColor(initials: string) {
-  const colors: Record<string, string> = {
-    AO: 'bg-purple-600',
-    TB: 'bg-blue-600',
-    ZM: 'bg-pink-600',
-  }
-  return colors[initials] || 'bg-gray-600'
+function BlogImage({post, className = ''}: {post: BlogPost; className?: string}) {
+  return (
+    <div className={`relative overflow-hidden bg-gradient-to-br ${post.gradient} ${className}`}>
+      {post.coverImageUrl && <img src={post.coverImageUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />}
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_72%_36%,rgba(255,255,255,0.16),transparent_28%),radial-gradient(circle_at_16%_82%,rgba(19,33,36,0.42),transparent_34%)]" />
+    </div>
+  )
+}
+
+function Avatar({post}: {post: BlogPost}) {
+  return (
+    <span
+      className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br ${initialsGradient(
+        post.authorInitials
+      )} text-sm font-black text-white shadow-sm`}
+    >
+      {post.authorInitials}
+    </span>
+  )
+}
+
+function FallbackArticle() {
+  return (
+    <div className="space-y-8 text-[18px] leading-8 text-[#68738f]">
+      <p>
+        The difference between a half-full room and a sold-out night often comes down to one thing: how you
+        structure your ticket tiers. Get it right and you capture every segment of demand. Get it wrong and
+        you leave money — or worse, atmosphere — on the table.
+      </p>
+
+      <section>
+        <h2 className="mb-3 font-serif text-[29px] font-black leading-tight text-[#10182f]">Start with three, never five</h2>
+        <p>
+          Most first-time organizers over-segment. Five tiers feels generous; in practice it paralyzes buyers.
+          Three is the sweet spot: an accessible General Admission, an aspirational VIP, and a premium Table or
+          Box for groups who want to be seen.
+        </p>
+      </section>
+
+      <blockquote className="rounded-r-xl border-l-4 border-[#4f84ff] bg-white px-7 py-6 font-serif text-[22px] font-black italic leading-8 text-[#10182f]">
+        &quot;Price the cheapest tier so it sells out first. Scarcity at the bottom pushes everyone up.&quot;
+      </blockquote>
+
+      <section>
+        <h2 className="mb-3 font-serif text-[29px] font-black leading-tight text-[#10182f]">Let the floor create the urgency</h2>
+        <p>
+          When General Admission shows “340 left” and ticks down in real time, the VIP tier suddenly looks like
+          the safe choice. Byro surfaces live inventory on every event page — use it.
+        </p>
+      </section>
+
+      <p>
+        Set your tiers, watch the data, and adjust. The best promoters treat pricing as a living thing, not a
+        one-time decision.
+      </p>
+    </div>
+  )
+}
+
+function RelatedCard({post}: {post: BlogPost}) {
+  return (
+    <Link
+      href={`/blog/${post.slug}`}
+      className="group flex items-center gap-4 rounded-xl border border-[#ced8ef] bg-white p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+    >
+      <BlogImage post={post} className="h-[64px] w-[64px] shrink-0 rounded-lg" />
+      <div>
+        <h3 className="text-[15px] font-black leading-5 text-[#1b2540] transition group-hover:text-[#4f84ff]">{post.title}</h3>
+        <p className="mt-1 text-sm text-[#9aa4bd]">{post.readTime}</p>
+      </div>
+    </Link>
+  )
 }
 
 export async function generateMetadata({params}: PageProps): Promise<Metadata> {
   const {slug} = await params
-  const post = await client.fetch<SanityDocument | null>(POST_QUERY, {slug}, options)
+  const post = await getBlogPost(slug)
   if (!post) return {title: 'Post Not Found'}
 
   return {
-    title: post.title as string,
-    description: (post.excerpt as string) || `${post.title} — Byro Journal`,
+    title: post.title,
+    description: post.excerpt || `${post.title} — Byro Journal`,
   }
 }
 
 export default async function PostPage({params}: PageProps) {
   const {slug} = await params
-  const [post, relatedPosts] = await Promise.all([
-    client.fetch<SanityDocument | null>(POST_QUERY, {slug}, options),
-    client.fetch<SanityDocument[]>(RELATED_QUERY, {slug}, options),
-  ])
+  const [post, posts] = await Promise.all([getBlogPost(slug), getBlogPosts()])
 
   if (!post) return notFound()
+
+  const relatedPosts = posts.filter((item) => item.slug !== post.slug && !item.featured).slice(0, 2)
+  const related = relatedPosts.length ? relatedPosts : fallbackPosts.filter((item) => item.slug !== post.slug).slice(0, 2)
+  const tag = post.tags[0] || 'Journal'
 
   return (
     <>
       <Navbar />
-      <div className="min-h-screen bg-white">
-        <article className="max-w-3xl mx-auto px-4 py-12">
-          {/* Back link */}
-          <Link href="/blog" className="text-sm font-medium text-gray-900 hover:text-blue-600 mb-8 inline-block">
-            ← Back to journal
-          </Link>
+      <main className="bg-[#f3f6ff] text-[#10182f]">
+        <article className="mx-auto max-w-[680px] px-6 py-12 lg:px-0">
+          <div className="mb-6 flex flex-wrap items-center gap-3">
+            <Link href="/blog" className="inline-flex items-center gap-2 text-sm font-bold text-[#76829d] hover:text-[#4f84ff]">
+              <ChevronLeft size={16} />
+              Back to journal
+            </Link>
+            <span className="rounded-full bg-[#dce8ff] px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-[#4f84ff]">
+              {tag}
+            </span>
+          </div>
 
-          {/* Tags */}
-          {post.tags && post.tags.length > 0 && (
-            <div className="flex gap-2 mb-4">
-              {post.tags.map((tag: string) => (
-                <span key={tag} className="text-xs font-semibold text-blue-600 uppercase tracking-wider">
-                  {tag}
-                </span>
-              ))}
-            </div>
-          )}
-
-          {/* Title */}
-          <h1 className="text-4xl sm:text-5xl font-bold text-gray-900 mt-4 mb-6 leading-tight">
-            {post.title as string}
+          <h1 className="font-serif text-[42px] font-black leading-[1.02] tracking-[-0.02em] text-[#10182f] sm:text-[48px]">
+            {post.title}
           </h1>
 
-          {/* Meta */}
-          <div className="flex items-center gap-4 mb-8">
-            <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold ${getInitialsColor(post.authorInitials)}`}>
-                {post.authorInitials}
-              </div>
+          <div className="mt-6 flex items-center justify-between border-b border-[#dce3f3] pb-8">
+            <div className="flex items-center gap-4">
+              <Avatar post={post} />
               <div>
-                <p className="text-sm font-medium text-gray-900">{post.authorName}</p>
+                <p className="text-sm font-black text-[#1b2540]">{post.authorName}</p>
+                <p className="text-sm text-[#9aa4bd]">
+                  {formatLongDate(post.publishedAt)} · {post.readTime}
+                </p>
               </div>
             </div>
-            <span className="text-gray-300">|</span>
-            <div className="flex items-center gap-2 text-sm text-gray-500">
-              <span>{new Date(post.publishedAt as string).toLocaleDateString('en-GB', {day: 'numeric', month: 'long', year: 'numeric'})}</span>
-              <span>·</span>
-              <span>{post.readTime}</span>
+            <div className="flex gap-3">
+              <button aria-label="Share post" className="flex h-10 w-10 items-center justify-center rounded-full border border-[#d7e0f2] text-[#76829d]">
+                <Share2 size={18} />
+              </button>
+              <button aria-label="Save post" className="flex h-10 w-10 items-center justify-center rounded-full border border-[#d7e0f2] text-[#76829d]">
+                <Heart size={18} />
+              </button>
             </div>
           </div>
 
-          {/* Body */}
-          <div className="prose prose-lg max-w-none">
-            {Array.isArray(post.body) && <PortableText value={post.body} />}
+          <BlogImage post={post} className="mt-8 h-[285px] rounded-2xl sm:h-[304px]" />
+
+          <div className="mt-8">
+            {post.body?.length ? (
+              <div className="prose prose-lg max-w-none prose-headings:font-serif prose-headings:text-[#10182f] prose-p:text-[#68738f] prose-p:leading-8 prose-blockquote:rounded-r-xl prose-blockquote:border-l-[#4f84ff] prose-blockquote:bg-white prose-blockquote:px-7 prose-blockquote:py-5 prose-blockquote:font-serif prose-blockquote:text-[#10182f]">
+                <PortableText value={post.body} />
+              </div>
+            ) : (
+              <FallbackArticle />
+            )}
           </div>
+
+          <section className="mt-12">
+            <h2 className="mb-5 font-serif text-[27px] font-black text-[#10182f]">Keep reading</h2>
+            <div className="grid gap-4 sm:grid-cols-2">
+              {related.map((item) => (
+                <RelatedCard key={item._id} post={item} />
+              ))}
+            </div>
+          </section>
         </article>
-
-        {/* Related posts */}
-        {relatedPosts.length > 0 && (
-          <div className="border-t border-gray-100">
-            <div className="max-w-6xl mx-auto px-4 py-16">
-              <h2 className="text-2xl font-bold text-gray-900 mb-8">Keep reading</h2>
-              <div className="grid sm:grid-cols-2 gap-8">
-                {relatedPosts.map((related) => (
-                  <Link key={related._id} href={`/${related.slug?.current}`} className="group block">
-                    <div className="aspect-[4/3] bg-gray-100 rounded-2xl overflow-hidden mb-4">
-                      {related.coverImage && (
-                        <img
-                          src={related.coverImage.url || `/images/${related.slug?.current}.jpg`}
-                          alt={related.title}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                        />
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2 text-sm text-gray-500 mb-2">
-                      <span>{related.readTime}</span>
-                    </div>
-                    <h3 className="text-lg font-bold text-gray-900 mb-2 group-hover:text-blue-600 transition-colors line-clamp-2">
-                      {related.title}
-                    </h3>
-                    <p className="text-gray-600 text-sm line-clamp-2">{related.excerpt}</p>
-                  </Link>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
+      </main>
       <Footer />
     </>
   )

@@ -1,146 +1,158 @@
-import {client} from '@/sanity/client'
-import {defineQuery, type SanityDocument} from 'next-sanity'
-import Link from 'next/link'
 import type {Metadata} from 'next'
+import Link from 'next/link'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
+import {fallbackPosts, formatShortDate, getBlogPosts, initialsGradient} from './blog-data'
+import type {BlogPost} from './blog-data'
 
 export const metadata: Metadata = {
   title: 'Blog',
-  description: 'Stories from the scene — guides for organizers, what-is-on roundups, and the culture behind the events.',
+  description:
+    'Stories from the scene — guides for organizers, what-is-on roundups, and the culture behind the events.',
 }
 
-const POSTS_QUERY = defineQuery(
-  `*[_type == "post" && defined(slug.current)] | order(publishedAt desc){ _id, title, slug, excerpt, publishedAt, readTime, tags, featured, authorName, authorInitials, coverImage }`
-)
+const filters = ['All', 'For organizers', 'Music', 'Nightlife', 'Sports', 'Product']
 
-const options = {next: {revalidate: 30}}
-
-function formatDate(date: string) {
-  return new Date(date).toLocaleDateString('en-GB', {day: 'numeric', month: 'short', year: 'numeric'})
+function BlogImage({post, className = ''}: {post: BlogPost; className?: string}) {
+  return (
+    <div className={`relative overflow-hidden bg-gradient-to-br ${post.gradient} ${className}`}>
+      {post.coverImageUrl && <img src={post.coverImageUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />}
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_72%_36%,rgba(255,255,255,0.16),transparent_28%),radial-gradient(circle_at_18%_88%,rgba(255,92,153,0.35),transparent_34%)]" />
+    </div>
+  )
 }
 
-function getInitialsColor(initials: string) {
-  const colors: Record<string, string> = {
-    AO: 'bg-purple-600',
-    TB: 'bg-blue-600',
-    ZM: 'bg-pink-600',
+function Tag({children, tone = 'blue'}: {children: React.ReactNode; tone?: 'blue' | 'pink' | 'teal' | 'purple'}) {
+  const tones = {
+    blue: 'border-[#5284ff]/40 bg-[#5284ff]/10 text-[#5284ff]',
+    pink: 'border-[#ff609b]/40 bg-[#ff609b]/10 text-[#ff609b]',
+    teal: 'border-[#00b6a8]/40 bg-[#00b6a8]/10 text-[#00a899]',
+    purple: 'border-[#8f61ff]/40 bg-[#8f61ff]/10 text-[#8f61ff]',
   }
-  return colors[initials] || 'bg-gray-600'
+
+  return (
+    <span className={`inline-flex rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] ${tones[tone]}`}>
+      {children}
+    </span>
+  )
+}
+
+function Avatar({post}: {post: BlogPost}) {
+  return (
+    <span
+      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br ${initialsGradient(
+        post.authorInitials
+      )} text-[11px] font-black text-white shadow-sm`}
+    >
+      {post.authorInitials}
+    </span>
+  )
+}
+
+function PostCard({post, index}: {post: BlogPost; index: number}) {
+  const tone = index === 0 ? 'pink' : index === 1 ? 'teal' : 'purple'
+
+  return (
+    <Link
+      href={`/blog/${post.slug}`}
+      className="group overflow-hidden rounded-2xl border border-[#ced8ef] bg-white shadow-[0_8px_24px_rgba(36,57,107,0.08)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_18px_36px_rgba(36,57,107,0.12)]"
+    >
+      <div className="relative h-[150px] sm:h-[168px]">
+        <BlogImage post={post} className="h-full w-full" />
+        <div className="absolute left-4 top-4">
+          <Tag tone={tone}>{post.tags[0] || 'Journal'}</Tag>
+        </div>
+      </div>
+      <div className="p-5">
+        <p className="mb-3 text-[13px] text-[#8793b0]">
+          {formatShortDate(post.publishedAt)} · {post.readTime.replace(' read', '')}
+        </p>
+        <h3 className="font-serif text-[21px] font-black leading-[1.12] text-[#10182f] transition group-hover:text-[#4f84ff]">
+          {post.title}
+        </h3>
+        <p className="mt-3 min-h-[44px] text-[15px] leading-6 text-[#59647f]">{post.excerpt}</p>
+        <div className="mt-5 flex items-center gap-3">
+          <Avatar post={post} />
+          <span className="text-sm font-bold text-[#56617d]">{post.authorName}</span>
+        </div>
+      </div>
+    </Link>
+  )
 }
 
 export default async function BlogPage() {
-  const posts = await client.fetch<SanityDocument[]>(POSTS_QUERY, {}, options)
-  const featured = posts.find((p) => p.featured)
-  const regular = posts.filter((p) => !p.featured)
+  const posts = await getBlogPosts()
+  const featured = posts.find((post) => post.featured) || posts[0] || fallbackPosts[0]
+  const regular = posts.filter((post) => post.slug !== featured.slug)
+  const cardPosts = regular.length ? regular.slice(0, 3) : fallbackPosts.slice(1)
 
   return (
     <>
       <Navbar />
-      <div className="min-h-screen bg-white">
-        {/* Hero */}
-        <div className="max-w-6xl mx-auto px-4 pt-16 pb-12">
-          <h1 className="text-4xl sm:text-5xl font-bold text-gray-900">The Byro Journal</h1>
-          <p className="text-gray-500 mt-4 text-lg max-w-2xl">
-            Stories from the scene. Guides for organizers, what-is-on roundups, and the culture behind the events.
+      <main className="bg-[#f3f6ff] text-[#10182f]">
+        <section className="mx-auto max-w-[1240px] px-6 pb-8 pt-12 lg:px-8 lg:pt-14">
+          <p className="text-[12px] font-black uppercase tracking-[0.18em] text-[#4f84ff]">The Byro Journal</p>
+          <h1 className="mt-5 font-serif text-[42px] font-black leading-[0.98] tracking-[-0.02em] sm:text-[54px]">
+            Stories from the <span className="italic text-[#4f84ff]">scene</span>
+          </h1>
+          <p className="mt-5 max-w-3xl text-[17px] leading-7 text-[#52607e]">
+            Guides for organizers, what is-on roundups, and the culture behind the events.
           </p>
-        </div>
+        </section>
 
-        {/* Featured */}
-        {featured && (
-          <div className="max-w-6xl mx-auto px-4 pb-12">
-            <Link href={`/${featured.slug?.current}`} className="block group">
-              <div className="grid md:grid-cols-2 gap-8 items-center">
-                <div className="aspect-[4/3] bg-gray-100 rounded-2xl overflow-hidden">
-                  {featured.coverImage && (
-                    <img
-                      src={featured.coverImage.url || `/images/${featured.slug?.current}.jpg`}
-                      alt={featured.title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                    />
-                  )}
-                </div>
+        <section className="mx-auto max-w-[1240px] px-6 lg:px-8">
+          <Link
+            href={`/blog/${featured.slug}`}
+            className="group grid overflow-hidden rounded-3xl border border-[#cbd6ed] bg-white shadow-[0_14px_32px_rgba(28,42,88,0.12)] md:grid-cols-[46%_54%]"
+          >
+            <div className="relative min-h-[250px] md:min-h-[300px]">
+              <BlogImage post={featured} className="h-full w-full" />
+              <div className="absolute left-5 top-5">
+                <Tag>Featured</Tag>
+              </div>
+            </div>
+            <div className="flex flex-col justify-center p-8 md:p-10">
+              <p className="mb-4 text-[14px] text-[#8793b0]">
+                {formatShortDate(featured.publishedAt)} · {featured.readTime}
+              </p>
+              <h2 className="max-w-2xl font-serif text-[31px] font-black leading-[1.04] tracking-[-0.01em] text-[#10182f] transition group-hover:text-[#4f84ff] sm:text-[37px]">
+                {featured.title}
+              </h2>
+              <p className="mt-5 max-w-2xl text-[16px] leading-7 text-[#52607e]">{featured.excerpt}</p>
+              <div className="mt-7 flex items-center gap-4">
+                <Avatar post={featured} />
                 <div>
-                  <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Featured</span>
-                  <div className="flex items-center gap-2 text-sm text-gray-500 mt-2 mb-4">
-                    <span>{formatDate(featured.publishedAt)}</span>
-                    <span>·</span>
-                    <span>{featured.readTime}</span>
-                  </div>
-                  <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4 group-hover:text-blue-600 transition-colors">
-                    {featured.title}
-                  </h2>
-                  <p className="text-gray-600 mb-6 line-clamp-3">{featured.excerpt}</p>
-                  <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold ${getInitialsColor(featured.authorInitials)}`}>
-                      {featured.authorInitials}
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">{featured.authorName}</p>
-                      <p className="text-xs text-gray-500">Editor, The Byro Journal</p>
-                    </div>
-                  </div>
+                  <p className="text-sm font-black text-[#1d273f]">{featured.authorName}</p>
+                  <p className="text-sm text-[#9aa4bd]">{featured.authorRole || 'Editor, The Byro Journal'}</p>
                 </div>
               </div>
-            </Link>
-          </div>
-        )}
+            </div>
+          </Link>
+        </section>
 
-        {/* Tags filter */}
-        <div className="max-w-6xl mx-auto px-4 pb-8">
-          <div className="flex gap-2 overflow-x-auto pb-2">
-            {['All', 'For organizers', 'Music', 'Nightlife', 'Sports', 'Product'].map((tag) => (
-              <span
-                key={tag}
-                className="px-4 py-2 text-sm font-medium rounded-full border border-gray-200 text-gray-600 hover:bg-gray-100 cursor-pointer whitespace-nowrap"
+        <section className="mx-auto max-w-[1240px] px-6 py-9 lg:px-8">
+          <div className="flex gap-3 overflow-x-auto pb-1">
+            {filters.map((filter, index) => (
+              <button
+                key={filter}
+                className={`shrink-0 rounded-full border px-5 py-2 text-sm font-bold ${
+                  index === 0
+                    ? 'border-[#4f84ff] bg-[#4f84ff] text-white'
+                    : 'border-[#cbd6ed] bg-white text-[#52607e]'
+                }`}
               >
-                {tag}
-              </span>
+                {filter}
+              </button>
             ))}
           </div>
-        </div>
 
-        {/* Posts grid */}
-        <div className="max-w-6xl mx-auto px-4 pb-16">
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-8">
-            {regular.map((post) => (
-              <Link key={post._id} href={`/${post.slug?.current}`} className="group block">
-                <div className="aspect-[4/3] bg-gray-100 rounded-2xl overflow-hidden mb-4">
-                  {post.coverImage && (
-                    <img
-                      src={post.coverImage.url || `/images/${post.slug?.current}.jpg`}
-                      alt={post.title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                    />
-                  )}
-                </div>
-                <div className="flex gap-2 mb-2 flex-wrap">
-                  {post.tags?.map((tag: string) => (
-                    <span key={tag} className="text-xs font-semibold text-blue-600 uppercase tracking-wider">
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-                <div className="flex items-center gap-2 text-sm text-gray-500 mb-2">
-                  <span>{formatDate(post.publishedAt)}</span>
-                  <span>·</span>
-                  <span>{post.readTime}</span>
-                </div>
-                <h3 className="text-lg font-bold text-gray-900 mb-2 group-hover:text-blue-600 transition-colors line-clamp-2">
-                  {post.title}
-                </h3>
-                <p className="text-gray-600 text-sm line-clamp-2 mb-4">{post.excerpt}</p>
-                <div className="flex items-center gap-3">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold ${getInitialsColor(post.authorInitials)}`}>
-                    {post.authorInitials}
-                  </div>
-                  <span className="text-sm text-gray-700 font-medium">{post.authorName}</span>
-                </div>
-              </Link>
+          <div className="mt-6 grid gap-6 md:grid-cols-3">
+            {cardPosts.map((post, index) => (
+              <PostCard key={post._id} post={post} index={index} />
             ))}
           </div>
-        </div>
-      </div>
+        </section>
+      </main>
       <Footer />
     </>
   )
