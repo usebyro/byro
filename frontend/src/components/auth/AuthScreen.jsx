@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import { FcGoogle } from "react-icons/fc";
 import { FaApple } from "react-icons/fa";
@@ -11,7 +11,7 @@ const COPY = {
     heading: "Hello",
     subtext: "Sign Up to Create, view your tickets and saved events.",
     cta: "Sign Up",
-    switchPrompt: "New to Byro?",
+    switchPrompt: "Already Have An Account?",
     switchAction: "Sign in",
   },
   signin: {
@@ -42,52 +42,40 @@ function FakeQrGlyph() {
   );
 }
 
+const SLIDES = [
+  { src: "/images/people_raising_hands.jpeg", alt: "People raising hands" },
+  { src: "/images/people_grooving.png", alt: "People enjoying live events" },
+  { src: "/images/techevent.jpeg", alt: "Tech event" },
+];
+
 export default function AuthScreen() {
   const [mode, setMode] = useState("signup");
+  const [currentSlide, setCurrentSlide] = useState(0);
   const copy = COPY[mode];
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentSlide((prev) => (prev + 1) % SLIDES.length);
+    }, 4000);
+    return () => clearInterval(timer);
+  }, []);
 
   return (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center p-6">
       <div className="w-full max-w-5xl grid grid-cols-1 md:grid-cols-2 rounded-3xl overflow-hidden shadow-2xl">
         {/* Left — brand panel */}
-        <div
-          className="relative hidden md:flex flex-col justify-between p-10 overflow-hidden"
-          style={{
-            background:
-              "radial-gradient(120% 100% at 75% 45%, #a855f7 0%, #7c3aed 35%, #4c1d95 60%, #0f0a2e 100%)",
-          }}
-        >
-          <Image
-            src="/assets/images/logo.svg"
-            alt="byro"
-            width={80}
-            height={32}
-            className="h-8 w-auto brightness-0 invert relative z-10"
-          />
-
-          <div className="relative z-10">
-            <h1 className="font-serif text-4xl leading-tight text-white mb-4">
-              Every ticket,
-              <br />
-              one tap away.
-            </h1>
-            <p className="text-white/70 text-sm leading-relaxed max-w-xs mb-8">
-              Join 340,000 people who hold their live-event tickets in Byro — instant QR entry, no paper, no stress.
-            </p>
-
-            <div className="flex items-center gap-3 bg-white/10 border border-white/20 backdrop-blur-md rounded-2xl p-3 max-w-xs">
-              <div className="bg-white rounded-lg p-2 flex items-center justify-center shrink-0">
-                <FakeQrGlyph />
-              </div>
-              <div>
-                <p className="text-[10px] font-bold tracking-widest text-white/60 uppercase mb-0.5">
-                  Your entry pass
-                </p>
-                <p className="text-white text-sm font-semibold leading-snug">Afrobeats Arena Live</p>
-                <p className="text-white/50 text-xs font-mono">BYR-2026-X84K</p>
-              </div>
-            </div>
-          </div>
+        <div className="relative hidden md:block overflow-hidden">
+          {SLIDES.map((slide, i) => (
+            <Image
+              key={slide.src}
+              src={slide.src}
+              alt={slide.alt}
+              fill
+              className={`object-cover transition-opacity duration-1000 ${
+                i === currentSlide ? "opacity-100" : "opacity-0"
+              }`}
+            />
+          ))}
         </div>
 
         {/* Right — auth form */}
