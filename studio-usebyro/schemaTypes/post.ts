@@ -11,7 +11,26 @@ export const post = defineType({
     defineField({name: 'body', type: 'array', of: [{type: 'block'}]}),
     defineField({name: 'coverImage', type: 'image', options: {hotspot: true}}),
     defineField({name: 'publishedAt', type: 'datetime'}),
+    defineField({name: 'readTime', type: 'string', title: 'Read time (e.g. "4 min")'}),
+    defineField({
+      name: 'category',
+      type: 'string',
+      options: {
+        list: [
+          {title: 'For organizers', value: 'for-organizers'},
+          {title: 'Music', value: 'music'},
+          {title: 'Nightlife', value: 'nightlife'},
+          {title: 'Sports', value: 'sports'},
+          {title: 'Product', value: 'product'},
+        ],
+      },
+    }),
+    defineField({name: 'featured', type: 'boolean', initialValue: false}),
+    defineField({name: 'authorName', type: 'string'}),
+    defineField({name: 'authorInitials', type: 'string', title: 'Author initials (e.g. "AO")'}),
   ],
   orderings: [{title: 'Published', name: 'publishedAt', by: [{field: 'publishedAt', direction: 'desc'}]}],
-  preview: {select: {title: 'title', subtitle: 'publishedAt', media: 'coverImage'}},
+  preview: {
+    select: {title: 'title', subtitle: 'publishedAt', media: 'coverImage'},
+  },
 })
