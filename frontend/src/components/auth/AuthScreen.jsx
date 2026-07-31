@@ -11,7 +11,7 @@ const COPY = {
     heading: "Hello",
     subtext: "Sign Up to Create, view your tickets and saved events.",
     cta: "Sign Up",
-    switchPrompt: "Already Have An Account?",
+    switchPrompt: "Already have an account?",
     switchAction: "Sign in",
   },
   signin: {
@@ -52,6 +52,10 @@ export default function AuthScreen() {
   const [mode, setMode] = useState("signup");
   const [currentSlide, setCurrentSlide] = useState(0);
   const copy = COPY[mode];
+
+  useEffect(() => {
+    document.title = mode === "signup" ? "Create account | Byro" : "Sign in | Byro";
+  }, [mode]);
 
   useEffect(() => {
     const timer = setInterval(() => {

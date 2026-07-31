@@ -17,9 +17,8 @@ const footerLinks = {
   company: [
     { label: "About Byro", href: "/about" },
     { label: "Careers", href: "/careers" },
-    { label: "Press", href: "/press" },
     { label: "Blog", href: "/blog" },
-    { label: "Contact", href: "/faq" },
+    { label: "Partnership", href: "/partnership" },
   ],
   support: [
     { label: "Help center", href: "/faq" },
