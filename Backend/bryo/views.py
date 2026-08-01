@@ -2018,6 +2018,25 @@ class PayoutRequestView(APIView):
             profile.account_name = payout.account_name or profile.account_name
             profile.save(update_fields=['bank_name', 'account_number', 'account_name'])
 
+        try:
+            from .emails import payout_requested_email
+            from .mailer import send_email
+            email_data = payout_requested_email(
+                name=request.user.get_full_name() or request.user.email,
+                amount=payout.amount,
+                bank_name=payout.bank_name,
+                account_number=payout.account_number,
+                event_name=payout.event.name if payout.event else None,
+            )
+            send_email(
+                to=request.user.email,
+                subject=email_data['subject'],
+                html=email_data['html'],
+                text=email_data['text'],
+            )
+        except Exception as e:
+            logger.error(f"Failed to send payout request email for payout {payout.pk}: {e}")
+
         return Response(PayoutRequestSerializer(payout).data, status=status.HTTP_201_CREATED)
 
 
