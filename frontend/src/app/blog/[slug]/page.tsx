@@ -1,10 +1,11 @@
 import type {Metadata} from 'next'
 import Link from 'next/link'
 import {PortableText} from 'next-sanity'
-import {ChevronLeft, Heart, Share2} from 'lucide-react'
+import {ChevronLeft, Heart} from 'lucide-react'
 import {notFound} from 'next/navigation'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
+import BlogShareButton from './BlogShareButton'
 import {
   formatLongDate,
   getBlogPost,
@@ -139,9 +140,7 @@ export default async function PostPage({params}: PageProps) {
               </div>
             </div>
             <div className="flex gap-3">
-              <button aria-label="Share post" className="flex h-10 w-10 items-center justify-center rounded-full border border-[#d7e0f2] text-[#76829d]">
-                <Share2 size={18} />
-              </button>
+              <BlogShareButton slug={post.slug} title={post.title} />
               <button aria-label="Save post" className="flex h-10 w-10 items-center justify-center rounded-full border border-[#d7e0f2] text-[#76829d]">
                 <Heart size={18} />
               </button>
