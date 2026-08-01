@@ -6,7 +6,6 @@ import {notFound} from 'next/navigation'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 import {
-  fallbackPosts,
   formatLongDate,
   getBlogPost,
   getBlogPosts,
@@ -108,7 +107,6 @@ export default async function PostPage({params}: PageProps) {
   if (!post) return notFound()
 
   const relatedPosts = posts.filter((item) => item.slug !== post.slug && !item.featured).slice(0, 2)
-  const related = relatedPosts.length ? relatedPosts : fallbackPosts.filter((item) => item.slug !== post.slug).slice(0, 2)
   const tag = post.tags[0] || 'Journal'
 
   return (
@@ -165,7 +163,7 @@ export default async function PostPage({params}: PageProps) {
           <section className="mt-12">
             <h2 className="mb-5 font-serif text-[27px] font-black text-[#10182f]">Keep reading</h2>
             <div className="grid gap-4 sm:grid-cols-2">
-              {related.map((item) => (
+              {relatedPosts.map((item) => (
                 <RelatedCard key={item._id} post={item} />
               ))}
             </div>
