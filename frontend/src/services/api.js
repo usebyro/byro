@@ -189,6 +189,15 @@ const API = {
     }
   },
 
+  getLocations: async () => {
+    try {
+      const response = await axiosInstance.get("events/locations/");
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
   getDashboard: async () => {
     try {
       const response = await axiosInstance.get("dashboard/");

@@ -28,18 +28,17 @@ interface Category {
   count: number;
 }
 
-const WHEN_OPTIONS = [
-  { value: "today", label: "Today", count: 24 },
-  { value: "weekend", label: "This weekend", count: 88 },
-  { value: "month", label: "This month", count: 410 },
-  { value: "custom", label: "Pick a date", count: null as null },
-];
+interface Location {
+  value: string;
+  label: string;
+  count: number;
+}
 
-const AREAS = [
-  { value: "victoria_island", label: "Victoria Island", count: 112 },
-  { value: "ikoyi", label: "Ikoyi", count: 76 },
-  { value: "lekki", label: "Lekki", count: 94 },
-  { value: "mainland", label: "Mainland", count: 130 },
+const WHEN_OPTIONS = [
+  { value: "today", label: "Today", count: null as null },
+  { value: "weekend", label: "This weekend", count: null as null },
+  { value: "month", label: "This month", count: null as null },
+  { value: "custom", label: "Pick a date", count: null as null },
 ];
 
 const SORT_OPTIONS = [
@@ -53,6 +52,7 @@ export default function DiscoverPage() {
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [locations, setLocations] = useState<Location[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedWhen, setSelectedWhen] = useState<string[]>([]);
   const [selectedAreas, setSelectedAreas] = useState<string[]>([]);
@@ -69,6 +69,13 @@ export default function DiscoverPage() {
         if (cats.length > 0) setCategories(cats);
       })
       .catch(() => {/* keep empty, sidebar won't show categories */});
+
+    API.getLocations()
+      .then((data) => {
+        const locs: Location[] = data?.locations || [];
+        if (locs.length > 0) setLocations(locs);
+      })
+      .catch(() => {/* keep empty, sidebar won't show locations */});
   }, []);
 
   useEffect(() => {
@@ -155,7 +162,7 @@ export default function DiscoverPage() {
       (v) => WHEN_OPTIONS.find((w) => w.value === v)?.label || v
     ),
     ...selectedAreas.map(
-      (v) => AREAS.find((a) => a.value === v)?.label || v
+      (v) => locations.find((a) => a.value === v)?.label || v
     ),
   ];
 
@@ -172,7 +179,7 @@ export default function DiscoverPage() {
     if (cat) setSelectedCategories((prev) => prev.filter((c) => c !== cat.value));
     const when = WHEN_OPTIONS.find((w) => w.label === label);
     if (when) setSelectedWhen((prev) => prev.filter((w) => w !== when.value));
-    const area = AREAS.find((a) => a.label === label);
+    const area = locations.find((a) => a.label === label);
     if (area) setSelectedAreas((prev) => prev.filter((a) => a !== area.value));
   };
 
@@ -342,7 +349,7 @@ export default function DiscoverPage() {
                   Area
                 </h4>
                 <div className="space-y-2.5">
-                  {AREAS.map((area) => (
+                  {locations.map((area) => (
                     <label
                       key={area.value}
                       className="flex items-center gap-2.5 cursor-pointer group"
