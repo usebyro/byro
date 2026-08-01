@@ -2067,6 +2067,27 @@ class AdminPayoutView(APIView):
         if new_status == 'processed':
             payout.processed_at = timezone.now()
         payout.save(update_fields=['status', 'processed_at'])
+
+        if new_status == 'processed':
+            try:
+                from .emails import payout_completed_email
+                from .mailer import send_email
+                email_data = payout_completed_email(
+                    name=payout.user.get_full_name() or payout.user.email,
+                    amount=payout.amount,
+                    bank_name=payout.bank_name,
+                    account_number=payout.account_number,
+                    event_name=payout.event.name if payout.event else None,
+                )
+                send_email(
+                    to=payout.user.email,
+                    subject=email_data['subject'],
+                    html=email_data['html'],
+                    text=email_data['text'],
+                )
+            except Exception as e:
+                logger.error(f"Failed to send payout email for payout {pk}: {e}")
+
         return Response(PayoutRequestSerializer(payout).data)
 
 
