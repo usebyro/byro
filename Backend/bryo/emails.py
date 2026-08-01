@@ -60,7 +60,7 @@ def ticket_confirmation_email(name, event_name, date, time, location, ticket_id,
     <table cellpadding="0" cellspacing="0" style="width:100%;">
       <tr>
         <td>
-          <p style="color:#0f172a;font-size:15px;font-weight:700;margin:0;">Your ticket is attached to this email &#8212; present it at the gate for entry</p>
+          <p style="color:#0f172a;font-size:15px;font-weight:700;margin:0;">Your ticket is attached to this email, present it at the gate for entry</p>
         </td>
       </tr>
     </table>"""
@@ -115,7 +115,7 @@ def ticket_confirmation_email(name, event_name, date, time, location, ticket_id,
 
         <!-- Intro -->
         <p style="color:#64748b;font-size:15px;line-height:1.6;margin:0 0 28px;">
-          Hi {name} &#8212; your booking is confirmed. Show your ticket at the gate for entry.
+          Hi {name}, your booking is confirmed. Show your ticket at the gate for entry.
         </p>
 
         <!-- Ticket card -->
@@ -211,16 +211,12 @@ def payout_completed_email(name, amount, bank_name, account_number, event_name=N
     """
     formatted_amount = f"₦{amount:,.0f}"
 
-    event_row = ""
+    event_cell = ""
     event_row_text = ""
     if event_name:
-        event_row = f"""
-        <tr>
-          <td style="padding:12px 0;border-top:1px solid #e2e8f0;">
+        event_cell = f"""
             <p style="color:#94a3b8;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;margin:0 0 4px;">Event</p>
-            <p style="color:#0f172a;font-size:14px;font-weight:600;margin:0;">{event_name}</p>
-          </td>
-        </tr>"""
+            <p style="color:#0f172a;font-size:14px;font-weight:600;margin:0;">{event_name}</p>"""
         event_row_text = f"\nEvent: {event_name}"
 
     html = f"""
@@ -241,49 +237,28 @@ def payout_completed_email(name, amount, bank_name, account_number, event_name=N
 
         <!-- Intro -->
         <p style="color:#64748b;font-size:15px;line-height:1.6;margin:0 0 28px;">
-          Hi {name} &#8212; your payout has been processed and sent to your bank account.
+          Hi {name} - your payout has been processed and sent to your bank account.
         </p>
 
-        <!-- Payout card -->
-        <table cellpadding="0" cellspacing="0" style="width:100%;border-collapse:separate;border-spacing:0;border-radius:16px;overflow:hidden;margin-bottom:24px;">
-          <!-- Green gradient header -->
+        <!-- Details -->
+        <table cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;margin-bottom:24px;">
           <tr>
-            <td style="background:linear-gradient(135deg,#064e3b 0%,#059669 50%,#16B979 100%);padding:28px 24px 24px;border-radius:16px 16px 0 0;">
-              <table cellpadding="0" cellspacing="0" style="margin-bottom:14px;">
-                <tr>
-                  <td style="background:rgba(255,255,255,0.15);border-radius:20px;padding:4px 12px;">
-                    <span style="color:#ffffff;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;">&#9679; Payout</span>
-                  </td>
-                </tr>
-              </table>
-              <h2 style="color:#ffffff;font-size:22px;font-weight:700;margin:0;line-height:1.3;">{formatted_amount}</h2>
+            <td style="width:50%;padding-bottom:16px;vertical-align:top;">
+              <p style="color:#94a3b8;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;margin:0 0 4px;">Amount</p>
+              <p style="color:#0f172a;font-size:14px;font-weight:600;margin:0;">{formatted_amount}</p>
+            </td>
+            <td style="width:50%;padding-bottom:16px;vertical-align:top;">
+              <p style="color:#94a3b8;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;margin:0 0 4px;">Bank</p>
+              <p style="color:#0f172a;font-size:14px;font-weight:600;margin:0;">{bank_name}</p>
             </td>
           </tr>
-          <!-- White details panel -->
           <tr>
-            <td style="background:#f8fafc;padding:20px 24px;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 16px 16px;">
-              <table cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;">
-                <tr>
-                  <td style="width:50%;padding-bottom:16px;vertical-align:top;">
-                    <p style="color:#94a3b8;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;margin:0 0 4px;">Bank</p>
-                    <p style="color:#0f172a;font-size:14px;font-weight:600;margin:0;">{bank_name}</p>
-                  </td>
-                  <td style="width:50%;padding-bottom:16px;vertical-align:top;">
-                    <p style="color:#94a3b8;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;margin:0 0 4px;">Account Number</p>
-                    <p style="color:#0f172a;font-size:14px;font-weight:600;font-family:'Courier New',Courier,monospace;margin:0;">{account_number}</p>
-                  </td>
-                </tr>
-                {event_row}
-              </table>
+            <td style="padding-bottom:16px;vertical-align:top;">
+              <p style="color:#94a3b8;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;margin:0 0 4px;">Account Number</p>
+              <p style="color:#0f172a;font-size:14px;font-weight:600;font-family:'Courier New',Courier,monospace;margin:0;">{account_number}</p>
             </td>
-          </tr>
-        </table>
-
-        <!-- CTA Button -->
-        <table cellpadding="0" cellspacing="0" style="width:100%;margin-bottom:0;">
-          <tr>
-            <td style="text-align:center;">
-              <a href="https://usebyro.com/dashboard" style="display:block;background:#3b82f6;color:#ffffff;text-decoration:none;font-size:15px;font-weight:700;padding:16px 32px;border-radius:12px;text-align:center;">View dashboard</a>
+            <td style="padding-bottom:16px;vertical-align:top;">
+              {event_cell}
             </td>
           </tr>
         </table>
