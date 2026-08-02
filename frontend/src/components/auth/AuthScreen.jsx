@@ -76,9 +76,8 @@ export default function AuthScreen() {
               alt={slide.alt}
               fill
               priority={i === 0}
-              loading="eager"
               sizes="(max-width: 768px) 0px, 50vw"
-              className={`object-cover transition-opacity duration-1000 ${
+              className={`object-cover transition-opacity duration-1000 ease-in-out ${
                 i === currentSlide ? "opacity-100" : "opacity-0"
               }`}
             />
