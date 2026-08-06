@@ -164,6 +164,16 @@ export default function ViewEventClient({ slug }) {
     return new Date(`1970-01-01T${event.time_from}`).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true });
   }, [event?.time_from]);
 
+  /* Registration closes one full day after the event has ended */
+  const registrationClosed = useMemo(() => {
+    if (!event?.day) return false;
+    const endTime = event.time_to || event.time_from || "23:59:59";
+    const eventEnd = new Date(`${event.day}T${endTime}`);
+    if (isNaN(eventEnd.getTime())) return false;
+    const closeAt = new Date(eventEnd.getTime() + 24 * 60 * 60 * 1000);
+    return new Date() > closeAt;
+  }, [event?.day, event?.time_to, event?.time_from]);
+
   if (loading) return (
     <div className="flex items-center justify-center min-h-screen bg-white">
       <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-blue-600" />
@@ -492,12 +502,17 @@ export default function ViewEventClient({ slug }) {
                   });
                   setShowCheckout(true);
                 }}
-                  className="w-full bg-blue-600 text-white font-bold py-3.5 rounded-full hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 text-sm"
+                  disabled={registrationClosed}
+                  className="w-full bg-blue-600 text-white font-bold py-3.5 rounded-full hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 text-sm disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed disabled:hover:bg-gray-300"
                 >
-                  Buy ticket
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                    <path d="M5 12h14M12 5l7 7-7 7" />
-                  </svg>
+                  {registrationClosed ? "Registration closed" : (
+                    <>
+                      Buy ticket
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <path d="M5 12h14M12 5l7 7-7 7" />
+                      </svg>
+                    </>
+                  )}
                 </button>
               )}
 
