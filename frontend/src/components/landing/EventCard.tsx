@@ -124,6 +124,15 @@ const EventCard = ({ event }: { event: Event }) => {
   const dateStr = formatDate(event.day);
   const timeStr = formatTime(event.time_from);
 
+  // Ticket sales on the card close once the event date/time has passed
+  const registrationClosed = (() => {
+    if (!event.day) return false;
+    const endTime = event.time_to || event.time_from || "23:59:59";
+    const eventEnd = new Date(`${event.day}T${endTime}`);
+    if (isNaN(eventEnd.getTime())) return false;
+    return new Date() > eventEnd;
+  })();
+
   return (
     <>
       <div className="bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-lg transition-all duration-200 group flex flex-col">
@@ -242,6 +251,10 @@ const EventCard = ({ event }: { event: Event }) => {
             {isSoldOut ? (
               <span className="text-red-500 text-xs font-bold uppercase tracking-wide">
                 SOLD OUT
+              </span>
+            ) : registrationClosed ? (
+              <span className="text-gray-400 text-xs font-bold uppercase tracking-wide">
+                ENDED
               </span>
             ) : (
               <button
