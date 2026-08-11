@@ -12,10 +12,11 @@ const footerLinks = {
     { label: "Sports", href: "/discover?category=fitness" },
     { label: "Nightlife", href: "/discover?category=art_culture" },
     { label: "Conferences", href: "/discover?category=conference" },
-    { label: "Browse all events", href: "/discover" },
+    { label: "Hackathon", href: "/discover?category=hackathon" },
   ],
   company: [
     { label: "About Byro", href: "/about" },
+    { label: "Pricing", href: "/pricing" },
     { label: "Careers", href: "/careers" },
     { label: "Blog", href: "/blog" },
     { label: "Partnership", href: "/partnership" },
@@ -127,19 +128,8 @@ const Footer = () => {
       </div>
 
       <div className="border-t border-white/10">
-        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-6 py-6 text-sm text-[#9fb1d8] md:flex-row md:items-center md:justify-between lg:px-8">
+        <div className="mx-auto max-w-7xl px-6 py-6 text-sm text-[#9fb1d8] lg:px-8">
           <p>© {new Date().getFullYear()} Byro Technologies. Lagos, Nigeria.</p>
-          <div className="flex items-center gap-7">
-            <Link href="/terms" className="transition-colors hover:text-white">
-              Terms
-            </Link>
-            <Link href="/privacy" className="transition-colors hover:text-white">
-              Privacy
-            </Link>
-            <Link href="/cookies" className="transition-colors hover:text-white">
-              Cookies
-            </Link>
-          </div>
         </div>
       </div>
     </footer>

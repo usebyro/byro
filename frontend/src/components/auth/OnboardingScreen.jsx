@@ -259,7 +259,7 @@ export default function OnboardingScreen() {
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M15 18l-6-6 6-6" />
                     </svg>
-                    Previous
+                    {wizardStep === 0 ? "Back" : "Previous"}
                   </button>
                   <div className="flex items-center gap-4">
                     <button
@@ -287,12 +287,18 @@ export default function OnboardingScreen() {
                 <div className="w-14 h-14 rounded-full bg-blue-50 flex items-center justify-center mx-auto mb-5">
                   <HugeiconsIcon icon={Tick02Icon} size={22} color="#2563eb" />
                 </div>
-                <h2 className="font-serif text-3xl text-gray-900 mb-2">You&apos;re all set</h2>
-                <p className="text-gray-500 text-sm mb-8">
-                  {role === "organizer"
-                    ? "Your organiser profile is ready. Let's get your first event live."
-                    : "Your account is ready. Let's get you to events."}
-                </p>
+                {role === "organizer" ? (
+                  <>
+                    <h2 className="font-serif text-3xl text-gray-900 mb-2">You&apos;re all set</h2>
+                    <p className="text-gray-500 text-sm mb-8">
+                      Your organiser profile is ready. Let&apos;s get your first event live.
+                    </p>
+                  </>
+                ) : (
+                  <h2 className="font-serif text-2xl text-gray-900 mb-8">
+                    You&apos;re all set to Attend Events and Create Memories
+                  </h2>
+                )}
                 <button
                   type="button"
                   onClick={handleContinue}

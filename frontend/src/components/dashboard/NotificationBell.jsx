@@ -8,7 +8,6 @@ import {
   Wallet01Icon,
   CheckmarkCircle02Icon,
 } from "@hugeicons/core-free-icons";
-import { MOCK_ORGANIZER_NOTIFICATIONS } from "@/lib/mockOrganizerNotifications";
 
 const TYPE_META = {
   ticket_purchase: { icon: Ticket01Icon, color: "#4F6EF7", bg: "bg-[#4F6EF7]/10" },
@@ -35,7 +34,7 @@ function timeAgo(iso) {
 
 export default function NotificationBell() {
   const [open, setOpen] = useState(false);
-  const [items, setItems] = useState(MOCK_ORGANIZER_NOTIFICATIONS);
+  const [items, setItems] = useState([]);
   const containerRef = useRef(null);
 
   const unread = useMemo(() => items.filter((n) => !n.read).length, [items]);
