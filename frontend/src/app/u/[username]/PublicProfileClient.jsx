@@ -503,8 +503,14 @@ function EventCard({ event }) {
             </span>
           </div>
 
-          <button className="bg-blue-600 text-white font-semibold text-xs px-4 py-2.5 rounded-full hover:bg-blue-700 transition-colors flex items-center gap-1 group-hover:shadow shadow-sm">
+          <button
+            className="ticket-cta bg-blue-600 text-white font-semibold text-xs pl-4 pr-3 py-2.5 rounded-full hover:bg-blue-700 transition-colors flex items-center gap-1.5 group-hover:shadow shadow-sm"
+            style={{ "--ticket-notch-right": "22px", "--ticket-notch-left": "14px" }}
+          >
+            <span className="ticket-cta-notch-left ticket-cta-notch-top" />
+            <span className="ticket-cta-notch-left ticket-cta-notch-bottom" />
             <span>Get tickets</span>
+            <span className="ticket-cta-divider" />
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <path d="M5 12h14M12 5l7 7-7 7" />
             </svg>

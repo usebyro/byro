@@ -260,20 +260,26 @@ const EventCard = ({ event }: { event: Event }) => {
               <button
                 onClick={handleGetTickets}
                 disabled={loadingTiers}
-                className="bg-blue-600 text-white text-sm font-medium px-4 py-2 rounded-full flex items-center gap-1 hover:bg-blue-700 transition-colors whitespace-nowrap disabled:opacity-60"
+                className="ticket-cta bg-blue-600 text-white text-sm font-medium pl-4 pr-3 py-2 rounded-full flex items-center gap-1.5 hover:bg-blue-700 transition-colors whitespace-nowrap disabled:opacity-60"
+                style={{ "--ticket-notch-right": "24px", "--ticket-notch-left": "14px" } as React.CSSProperties}
               >
+                <span className="ticket-cta-notch-left ticket-cta-notch-top" />
+                <span className="ticket-cta-notch-left ticket-cta-notch-bottom" />
                 {loadingTiers ? "Loading..." : "Get tickets"}
                 {!loadingTiers && (
-                  <svg
-                    width="13"
-                    height="13"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.5"
-                  >
-                    <path d="M5 12h14M12 5l7 7-7 7" />
-                  </svg>
+                  <>
+                    <span className="ticket-cta-divider" />
+                    <svg
+                      width="13"
+                      height="13"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                    >
+                      <path d="M5 12h14M12 5l7 7-7 7" />
+                    </svg>
+                  </>
                 )}
               </button>
             )}
