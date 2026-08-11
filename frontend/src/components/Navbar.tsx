@@ -116,12 +116,12 @@ const Navbar = () => {
           {/* Nav Links */}
           <div className="flex items-center space-x-6">
             {navLinks.map((link) => {
-              const isDisabled = link.disabled;
+              const isDisabled = link.disabled || (link.label === "Events" && !isLoggedIn);
               return isDisabled ? (
                 <span
                   key={link.label}
                   aria-disabled="true"
-                  title="Coming soon"
+                  title={link.label === "Events" ? "Sign in to view events" : "Coming soon"}
                   className="text-sm font-medium text-gray-300 cursor-not-allowed select-none"
                 >
                   {link.label}
@@ -257,7 +257,7 @@ const Navbar = () => {
           <div className="lg:hidden pb-4 border-t border-gray-100">
             <div className="pt-4 space-y-2">
               {navLinks.map((link) => {
-                const isDisabled = link.disabled;
+                const isDisabled = link.disabled || (link.label === "Events" && !isLoggedIn);
                 return isDisabled ? (
                   <span
                     key={link.label}
