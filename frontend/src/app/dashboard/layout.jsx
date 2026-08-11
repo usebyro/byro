@@ -124,17 +124,17 @@ function StudioShell({ children }) {
           })}
         </nav>
 
-        {/* Back to site */}
+        {/* Exit dashboard */}
         <div className={`border-t border-gray-100 shrink-0 ${collapsed ? "p-2 text-center" : "px-3 pb-4 pt-2.5"}`}>
           <Link
             href="/"
-            title={collapsed ? "Back to site" : ""}
+            title={collapsed ? "Exit dashboard" : ""}
             className={`flex items-center rounded-lg text-[13px] font-medium text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition-colors ${
               collapsed ? "justify-center p-2" : "gap-2.5 px-3 py-2"
             }`}
           >
             <HugeiconsIcon icon={ArrowLeft01Icon} size={15} color="currentColor" className="shrink-0" />
-            {!collapsed && <span>Back to site</span>}
+            {!collapsed && <span>Exit dashboard</span>}
           </Link>
         </div>
       </>
