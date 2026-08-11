@@ -16,8 +16,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const navLinks = [
   { label: "Discover", href: "/discover" },
   { label: "Events", href: "/events" },
-  { label: "Pricing", href: "/pricing" },
-  { label: "Blog", href: "/blog" },
+  { label: "Communities", href: "/communities", disabled: true },
 ];
 
 const Navbar = () => {
@@ -116,19 +115,31 @@ const Navbar = () => {
 
           {/* Nav Links */}
           <div className="flex items-center space-x-6">
-            {navLinks.map((link) => (
-              <Link
-                key={link.label}
-                href={link.href}
-                className={`text-sm font-medium transition-colors ${
-                  isActive(link.href)
-                    ? "text-blue-600"
-                    : "text-gray-600 hover:text-gray-900"
-                }`}
-              >
-                {link.label}
-              </Link>
-            ))}
+            {navLinks.map((link) => {
+              const isDisabled = link.disabled;
+              return isDisabled ? (
+                <span
+                  key={link.label}
+                  aria-disabled="true"
+                  title="Coming soon"
+                  className="text-sm font-medium text-gray-300 cursor-not-allowed select-none"
+                >
+                  {link.label}
+                </span>
+              ) : (
+                <Link
+                  key={link.label}
+                  href={link.href}
+                  className={`text-sm font-medium transition-colors ${
+                    isActive(link.href)
+                      ? "text-blue-600"
+                      : "text-gray-600 hover:text-gray-900"
+                  }`}
+                >
+                  {link.label}
+                </Link>
+              );
+            })}
           </div>
 
           {/* Search Bar */}
@@ -245,16 +256,27 @@ const Navbar = () => {
         {isMenuOpen && !isLoggedIn && (
           <div className="lg:hidden pb-4 border-t border-gray-100">
             <div className="pt-4 space-y-2">
-              {navLinks.map((link) => (
-                <Link
-                  key={link.label}
-                  href={link.href}
-                  className="block px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 rounded-lg"
-                  onClick={() => setIsMenuOpen(false)}
-                >
-                  {link.label}
-                </Link>
-              ))}
+              {navLinks.map((link) => {
+                const isDisabled = link.disabled;
+                return isDisabled ? (
+                  <span
+                    key={link.label}
+                    aria-disabled="true"
+                    className="block px-4 py-2 text-sm font-medium text-gray-300 cursor-not-allowed select-none"
+                  >
+                    {link.label}
+                  </span>
+                ) : (
+                  <Link
+                    key={link.label}
+                    href={link.href}
+                    className="block px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 rounded-lg"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    {link.label}
+                  </Link>
+                );
+              })}
             </div>
           </div>
         )}
