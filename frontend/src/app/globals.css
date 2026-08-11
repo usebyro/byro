@@ -105,8 +105,8 @@ input[type=number] {
   content: "";
   position: absolute;
   right: var(--ticket-notch-right, 30px);
-  width: 7px;
-  height: 7px;
+  width: 6px;
+  height: 6px;
   background: var(--ticket-notch-color, #fff);
   border-radius: 50%;
   z-index: 1;
@@ -115,20 +115,20 @@ input[type=number] {
 
 .ticket-cta::before {
   top: 0;
-  transform: translate(50%, -40%);
+  transform: translate(50%, -55%);
 }
 
 .ticket-cta::after {
   bottom: 0;
-  transform: translate(50%, 40%);
+  transform: translate(50%, 55%);
 }
 
 .ticket-cta-notch-left {
   content: "";
   position: absolute;
   left: var(--ticket-notch-left, 14px);
-  width: 7px;
-  height: 7px;
+  width: 6px;
+  height: 6px;
   background: var(--ticket-notch-color, #fff);
   border-radius: 50%;
   z-index: 1;
@@ -137,12 +137,12 @@ input[type=number] {
 
 .ticket-cta-notch-left.ticket-cta-notch-top {
   top: 0;
-  transform: translate(-50%, -40%);
+  transform: translate(-50%, -55%);
 }
 
 .ticket-cta-notch-left.ticket-cta-notch-bottom {
   bottom: 0;
-  transform: translate(-50%, 40%);
+  transform: translate(-50%, 55%);
 }
 
 .ticket-cta-divider {
