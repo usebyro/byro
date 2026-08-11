@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useWeb3AuthConnect, useWeb3AuthDisconnect, useIdentityToken } from "@web3auth/modal/react";
@@ -98,6 +98,29 @@ const Navbar = () => {
     const trimmed = searchQuery.trim();
     router.push(trimmed ? `/discover?search=${encodeURIComponent(trimmed)}` : "/discover");
   };
+
+  const pathnameRef = useRef(pathname);
+  useEffect(() => {
+    pathnameRef.current = pathname;
+  }, [pathname]);
+
+  // Live-filter Discover as the user types, without waiting for submit.
+  // Skip the very first run so mounting with an empty query doesn't
+  // clobber a ?search= param the user arrived with via a direct link.
+  const skippedInitialSearchEffect = useRef(false);
+  useEffect(() => {
+    if (!skippedInitialSearchEffect.current) {
+      skippedInitialSearchEffect.current = true;
+      return;
+    }
+    if (pathnameRef.current !== "/discover") return;
+    const trimmed = searchQuery.trim();
+    const handle = setTimeout(() => {
+      router.replace(trimmed ? `/discover?search=${encodeURIComponent(trimmed)}` : "/discover");
+    }, 300);
+    return () => clearTimeout(handle);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery]);
 
   const handleLogout = async () => {
     await disconnect();
