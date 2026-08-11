@@ -22,6 +22,7 @@ const navLinks = [
 const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSigningIn, setIsSigningIn] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const { connect, isConnected, loading: connectLoading } = useWeb3AuthConnect();
   const { disconnect } = useWeb3AuthDisconnect();
   const { getIdentityToken } = useIdentityToken();
@@ -92,6 +93,12 @@ const Navbar = () => {
 
   const isActive = (href: string) => pathname === href;
 
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = searchQuery.trim();
+    router.push(trimmed ? `/discover?search=${encodeURIComponent(trimmed)}` : "/discover");
+  };
+
   const handleLogout = async () => {
     await disconnect();
     dispatch(signOut());
@@ -145,27 +152,29 @@ const Navbar = () => {
           </div>
 
           {/* Search Bar */}
-          <div className="flex-1 max-w-md mx-8">
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Search events"
-                className="w-full bg-gray-50 border border-gray-200 text-black rounded-full py-2 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-              <svg
-                className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <circle cx="11" cy="11" r="8" />
-                <path d="M21 21l-4.35-4.35" />
-              </svg>
-            </div>
-          </div>
+          {pathname !== "/" && (
+            <form onSubmit={handleSearchSubmit} className="flex-1 max-w-md mx-8">
+              <div className="relative">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search events"
+                  className="w-full bg-gray-50 border border-gray-200 text-black rounded-full py-2 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                <button
+                  type="submit"
+                  aria-label="Search"
+                  className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="11" cy="11" r="8" />
+                    <path d="M21 21l-4.35-4.35" />
+                  </svg>
+                </button>
+              </div>
+            </form>
+          )}
 
           {/* Right Actions */}
           <div className="flex items-center space-x-4">

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import EventCard from "@/components/landing/EventCard";
@@ -48,7 +49,8 @@ const SORT_OPTIONS = [
   { value: "price_desc", label: "Price: High to Low" },
 ];
 
-export default function DiscoverPage() {
+function DiscoverPageContent() {
+  const searchParams = useSearchParams();
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -61,6 +63,7 @@ export default function DiscoverPage() {
   const [userCity, setUserCity] = useState("Lagos");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [visibleCount, setVisibleCount] = useState(6);
+  const search = searchParams.get("search") || "";
 
   useEffect(() => {
     API.getCategories()
@@ -83,6 +86,7 @@ export default function DiscoverPage() {
       setLoading(true);
       try {
         const params: Record<string, string | number> = {};
+        if (search.trim()) params.search = search.trim();
         if (selectedCategories.length > 0) params.category = selectedCategories[0];
         if (selectedWhen.length > 0) params.when = selectedWhen[0];
         if (selectedAreas.length > 0) params.area = selectedAreas[0];
@@ -105,7 +109,7 @@ export default function DiscoverPage() {
       }
     };
     fetchEvents();
-  }, [selectedCategories, selectedWhen, selectedAreas, priceMax, sortBy]);
+  }, [search, selectedCategories, selectedWhen, selectedAreas, priceMax, sortBy]);
 
   useEffect(() => {
     if (!navigator.geolocation) return;
@@ -543,5 +547,13 @@ export default function DiscoverPage() {
       </main>
       <Footer />
     </>
+  );
+}
+
+export default function DiscoverPage() {
+  return (
+    <Suspense fallback={null}>
+      <DiscoverPageContent />
+    </Suspense>
   );
 }
