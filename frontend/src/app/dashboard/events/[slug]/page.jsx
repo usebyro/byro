@@ -570,7 +570,7 @@ export default function StudioEventPage() {
                 }`}
               >
                 <HugeiconsIcon icon={KeyboardIcon} size={13} color="currentColor" />
-                Enter code
+                Enter email
               </button>
             </div>
 
@@ -600,7 +600,7 @@ export default function StudioEventPage() {
                   value={checkInValue}
                   onChange={(e) => setCheckInValue(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleCheckIn()}
-                  placeholder="email@example.com or token"
+                  placeholder="email@example.com"
                   autoFocus
                   className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#4F6EF7]/20 mb-4"
                 />
