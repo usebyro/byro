@@ -7,6 +7,8 @@ import { useWeb3AuthConnect, useWeb3AuthDisconnect, useIdentityToken } from "@we
 import { usePathname, useRouter } from "next/navigation";
 import { useSelector, useDispatch } from "react-redux";
 import { toast } from "react-toastify";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { CompassIcon, UserGroupIcon } from "@hugeicons/core-free-icons";
 import API from "@/services/api";
 import { signOut, authSuccess } from "@/redux/auth/authSlice";
 import UserMenu from "@/components/auth/UserMenu";
@@ -14,9 +16,9 @@ import UserMenu from "@/components/auth/UserMenu";
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 const navLinks = [
-  { label: "Discover", href: "/discover" },
+  { label: "Discover", href: "/discover", icon: CompassIcon },
   { label: "Events", href: "/events" },
-  { label: "Communities", href: "/communities", disabled: true },
+  { label: "Communities", href: "/communities", disabled: true, icon: UserGroupIcon },
 ];
 
 const Navbar = () => {
@@ -154,20 +156,22 @@ const Navbar = () => {
                   key={link.label}
                   aria-disabled="true"
                   title="Coming soon"
-                  className="text-sm font-medium text-gray-300 cursor-not-allowed select-none"
+                  className="flex items-center gap-1.5 text-sm font-medium text-gray-300 cursor-not-allowed select-none"
                 >
+                  {link.icon && <HugeiconsIcon icon={link.icon} size={16} color="currentColor" />}
                   {link.label}
                 </span>
               ) : (
                 <Link
                   key={link.label}
                   href={link.href}
-                  className={`text-sm font-medium transition-colors ${
+                  className={`flex items-center gap-1.5 text-sm font-medium transition-colors ${
                     isActive(link.href)
                       ? "text-blue-600"
                       : "text-gray-600 hover:text-gray-900"
                   }`}
                 >
+                  {link.icon && <HugeiconsIcon icon={link.icon} size={16} color="currentColor" />}
                   {link.label}
                 </Link>
               );
@@ -298,17 +302,19 @@ const Navbar = () => {
                   <span
                     key={link.label}
                     aria-disabled="true"
-                    className="block px-4 py-2 text-sm font-medium text-gray-300 cursor-not-allowed select-none"
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-300 cursor-not-allowed select-none"
                   >
+                    {link.icon && <HugeiconsIcon icon={link.icon} size={16} color="currentColor" />}
                     {link.label}
                   </span>
                 ) : (
                   <Link
                     key={link.label}
                     href={link.href}
-                    className="block px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 rounded-lg"
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 rounded-lg"
                     onClick={() => setIsMenuOpen(false)}
                   >
+                    {link.icon && <HugeiconsIcon icon={link.icon} size={16} color="currentColor" />}
                     {link.label}
                   </Link>
                 );
