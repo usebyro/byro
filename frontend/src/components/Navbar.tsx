@@ -8,7 +8,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useSelector, useDispatch } from "react-redux";
 import { toast } from "react-toastify";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { CompassIcon, UserGroupIcon } from "@hugeicons/core-free-icons";
+import { CompassIcon, UserGroupIcon, Calendar02Icon } from "@hugeicons/core-free-icons";
 import API from "@/services/api";
 import { signOut, authSuccess } from "@/redux/auth/authSlice";
 import UserMenu from "@/components/auth/UserMenu";
@@ -17,7 +17,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 const navLinks = [
   { label: "Discover", href: "/discover", icon: CompassIcon },
-  { label: "Events", href: "/events" },
+  { label: "Events", href: "/home", icon: Calendar02Icon },
   { label: "Communities", href: "/communities", disabled: true, icon: UserGroupIcon },
 ];
 
@@ -69,7 +69,7 @@ const Navbar = () => {
       const newUser = await exchangeWithBackend();
       if (newUser) {
         const needsProfile = !newUser.display_name && !newUser.displayName && !newUser.handle;
-        router.push(needsProfile ? "/profile?onboarding=1" : "/events");
+        router.push(needsProfile ? "/profile?onboarding=1" : "/home");
       } else {
         toast.error("Sign in failed. Please try again.");
       }
@@ -216,7 +216,7 @@ const Navbar = () => {
                   </svg>
                   Create event
                 </Link>
-                <UserMenu user={user} onLogout={handleLogout} eventsHref="/events" />
+                <UserMenu user={user} onLogout={handleLogout} eventsHref="/home" />
               </>
             ) : (
               <>
@@ -262,7 +262,7 @@ const Navbar = () => {
                 >
                   + Create
                 </Link>
-                <UserMenu user={user} onLogout={handleLogout} eventsHref="/events" size="sm" />
+                <UserMenu user={user} onLogout={handleLogout} eventsHref="/home" size="sm" />
               </>
             ) : (
               <>

@@ -25,7 +25,7 @@ function getInitial(user) {
 export default function UserMenu({
   user,
   onLogout,
-  eventsHref = "/events",
+  eventsHref = "/home",
   eventsLabel = "My Events",
   size = "md",
   className = "",

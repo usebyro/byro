@@ -52,6 +52,15 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  async redirects() {
+    return [
+      {
+        source: '/events',
+        destination: '/home',
+        permanent: true,
+      },
+    ];
+  },
 };
 
 export default withSentryConfig(withAnalyzer(nextConfig), {

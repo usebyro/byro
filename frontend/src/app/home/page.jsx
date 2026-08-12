@@ -7,7 +7,6 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Calendar01Icon,
   MapPinIcon,
-  Search01Icon,
   Ticket01Icon,
 } from "@hugeicons/core-free-icons";
 import AppLayout from "@/layout/app";
@@ -219,7 +218,7 @@ function EmptyTab({ tab }) {
   );
 }
 
-export default function EventsPage() {
+export default function HomePage() {
   const [dashboard, setDashboard] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("upcoming");
@@ -287,17 +286,6 @@ export default function EventsPage() {
     <AppLayout>
       <div className="min-h-screen bg-[#F1F5F9]">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
-
-          {/* Top bar */}
-          <div className="flex items-center justify-end mb-6">
-            <Link
-              href="/discover"
-              className="flex items-center gap-2 bg-[#1F6BFF] text-white text-sm font-semibold px-4 py-2.5 rounded-xl hover:bg-blue-700 transition-colors"
-            >
-              <HugeiconsIcon icon={Search01Icon} size={14} color="white" />
-              Find an event
-            </Link>
-          </div>
 
           {/* Tabs */}
           <div className="flex gap-6 border-b border-gray-200 mb-5">

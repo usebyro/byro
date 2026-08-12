@@ -27,7 +27,7 @@ export default function EditEventPage() {
       })
       .catch(() => {
         toast.error("Failed to load event");
-        router.push("/events");
+        router.push("/home");
       })
       .finally(() => setLoading(false));
   }, [slug, router]);
