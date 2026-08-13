@@ -27,9 +27,29 @@ export default function CommunitiesPage() {
               transform-origin: center;
               animation: byroGlobePing 2.6s ease-out infinite;
             }
+            .communities-globe {
+              position: absolute;
+              top: 54%;
+              left: 50%;
+              transform: translate(-50%, -50%);
+              width: min(130vw, 640px);
+              height: min(130vw, 640px);
+            }
+            @media (min-width: 1024px) {
+              .communities-globe {
+                top: auto;
+                bottom: 0;
+                left: 50%;
+                transform: translate(-50%, 50%);
+                width: 70vw;
+                height: 70vw;
+                max-width: 1100px;
+                max-height: 1100px;
+              }
+            }
           `}</style>
           <svg
-            className="pointer-events-none select-none absolute top-[54%] left-1/2 -translate-x-1/2 -translate-y-1/2 mt-6 w-[560px] h-[560px] sm:w-[700px] sm:h-[700px]"
+            className="communities-globe pointer-events-none select-none"
             viewBox="0 0 600 600"
             fill="none"
             aria-hidden="true"
