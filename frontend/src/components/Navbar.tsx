@@ -216,7 +216,7 @@ const Navbar = () => {
                   </svg>
                   Create event
                 </Link>
-                <UserMenu user={user} onLogout={handleLogout} eventsHref="/home" />
+                <UserMenu user={user} onLogout={handleLogout} />
               </>
             ) : (
               <>
@@ -262,7 +262,7 @@ const Navbar = () => {
                 >
                   + Create
                 </Link>
-                <UserMenu user={user} onLogout={handleLogout} eventsHref="/home" size="sm" />
+                <UserMenu user={user} onLogout={handleLogout} size="sm" />
               </>
             ) : (
               <>

@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { User, Ticket, LogOut } from "lucide-react";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { UserIcon, Logout01Icon } from "@hugeicons/core-free-icons";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,8 +26,6 @@ function getInitial(user) {
 export default function UserMenu({
   user,
   onLogout,
-  eventsHref = "/home",
-  eventsLabel = "My Events",
   size = "md",
   className = "",
 }) {
@@ -67,19 +66,13 @@ export default function UserMenu({
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
           <Link href="/profile">
-            <User size={15} />
+            <HugeiconsIcon icon={UserIcon} size={15} color="currentColor" />
             Profile
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link href={eventsHref}>
-            <Ticket size={15} />
-            {eventsLabel}
           </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem variant="destructive" onClick={onLogout}>
-          <LogOut size={15} />
+          <HugeiconsIcon icon={Logout01Icon} size={15} color="currentColor" />
           Log Out
         </DropdownMenuItem>
       </DropdownMenuContent>

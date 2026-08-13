@@ -1,7 +1,8 @@
 import type {Metadata} from 'next'
 import Link from 'next/link'
 import {PortableText} from 'next-sanity'
-import {ChevronLeft, Heart} from 'lucide-react'
+import {HugeiconsIcon} from '@hugeicons/react'
+import {ArrowLeft01Icon, FavouriteIcon} from '@hugeicons/core-free-icons'
 import {notFound} from 'next/navigation'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
@@ -117,7 +118,7 @@ export default async function PostPage({params}: PageProps) {
         <article className="mx-auto max-w-[680px] px-6 py-12 lg:px-0">
           <div className="mb-6 flex flex-wrap items-center gap-3">
             <Link href="/blog" className="inline-flex items-center gap-2 text-sm font-bold text-[#76829d] hover:text-[#4f84ff]">
-              <ChevronLeft size={16} />
+              <HugeiconsIcon icon={ArrowLeft01Icon} size={16} color="currentColor" />
               Back to journal
             </Link>
             <span className="rounded-full bg-[#dce8ff] px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-[#4f84ff]">
@@ -142,7 +143,7 @@ export default async function PostPage({params}: PageProps) {
             <div className="flex gap-3">
               <BlogShareButton slug={post.slug} title={post.title} />
               <button aria-label="Save post" className="flex h-10 w-10 items-center justify-center rounded-full border border-[#d7e0f2] text-[#76829d]">
-                <Heart size={18} />
+                <HugeiconsIcon icon={FavouriteIcon} size={18} color="currentColor" />
               </button>
             </div>
           </div>

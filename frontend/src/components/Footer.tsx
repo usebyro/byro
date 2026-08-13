@@ -3,7 +3,6 @@
 import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { CircleDot, Music2, Play, Trophy, Mic2 } from "lucide-react";
 import { FaInstagram, FaXTwitter } from "react-icons/fa6";
 
 const footerLinks = {

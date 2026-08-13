@@ -197,13 +197,7 @@ function StudioShell({ children }) {
             </div>
           </div>
           <NotificationBell />
-          <UserMenu
-            user={user}
-            onLogout={handleLogout}
-            eventsHref="/dashboard/events"
-            eventsLabel="Events"
-            size="sm"
-          />
+          <UserMenu user={user} onLogout={handleLogout} size="sm" />
         </header>
 
         {/* Page content */}
