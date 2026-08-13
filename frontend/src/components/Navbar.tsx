@@ -18,7 +18,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const navLinks = [
   { label: "Discover", href: "/discover", icon: CompassIcon },
   { label: "Events", href: "/home", icon: Calendar02Icon },
-  { label: "Communities", href: "/communities", disabled: true, icon: UserGroupIcon },
+  { label: "Communities", href: "/communities", icon: UserGroupIcon },
 ];
 
 const Navbar = () => {
