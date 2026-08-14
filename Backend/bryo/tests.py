@@ -8,17 +8,21 @@ required claims) is exercised without any network access.
 """
 
 import datetime
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import jwt
 from cryptography.hazmat.primitives.asymmetric import rsa
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.test import TestCase, override_settings
 from django.utils import timezone
 from rest_framework.test import APIClient
+from rest_framework.throttling import ScopedRateThrottle
 
 from .models import Event, EventCoHost, UserProfile
 from .services import workos_auth
+from .services.workos_api import WorkOSAPIError
 
 User = get_user_model()
 
@@ -66,12 +70,34 @@ def make_token(sub='user_01TEST', issuer=ISSUER, expires_in=300, key=None, **ext
     return jwt.encode(payload, key or _private_key, algorithm='RS256')
 
 
+def fake_workos_user(sub='user_01TEST', email='new@example.com', verified=True,
+                     first_name='Ada', last_name='Lovelace'):
+    """Stands in for the SDK's User model (attribute access, not a dict)."""
+    return SimpleNamespace(
+        id=sub, email=email, email_verified=verified,
+        first_name=first_name, last_name=last_name,
+    )
+
+
+def fake_auth_response(sub='user_01TEST', email='new@example.com', verified=True,
+                       first_name='Ada', last_name='Lovelace'):
+    """Stands in for the SDK's AuthenticateResponse."""
+    return SimpleNamespace(
+        user=fake_workos_user(sub, email, verified, first_name, last_name),
+        access_token=make_token(sub=sub),
+        refresh_token='refresh_tok_01TEST',
+    )
+
+
 class WorkOSAuthTestCase(TestCase):
     """Base: patches JWKS resolution to hand back our local public key."""
 
     def setUp(self):
         super().setUp()
+        cache.clear()
         workos_auth.reset_jwks_client()
+
+        self.set_throttle_rates({k: None for k in ScopedRateThrottle.THROTTLE_RATES})
 
         class _FakeSigningKey:
             key = _private_key.public_key()
@@ -89,6 +115,12 @@ class WorkOSAuthTestCase(TestCase):
 
     def auth(self, token):
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {token}')
+
+    def set_throttle_rates(self, rates):
+        """Patch the class attribute DRF actually reads, for the test's duration."""
+        patcher = patch.object(ScopedRateThrottle, 'THROTTLE_RATES', rates)
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
 
 @override_settings(**WORKOS_TEST_SETTINGS)
@@ -174,124 +206,221 @@ class AuthenticationClassTests(WorkOSAuthTestCase):
 
 
 @override_settings(**WORKOS_TEST_SETTINGS)
-class AuthSyncTests(WorkOSAuthTestCase):
-    URL = '/api/auth/sync/'
+class MagicAuthTests(WorkOSAuthTestCase):
+    SEND = '/api/auth/magic/send/'
+    VERIFY = '/api/auth/magic/verify/'
 
-    def workos_user(self, email='new@example.com', **kw):
-        return {
-            'id': 'user_01TEST', 'email': email, 'email_verified': True,
-            'first_name': kw.get('first_name', 'Ada'),
-            'last_name': kw.get('last_name', 'Lovelace'),
-        }
+    def test_send_requests_a_code(self):
+        with patch('bryo.auth_views.workos_api.send_magic_auth_code', return_value=True) as send:
+            res = self.client.post(self.SEND, {'email': 'someone@example.com'}, format='json')
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(send.call_args.args[0], 'someone@example.com')
 
-    def test_creates_user_and_profile(self):
-        self.auth(make_token(sub='user_new'))
-        with patch('bryo.auth_views.workos_api.get_user', return_value=self.workos_user()):
-            res = self.client.post(self.URL)
+    def test_send_normalises_the_email(self):
+        with patch('bryo.auth_views.workos_api.send_magic_auth_code', return_value=True) as send:
+            self.client.post(self.SEND, {'email': '  MiXeD@Example.COM '}, format='json')
+        self.assertEqual(send.call_args.args[0], 'mixed@example.com')
+
+    def test_send_does_not_leak_whether_an_account_exists(self):
+        """
+        Identical response either way, or this endpoint becomes an account
+        enumeration oracle.
+        """
+        User.objects.create_user(email='known@example.com', workos_id='user_known')
+        with patch('bryo.auth_views.workos_api.send_magic_auth_code', return_value=True):
+            known = self.client.post(self.SEND, {'email': 'known@example.com'}, format='json')
+        with patch('bryo.auth_views.workos_api.send_magic_auth_code', return_value=False):
+            unknown = self.client.post(self.SEND, {'email': 'nobody@example.com'}, format='json')
+
+        self.assertEqual(known.status_code, unknown.status_code)
+        self.assertEqual(known.json()['success'], unknown.json()['success'])
+
+    def test_send_rejects_a_malformed_email(self):
+        res = self.client.post(self.SEND, {'email': 'not-an-email'}, format='json')
+        self.assertEqual(res.status_code, 400)
+
+    def test_verify_creates_the_user_and_returns_tokens(self):
+        with patch('bryo.auth_views.workos_api.authenticate_with_magic_auth',
+                   return_value=fake_auth_response(sub='user_new')):
+            res = self.client.post(self.VERIFY, {'email': 'new@example.com', 'code': '123456'},
+                                   format='json')
 
         self.assertEqual(res.status_code, 200)
-        self.assertTrue(res.json()['is_new_user'])
+        body = res.json()
+        self.assertTrue(body['is_new_user'])
+        self.assertIn('access', body['tokens'])
+        self.assertIn('refresh', body['tokens'])
+
         user = User.objects.get(workos_id='user_new')
         self.assertEqual(user.email, 'new@example.com')
         self.assertTrue(user.email_verified)
-        self.assertEqual(user.auth_provider, 'workos')
         self.assertEqual(UserProfile.objects.get(user=user).display_name, 'Ada Lovelace')
 
-    def test_existing_account_is_linked_and_keeps_its_data(self):
+    def test_verify_links_an_existing_account_and_keeps_its_data(self):
         """
-        The migration test. A Web3Auth-era user signing in with WorkOS must land
-        on their existing row — same id, same events, same tickets — not a
-        duplicate account.
+        The migration test. A Web3Auth-era user signing in must land on their
+        existing row — same id, same events — not a duplicate account.
         """
         legacy = User.objects.create_user(
             email='organiser@example.com', auth_provider='web3auth', external_id='web3-xyz',
         )
         event = make_event(name='Legacy Event', owner=legacy)
-        legacy_id = legacy.id
 
-        self.auth(make_token(sub='user_workos_new'))
-        with patch('bryo.auth_views.workos_api.get_user',
-                   return_value=self.workos_user(email='organiser@example.com')):
-            res = self.client.post(self.URL)
+        with patch('bryo.auth_views.workos_api.authenticate_with_magic_auth',
+                   return_value=fake_auth_response(sub='user_wk', email='organiser@example.com')):
+            res = self.client.post(self.VERIFY, {'email': 'organiser@example.com', 'code': '123456'},
+                                   format='json')
 
         self.assertEqual(res.status_code, 200)
         self.assertFalse(res.json()['is_new_user'])
-        self.assertEqual(res.json()['user']['id'], legacy_id)
+        self.assertEqual(res.json()['user']['id'], legacy.id)
 
         legacy.refresh_from_db()
-        self.assertEqual(legacy.workos_id, 'user_workos_new')
+        self.assertEqual(legacy.workos_id, 'user_wk')
         self.assertEqual(User.objects.filter(email='organiser@example.com').count(), 1)
         event.refresh_from_db()
-        self.assertEqual(event.owner_id, legacy_id)
+        self.assertEqual(event.owner_id, legacy.id)
 
-    def test_email_match_is_case_insensitive(self):
+    def test_verify_matches_email_case_insensitively(self):
         existing = User.objects.create_user(email='mixed@example.com')
-        self.auth(make_token(sub='user_case'))
-        with patch('bryo.auth_views.workos_api.get_user',
-                   return_value=self.workos_user(email='MIXED@Example.com')):
-            res = self.client.post(self.URL)
+        with patch('bryo.auth_views.workos_api.authenticate_with_magic_auth',
+                   return_value=fake_auth_response(sub='user_case', email='MIXED@Example.com')):
+            res = self.client.post(self.VERIFY, {'email': 'mixed@example.com', 'code': '123456'},
+                                   format='json')
         self.assertEqual(res.json()['user']['id'], existing.id)
         self.assertEqual(User.objects.count(), 1)
 
-    def test_repeat_signin_is_idempotent(self):
+    def test_verify_is_idempotent(self):
         for _ in range(3):
-            self.auth(make_token(sub='user_repeat'))
-            with patch('bryo.auth_views.workos_api.get_user', return_value=self.workos_user()):
-                self.assertEqual(self.client.post(self.URL).status_code, 200)
+            with patch('bryo.auth_views.workos_api.authenticate_with_magic_auth',
+                       return_value=fake_auth_response(sub='user_repeat')):
+                res = self.client.post(self.VERIFY, {'email': 'new@example.com', 'code': '123456'},
+                                       format='json')
+                self.assertEqual(res.status_code, 200)
         self.assertEqual(User.objects.filter(workos_id='user_repeat').count(), 1)
 
-    def test_invalid_token_rejected(self):
-        self.auth(make_token(sub='user_x', expires_in=-60))
-        self.assertEqual(self.client.post(self.URL).status_code, 401)
+    def test_verify_rejects_a_bad_code(self):
+        with patch('bryo.auth_views.workos_api.authenticate_with_magic_auth',
+                   side_effect=WorkOSAPIError('That code is incorrect or has expired.',
+                                              code='invalid_code')):
+            res = self.client.post(self.VERIFY, {'email': 'new@example.com', 'code': '000000'},
+                                   format='json')
+        self.assertEqual(res.status_code, 401)
+        self.assertEqual(res.json()['code'], 'invalid_code')
+        self.assertFalse(User.objects.exists())
 
-    def test_missing_token_rejected(self):
-        self.assertEqual(self.client.post(self.URL).status_code, 401)
+    def test_verify_requires_both_fields(self):
+        self.assertEqual(self.client.post(self.VERIFY, {'email': 'a@b.com'}, format='json').status_code, 400)
+        self.assertEqual(self.client.post(self.VERIFY, {'code': '123456'}, format='json').status_code, 400)
 
-    def test_provider_unreachable_on_first_signin_is_502(self):
+    def test_verify_refuses_a_workos_user_with_no_email(self):
         """
-        Never invent a placeholder email. Creating users with fabricated
-        addresses is precisely the mess this migration is cleaning up.
+        create_user('') raises, so this used to be a 500. Refusing is correct:
+        fabricating an address is what produced the @web3auth.user accounts.
         """
-        self.auth(make_token(sub='user_unreachable'))
-        with patch('bryo.auth_views.workos_api.get_user', return_value=None):
-            res = self.client.post(self.URL)
-        self.assertEqual(res.status_code, 502)
-        self.assertFalse(User.objects.filter(workos_id='user_unreachable').exists())
-
-    def test_workos_user_without_email_is_refused_not_500(self):
-        """
-        create_user('') raises ValueError, so this used to be a 500. Refusing is
-        correct: fabricating a placeholder address is what produced the
-        @web3auth.user accounts this migration exists to undo.
-        """
-        self.auth(make_token(sub='user_noemail'))
-        with patch('bryo.auth_views.workos_api.get_user', return_value={
-            'id': 'user_noemail', 'email': None, 'email_verified': False,
-            'first_name': '', 'last_name': '',
-        }):
-            res = self.client.post(self.URL)
+        with patch('bryo.auth_views.workos_api.authenticate_with_magic_auth',
+                   return_value=fake_auth_response(sub='user_noemail', email=None)):
+            res = self.client.post(self.VERIFY, {'email': 'x@example.com', 'code': '123456'},
+                                   format='json')
         self.assertEqual(res.status_code, 502)
         self.assertFalse(User.objects.filter(workos_id='user_noemail').exists())
 
-    def test_provider_unreachable_for_known_user_still_succeeds(self):
-        User.objects.create_user(email='known@example.com', workos_id='user_known2')
-        self.auth(make_token(sub='user_known2'))
-        with patch('bryo.auth_views.workos_api.get_user', return_value=None):
-            self.assertEqual(self.client.post(self.URL).status_code, 200)
-
-    def test_display_name_set_by_user_is_not_overwritten(self):
+    def test_display_name_set_by_the_user_is_not_overwritten(self):
         user = User.objects.create_user(email='keep@example.com', workos_id='user_keep')
         profile = UserProfile.objects.get(user=user)
         profile.display_name = 'Chosen Name'
         profile.save()
 
-        self.auth(make_token(sub='user_keep'))
-        with patch('bryo.auth_views.workos_api.get_user',
-                   return_value=self.workos_user(email='keep@example.com')):
-            self.client.post(self.URL)
+        with patch('bryo.auth_views.workos_api.authenticate_with_magic_auth',
+                   return_value=fake_auth_response(sub='user_keep', email='keep@example.com')):
+            self.client.post(self.VERIFY, {'email': 'keep@example.com', 'code': '123456'},
+                             format='json')
 
         profile.refresh_from_db()
         self.assertEqual(profile.display_name, 'Chosen Name')
+
+
+@override_settings(**WORKOS_TEST_SETTINGS, WORKOS_OAUTH_REDIRECT_URI='https://usebyro.com/auth/callback')
+class OAuthTests(WorkOSAuthTestCase):
+    AUTHORIZE = '/api/auth/oauth/authorize/'
+    CALLBACK = '/api/auth/oauth/callback/'
+
+    def test_authorize_returns_a_url_for_google(self):
+        with patch('bryo.auth_views.workos_api.get_authorization_url',
+                   return_value='https://api.workos.com/authorize?x=1') as gen:
+            res = self.client.post(self.AUTHORIZE, {'provider': 'google'}, format='json')
+        self.assertEqual(res.status_code, 200)
+        self.assertIn('authorization_url', res.json())
+        self.assertEqual(gen.call_args.kwargs['provider'], 'google')
+
+    def test_authorize_never_takes_the_redirect_uri_from_the_request(self):
+        """A client-supplied redirect would be an open redirect and could harvest codes."""
+        with patch('bryo.auth_views.workos_api.get_authorization_url',
+                   return_value='https://api.workos.com/authorize') as gen:
+            self.client.post(self.AUTHORIZE,
+                             {'provider': 'google', 'redirect_uri': 'https://evil.example/steal'},
+                             format='json')
+        self.assertEqual(gen.call_args.kwargs['redirect_uri'], 'https://usebyro.com/auth/callback')
+
+    def test_authorize_rejects_an_unknown_provider(self):
+        with patch('bryo.auth_views.workos_api.get_authorization_url',
+                   side_effect=WorkOSAPIError('nope', code='unsupported_provider')):
+            res = self.client.post(self.AUTHORIZE, {'provider': 'myspace'}, format='json')
+        self.assertEqual(res.status_code, 400)
+
+    def test_authorize_requires_a_provider(self):
+        self.assertEqual(self.client.post(self.AUTHORIZE, {}, format='json').status_code, 400)
+
+    def test_callback_exchanges_the_code_and_signs_in(self):
+        with patch('bryo.auth_views.workos_api.authenticate_with_code',
+                   return_value=fake_auth_response(sub='user_oauth', email='via@google.com')):
+            res = self.client.post(self.CALLBACK, {'code': 'authcode123'}, format='json')
+
+        self.assertEqual(res.status_code, 200)
+        self.assertTrue(res.json()['is_new_user'])
+        self.assertTrue(User.objects.filter(workos_id='user_oauth').exists())
+
+    def test_callback_rejects_a_used_code(self):
+        with patch('bryo.auth_views.workos_api.authenticate_with_code',
+                   side_effect=WorkOSAPIError('already used', code='invalid_code')):
+            res = self.client.post(self.CALLBACK, {'code': 'spent'}, format='json')
+        self.assertEqual(res.status_code, 401)
+
+    def test_callback_requires_a_code(self):
+        self.assertEqual(self.client.post(self.CALLBACK, {}, format='json').status_code, 400)
+
+
+@override_settings(**WORKOS_TEST_SETTINGS)
+class RefreshAndMeTests(WorkOSAuthTestCase):
+    REFRESH = '/api/auth/refresh/'
+    ME = '/api/auth/me/'
+
+    def test_refresh_returns_new_tokens(self):
+        with patch('bryo.auth_views.workos_api.authenticate_with_refresh_token',
+                   return_value=fake_auth_response(sub='user_r')):
+            res = self.client.post(self.REFRESH, {'refresh_token': 'rt_123'}, format='json')
+        self.assertEqual(res.status_code, 200)
+        self.assertIn('access', res.json()['tokens'])
+
+    def test_refresh_rejects_a_revoked_token(self):
+        """Signing out revokes the refresh token, so this is the normal end of a session."""
+        with patch('bryo.auth_views.workos_api.authenticate_with_refresh_token',
+                   side_effect=WorkOSAPIError('expired', code='invalid_refresh_token')):
+            res = self.client.post(self.REFRESH, {'refresh_token': 'revoked'}, format='json')
+        self.assertEqual(res.status_code, 401)
+
+    def test_refresh_requires_a_token(self):
+        self.assertEqual(self.client.post(self.REFRESH, {}, format='json').status_code, 400)
+
+    def test_me_returns_the_current_user(self):
+        user = User.objects.create_user(email='me@example.com', workos_id='user_me')
+        self.auth(make_token(sub='user_me'))
+        res = self.client.get(self.ME)
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json()['user']['id'], user.id)
+
+    def test_me_requires_authentication(self):
+        self.assertEqual(self.client.get(self.ME).status_code, 401)
 
 
 @override_settings(**WORKOS_TEST_SETTINGS)
@@ -338,12 +467,12 @@ class CoHostInviteTests(WorkOSAuthTestCase):
     def test_invite_is_claimed_on_first_signin(self):
         self.add_cohost('newcomer@example.com')
 
-        self.auth(make_token(sub='user_newcomer'))
-        with patch('bryo.auth_views.workos_api.get_user', return_value={
-            'id': 'user_newcomer', 'email': 'newcomer@example.com', 'email_verified': True,
-            'first_name': 'New', 'last_name': 'Comer',
-        }):
-            res = self.client.post('/api/auth/sync/')
+        with patch('bryo.auth_views.workos_api.authenticate_with_magic_auth',
+                   return_value=fake_auth_response(sub='user_newcomer',
+                                                   email='newcomer@example.com')):
+            res = self.client.post('/api/auth/magic/verify/',
+                                   {'email': 'newcomer@example.com', 'code': '123456'},
+                                   format='json')
 
         self.assertEqual(res.json()['cohost_invites_claimed'], 1)
 
@@ -359,12 +488,13 @@ class CoHostInviteTests(WorkOSAuthTestCase):
         """Otherwise anyone could seize a grant by signing up with that address."""
         self.add_cohost('newcomer@example.com')
 
-        self.auth(make_token(sub='user_impostor'))
-        with patch('bryo.auth_views.workos_api.get_user', return_value={
-            'id': 'user_impostor', 'email': 'newcomer@example.com', 'email_verified': False,
-            'first_name': '', 'last_name': '',
-        }):
-            res = self.client.post('/api/auth/sync/')
+        with patch('bryo.auth_views.workos_api.authenticate_with_magic_auth',
+                   return_value=fake_auth_response(sub='user_impostor',
+                                                   email='newcomer@example.com',
+                                                   verified=False)):
+            res = self.client.post('/api/auth/magic/verify/',
+                                   {'email': 'newcomer@example.com', 'code': '123456'},
+                                   format='json')
 
         self.assertEqual(res.json()['cohost_invites_claimed'], 0)
         self.assertEqual(
@@ -411,3 +541,25 @@ class CoHostInviteTests(WorkOSAuthTestCase):
         )
         self.assertEqual(res.status_code, 200)
         self.assertFalse(EventCoHost.objects.exists())
+
+
+@override_settings(**WORKOS_TEST_SETTINGS)
+class ThrottlingTests(WorkOSAuthTestCase):
+    """
+    Sending a code emails a third party on our WorkOS quota, so the ceiling is
+    the thing stopping someone mail-bombing an address. Verified explicitly
+    because every other test runs with throttling off.
+    """
+
+    def test_magic_send_is_throttled(self):
+        self.set_throttle_rates({**ScopedRateThrottle.THROTTLE_RATES, 'auth_send': '3/hour'})
+
+        with patch('bryo.auth_views.workos_api.send_magic_auth_code', return_value=True):
+            codes = [
+                self.client.post('/api/auth/magic/send/',
+                                 {'email': 'spam@example.com'}, format='json').status_code
+                for _ in range(5)
+            ]
+
+        self.assertEqual(codes[:3], [200, 200, 200])
+        self.assertEqual(codes[3:], [429, 429])

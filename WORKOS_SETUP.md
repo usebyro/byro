@@ -3,10 +3,14 @@
 Web3Auth and Privy are gone from the backend. WorkOS access tokens are now the
 only API credential; Byro signs nothing of its own.
 
+Byro renders its **own** sign-in screen (the `/auth-preview` design), so Django
+drives authentication rather than redirecting to AuthKit's hosted page. The
+official `workos` Python SDK does the talking.
+
 **Scope note:** this change is backend-only. `frontend/` is untouched and still
 posts to `/api/auth/social/`, which no longer exists — so the frontend is broken
-against this backend until the AuthKit work lands, and the two must deploy
-together. The contract the frontend needs to implement is in §7.
+against this backend until the sign-in screen is wired up, and the two must
+deploy together. The contract the frontend needs to implement is in §8.
 
 ---
 
@@ -22,6 +26,7 @@ together. The contract the frontend needs to implement is in §7.
 | `DEBUG` | no | Now defaults to `False`. It used to be hardcoded `True`, silently overriding the env read. |
 | `ALLOWED_HOSTS` | **yes in prod** | Comma-separated, e.g. `usebyro.com,www.usebyro.com,byro.onrender.com`. Was `["*"]`. Empty with `DEBUG=False` rejects everything — deliberate, so a misconfigured deploy fails loudly rather than accepting any Host header. |
 | `WORKOS_ISSUER` | no | Pins the `iss` claim tokens must carry — your hosted AuthKit domain, **not** a name you choose. Run `check_workos` to discover it. Per-environment. See §4. |
+| `WORKOS_OAUTH_REDIRECT_URI` | for Google/Apple | Where WorkOS returns the browser after social sign-in. Must match a Redirect URI registered in the dashboard. Defaults to `{FRONTEND_URL}/auth/callback`. Never taken from the request — a client-supplied redirect would be an open redirect. |
 | `WORKOS_API_BASE_URL` | no | Defaults to `https://api.workos.com`. Override only for tests. |
 
 Now unused, safe to delete: `PRIVY_APP_ID`, `PRIVY_APP_SECRET`,
@@ -97,13 +102,22 @@ does the work; pinning the issuer is defence-in-depth on top.
 
 ## 5. How authentication works now
 
+Django owns sign-in because the UI is ours. Two routes in, both ending in the
+same place:
+
 ```
-POST /api/auth/sync/   (once per sign-in)
-  -> verify JWT against this client's JWKS (RS256)
-  -> GET WorkOS user for their email (the token does not carry one)
+Magic Auth (the email field)
+  POST /api/auth/magic/send/    -> WorkOS emails a 6-digit code
+  POST /api/auth/magic/verify/  -> redeem it
+
+OAuth (the Google / Apple buttons)
+  POST /api/auth/oauth/authorize/ -> {authorization_url}, browser goes there
+  POST /api/auth/oauth/callback/  -> exchange the returned code
+
+both then:
   -> upsert CustomUser: workos_id -> email -> create
   -> claim any pending co-host invites
-  <- {user, is_new_user, cohost_invites_claimed}
+  <- {user, tokens{access, refresh}, is_new_user}
 
 every other request
   -> verify JWT + one indexed lookup on workos_id. No network, no API call.
@@ -160,15 +174,55 @@ A pending grant confers **no** access. Every check routes through
 
 ## 8. Contract for the frontend
 
-**Sign-in.** After AuthKit completes, call once:
+No WorkOS SDK is needed on the frontend. Every call below is plain JSON to
+Django, and no WorkOS credential is ever exposed to the browser.
+
+### Email sign-in (the email field)
+
+**Step 1 — request a code.**
 
 ```
-POST /api/auth/sync/
-Authorization: Bearer <WorkOS access token>
+POST /api/auth/magic/send/     {"email": "someone@example.com"}
+-> 200 {"success": true, "message": "...", "expires_in": 600}
 ```
+
+Always 200 for any well-formed address, whether or not an account exists —
+that is deliberate, so the endpoint cannot be used to discover who has an
+account. Only a malformed address gives 400. Throttled to 15/hour.
+
+**Step 2 — redeem it.** The design needs a second state here for the 6-digit
+code; it does not exist in `/auth-preview` yet.
+
+```
+POST /api/auth/magic/verify/   {"email": "...", "code": "123456"}
+-> 200  (see "session response" below)
+-> 401  {"error": "That code is incorrect or has expired.", "code": "invalid_code"}
+```
+
+### Google / Apple
+
+```
+POST /api/auth/oauth/authorize/  {"provider": "google"}   // or "apple"
+-> 200 {"authorization_url": "https://..."}               // send the browser there
+```
+
+WorkOS returns the browser to `WORKOS_OAUTH_REDIRECT_URI` (default
+`{FRONTEND_URL}/auth/callback`) with `?code=`. Post that code back:
+
+```
+POST /api/auth/oauth/callback/   {"code": "..."}
+-> 200  (session response)
+-> 401  {"error": "...", "code": "invalid_code"}
+```
+
+Posting the code rather than letting Django redirect keeps tokens out of URLs
+and browser history.
+
+### Session response
+
+Returned identically by `magic/verify/` and `oauth/callback/`:
 
 ```jsonc
-// 200
 {
   "success": true,
   "is_new_user": false,
@@ -182,26 +236,32 @@ Authorization: Bearer <WorkOS access token>
     "handle": "ada",
     "avatar_url": "https://…",
     "is_profile_complete": false
-  }
+  },
+  "tokens": { "access": "eyJ...", "refresh": "..." }
 }
 ```
 
-Same `user` shape the old `/api/auth/social/` returned, **minus `tokens`** —
-there is no Byro-issued token any more. Errors: `401` invalid/expired/missing
-token, `502` WorkOS unreachable on a first-ever sign-in, `409` conflict.
-Throttled to 30/hour.
+### Staying signed in
+
+```
+POST /api/auth/refresh/   {"refresh_token": "..."}  -> 200 {"tokens": {...}}
+                                                    -> 401 session is over
+GET  /api/auth/me/                                  -> 200 {"user": {...}}
+```
+
+Access tokens are short-lived. On a `401` from any normal endpoint, call
+`refresh` once and retry; only if *that* fails should you send the user back to
+sign-in. `GET /api/auth/me/` rehydrates the UI after a page reload.
 
 **Every other request.** Send `Authorization: Bearer <access token>`. Nothing
 else changed — all existing endpoints, permissions and payloads are the same.
 
-**Important behaviours:**
+**Also worth knowing:**
 
-- A `401` on a normal endpoint means the short-lived access token lapsed.
-  Refresh via AuthKit and retry; do not log the user out.
-- A `401` saying *"No Byro account for this identity"* means `/api/auth/sync/`
-  has not run yet for this user. Call it, then retry.
-- Do **not** put the token in `localStorage`. WorkOS keeps the session in an
-  httpOnly cookie specifically so it is not readable by injected script.
+- Tokens come back in the JSON body, which means JavaScript can read them.
+  That was a deliberate call over httpOnly cookies. Keep the access token in
+  memory rather than `localStorage` where you can, and rely on `refresh` — it
+  limits how much an XSS can walk away with.
 - Guest flows are unchanged and must keep working logged-out: browsing events
   and `POST /api/events/<slug>/register/` are both still `AllowAny`.
 - `/api/auth/privy/` and `/api/auth/social/` are **deleted** and now 404.
@@ -213,9 +273,12 @@ else changed — all existing endpoints, permissions and payloads are the same.
   everyone out would leave no way to diagnose a mis-linked account. Drop them in
   a follow-up migration once the cutover is verified.
 - Set `WORKOS_ISSUER` once confirmed (§4).
-- WorkOS is called via `requests`, not the official `workos` SDK — two functions
-  in [workos_api.py](Backend/bryo/services/workos_api.py). Swap in the SDK there
-  if preferred.
+- **Apple sign-in needs dashboard setup** before the Apple button works: an
+  Apple developer account, a Service ID and a signing key configured in WorkOS.
+  Google is much simpler. The backend supports both already.
+- **Register the redirect URIs** in the WorkOS dashboard —
+  `http://localhost:3000/auth/callback` for local work and the production
+  equivalent. Social sign-in fails before reaching Django without them.
 - `Backend/db.sqlite3` is committed and predates the `SECRET_KEY` rotation.
   Worth removing from the repo separately.
 - `BACKEND_AND_AUTH.md` proposes building our own email OTP auth. Superseded.
@@ -226,9 +289,11 @@ else changed — all existing endpoints, permissions and payloads are the same.
 cd Backend && python manage.py test bryo
 ```
 
-33 tests, all passing, fully offline — they generate an RSA keypair and sign
+49 tests, all passing, fully offline — they generate an RSA keypair and sign
 WorkOS-shaped tokens locally, so the real verification path (signature, issuer,
-expiry, required claims) is exercised without network. Coverage: token
-verification and its failure modes, issuer pinning both on and off, the
-authentication class, account linking on migration, and co-host invite claiming
-including the unverified-email case.
+expiry, required claims) runs without network. Coverage: token verification and
+its failure modes, issuer pinning on and off, the authentication class, magic
+auth send/verify including enumeration safety, OAuth authorize/callback
+including the open-redirect guard, refresh and `me`, account linking on
+migration, co-host invite claiming including the unverified-email case, and
+send throttling.

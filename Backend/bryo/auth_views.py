@@ -1,12 +1,26 @@
 """
-Auth endpoints.
+Authentication endpoints.
 
-There is exactly one: POST /api/auth/sync/, called once per sign-in by the
-Next.js AuthKit callback. It is the only place in the codebase that talks to the
-WorkOS Management API — every other request authenticates purely locally through
-WorkOSAuthentication.
+Byro renders its own sign-in screen rather than redirecting to AuthKit's hosted
+page, so Django drives authentication: it asks WorkOS to email a Magic Auth
+code, redeems it, and exchanges OAuth codes for the Google/Apple buttons. On
+success it returns the WorkOS access and refresh tokens to the client.
 
-Byro issues no tokens of its own. The WorkOS access token is the credential.
+    POST /api/auth/magic/send/       {email}                -> always 200
+    POST /api/auth/magic/verify/     {email, code}          -> {user, tokens}
+    POST /api/auth/oauth/authorize/  {provider}             -> {authorization_url}
+    POST /api/auth/oauth/callback/   {code}                 -> {user, tokens}
+    POST /api/auth/refresh/          {refresh_token}        -> {tokens}
+    GET  /api/auth/me/                                      -> {user}
+
+Every other endpoint in the API authenticates locally against the returned
+access token via WorkOSAuthentication; nothing here is on that path.
+
+Note: tokens are returned in the JSON body, so they are reachable by
+JavaScript. That is a deliberate product decision — the alternative was
+httpOnly cookies set by Django. It means an XSS on the frontend can exfiltrate
+a session, so keep the access token in memory rather than localStorage if you
+can, and treat the short access-token lifetime as the mitigation.
 """
 
 import logging
@@ -14,14 +28,14 @@ import logging
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 from rest_framework import authentication, status
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
 from .models import EventCoHost, UserProfile
 from .services import workos_api
-from .services.workos_auth import verify_access_token
+from .services.workos_api import WorkOSAPIError
 
 logger = logging.getLogger(__name__)
 
@@ -30,21 +44,43 @@ from django.contrib.auth import get_user_model  # noqa: E402
 User = get_user_model()
 
 
-def _bearer_token(request):
-    parts = authentication.get_authorization_header(request).split()
-    if len(parts) == 2 and parts[0].lower() == b'bearer':
-        try:
-            return parts[1].decode()
-        except UnicodeError:
-            return None
-    return None
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _client_meta(request):
+    """IP and user agent, forwarded to WorkOS for its own abuse detection."""
+    forwarded = request.META.get('HTTP_X_FORWARDED_FOR', '')
+    ip = forwarded.split(',')[0].strip() if forwarded else request.META.get('REMOTE_ADDR')
+    return {
+        'ip_address': ip or None,
+        'user_agent': request.META.get('HTTP_USER_AGENT') or None,
+    }
+
+
+def _normalize_email(email):
+    return User.objects.normalize_email((email or '').strip()).lower()
+
+
+def _workos_user_fields(workos_user):
+    """
+    Flatten the SDK's User model into the handful of fields we store.
+
+    Accepts a dict too, so tests can pass plain fixtures.
+    """
+    if workos_user is None:
+        return {}
+    get = workos_user.get if isinstance(workos_user, dict) else lambda k, d=None: getattr(workos_user, k, d)
+    return {
+        'id': get('id'),
+        'email': get('email') or '',
+        'first_name': get('first_name') or '',
+        'last_name': get('last_name') or '',
+        'email_verified': bool(get('email_verified', False)),
+    }
 
 
 def _user_payload(user, profile):
-    """
-    The shape the frontend already expects from the old social_login response,
-    minus `tokens` — there are no Byro-issued tokens any more.
-    """
     return {
         'id': user.id,
         'email': user.email,
@@ -57,15 +93,20 @@ def _user_payload(user, profile):
     }
 
 
+def _token_payload(auth_response):
+    return {
+        'access': auth_response.access_token,
+        'refresh': auth_response.refresh_token,
+    }
+
+
 def claim_pending_cohost_invites(user):
     """
     Attach any co-host invitations addressed to this user's email.
 
     Guarded on email_verified: invites are claimed by email, so claiming on an
     unverified address would let anyone take over a co-host grant by signing up
-    with someone else's email.
-
-    Returns the number of invites claimed.
+    with someone else's address.
     """
     if not user.email_verified or not user.email:
         return 0
@@ -90,7 +131,6 @@ def claim_pending_cohost_invites(user):
                 invite.save(update_fields=['user', 'status', 'accepted_at'])
             claimed += 1
         except IntegrityError:
-            # Raced with another claim; the grant already exists either way.
             invite.delete()
 
     if claimed:
@@ -98,139 +138,277 @@ def claim_pending_cohost_invites(user):
     return claimed
 
 
-class AuthSyncView(APIView):
+def upsert_user(workos_user):
     """
-    POST /api/auth/sync/
-    Header: Authorization: Bearer <WorkOS access token>
+    Resolve the local user from a WorkOS profile, in order:
+    workos_id -> email -> create.
 
-    Verifies the token, upserts the local user, claims any co-host invites, and
-    returns the user + profile the frontend renders.
+    The email branch is the migration path: it silently links a pre-existing
+    Byro account to its WorkOS identity, so the user keeps the same row and
+    therefore all of their events and tickets.
 
-    Unauthenticated by DRF's reckoning — the whole point is that the local user
-    may not exist yet, so WorkOSAuthentication (which 401s on unknown `sub`)
-    must not run here.
+    Returns (user, created). Raises ValueError if WorkOS gave us no email —
+    fabricating a placeholder address is what produced the @web3auth.user rows
+    this migration exists to undo.
     """
+    fields = _workos_user_fields(workos_user)
+    workos_id = fields.get('id')
+    email = _normalize_email(fields.get('email'))
+    verified = fields.get('email_verified', False)
+
+    if not workos_id:
+        raise ValueError("WorkOS returned no user id")
+
+    with transaction.atomic():
+        user = User.objects.filter(workos_id=workos_id).first()
+
+        if user is None and email:
+            user = User.objects.filter(email__iexact=email).first()
+            if user is not None:
+                logger.info("Linking existing Byro account %s to WorkOS id %s", email, workos_id)
+
+        if user is None and not email:
+            raise ValueError("WorkOS returned a user with no email address")
+
+        if user is not None:
+            updates = {}
+            if user.workos_id != workos_id:
+                updates['workos_id'] = workos_id
+            if email and user.email.lower() != email:
+                updates['email'] = email
+            if verified and not user.email_verified:
+                updates['email_verified'] = True
+            if user.auth_provider != 'workos':
+                updates['auth_provider'] = 'workos'
+            if updates:
+                for field, value in updates.items():
+                    setattr(user, field, value)
+                user.save(update_fields=list(updates))
+            return user, False
+
+        user = User.objects.create_user(
+            email=email,
+            workos_id=workos_id,
+            auth_provider='workos',
+            email_verified=verified,
+        )
+        logger.info("Created Byro account %s for WorkOS id %s", email, workos_id)
+        return user, True
+
+
+def _backfill_display_name(profile, workos_user):
+    """Seed display_name from WorkOS on first sign-in; never overwrite one the user set."""
+    if profile.display_name:
+        return
+    fields = _workos_user_fields(workos_user)
+    name = ' '.join(p for p in [fields.get('first_name'), fields.get('last_name')] if p).strip()
+    if name:
+        profile.display_name = name
+        profile.save(update_fields=['display_name'])
+
+
+def complete_sign_in(auth_response):
+    """
+    Turn a successful WorkOS authentication into a Byro session response.
+
+    Shared by every sign-in route — Magic Auth and OAuth differ only in how
+    they obtain `auth_response`.
+    """
+    user, created = upsert_user(auth_response.user)
+    profile, _ = UserProfile.objects.get_or_create(user=user)
+    _backfill_display_name(profile, auth_response.user)
+    claimed = claim_pending_cohost_invites(user)
+
+    return {
+        'success': True,
+        'is_new_user': created,
+        'cohost_invites_claimed': claimed,
+        'user': _user_payload(user, profile),
+        'tokens': _token_payload(auth_response),
+    }
+
+
+class _AuthEndpoint(APIView):
+    """Unauthenticated by DRF's reckoning — these routes create the session."""
     authentication_classes = []
     permission_classes = [AllowAny]
     throttle_classes = [ScopedRateThrottle]
-    throttle_scope = 'auth_sync'
+
+
+# ---------------------------------------------------------------------------
+# Magic Auth — the email field on the sign-in screen
+# ---------------------------------------------------------------------------
+
+class MagicAuthSendView(_AuthEndpoint):
+    """
+    POST /api/auth/magic/send/   {email}
+
+    Always returns 200 with the same body, whether or not the address has an
+    account and whether or not WorkOS accepted it. Anything else turns this into
+    an account-enumeration oracle.
+    """
+    throttle_scope = 'auth_send'
 
     def post(self, request):
-        token = _bearer_token(request)
-        if not token:
+        email = _normalize_email(request.data.get('email'))
+        if not email or '@' not in email:
             return Response(
-                {'error': 'Authorization: Bearer <token> is required'},
-                status=status.HTTP_401_UNAUTHORIZED,
-            )
-
-        claims = verify_access_token(token)
-        if claims is None:
-            return Response(
-                {'error': 'Invalid or expired token'},
-                status=status.HTTP_401_UNAUTHORIZED,
-            )
-
-        workos_id = claims.get('sub')
-        if not workos_id:
-            return Response(
-                {'error': 'Token is missing a subject claim'},
+                {'error': 'A valid email address is required'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        user = User.objects.filter(workos_id=workos_id).first()
-
-        # The access token carries no email, so ask WorkOS. On a repeat sign-in
-        # this also picks up an address the user changed on WorkOS's side.
-        workos_user = workos_api.get_user(workos_id)
-
-        if user is None and not (workos_user or {}).get('email'):
-            # First sign-in and we cannot learn their email — either WorkOS was
-            # unreachable, or it returned a user with no address. Either way we
-            # refuse to create the account: inventing a placeholder is exactly
-            # what produced the @web3auth.user rows this migration is undoing.
-            if workos_user is None:
-                logger.error("Cannot resolve WorkOS user %s and no local record exists", workos_id)
-                detail = 'Could not reach the identity provider. Please try again.'
-            else:
-                logger.error("WorkOS user %s has no email address; refusing to create an account", workos_id)
-                detail = 'This identity has no email address. Add one in WorkOS and sign in again.'
-            return Response({'error': detail}, status=status.HTTP_502_BAD_GATEWAY)
-
-        try:
-            user, created = self._upsert_user(workos_id, user, workos_user)
-        except IntegrityError as e:
-            logger.error("Failed to upsert WorkOS user %s: %s", workos_id, e)
-            return Response(
-                {'error': 'Could not sync this account'},
-                status=status.HTTP_409_CONFLICT,
-            )
-
-        profile, _ = UserProfile.objects.get_or_create(user=user)
-        self._backfill_display_name(profile, workos_user)
-        claimed = claim_pending_cohost_invites(user)
+        workos_api.send_magic_auth_code(email, **_client_meta(request))
 
         return Response({
             'success': True,
-            'is_new_user': created,
-            'cohost_invites_claimed': claimed,
-            'user': _user_payload(user, profile),
+            'message': f'If an account can be created for {email}, a code is on its way.',
+            'expires_in': 600,
         })
 
-    def _upsert_user(self, workos_id, user, workos_user):
-        """
-        Resolve the local user, in order: workos_id -> email -> create.
 
-        The email branch is the migration path: it silently links a pre-existing
-        Byro account to its WorkOS identity, so the user keeps the same row and
-        therefore all of their events and tickets.
-        """
-        email = (workos_user or {}).get('email') or ''
-        email = User.objects.normalize_email(email).lower() if email else ''
-        verified = bool((workos_user or {}).get('email_verified', True)) if workos_user else False
+class MagicAuthVerifyView(_AuthEndpoint):
+    """POST /api/auth/magic/verify/   {email, code}"""
+    throttle_scope = 'auth_verify'
 
-        with transaction.atomic():
-            if user is None and email:
-                user = User.objects.filter(email__iexact=email).first()
-                if user is not None:
-                    logger.info("Linking existing Byro account %s to WorkOS id %s", email, workos_id)
+    def post(self, request):
+        email = _normalize_email(request.data.get('email'))
+        code = (request.data.get('code') or '').strip()
 
-            if user is not None:
-                updates = {}
-                if user.workos_id != workos_id:
-                    updates['workos_id'] = workos_id
-                if email and user.email.lower() != email:
-                    updates['email'] = email
-                if verified and not user.email_verified:
-                    updates['email_verified'] = True
-                if user.auth_provider != 'workos':
-                    updates['auth_provider'] = 'workos'
-
-                if updates:
-                    for field, value in updates.items():
-                        setattr(user, field, value)
-                    user.save(update_fields=list(updates))
-                return user, False
-
-            user = User.objects.create_user(
-                email=email,
-                workos_id=workos_id,
-                auth_provider='workos',
-                email_verified=verified,
+        if not email or not code:
+            return Response(
+                {'error': 'email and code are both required'},
+                status=status.HTTP_400_BAD_REQUEST,
             )
-            logger.info("Created Byro account %s for WorkOS id %s", email, workos_id)
-            return user, True
 
-    @staticmethod
-    def _backfill_display_name(profile, workos_user):
-        """Seed display_name from WorkOS on first sign-in; never overwrite one the user set."""
-        if profile.display_name or not workos_user:
-            return
-        name = ' '.join(
-            part for part in [
-                workos_user.get('first_name') or '',
-                workos_user.get('last_name') or '',
-            ] if part
-        ).strip()
-        if name:
-            profile.display_name = name
-            profile.save(update_fields=['display_name'])
+        try:
+            auth_response = workos_api.authenticate_with_magic_auth(
+                code=code, email=email, **_client_meta(request)
+            )
+        except WorkOSAPIError as e:
+            return Response({'error': str(e), 'code': e.code}, status=status.HTTP_401_UNAUTHORIZED)
+
+        try:
+            return Response(complete_sign_in(auth_response))
+        except ValueError as e:
+            logger.error("Magic auth succeeded but the local user could not be built: %s", e)
+            return Response({'error': str(e)}, status=status.HTTP_502_BAD_GATEWAY)
+        except IntegrityError as e:
+            logger.error("Failed to upsert user after magic auth: %s", e)
+            return Response({'error': 'Could not sync this account'}, status=status.HTTP_409_CONFLICT)
+
+
+# ---------------------------------------------------------------------------
+# OAuth — the Google and Apple buttons
+# ---------------------------------------------------------------------------
+
+class OAuthAuthorizeView(_AuthEndpoint):
+    """
+    POST /api/auth/oauth/authorize/   {provider}
+
+    Returns the URL to send the browser to. The redirect URI comes from
+    settings, never from the request — accepting a client-supplied one would
+    make this an open redirect and let an attacker harvest auth codes.
+    """
+    throttle_scope = 'auth_send'
+
+    def post(self, request):
+        provider = (request.data.get('provider') or '').strip()
+        if not provider:
+            return Response(
+                {'error': 'provider is required', 'supported': sorted(workos_api.OAUTH_PROVIDERS)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        from django.conf import settings
+        redirect_uri = getattr(settings, 'WORKOS_OAUTH_REDIRECT_URI', '')
+        if not redirect_uri:
+            logger.error("WORKOS_OAUTH_REDIRECT_URI is not configured")
+            return Response(
+                {'error': 'Social sign-in is not configured'},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        try:
+            url = workos_api.get_authorization_url(
+                provider=provider,
+                redirect_uri=redirect_uri,
+                state=request.data.get('state') or None,
+            )
+        except WorkOSAPIError as e:
+            code = status.HTTP_400_BAD_REQUEST if e.code == 'unsupported_provider' \
+                else status.HTTP_502_BAD_GATEWAY
+            return Response({'error': str(e), 'code': e.code}, status=code)
+
+        return Response({'success': True, 'authorization_url': url})
+
+
+class OAuthCallbackView(_AuthEndpoint):
+    """
+    POST /api/auth/oauth/callback/   {code}
+
+    The frontend receives `code` on its own callback route and posts it here to
+    be exchanged, which keeps tokens out of URLs and browser history.
+    """
+    throttle_scope = 'auth_verify'
+
+    def post(self, request):
+        code = (request.data.get('code') or '').strip()
+        if not code:
+            return Response({'error': 'code is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            auth_response = workos_api.authenticate_with_code(code=code, **_client_meta(request))
+        except WorkOSAPIError as e:
+            return Response({'error': str(e), 'code': e.code}, status=status.HTTP_401_UNAUTHORIZED)
+
+        try:
+            return Response(complete_sign_in(auth_response))
+        except ValueError as e:
+            logger.error("OAuth succeeded but the local user could not be built: %s", e)
+            return Response({'error': str(e)}, status=status.HTTP_502_BAD_GATEWAY)
+        except IntegrityError as e:
+            logger.error("Failed to upsert user after OAuth: %s", e)
+            return Response({'error': 'Could not sync this account'}, status=status.HTTP_409_CONFLICT)
+
+
+# ---------------------------------------------------------------------------
+# Session
+# ---------------------------------------------------------------------------
+
+class RefreshView(_AuthEndpoint):
+    """
+    POST /api/auth/refresh/   {refresh_token}
+
+    WorkOS access tokens are short-lived by design. A 401 here is the normal
+    end of a session (or a sign-out elsewhere), not an alarming failure.
+    """
+    throttle_scope = 'auth_refresh'
+
+    def post(self, request):
+        refresh_token = (request.data.get('refresh_token') or request.data.get('refresh') or '').strip()
+        if not refresh_token:
+            return Response({'error': 'refresh_token is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            auth_response = workos_api.authenticate_with_refresh_token(
+                refresh_token=refresh_token, **_client_meta(request)
+            )
+        except WorkOSAPIError as e:
+            return Response({'error': str(e), 'code': e.code}, status=status.HTTP_401_UNAUTHORIZED)
+
+        return Response({'success': True, 'tokens': _token_payload(auth_response)})
+
+
+class MeView(APIView):
+    """
+    GET /api/auth/me/
+
+    The current user and profile, for hydrating the UI after a reload. Uses the
+    normal WorkOSAuthentication path, so a 401 means the access token needs
+    refreshing.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        profile, _ = UserProfile.objects.get_or_create(user=request.user)
+        return Response({'success': True, 'user': _user_payload(request.user, profile)})

@@ -95,7 +95,7 @@ class Command(BaseCommand):
         else:
             self._fail("WORKOS_API_KEY is not set", "Add it to Backend/.env")
 
-        self.stdout.write(f"        base URL: {workos_api._base_url()}")
+        self.stdout.write(f"        base URL: {workos_api.base_url()}")
 
     def _check_jwks(self):
         self.stdout.write(self.style.MIGRATE_HEADING("\nJWKS (used to verify every request)"))
@@ -142,30 +142,27 @@ class Command(BaseCommand):
             self._skip("no API key configured")
             return
 
-        url = f"{workos_api._base_url()}/user_management/users"
+        # Deliberately goes through the SDK rather than raw HTTP, so this also
+        # proves the client the application itself uses is wired up correctly.
+        from workos import AuthenticationError, WorkOSError
+
         try:
-            response = requests.get(
-                url, headers=workos_api._headers(), params={"limit": 1}, timeout=self.timeout,
+            result = workos_api.client().user_management.list_users(limit=1)
+        except AuthenticationError as e:
+            self._fail(
+                "API key rejected",
+                f"{e}\n        Check WORKOS_API_KEY matches this environment.",
             )
-        except requests.RequestException as e:
+            return
+        except WorkOSError as e:
+            self._fail("Management API call failed", e)
+            return
+        except Exception as e:
             self._fail("Could not reach the Management API", e)
             return
 
-        if response.status_code == 401:
-            self._fail("API key rejected (401)", "Check WORKOS_API_KEY matches this environment.")
-            return
-        if response.status_code != 200:
-            self._fail(
-                f"Management API returned HTTP {response.status_code}",
-                response.text[:300],
-            )
-            return
-
-        try:
-            count = len(response.json().get("data", []))
-        except ValueError:
-            count = 0
-        self._ok(f"API key accepted (users endpoint returned {count} record(s))")
+        count = len(getattr(result, "data", None) or [])
+        self._ok(f"API key accepted via the SDK ({count} user record(s) returned)")
 
     def _discover_issuer(self):
         """
@@ -181,7 +178,7 @@ class Command(BaseCommand):
             return None, "no client id configured"
 
         authorize = (
-            f"{workos_api._base_url()}/user_management/authorize"
+            f"{workos_api.base_url()}/user_management/authorize"
             f"?client_id={client_id}&response_type=code"
             f"&redirect_uri=http%3A%2F%2Flocalhost%2F__issuer_probe__"
         )

@@ -20,7 +20,7 @@ CacheControl==0.14.3
 cachetools==5.5.2
 celery==5.4.0
 certifi==2025.4.26
-cffi==1.17.1
+cffi==2.1.1
 channels==4.2.0
 channels_redis==4.2.1
 chardet==5.2.0
@@ -33,7 +33,7 @@ click-plugins==1.1.1
 click-repl==0.3.0
 colorama==0.4.6
 crashtest==0.4.1
-cryptography==44.0.3
+cryptography==50.0.0
 cytoolz==1.0.1
 dataclasses==0.6
 deprecation==2.1.0
@@ -147,10 +147,8 @@ pycryptodome==3.23.0
 pydantic==2.11.5
 pydantic_core==2.33.2
 Pygments==2.19.1
-pyhpke==0.6.2
-PyJWT==2.10.1
+PyJWT==2.13.0
 pymongo==4.10.1
-pyOpenSSL==25.1.0
 pyparsing==3.2.3
 pypaystack2==2.0.3
 pyproject-api==1.10.0
@@ -191,7 +189,6 @@ tomli==2.3.0
 tomlkit==0.13.3
 toolz==1.0.0
 tornado==6.4.1
-tox==4.31.0
 tqdm==4.67.1
 trove-classifiers==2025.5.9.12
 types-requests==2.32.0.20250602
@@ -214,3 +211,4 @@ xattr==1.1.4
 yarl==1.20.0
 zipp==3.23.0
 zstandard==0.23.0
+workos==10.2.0

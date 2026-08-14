@@ -63,15 +63,23 @@ BREVO_SMTP_KEY = os.environ.get('BREVO_SMTP_KEY', '')
 #     determines the JWKS and issuer URLs used to verify access tokens.
 #   WORKOS_API_KEY: server-side secret, used only for Management API calls
 #     (fetching a user's email at sign-in, sending co-host invitations).
-#   WORKOS_ISSUER: optional. Pin the `iss` claim access tokens must carry.
-#     Leave unset until you have confirmed the real value with
-#     `manage.py check_workos --token <token>`, which prints it for you.
+#   WORKOS_ISSUER: optional. Pins the `iss` claim access tokens must carry —
+#     your hosted AuthKit domain, which is auto-generated and differs per
+#     environment. `manage.py check_workos` discovers it and flags a mismatch.
 #     Unset is still safe: WorkOS publishes JWKS per client, so a valid
 #     signature already proves the token was issued for this client.
 WORKOS_CLIENT_ID = config('WORKOS_CLIENT_ID', default='')
 WORKOS_API_KEY = config('WORKOS_API_KEY', default='')
 WORKOS_ISSUER = config('WORKOS_ISSUER', default='')
 WORKOS_API_BASE_URL = config('WORKOS_API_BASE_URL', default='https://api.workos.com')
+# Where WorkOS sends the browser back after a Google/Apple sign-in. Must match a
+# Redirect URI registered in the WorkOS dashboard. Read from settings and never
+# from the request — a client-supplied redirect would be an open redirect and
+# would let an attacker harvest authorization codes.
+WORKOS_OAUTH_REDIRECT_URI = config(
+    'WORKOS_OAUTH_REDIRECT_URI',
+    default=(os.environ.get('FRONTEND_URL', 'http://localhost:3000').rstrip('/') + '/auth/callback'),
+)
 
 
 INSTALLED_APPS = [
@@ -182,10 +190,16 @@ REST_FRAMEWORK = {
     'DEFAULT_THROTTLE_CLASSES': [
         'rest_framework.throttling.ScopedRateThrottle',
     ],
-    # Only scoped endpoints are throttled. `auth_sync` is unauthenticated and
-    # makes an outbound WorkOS call, so it is the one that needs a ceiling.
+    # Only scoped endpoints are throttled. The auth routes are unauthenticated
+    # and each makes an outbound WorkOS call, so they are what need a ceiling.
     'DEFAULT_THROTTLE_RATES': {
-        'auth_sync': '30/hour',
+        # Sending a code emails a third party and costs a WorkOS call, so this
+        # is the one worth keeping tight.
+        'auth_send': '15/hour',
+        # Verification is guessing a code; WorkOS caps attempts too, this is
+        # belt and braces.
+        'auth_verify': '30/hour',
+        'auth_refresh': '120/hour',
         'cohost_invite': '60/hour',
     },
 }
