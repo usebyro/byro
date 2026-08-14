@@ -48,6 +48,10 @@ ALLOWED_HOSTS = [
 
 BLOCKRADAR_API_KEY = os.environ.get('BLOCKRADAR_API_KEY')
 FRONTEND_URL = os.environ.get('FRONTEND_URL')
+# Canonical public site URL used in outbound emails (ticket links, etc.).
+# Defaults to the production custom domain so confirmation emails never point
+# at an internal/preview host even if FRONTEND_URL is set elsewhere.
+SITE_URL = os.environ.get('SITE_URL', 'https://usebyro.com')
 PAYSTACK_SECRET_KEY = config('PAYSTACK_SECRET_KEY', default='')
 PAYSTACK_PUBLIC_KEY = config('PAYSTACK_PUBLIC_KEY', default='')
 PAYSTACK_CALLBACK_URL = config('PAYSTACK_CALLBACK_URL', default='http://localhost:3000/payment/callback')
@@ -92,6 +96,8 @@ INSTALLED_APPS = [
     'rest_framework',
     'corsheaders',
     'drf_yasg',
+    'cloudinary',
+    'cloudinary_storage',
     'bryo',
 ]
 
@@ -273,13 +279,32 @@ SUPABASE_STORAGE_BUCKET = os.getenv('SUPABASE_STORAGE_BUCKET', 'event-images')
 
 ADMIN_SECRET = os.getenv('ADMIN_SECRET', '')
 
+# Cloudinary — primary media backend. django-cloudinary-storage reads these.
+CLOUDINARY_CLOUD_NAME = os.getenv('CLOUDINARY_CLOUD_NAME', '')
+CLOUDINARY_API_KEY = os.getenv('CLOUDINARY_API_KEY', '')
+CLOUDINARY_API_SECRET = os.getenv('CLOUDINARY_API_SECRET', '')
+
+CLOUDINARY_STORAGE = {
+    'CLOUD_NAME': CLOUDINARY_CLOUD_NAME,
+    'API_KEY': CLOUDINARY_API_KEY,
+    'API_SECRET': CLOUDINARY_API_SECRET,
+}
+
+_cloudinary_configured = bool(
+    CLOUDINARY_CLOUD_NAME and CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET
+)
+
+# Media backend priority: Cloudinary → Supabase → local filesystem.
+if _cloudinary_configured:
+    _default_storage_backend = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+elif SUPABASE_URL and SUPABASE_KEY:
+    _default_storage_backend = 'bryo.storage.SupabaseMediaStorage'
+else:
+    _default_storage_backend = 'django.core.files.storage.FileSystemStorage'
+
 STORAGES = {
     "default": {
-        "BACKEND": (
-            "bryo.storage.SupabaseMediaStorage"
-            if SUPABASE_URL and SUPABASE_KEY
-            else "django.core.files.storage.FileSystemStorage"
-        ),
+        "BACKEND": _default_storage_backend,
     },
     "staticfiles": {
         "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",

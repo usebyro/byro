@@ -41,25 +41,25 @@ const Hero = () => {
         <div className="inline-flex items-center gap-2 bg-white/90 backdrop-blur-sm border border-gray-100 rounded-full px-4 py-2 mb-8 shadow-sm">
           <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse flex-shrink-0" />
           <span className="text-sm text-gray-600 font-medium">
-            1,240 live events across Lagos this month
+            1,200+ events happening near you this month
           </span>
         </div>
 
         {/* Heading */}
         <h1 className="text-5xl sm:text-6xl md:text-7xl font-extrabold text-gray-900 mb-5 leading-[1.1] tracking-tight">
-          Find your next{" "}
+          Your next favourite event is{" "}
           <span
             className="italic text-blue-600"
             style={{ fontFamily: "Georgia, 'Times New Roman', serif", fontWeight: 700 }}
           >
-            night out
+            closer than you think
           </span>
         </h1>
 
         {/* Subtitle */}
         <p className="text-base sm:text-lg text-gray-500 max-w-xl mx-auto mb-10 leading-relaxed">
-          From sold-out concerts to Sunday derbies — discover, book
-          <br className="hidden sm:block" /> and hold every ticket in one place.
+          Discover events near you, buy tickets in seconds
+          <br className="hidden sm:block" /> and earn a badge for every one you attend.
         </p>
 
         {/* Search bar */}
@@ -125,7 +125,7 @@ const Hero = () => {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search artists, events, venues..."
+                placeholder="Search events, artists, venues"
                 className="flex-1 text-gray-700 text-sm placeholder-gray-400 focus:outline-none bg-transparent py-3.5"
               />
             </div>

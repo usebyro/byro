@@ -11,7 +11,8 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { Providers } from "@/redux/Providers";
 import CheckoutModal from "@/components/checkout/CheckoutModal";
-import { trackViewEvent, trackShareEvent, trackSaveEvent, trackBeginCheckout, withShareUtm } from "@/lib/analytics";
+import ShareMenu from "@/components/ShareMenu";
+import { trackViewEvent, trackShareEvent, trackSaveEvent, trackBeginCheckout } from "@/lib/analytics";
 import { calculateTicketFees } from "@/lib/pricing";
 
 /* ── helpers ── */
@@ -163,6 +164,16 @@ export default function ViewEventClient({ slug }) {
     return new Date(`1970-01-01T${event.time_from}`).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true });
   }, [event?.time_from]);
 
+  /* Registration closes one full day after the event has ended */
+  const registrationClosed = useMemo(() => {
+    if (!event?.day) return false;
+    const endTime = event.time_to || event.time_from || "23:59:59";
+    const eventEnd = new Date(`${event.day}T${endTime}`);
+    if (isNaN(eventEnd.getTime())) return false;
+    const closeAt = new Date(eventEnd.getTime() + 24 * 60 * 60 * 1000);
+    return new Date() > closeAt;
+  }, [event?.day, event?.time_to, event?.time_from]);
+
   if (loading) return (
     <div className="flex items-center justify-center min-h-screen bg-white">
       <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-blue-600" />
@@ -189,7 +200,18 @@ export default function ViewEventClient({ slug }) {
     : (isFree ? [] : [{ id: "general", name: "General Admission", desc: "", price: ticketPrice }]);
 
   const activeTier   = tiers.find(t => String(t.id) === String(selectedTier)) || tiers[0] || { price: 0, name: "" };
-  const { subtotal: tierSubtotal, serviceFee, total: tierTotal } = calculateTicketFees(activeTier.price * qty);
+  // A group tier (admits_count > 1) is a SINGLE ticket that admits several
+  // people, so its quantity is locked at 1 (the admits count becomes attendee
+  // slots at checkout, not extra tickets).
+  const isGroupTier = Number(activeTier?.admits_count) > 1;
+  const effectiveQty = isGroupTier ? 1 : qty;
+  const tierFees = calculateTicketFees(activeTier.price * effectiveQty);
+  const tierSubtotal = tierFees.subtotal;
+  // Buyer-facing "service fee" = everything added on top of the subtotal
+  // (Byro's 6.5% + the simulated Paystack cut), so the breakdown reconciles
+  // and the shown total equals what Paystack will actually charge.
+  const serviceFee = tierFees.displayTotal - tierFees.subtotal;
+  const tierTotal = tierFees.displayTotal;
 
   return (
     <Providers>
@@ -207,20 +229,16 @@ export default function ViewEventClient({ slug }) {
 
           {/* Top-right actions */}
           <div className="absolute top-5 right-5 flex items-center gap-2">
-            <button
-              onClick={() => {
-                trackShareEvent({ eventName: event.name, eventSlug: event.slug });
-                const shareUrl = withShareUtm(window.location.href, "event_share", event.slug);
-                if (navigator.share) {
-                  navigator.share({ title: event.name, url: shareUrl });
-                } else {
-                  navigator.clipboard.writeText(shareUrl).then(() => toast.success("Link copied!"));
-                }
-              }}
+            <ShareMenu
+              url={typeof window !== "undefined" ? window.location.href : ""}
+              title={event.name}
+              campaign="event_share"
+              content={event.slug}
+              onShare={(method) => trackShareEvent({ eventName: event.name, eventSlug: event.slug, method })}
               className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
             >
               <HugeiconsIcon icon={Share01Icon} size={16} color="white" />
-            </button>
+            </ShareMenu>
             <button
               onClick={() => { setSaved(s => !s); if (!saved) trackSaveEvent({ eventName: event.name, eventSlug: event.slug }); }}
               className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
@@ -303,7 +321,7 @@ export default function ViewEventClient({ slug }) {
                       {event.owner_handle ? `@${event.owner_handle}` : event.owner_email || "Byro Africa"}
                     </p>
                     <p className="text-xs text-gray-400">
-                      {event.owner_events_count ?? 0} event{event.owner_events_count === 1 ? "" : "s"} · Followers coming soon
+                      {event.owner_events_count ?? 0} event{event.owner_events_count === 1 ? "" : "s"} · 0 Followers
                     </p>
                   </div>
                 </button>
@@ -385,7 +403,11 @@ export default function ViewEventClient({ slug }) {
                     {tiers.map(tier => (
                       <button
                         key={tier.id}
-                        onClick={() => setSelectedTier(String(tier.id))}
+                        onClick={() => {
+                          setSelectedTier(String(tier.id));
+                          // Group tiers are one ticket — reset qty to 1.
+                          if (Number(tier.admits_count) > 1) setQty(1);
+                        }}
                         className={`w-full flex items-center justify-between p-3.5 rounded-xl border transition-colors text-left ${
                           String(selectedTier) === String(tier.id) ? "border-blue-400 bg-blue-50" : "border-gray-100 hover:border-gray-200"
                         }`}
@@ -418,10 +440,11 @@ export default function ViewEventClient({ slug }) {
                       >
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="5" y1="12" x2="19" y2="12" /></svg>
                       </button>
-                      <span className="w-5 text-center font-bold text-gray-900 text-sm">{qty}</span>
+                      <span className="w-5 text-center font-bold text-gray-900 text-sm">{effectiveQty}</span>
                       <button
-                        onClick={() => setQty(q => q + 1)}
-                        className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white hover:bg-blue-700 transition-colors"
+                        onClick={() => { if (!isGroupTier) setQty(q => q + 1); }}
+                        disabled={isGroupTier}
+                        className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white hover:bg-blue-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                           <line x1="12" y1="5" x2="12" y2="19" />
@@ -434,7 +457,7 @@ export default function ViewEventClient({ slug }) {
                   {/* Price breakdown */}
                   <div className="space-y-2 pb-4 mb-4 border-b border-gray-100 text-sm">
                     <div className="flex justify-between text-gray-600">
-                      <span>{qty} × {activeTier.name}</span>
+                      <span>{effectiveQty} × {activeTier.name}</span>
                       <span>{fmt(tierSubtotal)}</span>
                     </div>
                     <div className="flex justify-between text-gray-400">
@@ -479,12 +502,17 @@ export default function ViewEventClient({ slug }) {
                   });
                   setShowCheckout(true);
                 }}
-                  className="w-full bg-blue-600 text-white font-bold py-3.5 rounded-full hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 text-sm"
+                  disabled={registrationClosed}
+                  className="w-full bg-blue-600 text-white font-bold py-3.5 rounded-full hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 text-sm disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed disabled:hover:bg-gray-300"
                 >
-                  Buy ticket
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                    <path d="M5 12h14M12 5l7 7-7 7" />
-                  </svg>
+                  {registrationClosed ? "Registration closed" : (
+                    <>
+                      Buy ticket
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <path d="M5 12h14M12 5l7 7-7 7" />
+                      </svg>
+                    </>
+                  )}
                 </button>
               )}
 

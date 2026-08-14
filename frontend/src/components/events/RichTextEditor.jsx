@@ -4,15 +4,16 @@ import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 import { useEffect } from "react";
+import { HugeiconsIcon } from "@hugeicons/react";
 import {
-  Bold,
-  Italic,
-  Heading2,
-  Heading3,
-  List,
-  ListOrdered,
-  Minus,
-} from "lucide-react";
+  TextBoldIcon,
+  TextItalicIcon,
+  Heading02Icon,
+  Heading03Icon,
+  ListViewIcon,
+  LeftToRightListNumberIcon,
+  MinusSignIcon,
+} from "@hugeicons/core-free-icons";
 
 const ToolbarButton = ({ onClick, active, title, children }) => (
   <button
@@ -72,14 +73,14 @@ export default function RichTextEditor({ value, onChange, placeholder = "Tell at
           active={editor.isActive("bold")}
           title="Bold"
         >
-          <Bold size={14} />
+          <HugeiconsIcon icon={TextBoldIcon} size={14} color="currentColor" />
         </ToolbarButton>
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleItalic().run()}
           active={editor.isActive("italic")}
           title="Italic"
         >
-          <Italic size={14} />
+          <HugeiconsIcon icon={TextItalicIcon} size={14} color="currentColor" />
         </ToolbarButton>
 
         <div className="w-px h-4 bg-gray-200 mx-1" />
@@ -89,14 +90,14 @@ export default function RichTextEditor({ value, onChange, placeholder = "Tell at
           active={editor.isActive("heading", { level: 2 })}
           title="Heading"
         >
-          <Heading2 size={14} />
+          <HugeiconsIcon icon={Heading02Icon} size={14} color="currentColor" />
         </ToolbarButton>
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
           active={editor.isActive("heading", { level: 3 })}
           title="Subheading"
         >
-          <Heading3 size={14} />
+          <HugeiconsIcon icon={Heading03Icon} size={14} color="currentColor" />
         </ToolbarButton>
 
         <div className="w-px h-4 bg-gray-200 mx-1" />
@@ -106,14 +107,14 @@ export default function RichTextEditor({ value, onChange, placeholder = "Tell at
           active={editor.isActive("bulletList")}
           title="Bullet list"
         >
-          <List size={14} />
+          <HugeiconsIcon icon={ListViewIcon} size={14} color="currentColor" />
         </ToolbarButton>
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleOrderedList().run()}
           active={editor.isActive("orderedList")}
           title="Numbered list"
         >
-          <ListOrdered size={14} />
+          <HugeiconsIcon icon={LeftToRightListNumberIcon} size={14} color="currentColor" />
         </ToolbarButton>
 
         <div className="w-px h-4 bg-gray-200 mx-1" />
@@ -123,7 +124,7 @@ export default function RichTextEditor({ value, onChange, placeholder = "Tell at
           active={false}
           title="Divider"
         >
-          <Minus size={14} />
+          <HugeiconsIcon icon={MinusSignIcon} size={14} color="currentColor" />
         </ToolbarButton>
       </div>
 

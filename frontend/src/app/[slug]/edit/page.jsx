@@ -27,7 +27,7 @@ export default function EditEventPage() {
       })
       .catch(() => {
         toast.error("Failed to load event");
-        router.push("/events");
+        router.push("/home");
       })
       .finally(() => setLoading(false));
   }, [slug, router]);
@@ -35,8 +35,8 @@ export default function EditEventPage() {
   if (loading) {
     return (
       <AppLayout>
-        <div className="flex justify-center items-center min-h-[60vh]">
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500" />
+        <div className="flex justify-center items-center min-h-screen bg-white">
+          <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-blue-600" />
         </div>
       </AppLayout>
     );
@@ -48,16 +48,6 @@ export default function EditEventPage() {
     <AppLayout>
       <div className="bg-white min-h-screen">
         <div className="max-w-5xl mx-auto px-4 py-6">
-          {/* Header */}
-          <div className="flex items-center gap-3 mb-6">
-            <button
-              onClick={() => router.push(`/dashboard/events/${slug}`)}
-              className="text-gray-500 hover:text-gray-700 text-sm flex items-center gap-1"
-            >
-              ← Back
-            </button>
-            <h1 className="text-xl font-bold text-gray-900">Edit Event</h1>
-          </div>
           <EventCreationForm editSlug={slug} initialData={eventData} />
         </div>
       </div>

@@ -7,8 +7,8 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Calendar01Icon,
   MapPinIcon,
-  Search01Icon,
   Ticket01Icon,
+  CompassIcon,
 } from "@hugeicons/core-free-icons";
 import AppLayout from "@/layout/app";
 import API from "@/services/api";
@@ -195,31 +195,62 @@ function SkeletonRow() {
   );
 }
 
+const EMPTY_STATE = {
+  upcoming: {
+    icon: Calendar01Icon,
+    title: "No upcoming events",
+    subtitle: "Create an event of your own or discover one to attend.",
+    actions: true,
+  },
+  past: {
+    icon: Calendar01Icon,
+    title: "No past events",
+    subtitle: "Events you've attended will appear here.",
+    actions: false,
+  },
+  saved: {
+    icon: Ticket01Icon,
+    title: "No saved events",
+    subtitle: "Save events you're interested in to find them easily.",
+    actions: false,
+  },
+};
+
 function EmptyTab({ tab }) {
+  const { icon, title, subtitle, actions } = EMPTY_STATE[tab];
+
   return (
-    <div className="flex flex-col items-center justify-center py-20 text-center">
-      <div className="w-14 h-14 bg-gray-100 rounded-2xl flex items-center justify-center mb-4">
-        <HugeiconsIcon icon={Ticket01Icon} size={24} color="#d1d5db" />
+    <div className="border-2 border-dashed border-gray-200 rounded-3xl py-20 px-6 flex flex-col items-center justify-center text-center">
+      <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mb-5">
+        <HugeiconsIcon icon={icon} size={26} color="#9ca3af" />
       </div>
-      <p className="text-gray-700 font-semibold text-sm mb-1">
-        {tab === "upcoming"
-          ? "No upcoming events"
-          : tab === "past"
-          ? "No past events"
-          : "No saved events"}
-      </p>
-      <p className="text-gray-400 text-xs max-w-xs">
-        {tab === "upcoming"
-          ? "Events you're hosting or attending will appear here"
-          : tab === "past"
-          ? "Events you've attended will appear here"
-          : "Save events you're interested in to find them easily"}
-      </p>
+      <p className="text-gray-900 font-bold text-lg mb-1.5">{title}</p>
+      <p className="text-gray-400 text-sm max-w-xs mb-6">{subtitle}</p>
+      {actions && (
+        <div className="flex items-center gap-3 flex-wrap justify-center">
+          <Link
+            href="/events/create"
+            className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm px-5 py-3 rounded-full transition-colors"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+            Create event
+          </Link>
+          <Link
+            href="/discover"
+            className="inline-flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-sm px-5 py-3 rounded-full transition-colors"
+          >
+            <HugeiconsIcon icon={CompassIcon} size={15} color="currentColor" />
+            Discover events
+          </Link>
+        </div>
+      )}
     </div>
   );
 }
 
-export default function EventsPage() {
+export default function HomePage() {
   const [dashboard, setDashboard] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("upcoming");
@@ -285,42 +316,36 @@ export default function EventsPage() {
 
   return (
     <AppLayout>
-      <div className="min-h-screen bg-[#F1F5F9]">
+      <div className="min-h-screen bg-white">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
 
-          {/* Top bar */}
-          <div className="flex items-center justify-end mb-6">
-            <Link
-              href="/discover"
-              className="flex items-center gap-2 bg-[#1F6BFF] text-white text-sm font-semibold px-4 py-2.5 rounded-xl hover:bg-blue-700 transition-colors"
-            >
-              <HugeiconsIcon icon={Search01Icon} size={14} color="white" />
-              Find an event
-            </Link>
-          </div>
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
+            <div>
+              <h1 className="text-3xl sm:text-4xl font-extrabold text-gray-900 tracking-tight mb-1">
+                Your events
+              </h1>
+              <p className="text-gray-500 text-sm sm:text-base">
+                Events you are attending or hosting, all in one place.
+              </p>
+            </div>
 
-          {/* Tabs */}
-          <div className="flex gap-6 border-b border-gray-200 mb-5">
-            {tabs.map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`pb-3 text-sm font-semibold flex items-center gap-1.5 border-b-2 -mb-px transition-colors ${
-                  activeTab === tab.id
-                    ? "border-[#1F6BFF] text-gray-900"
-                    : "border-transparent text-gray-400 hover:text-gray-600"
-                }`}
-              >
-                {tab.label}
-                {!loading && (
-                  <span className={`text-xs font-bold ${
-                    activeTab === tab.id ? "text-[#1F6BFF]" : "text-gray-300"
-                  }`}>
-                    {tab.count}
-                  </span>
-                )}
-              </button>
-            ))}
+            {/* Tabs */}
+            <div className="inline-flex items-center gap-1 bg-gray-100 rounded-full p-1 self-start">
+              {tabs.map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors ${
+                    activeTab === tab.id
+                      ? "bg-white text-gray-900 shadow-sm"
+                      : "text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Content */}

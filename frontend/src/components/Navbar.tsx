@@ -1,33 +1,41 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useWeb3AuthConnect, useWeb3AuthDisconnect, useIdentityToken } from "@web3auth/modal/react";
 import { usePathname, useRouter } from "next/navigation";
 import { useSelector, useDispatch } from "react-redux";
 import { toast } from "react-toastify";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { CompassIcon, UserGroupIcon, Calendar02Icon } from "@hugeicons/core-free-icons";
 import API from "@/services/api";
 import { signOut, authSuccess } from "@/redux/auth/authSlice";
+import UserMenu from "@/components/auth/UserMenu";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-const navLinks = [
-  { label: "Discover", href: "/discover" },
-  { label: "Events", href: "/events" },
-  { label: "Pricing", href: "/pricing" },
-  { label: "Blog", href: "/blog" },
+type NavLink = {
+  label: string;
+  href: string;
+  icon: typeof CompassIcon;
+  disabled?: boolean;
+};
+
+const navLinks: NavLink[] = [
+  { label: "Discover", href: "/discover", icon: CompassIcon },
+  { label: "Events", href: "/home", icon: Calendar02Icon },
+  { label: "Communities", href: "/communities", icon: UserGroupIcon },
 ];
 
 const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSigningIn, setIsSigningIn] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const { connect, isConnected, loading: connectLoading } = useWeb3AuthConnect();
   const { disconnect } = useWeb3AuthDisconnect();
   const { getIdentityToken } = useIdentityToken();
   const pathname = usePathname();
-  const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
-  const profileDropdownRef = useRef<HTMLDivElement>(null);
   const dispatch = useDispatch();
   const router = useRouter();
   const { user, token } = useSelector(
@@ -38,7 +46,7 @@ const Navbar = () => {
   const exchangeWithBackend = useCallback(async () => {
     try {
       const idToken = await getIdentityToken();
-      if (!idToken) return false;
+      if (!idToken) return null;
       const res = await fetch(`${API_URL}auth/social/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -48,15 +56,15 @@ const Navbar = () => {
       if (data.success) {
         API.setAuthToken(data.tokens.access);
         dispatch(authSuccess({ user: data.user, token: data.tokens.access }));
-        return true;
+        return data.user;
       }
       console.error("[Auth] backend rejected:", data.error);
       await disconnect();
-      return false;
+      return null;
     } catch (err) {
       console.error("[Auth] exchange failed:", err);
       await disconnect();
-      return false;
+      return null;
     }
   }, [getIdentityToken, disconnect, dispatch]);
 
@@ -65,9 +73,10 @@ const Navbar = () => {
     try {
       const provider = await connect();
       if (!provider) return;
-      const success = await exchangeWithBackend();
-      if (success) {
-        router.push("/events");
+      const newUser = await exchangeWithBackend();
+      if (newUser) {
+        const needsProfile = !newUser.display_name && !newUser.displayName && !newUser.handle;
+        router.push(needsProfile ? "/profile?onboarding=1" : "/home");
       } else {
         toast.error("Sign in failed. Please try again.");
       }
@@ -91,29 +100,40 @@ const Navbar = () => {
     }
   }, [token]);
 
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (
-        profileDropdownRef.current &&
-        !profileDropdownRef.current.contains(event.target as Node)
-      ) {
-        setIsProfileDropdownOpen(false);
-      }
-    }
-    if (isProfileDropdownOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [isProfileDropdownOpen]);
-
   const isActive = (href: string) => pathname === href;
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = searchQuery.trim();
+    router.push(trimmed ? `/discover?search=${encodeURIComponent(trimmed)}` : "/discover");
+  };
+
+  const pathnameRef = useRef(pathname);
+  useEffect(() => {
+    pathnameRef.current = pathname;
+  }, [pathname]);
+
+  // Live-filter Discover as the user types, without waiting for submit.
+  // Skip the very first run so mounting with an empty query doesn't
+  // clobber a ?search= param the user arrived with via a direct link.
+  const skippedInitialSearchEffect = useRef(false);
+  useEffect(() => {
+    if (!skippedInitialSearchEffect.current) {
+      skippedInitialSearchEffect.current = true;
+      return;
+    }
+    if (pathnameRef.current !== "/discover") return;
+    const trimmed = searchQuery.trim();
+    const handle = setTimeout(() => {
+      router.replace(trimmed ? `/discover?search=${encodeURIComponent(trimmed)}` : "/discover");
+    }, 300);
+    return () => clearTimeout(handle);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery]);
 
   const handleLogout = async () => {
     await disconnect();
     dispatch(signOut());
-    setIsProfileDropdownOpen(false);
   };
 
   return (
@@ -134,43 +154,61 @@ const Navbar = () => {
 
           {/* Nav Links */}
           <div className="flex items-center space-x-6">
-            {navLinks.map((link) => (
-              <Link
-                key={link.label}
-                href={link.href}
-                className={`text-sm font-medium transition-colors ${
-                  isActive(link.href)
-                    ? "text-blue-600"
-                    : "text-gray-600 hover:text-gray-900"
-                }`}
-              >
-                {link.label}
-              </Link>
-            ))}
+            {navLinks
+              .filter((link) => link.label !== "Events" || isLoggedIn)
+              .map((link) => {
+              const isDisabled = link.disabled;
+              return isDisabled ? (
+                <span
+                  key={link.label}
+                  aria-disabled="true"
+                  title="Coming soon"
+                  className="flex items-center gap-1.5 text-sm font-medium text-gray-300 cursor-not-allowed select-none"
+                >
+                  {link.icon && <HugeiconsIcon icon={link.icon} size={16} color="currentColor" />}
+                  {link.label}
+                </span>
+              ) : (
+                <Link
+                  key={link.label}
+                  href={link.href}
+                  className={`flex items-center gap-1.5 text-sm font-medium transition-colors ${
+                    isActive(link.href)
+                      ? "text-blue-600"
+                      : "text-gray-600 hover:text-gray-900"
+                  }`}
+                >
+                  {link.icon && <HugeiconsIcon icon={link.icon} size={16} color="currentColor" />}
+                  {link.label}
+                </Link>
+              );
+            })}
           </div>
 
           {/* Search Bar */}
-          <div className="flex-1 max-w-md mx-8">
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Search events"
-                className="w-full bg-gray-50 border border-gray-200 text-black rounded-full py-2 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-              <svg
-                className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <circle cx="11" cy="11" r="8" />
-                <path d="M21 21l-4.35-4.35" />
-              </svg>
-            </div>
-          </div>
+          {pathname !== "/" && (
+            <form onSubmit={handleSearchSubmit} className="flex-1 max-w-md mx-8">
+              <div className="relative">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search events"
+                  className="w-full bg-gray-50 border border-gray-200 text-black rounded-full py-2 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                <button
+                  type="submit"
+                  aria-label="Search"
+                  className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="11" cy="11" r="8" />
+                    <path d="M21 21l-4.35-4.35" />
+                  </svg>
+                </button>
+              </div>
+            </form>
+          )}
 
           {/* Right Actions */}
           <div className="flex items-center space-x-4">
@@ -185,44 +223,7 @@ const Navbar = () => {
                   </svg>
                   Create event
                 </Link>
-                <div className="relative" ref={profileDropdownRef}>
-                  <button
-                    onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
-                    className="w-9 h-9 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-medium hover:bg-blue-700 transition-colors"
-                  >
-                    {user?.display_name?.charAt(0)?.toUpperCase() || user?.email?.charAt(0)?.toUpperCase() || "U"}
-                  </button>
-                  {isProfileDropdownOpen && (
-                    <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-100 rounded-xl shadow-lg z-50 overflow-hidden">
-                      <div className="p-3 border-b border-gray-100">
-                        <p className="font-semibold text-gray-900 text-sm">{user?.display_name || "User"}</p>
-                        <p className="text-xs text-gray-500 truncate">{user?.email || ""}</p>
-                      </div>
-                      <div className="p-2">
-                        <Link
-                          href="/profile"
-                          className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg"
-                          onClick={() => setIsProfileDropdownOpen(false)}
-                        >
-                          Profile
-                        </Link>
-                        <Link
-                          href="/events"
-                          className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg"
-                          onClick={() => setIsProfileDropdownOpen(false)}
-                        >
-                          My Events
-                        </Link>
-                        <button
-                          onClick={handleLogout}
-                          className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg"
-                        >
-                          Log Out
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
+                <UserMenu user={user} onLogout={handleLogout} />
               </>
             ) : (
               <>
@@ -268,44 +269,7 @@ const Navbar = () => {
                 >
                   + Create
                 </Link>
-                <div className="relative" ref={profileDropdownRef}>
-                  <button
-                    onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
-                    className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-medium"
-                  >
-                    {user?.display_name?.charAt(0)?.toUpperCase() || user?.email?.charAt(0)?.toUpperCase() || "U"}
-                  </button>
-                  {isProfileDropdownOpen && (
-                    <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-100 rounded-xl shadow-lg z-50 overflow-hidden">
-                      <div className="p-3 border-b border-gray-100">
-                        <p className="font-semibold text-gray-900 text-sm">{user?.display_name || "User"}</p>
-                        <p className="text-xs text-gray-500 truncate">{user?.email || ""}</p>
-                      </div>
-                      <div className="p-2">
-                        <Link
-                          href="/profile"
-                          className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg"
-                          onClick={() => setIsProfileDropdownOpen(false)}
-                        >
-                          Profile
-                        </Link>
-                        <Link
-                          href="/events"
-                          className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg"
-                          onClick={() => setIsProfileDropdownOpen(false)}
-                        >
-                          My Events
-                        </Link>
-                        <button
-                          onClick={handleLogout}
-                          className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg"
-                        >
-                          Log Out
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
+                <UserMenu user={user} onLogout={handleLogout} size="sm" />
               </>
             ) : (
               <>
@@ -337,16 +301,31 @@ const Navbar = () => {
         {isMenuOpen && !isLoggedIn && (
           <div className="lg:hidden pb-4 border-t border-gray-100">
             <div className="pt-4 space-y-2">
-              {navLinks.map((link) => (
-                <Link
-                  key={link.label}
-                  href={link.href}
-                  className="block px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 rounded-lg"
-                  onClick={() => setIsMenuOpen(false)}
-                >
-                  {link.label}
-                </Link>
-              ))}
+              {navLinks
+                .filter((link) => link.label !== "Events")
+                .map((link) => {
+                const isDisabled = link.disabled;
+                return isDisabled ? (
+                  <span
+                    key={link.label}
+                    aria-disabled="true"
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-300 cursor-not-allowed select-none"
+                  >
+                    {link.icon && <HugeiconsIcon icon={link.icon} size={16} color="currentColor" />}
+                    {link.label}
+                  </span>
+                ) : (
+                  <Link
+                    key={link.label}
+                    href={link.href}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 rounded-lg"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    {link.icon && <HugeiconsIcon icon={link.icon} size={16} color="currentColor" />}
+                    {link.label}
+                  </Link>
+                );
+              })}
             </div>
           </div>
         )}

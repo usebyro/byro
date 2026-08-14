@@ -112,7 +112,7 @@ class TicketTierSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = TicketTier
-        fields = ['id', 'name', 'price', 'capacity', 'order', 'remaining', 'sold']
+        fields = ['id', 'name', 'price', 'capacity', 'admits_count', 'order', 'remaining', 'sold']
         read_only_fields = ['id']
 
     def get_remaining(self, obj):
@@ -140,6 +140,11 @@ class TicketTierSerializer(serializers.ModelSerializer):
     def validate_price(self, value):
         if value < 0:
             raise serializers.ValidationError("Price cannot be negative.")
+        return value
+
+    def validate_admits_count(self, value):
+        if value is None or value < 1:
+            raise serializers.ValidationError("A ticket must admit at least 1 person.")
         return value
 
 

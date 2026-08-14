@@ -18,21 +18,24 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://usebyro.com").replace(/\/+$/, "");
+
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: {
-    default: "Byro - Create and Host Unforgettable Events",
+    default: "Byro. Build Communities and Discover Events",
     template: "%s | Byro",
   },
   description:
-    "Create your event page and host an unforgettable event today with Byro!",
+    "Create communities. Discover events. Create memories. Byro is the community events platform built for organisers and attendees.",
+  alternates: { canonical: "/" },
   keywords: [
-    "event management",
-    "ticket sales",
-    "event hosting",
-    "event creation",
+    "community events",
+    "discover events",
+    "event communities",
     "event platform",
-    "event ticketing",
-    "event experience",
+    "memory badges",
+    "community platform",
   ],
   authors: [{ name: "Byro" }],
   creator: "Byro",
@@ -41,23 +44,23 @@ export const metadata: Metadata = {
     locale: "en_US",
     url: "https://usebyro.com",
     siteName: "Byro",
-    title: "Byro - Create and Host Unforgettable Events",
+    title: "Byro. Build Communities and Discover Events",
     description:
-      "Create your event page and host an unforgettable event today with Byro!",
+      "Create communities. Discover events. Create memories. Byro is the community events platform built for organisers and attendees.",
     images: [
       {
         url: "/assets/waitlist.png",
         width: 1200,
         height: 630,
-        alt: "Byro - Event Management Platform",
+        alt: "Byro. Community Events Platform",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Byro - Create and Host Unforgettable Events",
+    title: "Byro. Build Communities and Discover Events",
     description:
-      "Create your event page and host an unforgettable event today with Byro!",
+      "Create communities. Discover events. Create memories. Byro is the community events platform built for organisers and attendees.",
     images: ["/assets/waitlist.png"],
     creator: "@byroafrica",
   },
@@ -126,6 +129,27 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify([
+              {
+                "@context": "https://schema.org",
+                "@type": "Organization",
+                name: "Byro",
+                url: SITE_URL,
+                logo: `${SITE_URL}/favicon_io/android-chrome-512x512.png`,
+                sameAs: ["https://twitter.com/byroafrica"],
+              },
+              {
+                "@context": "https://schema.org",
+                "@type": "WebSite",
+                name: "Byro",
+                url: SITE_URL,
+              },
+            ]),
+          }}
+        />
         <Toaster
           position="top-right"
           richColors

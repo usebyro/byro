@@ -35,7 +35,7 @@ from .serializers import EventSerializer, TicketSerializer, PaymentSerializer, T
 from .permissions import IsEventOwnerOrCoHost, IsEventOwner, IsAdminSecret
 from django.db import transaction
 from django.db import models
-from django.db.models import Q, Min, OuterRef, Subquery, Sum, Count
+from django.db.models import Q, Min, OuterRef, Subquery, Sum, Count, F
 from django.db.models.functions import TruncDate
 from django.db.models.functions import Coalesce
 from django.http import JsonResponse
@@ -77,7 +77,7 @@ def _pending_reservation_count(payments_qs):
     """
     cutoff = timezone.now() - timedelta(minutes=30)
     pending = payments_qs.filter(status='pending', created_at__gte=cutoff)
-    return sum(p.metadata.get('quantity', 1) for p in pending)
+    return sum(p.metadata.get('seats', p.metadata.get('quantity', 1)) for p in pending)
 
 
 def lock_and_check_capacity(event, tier_id, quantity):
@@ -96,7 +96,7 @@ def lock_and_check_capacity(event, tier_id, quantity):
         if tier.capacity is not None:
             sold = tier.tickets.filter(payment_status__in=['paid', 'free']).count()
             reserved = _pending_reservation_count(tier.payments.all())
-            if sold + reserved + quantity > tier.capacity:
+            if sold + reserved + _seats_for(tier, quantity) > tier.capacity:
                 raise InsufficientCapacityError("Not enough tickets available in this tier")
         return tier
 
@@ -123,8 +123,7 @@ def send_ticket_confirmation_email(ticket, customer_name, customer_email, event)
         {"question": a.question.question, "answer": str(a.answer)}
         for a in EventFormAnswer.objects.filter(ticket=ticket).select_related('question')
     ]
-    frontend_url = settings.FRONTEND_URL or "https://usebyro.com"
-    ticket_url = f"{frontend_url}/ticket/{ticket.ticket_id}"
+    ticket_url = f"{settings.SITE_URL}/ticket/{ticket.ticket_id}"
     date_str = event.day.strftime('%A, %B %d, %Y') if event.day else ''
     time_str = event.time_from.strftime('%I:%M %p') if event.time_from else ''
     email_data = ticket_confirmation_email(
@@ -192,6 +191,75 @@ def send_cohost_invite_email(email, event, inviter, is_new_user=False):
         )
     except Exception as e:
         logger.error("Failed to send co-host invite email to %s: %s", email, e)
+def _seats_for(tier, quantity):
+    """Total attendee slots a purchase produces = quantity × people-per-ticket.
+
+    A group tier (admits_count > 1) is a SINGLE ticket that admits several
+    people, so one ticket yields admits_count attendee slots."""
+    admits = tier.admits_count if tier is not None else 1
+    return quantity * max(admits or 1, 1)
+
+
+def _normalize_attendees(attendees_raw, seats, buyer_name, buyer_email):
+    """
+    Return exactly `seats` {'name','email'} dicts. Seat #1 is the buyer.
+    Values come from the client-supplied per-seat list; any blank seat
+    (or missing entry) falls back to the buyer's name/email.
+    """
+    extras = attendees_raw if isinstance(attendees_raw, list) else []
+    result = []
+    for i in range(seats):
+        item = extras[i] if i < len(extras) and isinstance(extras[i], dict) else {}
+        name = (item.get('name') or '').strip()
+        email = (item.get('email') or '').strip()
+        result.append({
+            'name': name or buyer_name,
+            'email': email or buyer_email,
+        })
+    return result
+
+
+def _create_tickets(event, tier, attendees, *, payment_status, payment=None, user=None):
+    """Create one Ticket row per attendee (each its own QR)."""
+    tickets = []
+    for att in attendees:
+        tickets.append(Ticket.objects.create(
+            event=event,
+            tier=tier,
+            payment=payment,
+            user=user,
+            original_owner_name=att['name'],
+            original_owner_email=att['email'],
+            current_owner_name=att['name'],
+            current_owner_email=att['email'],
+            payment_status=payment_status,
+        ))
+    return tickets
+
+
+def _email_tickets(tickets, event):
+    """Send each ticket to its own attendee (own QR)."""
+    for t in tickets:
+        try:
+            send_ticket_confirmation_email(
+                t, t.current_owner_name, t.current_owner_email, event
+            )
+        except Exception as email_err:
+            logger.error(f"Failed to send ticket confirmation email: {email_err}")
+
+
+def _attendees_from_payment(payment):
+    """Rebuild the per-seat attendee list stored at initialize time.
+
+    Falls back to the buyer for every seat on older payments that predate
+    attendee capture (using seats = quantity × people-per-ticket).
+    """
+    quantity = payment.metadata.get('quantity', 1)
+    seats = payment.metadata.get('seats') or _seats_for(payment.tier, quantity)
+    return _normalize_attendees(
+        payment.metadata.get('attendees'), seats,
+        payment.customer_name, payment.customer_email,
+    )
 
 
 class PaystackPaymentViewSet(viewsets.ViewSet):
@@ -223,6 +291,7 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
         customer_name = request.data.get('customer_name')
         quantity = int(request.data.get('quantity', 1))
         tier_id = request.data.get('tier_id')
+        attendees_raw = request.data.get('attendees')
 
         if not all([event_slug, customer_email, customer_name]):
             return Response(
@@ -239,6 +308,10 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
         except InsufficientCapacityError as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
+        # Resolve per-seat attendees (seat #1 = buyer).
+        seats = _seats_for(tier, quantity)
+        attendees = _normalize_attendees(attendees_raw, seats, customer_name, customer_email)
+
         # Calculate amount (tier price takes precedence over the legacy flat price)
         unit_price = tier.price if tier is not None else event.ticket_price
         subtotal = unit_price * quantity
@@ -248,31 +321,18 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
         # For free events/tiers, create ticket(s) directly
         linked_user = request.user if request.user.is_authenticated else None
         if amount == 0:
-            tickets = []
             with transaction.atomic():
                 # Re-check capacity under lock right before creating tickets,
                 # in case another request consumed the remaining slots since
                 # the check above.
                 lock_and_check_capacity(event, tier_id, quantity)
-                for _ in range(quantity):
-                    ticket = Ticket.objects.create(
-                        event=event,
-                        tier=tier,
-                        user=linked_user,
-                        original_owner_name=customer_name,
-                        original_owner_email=customer_email,
-                        current_owner_name=customer_name,
-                        current_owner_email=customer_email,
-                        payment_status='free'
-                    )
-                    tickets.append(ticket)
+                tickets = _create_tickets(
+                    event, tier, attendees,
+                    payment_status='free', user=linked_user,
+                )
 
-            # Send confirmation email for free tickets
-            try:
-                if tickets:
-                    send_ticket_confirmation_email(tickets[0], customer_name, customer_email, event)
-            except Exception as email_err:
-                logger.error(f"Failed to send free ticket email: {email_err}")
+            # Send each free ticket to its own attendee
+            _email_tickets(tickets, event)
 
             return Response({
                 'status': 'success',
@@ -300,6 +360,7 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                 'event_name': event.name,
                 'customer_name': customer_name,
                 'quantity': quantity,
+                'seats': seats,
                 'tier_id': tier.id if tier is not None else None,
                 'subtotal': str(fees['subtotal']),
                 'service_fee': str(fees['service_fee']),
@@ -337,12 +398,14 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                     ip_address=self.get_client_ip(request),
                     metadata={
                         'quantity': quantity,
+                        'seats': seats,
+                        'attendees': attendees,
                         'user_id': linked_user.id if linked_user else None,
                         'tier_id': tier.id if tier is not None else None,
                         'subtotal': str(fees['subtotal']),
                         'service_fee': str(fees['service_fee']),
                         'paystack_fee': str(fees['paystack_fee']),
-                        'platform_fee': str(fees['platform_fee']),
+                        'display_total': str(fees['display_total']),
                     }
                 )
 
@@ -410,20 +473,15 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
 
                 if payment.status == 'successful':
                     # Recover any missing tickets (e.g. due to a prior bug,
-                    # or a partial failure on an earlier verify/webhook call)
+                    # or a partial failure on an earlier verify/webhook call).
+                    # Fill the remaining seats from the stored attendee list.
                     existing_tickets = list(payment.tickets_purchased.all())
-                    quantity = payment.metadata.get('quantity', 1)
-                    for _ in range(quantity - len(existing_tickets)):
-                        existing_tickets.append(Ticket.objects.create(
-                            event=payment.event,
-                            tier=payment.tier,
-                            payment=payment,
-                            user=ticket_user,
-                            original_owner_name=payment.customer_name,
-                            original_owner_email=payment.customer_email,
-                            current_owner_name=payment.customer_name,
-                            current_owner_email=payment.customer_email,
-                            payment_status='paid',
+                    attendees = _attendees_from_payment(payment)
+                    missing = attendees[len(existing_tickets):]
+                    if missing:
+                        existing_tickets.extend(_create_tickets(
+                            payment.event, payment.tier, missing,
+                            payment_status='paid', payment=payment, user=ticket_user,
                         ))
                     return Response({
                         'status': 'success',
@@ -439,32 +497,14 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                     payment.paid_at = timezone.now()
                     payment.save()
 
-                    # Create ticket(s)
-                    quantity = payment.metadata.get('quantity', 1)
-                    tickets = []
+                    # Create one ticket per attendee (each its own QR)
+                    tickets = _create_tickets(
+                        payment.event, payment.tier, _attendees_from_payment(payment),
+                        payment_status='paid', payment=payment, user=ticket_user,
+                    )
 
-                    for _ in range(quantity):
-                        ticket = Ticket.objects.create(
-                            event=payment.event,
-                            tier=payment.tier,
-                            payment=payment,
-                            user=ticket_user,
-                            original_owner_name=payment.customer_name,
-                            original_owner_email=payment.customer_email,
-                            current_owner_name=payment.customer_name,
-                            current_owner_email=payment.customer_email,
-                            payment_status='paid',
-                        )
-                        tickets.append(ticket)
-
-                    # Send ticket confirmation email
-                    try:
-                        if tickets:
-                            send_ticket_confirmation_email(
-                                tickets[0], payment.customer_name, payment.customer_email, payment.event
-                            )
-                    except Exception as email_err:
-                        logger.error(f"Failed to send ticket confirmation email: {email_err}")
+                    # Send each ticket to its attendee
+                    _email_tickets(tickets, payment.event)
 
                     return Response({
                         'status': 'success',
@@ -535,8 +575,8 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                     payment.save()
 
                 existing_count = payment.tickets_purchased.count()
-                quantity = payment.metadata.get('quantity', 1)
-                if existing_count < quantity:
+                attendees = _attendees_from_payment(payment)
+                if existing_count < len(attendees):
                     stored_uid = payment.metadata.get('user_id')
                     webhook_user = None
                     if stored_uid:
@@ -544,30 +584,14 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                         User = get_user_model()
                         webhook_user = User.objects.filter(pk=stored_uid).first()
 
-                    new_tickets = []
-                    for _ in range(quantity - existing_count):
-                        new_tickets.append(Ticket.objects.create(
-                            event=payment.event,
-                            tier=payment.tier,
-                            payment=payment,
-                            user=webhook_user,
-                            original_owner_name=payment.customer_name,
-                            original_owner_email=payment.customer_email,
-                            current_owner_name=payment.customer_name,
-                            current_owner_email=payment.customer_email,
-                            payment_status='paid',
-                        ))
+                    # Create only the still-missing seats, and email just those
+                    missing = attendees[existing_count:]
+                    new_tickets = _create_tickets(
+                        payment.event, payment.tier, missing,
+                        payment_status='paid', payment=payment, user=webhook_user,
+                    )
+                    _email_tickets(new_tickets, payment.event)
 
-                    # Send ticket confirmation email
-                    all_tickets = list(payment.tickets_purchased.all())
-                    try:
-                        if all_tickets:
-                            send_ticket_confirmation_email(
-                                all_tickets[0], payment.customer_name, payment.customer_email, payment.event
-                            )
-                    except Exception as email_err:
-                        logger.error(f"Failed to send webhook ticket email: {email_err}")
-                    
             except Payment.DoesNotExist:
                 pass  # Ignore if payment doesn't exist
         
@@ -1682,6 +1706,49 @@ class TicketTransferViewSet(viewsets.ModelViewSet):
 # Payout endpoints
 # ---------------------------------------------------------------------------
 
+def compute_available_balance(user, event=None):
+    """
+    Funds an organizer can currently withdraw.
+
+    = ticket revenue on events they own or co-host
+      (price of every sold/paid ticket — tier price, or the event's flat
+      ticket_price for tier-less events; free tickets contribute nothing)
+    − sum of payout requests that are still pending or already processed
+      (rejected requests don't hold funds).
+
+    Revenue is taken from tickets actually sold, not from Payment.amount,
+    since the payment total also includes the service fee that never
+    belongs to the organizer.
+
+    When `event` is given, the balance is scoped to that single event.
+    """
+    if event is not None:
+        event_ids = [event.pk]
+    else:
+        event_ids = list(
+            Event.objects.filter(
+                Q(owner=user) | Q(cohosts__user=user)
+            ).values_list('pk', flat=True).distinct()
+        )
+
+    ticket_price = Coalesce(
+        F('tier__price'), F('event__ticket_price'), Decimal('0')
+    )
+    earned = (
+        Ticket.objects.filter(event_id__in=event_ids, payment_status='paid')
+        .aggregate(total=Coalesce(Sum(ticket_price), Decimal('0')))['total']
+    )
+
+    payouts = PayoutRequest.objects.filter(
+        user=user, status__in=['pending', 'processed']
+    )
+    if event is not None:
+        payouts = payouts.filter(event=event)
+    withdrawn = payouts.aggregate(total=Coalesce(Sum('amount'), Decimal('0')))['total']
+
+    return earned - withdrawn
+
+
 class PayoutRequestView(APIView):
     """
     GET  /api/payouts/  — organizer's own payout history
@@ -1705,6 +1772,20 @@ class PayoutRequestView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
+        available = compute_available_balance(request.user, event=event)
+        if available <= 0:
+            return Response(
+                {'error': 'You have no funds available to withdraw.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        amount = serializer.validated_data.get('amount')
+        if amount is not None and amount > available:
+            return Response(
+                {'error': f'Amount exceeds your available balance of {available}.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         payout = serializer.save(user=request.user)
 
         # Persist bank details to user profile for pre-fill next time
@@ -1715,7 +1796,47 @@ class PayoutRequestView(APIView):
             profile.account_name = payout.account_name or profile.account_name
             profile.save(update_fields=['bank_name', 'account_number', 'account_name'])
 
+        try:
+            from .emails import payout_requested_email
+            from .mailer import send_email
+            email_data = payout_requested_email(
+                name=request.user.get_full_name() or request.user.email,
+                amount=payout.amount,
+                bank_name=payout.bank_name,
+                account_number=payout.account_number,
+                event_name=payout.event.name if payout.event else None,
+            )
+            send_email(
+                to=request.user.email,
+                subject=email_data['subject'],
+                html=email_data['html'],
+                text=email_data['text'],
+            )
+        except Exception as e:
+            logger.error(f"Failed to send payout request email for payout {payout.pk}: {e}")
+
         return Response(PayoutRequestSerializer(payout).data, status=status.HTTP_201_CREATED)
+
+
+class PayoutBalanceView(APIView):
+    """GET /api/payouts/balance/ — organizer's available/paid-out/pending totals."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        available = compute_available_balance(request.user)
+        payouts = PayoutRequest.objects.filter(user=request.user)
+        paid_out = sum(
+            (p.amount for p in payouts if p.status == 'processed'), Decimal('0')
+        )
+        pending = sum(
+            (p.amount for p in payouts if p.status == 'pending'), Decimal('0')
+        )
+        return Response({
+            'available': str(available),
+            'paid_out': str(paid_out),
+            'pending': str(pending),
+            'currency': 'NGN',
+        })
 
 
 class AdminPayoutView(APIView):
@@ -1743,6 +1864,27 @@ class AdminPayoutView(APIView):
         if new_status == 'processed':
             payout.processed_at = timezone.now()
         payout.save(update_fields=['status', 'processed_at'])
+
+        if new_status == 'processed':
+            try:
+                from .emails import payout_completed_email
+                from .mailer import send_email
+                email_data = payout_completed_email(
+                    name=payout.user.get_full_name() or payout.user.email,
+                    amount=payout.amount,
+                    bank_name=payout.bank_name,
+                    account_number=payout.account_number,
+                    event_name=payout.event.name if payout.event else None,
+                )
+                send_email(
+                    to=payout.user.email,
+                    subject=email_data['subject'],
+                    html=email_data['html'],
+                    text=email_data['text'],
+                )
+            except Exception as e:
+                logger.error(f"Failed to send payout email for payout {pk}: {e}")
+
         return Response(PayoutRequestSerializer(payout).data)
 
 

@@ -101,7 +101,7 @@ export const TicketConfirmation = (name, eventName, date, time, location, ticket
         <table cellpadding="0" cellspacing="0" style="width:100%;margin-bottom:0;">
           <tr>
             <td style="text-align:center;">
-              <a href="https://usebyro.com" style="display:block;background:#3b82f6;color:#ffffff;text-decoration:none;font-size:15px;font-weight:700;padding:16px 32px;border-radius:12px;text-align:center;">View my tickets</a>
+              <a href="https://usebyro.com" style="display:block;background:#3b82f6;color:#ffffff;text-decoration:none;font-size:15px;font-weight:700;padding:16px 32px;border-radius:12px;text-align:center;">View my ticket</a>
             </td>
           </tr>
         </table>

@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { useWeb3AuthDisconnect } from "@web3auth/modal/react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Share01Icon,
@@ -24,6 +24,7 @@ import AppLayout from "@/layout/app";
 import { authSuccess, signOut } from "@/redux/auth/authSlice";
 import API from "@/services/api";
 import { toast } from "sonner";
+import ShareMenu from "@/components/ShareMenu";
 
 const PREFERENCES = [
   { id: "entertainment", label: "Concerts",    icon: MusicNote01Icon },
@@ -34,15 +35,16 @@ const PREFERENCES = [
   { id: "festivals",     label: "Festivals",   icon: FireworksIcon },
 ];
 
-export default function ProfilePage() {
+function ProfilePageContent() {
   const router   = useRouter();
+  const searchParams = useSearchParams();
   const dispatch = useDispatch();
   const { user, token } = useSelector((s) => s.auth);
   const { disconnect } = useWeb3AuthDisconnect();
 
   const [profile,     setProfile]     = useState(null);
   const [loading,     setLoading]     = useState(true);
-  const [isEditing,   setIsEditing]   = useState(false);
+  const [isEditing,   setIsEditing]   = useState(() => searchParams.get("onboarding") === "1");
   const [isSaving,    setIsSaving]    = useState(false);
   const [avatarFile,  setAvatarFile]  = useState(null);
   const [avatarPreview, setAvatarPreview] = useState("");
@@ -103,6 +105,13 @@ export default function ProfilePage() {
       router.push("/");
     }
   }, [loading, token, user, router]);
+
+  // ── Welcome new users into profile setup ──
+  useEffect(() => {
+    if (searchParams.get("onboarding") === "1") {
+      toast.message("Welcome to Byro!", { description: "Let's finish setting up your profile." });
+    }
+  }, [searchParams]);
 
   const field = (key, val) => setForm((f) => ({ ...f, [key]: val }));
 
@@ -239,7 +248,7 @@ export default function ProfilePage() {
                       </span>
                     </div>
                     {profile?.handle && (
-                      <p className="text-xs text-blue-500 font-medium mt-0.5">usebyro.com/u/{profile.handle}</p>
+                      <p className="text-xs text-blue-500 font-medium mt-0.5">@{profile.handle}</p>
                     )}
                     {profile?.email && (
                       <p className="text-xs text-gray-400 mt-0.5">{profile.email}</p>
@@ -265,13 +274,26 @@ export default function ProfilePage() {
                     <HugeiconsIcon icon={Settings01Icon} size={14} />
                     Edit Profile
                   </button>
-                  <button
-                    onClick={handleShare}
-                    className="px-4 py-2.5 border border-gray-200 rounded-full text-gray-500 hover:bg-gray-50 transition-colors"
-                    aria-label="Share"
-                  >
-                    <HugeiconsIcon icon={Share01Icon} size={16} />
-                  </button>
+                  {profile?.handle ? (
+                    <ShareMenu
+                      url={typeof window !== "undefined" ? `${window.location.origin}/u/${profile.handle}` : ""}
+                      title={profile?.display_name || profile.handle}
+                      campaign="profile_share"
+                      content={profile.handle}
+                      className="px-4 py-2.5 border border-gray-200 rounded-full text-gray-500 hover:bg-gray-50 transition-colors"
+                      aria-label="Share"
+                    >
+                      <HugeiconsIcon icon={Share01Icon} size={16} />
+                    </ShareMenu>
+                  ) : (
+                    <button
+                      onClick={handleShare}
+                      className="px-4 py-2.5 border border-gray-200 rounded-full text-gray-500 hover:bg-gray-50 transition-colors"
+                      aria-label="Share"
+                    >
+                      <HugeiconsIcon icon={Share01Icon} size={16} />
+                    </button>
+                  )}
                   <button
                     onClick={handleSignOut}
                     className="px-4 py-2.5 border border-red-200 hover:bg-red-50 text-red-500 rounded-full transition-colors"
@@ -402,6 +424,14 @@ export default function ProfilePage() {
 
       </div>
     </AppLayout>
+  );
+}
+
+export default function ProfilePage() {
+  return (
+    <Suspense fallback={null}>
+      <ProfilePageContent />
+    </Suspense>
   );
 }
 
