@@ -5,7 +5,6 @@ import { useSearchParams } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import EventCard from "@/components/landing/EventCard";
-import Link from "next/link";
 import API from "@/services/api";
 
 interface Event {
@@ -39,7 +38,6 @@ const WHEN_OPTIONS = [
   { value: "today", label: "Today", count: null as null },
   { value: "weekend", label: "This weekend", count: null as null },
   { value: "month", label: "This month", count: null as null },
-  { value: "custom", label: "Pick a date", count: null as null },
 ];
 
 const SORT_OPTIONS = [
@@ -216,15 +214,6 @@ function DiscoverPageContent() {
       <Navbar />
       <main className="min-h-screen bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          {/* Breadcrumb */}
-          <div className="flex items-center gap-2 text-sm text-gray-500 mb-4">
-            <Link href="/" className="hover:text-gray-900 transition-colors">
-              Discover
-            </Link>
-            <span>·</span>
-            <span>All events</span>
-          </div>
-
           {/* Page title */}
           <h1 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-8">
             Events in{" "}

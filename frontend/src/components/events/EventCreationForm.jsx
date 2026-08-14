@@ -108,10 +108,8 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
 
   /* form state */
   const [eventName, setEventName] = useState("");
-  const [categories, setCategories] = useState(CATEGORIES);
+  const categories = CATEGORIES;
   const [category, setCategory] = useState("entertainment");
-  const [showAddCategoryInput, setShowAddCategoryInput] = useState(false);
-  const [newCategoryName, setNewCategoryName] = useState("");
   const [description, setDescription] = useState("");
   const [date, setDate] = useState("");
   const [timeFrom, setTimeFrom] = useState("");
@@ -455,71 +453,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
                     )}
                   </button>
                 ))}
-
-                {!showAddCategoryInput && (
-                  <button
-                    type="button"
-                    onClick={() => setShowAddCategoryInput(true)}
-                    className="flex flex-col items-center justify-center p-5 rounded-2xl border-2 border-dashed border-gray-200 hover:border-blue-500 hover:bg-blue-50/20 transition-all text-gray-400 hover:text-blue-600 min-h-[108px]"
-                  >
-                    <HugeiconsIcon icon={Add01Icon} size={24} color="currentColor" />
-                    <span className="text-xs font-semibold mt-2">Add New</span>
-                  </button>
-                )}
               </div>
-
-              {showAddCategoryInput && (
-                <div className="mt-3 p-4 border border-blue-100 bg-blue-50/30 rounded-xl flex flex-col sm:flex-row items-center gap-2">
-                  <input
-                    type="text"
-                    value={newCategoryName}
-                    onChange={e => setNewCategoryName(e.target.value)}
-                    placeholder="e.g. Workshops, Festivals"
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <div className="flex gap-2 w-full sm:w-auto shrink-0 justify-end">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (!newCategoryName.trim()) return;
-                        const id = newCategoryName.trim().toLowerCase().replace(/\s+/g, "_");
-                        if (categories.some(c => c.id === id)) {
-                          toast.error("Category already exists");
-                          return;
-                        }
-                        const newCat = {
-                          id,
-                          label: newCategoryName.trim(),
-                          gradient: "from-indigo-600 to-blue-500",
-                          icon: (
-                            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
-                              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
-                            </svg>
-                          )
-                        };
-                        setCategories(prev => [...prev, newCat]);
-                        setCategory(id);
-                        setNewCategoryName("");
-                        setShowAddCategoryInput(false);
-                        toast.success(`Category "${newCategoryName.trim()}" added!`);
-                      }}
-                      className="bg-blue-600 text-white text-xs font-semibold px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-                    >
-                      Add
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowAddCategoryInput(false);
-                        setNewCategoryName("");
-                      }}
-                      className="border border-gray-200 text-gray-600 text-xs font-medium px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              )}
             </div>
 
             {/* Description */}
