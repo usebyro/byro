@@ -17,6 +17,14 @@ from .views import (
     AdminAnalyticsSummaryView,
     AdminAnalyticsRevenueTrendView,
 )
+from .auth_views import (
+    MagicAuthSendView,
+    MagicAuthVerifyView,
+    MeView,
+    OAuthAuthorizeView,
+    OAuthCallbackView,
+    RefreshView,
+)
 
 
 router = DefaultRouter()
@@ -32,9 +40,15 @@ router.register(r'profile', ProfileViewSet, basename='profile')
 urlpatterns = [
     path('api/', include(router.urls)),
 
-    # Auth
-    path('api/auth/privy/', views.privy_login, name='privy_login'),
-    path('api/auth/social/', views.social_login, name='social_login'),
+    # Auth — WorkOS. Django drives sign-in because Byro renders its own UI
+    # rather than redirecting to AuthKit's hosted page. Every other request
+    # authenticates locally via WorkOSAuthentication.
+    path('api/auth/magic/send/', MagicAuthSendView.as_view(), name='auth_magic_send'),
+    path('api/auth/magic/verify/', MagicAuthVerifyView.as_view(), name='auth_magic_verify'),
+    path('api/auth/oauth/authorize/', OAuthAuthorizeView.as_view(), name='auth_oauth_authorize'),
+    path('api/auth/oauth/callback/', OAuthCallbackView.as_view(), name='auth_oauth_callback'),
+    path('api/auth/refresh/', RefreshView.as_view(), name='auth_refresh'),
+    path('api/auth/me/', MeView.as_view(), name='auth_me'),
 
     # Dashboard
     path('api/dashboard/', DashboardView.as_view(), name='dashboard'),

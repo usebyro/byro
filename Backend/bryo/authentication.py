@@ -1,51 +1,63 @@
-from django.contrib.auth.backends import BaseBackend
-from django.contrib.auth.models import User
-from .services.privy_auth import PrivyAuthService
+"""
+DRF authentication against WorkOS AuthKit access tokens.
 
-class PrivyAuthenticationBackend(BaseBackend):
-    def authenticate(self, request, privy_token=None):
-        if not privy_token:
+This is the only credential the API accepts. Byro signs nothing.
+
+The hot path is deliberately cheap and offline: verify the JWT against the
+cached JWKS, then one indexed lookup on CustomUser.workos_id. A token for a
+`sub` we have never seen is rejected with 401 rather than triggering a WorkOS
+API call — the frontend is expected to call POST /api/auth/sync/ once at
+sign-in, which is where a local user row gets created.
+"""
+
+from django.contrib.auth import get_user_model
+from rest_framework import authentication, exceptions
+
+from .services.workos_auth import verify_access_token
+
+User = get_user_model()
+
+
+class WorkOSAuthentication(authentication.BaseAuthentication):
+    keyword = 'Bearer'
+
+    def authenticate(self, request):
+        auth_header = authentication.get_authorization_header(request).split()
+
+        if not auth_header or auth_header[0].lower() != self.keyword.lower().encode():
+            # No bearer credentials — let AllowAny views (public events, guest
+            # registration, Paystack webhooks) proceed as anonymous.
             return None
-        
-        decoded_token = PrivyAuthService.verify_token(privy_token)
-        if not decoded_token:
-            return None
-        
-        print("=== IDENTITY TOKEN DEBUG ===")
-        print(f"Full decoded token: {decoded_token}")
-        print("=== END DEBUG ===")
-        
-        privy_user_id = decoded_token.get('sub')
-        
-        if not privy_user_id:
-            return None
-        
-        email = ''
-        name = ''
-        
-        linked_accounts = decoded_token.get('linked_accounts', [])
-        for account in linked_accounts:
-            if account.get('type') == 'email':
-                email = account.get('address', '')
-                break
-        
-        if not email:
-            email = decoded_token.get('email', '')
-        
-        name = decoded_token.get('name', '')
-        
-        print(f"Extracted - ID: {privy_user_id}, Email: {email}, Name: {name}")
-        
+
+        if len(auth_header) == 1:
+            raise exceptions.AuthenticationFailed('Invalid token header: no credentials provided.')
+        if len(auth_header) > 2:
+            raise exceptions.AuthenticationFailed('Invalid token header: token must not contain spaces.')
+
         try:
-            user = User.objects.get(username=privy_user_id)
-            if email and user.email != email:
-                user.email = email
-                user.save()
-        except User.DoesNotExist:
-            user = User.objects.create_user(
-                username=privy_user_id,
-                email=email,
-                first_name=name.split(' ')[0] if name else '',
-            )
-        
-        return user
+            token = auth_header[1].decode()
+        except UnicodeError:
+            raise exceptions.AuthenticationFailed('Invalid token header: token is not valid UTF-8.')
+
+        claims = verify_access_token(token)
+        if claims is None:
+            raise exceptions.AuthenticationFailed('Invalid or expired token.')
+
+        workos_id = claims.get('sub')
+        if not workos_id:
+            raise exceptions.AuthenticationFailed('Token is missing a subject claim.')
+
+        user = User.objects.filter(workos_id=workos_id).first()
+        if user is None:
+            # Valid token, unknown user: they have authenticated with WorkOS but
+            # have no Byro record yet. /api/auth/sync/ creates it.
+            raise exceptions.AuthenticationFailed('No Byro account for this identity. Call /api/auth/sync/ first.')
+
+        if not user.is_active:
+            raise exceptions.AuthenticationFailed('This account is inactive.')
+
+        return (user, claims)
+
+    def authenticate_header(self, request):
+        # Makes DRF return 401 rather than 403 for unauthenticated requests.
+        return self.keyword

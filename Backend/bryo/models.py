@@ -48,16 +48,29 @@ class CustomUser(AbstractUser):
 
     # Provider-agnostic identity fields.
     AUTH_PROVIDER_CHOICES = [
+        ("workos", "WorkOS"),
         ("privy", "Privy"),
         ("web3auth", "Web3Auth"),
     ]
     auth_provider = models.CharField(
         max_length=50,
         choices=AUTH_PROVIDER_CHOICES,
-        default="privy",
+        default="workos",
         blank=True,
     )
     external_id = models.CharField(max_length=255, unique=True, null=True, blank=True)
+
+    # WorkOS user id ("user_01H..."). The canonical identity key: every
+    # authenticated request resolves to a user through this column, so it is
+    # indexed and unique. Null only for legacy rows that have not signed in
+    # since the cutover.
+    workos_id = models.CharField(
+        max_length=255, unique=True, null=True, blank=True, db_index=True
+    )
+
+    # True once WorkOS confirms the address. Co-host invites are claimed by
+    # email, so an unverified address must never be allowed to claim one.
+    email_verified = models.BooleanField(default=False)
 
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = []
@@ -296,13 +309,28 @@ class Event(models.Model):
                 if attempt == attempts - 1:
                     raise
     
+    def is_cohost(self, user):
+        """
+        True only for an *accepted* co-host.
+
+        Pending invites carry user=NULL so they could not match a real user
+        anyway, but the status filter is stated explicitly here so that a future
+        code path which attaches a user without accepting cannot quietly grant
+        edit rights. Every co-host access check goes through this method.
+        """
+        if user is None or not user.is_authenticated:
+            return False
+        return self.cohosts.filter(
+            user=user, status=EventCoHost.STATUS_ACCEPTED
+        ).exists()
+
     def is_owner_or_cohost(self, user):
         """Check if user is owner or co-host of this event"""
         if not user.is_authenticated:
             return False
         if self.owner == user:
             return True
-        return self.cohosts.filter(user=user).exists()
+        return self.is_cohost(user)
     
     
     def get_user_role(self, user):
@@ -341,7 +369,7 @@ class Event(models.Model):
             }
         
         # Check if user is a co-host
-        if self.cohosts.filter(user=user).exists():
+        if self.is_cohost(user):
             return {
                 'role': 'cohost',
                 'is_owner': False,
@@ -374,12 +402,36 @@ class Event(models.Model):
 
 
 class EventCoHost(models.Model):
-    """Model to track event co-hosts"""
+    """
+    Event co-host grant.
+
+    A row can exist before its person does: organisers invite by email, and the
+    invitee may never have signed in. Those rows are `pending` with a null
+    `user`, and are claimed at sign-in once WorkOS has verified the address.
+
+    A pending row grants nothing — every access check filters on
+    status=ACCEPTED. See Event.get_user_role and the permission classes.
+    """
+    STATUS_PENDING = 'pending'
+    STATUS_ACCEPTED = 'accepted'
+    STATUS_CHOICES = [
+        (STATUS_PENDING, 'Pending'),
+        (STATUS_ACCEPTED, 'Accepted'),
+    ]
+
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='cohosts')
     user = models.ForeignKey(
-        settings.AUTH_USER_MODEL, 
+        settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
-        related_name='cohosted_events'
+        related_name='cohosted_events',
+        null=True,
+        blank=True,
+    )
+    # The address the organiser invited. Kept even after the invite is claimed,
+    # so the grant remains auditable.
+    invited_email = models.EmailField(blank=True, default='', db_index=True)
+    status = models.CharField(
+        max_length=20, choices=STATUS_CHOICES, default=STATUS_ACCEPTED, db_index=True
     )
     added_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -387,13 +439,28 @@ class EventCoHost(models.Model):
         related_name='added_cohosts'
     )
     added_at = models.DateTimeField(auto_now_add=True)
-    
+    accepted_at = models.DateTimeField(null=True, blank=True)
+
     class Meta:
-        unique_together = ('event', 'user')
         ordering = ['-added_at']
-    
+        constraints = [
+            # One grant per person per event, once they exist.
+            models.UniqueConstraint(
+                fields=['event', 'user'],
+                condition=models.Q(user__isnull=False),
+                name='unique_cohost_per_event',
+            ),
+            # And one outstanding invite per address per event.
+            models.UniqueConstraint(
+                fields=['event', 'invited_email'],
+                condition=models.Q(user__isnull=True),
+                name='unique_pending_cohost_invite_per_event',
+            ),
+        ]
+
     def __str__(self):
-        return f"{self.user.email} - Co-host of {self.event.name}"
+        who = self.user.email if self.user else f"{self.invited_email} (pending)"
+        return f"{who} - Co-host of {self.event.name}"
 
 
 

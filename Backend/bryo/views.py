@@ -4,6 +4,10 @@ from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
+from rest_framework.throttling import ScopedRateThrottle
+from django.core.validators import validate_email
+from django.core.exceptions import ValidationError as DjangoValidationError
+from .services import workos_api
 from .serializers import (
     WaitListSerializer, EventSerializer, TicketSerializer,
     TicketTransferSerializer, PaymentInitializeSerializer,
@@ -19,13 +23,9 @@ from django.utils.text import slugify
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import never_cache
 from django.http import JsonResponse
-from django.contrib.auth import authenticate, get_user_model, login
-from django.contrib.auth.decorators import login_required
-from rest_framework_simplejwt.tokens import RefreshToken
-from .services.privy_auth import PrivyAuthService
-from .services.auth_factory import get_auth_service, SUPPORTED_PROVIDERS
+from django.contrib.auth import get_user_model
 from .models import (
-    PrivyUser, WaitList, Event, Ticket, TicketTransfer,
+    WaitList, Event, Ticket, TicketTransfer,
     EventCoHost, Payment, UserProfile, EventFormQuestion, EventFormAnswer,
     TicketTier, PayoutRequest,
 )
@@ -158,6 +158,39 @@ def send_ticket_confirmation_email(ticket, customer_name, customer_email, event)
     )
 
 
+def send_cohost_invite_email(email, event, inviter, is_new_user=False):
+    """
+    Notify someone that they've been made a co-host.
+
+    Best-effort: a mail failure must not undo the grant, which is already
+    committed by the time this runs. Mirrors send_ticket_confirmation_email's
+    use of the Resend/Brevo mailer.
+    """
+    from .emails import cohost_invite_email
+    from .mailer import send_email
+
+    try:
+        frontend_url = (settings.FRONTEND_URL or "https://usebyro.com").rstrip('/')
+        inviter_profile = getattr(inviter, 'profile', None)
+        inviter_name = (
+            (inviter_profile.display_name if inviter_profile else '')
+            or inviter.get_full_name()
+            or inviter.email
+        )
+        email_data = cohost_invite_email(
+            event_name=event.name,
+            inviter_name=inviter_name,
+            event_url=f"{frontend_url}/{event.slug}",
+            is_new_user=is_new_user,
+        )
+        send_email(
+            to=email,
+            subject=email_data['subject'],
+            html=email_data['html'],
+            text=email_data['text'],
+        )
+    except Exception as e:
+        logger.error("Failed to send co-host invite email to %s: %s", email, e)
 def _seats_for(tier, quantity):
     """Total attendee slots a purchase produces = quantity × people-per-ticket.
 
@@ -597,320 +630,6 @@ class WaitListViewSet(viewsets.ModelViewSet):
 
 
 
-@csrf_exempt
-def privy_login(request):
-    """
-    Authenticate user using Privy token (identity_token or privy_access_token).
-    Backend verifies the token and creates/updates user record.
-    """
-    if request.method == 'POST':
-        try:
-            data = json.loads(request.body)
-            
-            # Get the token - support multiple token field names
-            token = (
-                data.get('identity_token') or 
-                data.get('privy_access_token') or 
-                data.get('token') or
-                data.get('accessToken')
-            )
-            
-            if not token:
-                return JsonResponse({
-                    'error': 'Privy token is required',
-                    'details': 'Please provide identity_token or privy_access_token'
-                }, status=400)
-            
-            # Verify the Privy token using PrivyAuthService
-            logger.info("Verifying Privy token...")
-            decoded_token = PrivyAuthService.verify_token(token)
-            
-            if not decoded_token:
-                logger.error("Privy token verification failed")
-                return JsonResponse({
-                    'error': 'Invalid or expired Privy token',
-                    'details': 'Token verification failed. Please login again with Privy.'
-                }, status=401)
-            
-            # Extract user data from verified token
-            privy_id = decoded_token.get('sub')  # sub contains the did:privy:xxx
-            
-            if not privy_id:
-                return JsonResponse({
-                    'error': 'Invalid token payload',
-                    'details': 'Token missing required user identifier'
-                }, status=400)
-            
-            # Clean the privy ID (remove did:privy: prefix)
-            clean_privy_id = privy_id.replace('did:privy:', '') if privy_id.startswith('did:privy:') else privy_id
-            
-            # Try to get email from request body first (frontend can send it)
-            email = data.get('email')
-            
-            # If email not provided in request, try to fetch from Privy API
-            if not email:
-                logger.info(f"Email not in request, fetching user data for Privy ID: {privy_id}")
-                try:
-                    privy_user_data = PrivyAuthService.get_user_data(privy_id)
-                    
-                    if privy_user_data:
-                        # Extract email from linked accounts
-                        linked_accounts = privy_user_data.get('linked_accounts', [])
-                        for account in linked_accounts:
-                            if account.get('type') == 'email':
-                                email = account.get('address')
-                                break
-                except Exception as api_error:
-                    logger.warning(f"Could not fetch user data from Privy API: {api_error}")
-                    # Continue without email from API
-            
-            # If still no email, generate a temporary one based on privy_id
-            # User can update it later in their profile
-            if not email:
-                logger.info(f"No email found, creating user with Privy ID only: {clean_privy_id}")
-                email = f"{clean_privy_id}@privy.user"
-            
-            # Resolve or create the user — must be idempotent.
-            # privy_id is the canonical identity; email is a fallback for
-            # users who existed before Privy was introduced.
-            try:
-                from django.db import IntegrityError
-
-                with transaction.atomic():
-                    # 1. Fastest path: user already has this privy_id
-                    user = User.objects.filter(privy_id=clean_privy_id).first()
-
-                    if not user and email:
-                        # 2. Existing account matched by email (pre-Privy user)
-                        user = User.objects.filter(email=email).first()
-                        if user:
-                            if not user.privy_id:
-                                User.objects.filter(pk=user.pk).update(privy_id=clean_privy_id)
-                                user.refresh_from_db()
-                            # else: user has a DIFFERENT privy_id — still allow login
-                            # (same person, different Privy account edge case)
-
-                    if not user:
-                        # 3. New user — guard against race conditions from
-                        #    simultaneous requests (e.g. two onComplete handlers)
-                        try:
-                            user = User.objects.create_user(
-                                email=email,
-                                privy_id=clean_privy_id
-                            )
-                            logger.info(f"Created new user: {email}")
-                        except IntegrityError:
-                            # A parallel request just created this user — look them up
-                            user = (
-                                User.objects.filter(privy_id=clean_privy_id).first()
-                                or User.objects.filter(email=email).first()
-                            )
-                            if not user:
-                                raise
-
-                    # Issue Django JWT — this is what the frontend uses for all
-                    # subsequent authenticated API calls (not the Privy token)
-                    refresh = RefreshToken.for_user(user)
-                    profile, _ = UserProfile.objects.get_or_create(user=user)
-
-                    logger.info(f"Authenticated: {user.email} (privy_id={user.privy_id})")
-
-                    return JsonResponse({
-                        'success': True,
-                        'user': {
-                            'id': user.id,
-                            'email': user.email,
-                            'username': user.username,
-                            'privy_id': user.privy_id,
-                            'display_name': profile.display_name,
-                            'handle': profile.handle,
-                            'avatar_url': profile.avatar.url if profile.avatar else None,
-                            'is_profile_complete': profile.is_complete,
-                        },
-                        'tokens': {
-                            'access': str(refresh.access_token),
-                            'refresh': str(refresh),
-                        },
-                        'message': 'Login successful'
-                    })
-
-            except Exception as e:
-                logger.error(f"User creation/login error: {e}")
-                return JsonResponse({
-                    'error': 'An unexpected error occurred',
-                    'debug': str(e)
-                }, status=500)
-                
-        except json.JSONDecodeError:
-            return JsonResponse({'error': 'Invalid JSON'}, status=400)
-        except Exception as e:
-            logger.error(f"General login error: {str(e)}")
-            return JsonResponse({
-                'error': 'An error occurred during authentication',
-                'debug': str(e)
-            }, status=500)
-    
-    return JsonResponse({'error': 'Method not allowed'}, status=405)
-
-
-@csrf_exempt
-def social_login(request):
-    """
-    Provider-agnostic login endpoint.
-
-    POST body:
-    {
-        "provider": "privy" | "web3auth",   // required
-        "token": "<JWT from the provider>",  // required
-        "email": "user@example.com"          // optional — used if token lacks email
-    }
-
-    Returns Django JWT (access + refresh) on success.
-    """
-    if request.method != 'POST':
-        return JsonResponse({'error': 'Method not allowed'}, status=405)
-
-    try:
-        data = json.loads(request.body)
-    except json.JSONDecodeError:
-        return JsonResponse({'error': 'Invalid JSON'}, status=400)
-
-    provider = data.get('provider', '').strip().lower()
-    token = (
-        data.get('token') or
-        data.get('identity_token') or
-        data.get('privy_access_token') or
-        data.get('accessToken')
-    )
-
-    if not provider:
-        return JsonResponse(
-            {'error': 'provider is required', 'supported': SUPPORTED_PROVIDERS},
-            status=400,
-        )
-    if not token:
-        return JsonResponse({'error': 'token is required'}, status=400)
-
-    try:
-        auth_service = get_auth_service(provider)
-    except ValueError as e:
-        return JsonResponse(
-            {'error': str(e), 'supported': SUPPORTED_PROVIDERS},
-            status=400,
-        )
-
-    # --- Verify the token -------------------------------------------------
-    logger.info(f"[social_login] Verifying {provider} token…")
-    decoded = auth_service.verify_token(token)
-    if not decoded:
-        return JsonResponse(
-            {'error': f'Invalid or expired {provider} token'},
-            status=401,
-        )
-
-    # --- Normalise user info ----------------------------------------------
-    info = auth_service.extract_user_info(decoded)
-    external_id = info.get('external_id') or ''
-    email = info.get('email') or data.get('email') or ''
-    name = info.get('name') or ''
-
-    if not external_id:
-        return JsonResponse(
-            {'error': 'Token payload missing user identifier (sub)'},
-            status=400,
-        )
-
-    # Fall back to placeholder email so the DB constraint is satisfied.
-    # Users can set their real email later via the profile endpoint.
-    if not email:
-        email = f"{external_id}@{provider}.user"
-
-    # --- Resolve or create user -------------------------------------------
-    try:
-        from django.db import IntegrityError
-
-        with transaction.atomic():
-            # 1. Match by (external_id, provider) — canonical path
-            user = User.objects.filter(
-                external_id=external_id, auth_provider=provider
-            ).first()
-
-            # 2. Legacy Privy users whose external_id column is still NULL
-            if not user and provider == 'privy':
-                user = User.objects.filter(privy_id=external_id).first()
-                if user and not user.external_id:
-                    User.objects.filter(pk=user.pk).update(
-                        external_id=external_id,
-                        auth_provider='privy',
-                    )
-                    user.refresh_from_db()
-
-            # 3. Existing account matched by email (pre-provider signup)
-            if not user and email and not email.endswith(f'@{provider}.user'):
-                user = User.objects.filter(email=email).first()
-                if user and not user.external_id:
-                    User.objects.filter(pk=user.pk).update(
-                        external_id=external_id,
-                        auth_provider=provider,
-                    )
-                    user.refresh_from_db()
-
-            # 4. Brand-new user
-            if not user:
-                try:
-                    user = User.objects.create_user(
-                        email=email,
-                        external_id=external_id,
-                        auth_provider=provider,
-                        # Keep privy_id populated for Privy users so existing
-                        # code that reads privy_id still works during migration.
-                        **({"privy_id": external_id} if provider == "privy" else {}),
-                    )
-                    logger.info(f"[social_login] Created new user: {email} ({provider})")
-                except IntegrityError:
-                    user = (
-                        User.objects.filter(external_id=external_id, auth_provider=provider).first()
-                        or User.objects.filter(email=email).first()
-                    )
-                    if not user:
-                        raise
-
-            # Issue Django JWT
-            refresh = RefreshToken.for_user(user)
-            logger.info(f"[social_login] Authenticated: {user.email} via {provider}")
-
-            profile, _ = UserProfile.objects.get_or_create(user=user)
-
-            return JsonResponse({
-                'success': True,
-                'provider': provider,
-                'user': {
-                    'id': user.id,
-                    'email': user.email,
-                    'username': user.username,
-                    'auth_provider': user.auth_provider,
-                    'external_id': user.external_id,
-                    'display_name': profile.display_name,
-                    'handle': profile.handle,
-                    'avatar_url': profile.avatar.url if profile.avatar else None,
-                    'is_profile_complete': profile.is_complete,
-                },
-                'tokens': {
-                    'access': str(refresh.access_token),
-                    'refresh': str(refresh),
-                },
-                'message': 'Login successful',
-            })
-
-    except Exception as e:
-        logger.error(f"[social_login] Unexpected error: {e}")
-        return JsonResponse(
-            {'error': 'An unexpected error occurred', 'debug': str(e)},
-            status=500,
-        )
-
-
-
 # ---------------------------------------------------------------------------
 # Profile
 # ---------------------------------------------------------------------------
@@ -1000,7 +719,10 @@ class DashboardView(APIView):
 
         # Events I host (owner or co-host)
         hosting_qs = Event.objects.filter(
-            Q(owner=user) | Q(cohosts__user=user),
+            Q(owner=user) | Q(
+                cohosts__user=user,
+                cohosts__status=EventCoHost.STATUS_ACCEPTED,
+            ),
             is_active=True,
         ).distinct().order_by('day')
 
@@ -1021,7 +743,10 @@ class DashboardView(APIView):
         # Stats
         stats = {
             'events_created': Event.objects.filter(owner=user).count(),
-            'events_cohosting': Event.objects.filter(cohosts__user=user).count(),
+            'events_cohosting': Event.objects.filter(
+                cohosts__user=user,
+                cohosts__status=EventCoHost.STATUS_ACCEPTED,
+            ).distinct().count(),
             'tickets_held': my_tickets.count(),
             'events_attended_past': len(attending_past),
             'upcoming_as_host': hosting_upcoming.count(),
@@ -1081,6 +806,10 @@ class EventViewSet(viewsets.ModelViewSet):
      - /api/events/?search=bitcoin
      - /api/events/?category=technology&search=AI
     """
+    # Declared so individual @action()s can set it via initkwargs; DRF rejects
+    # action kwargs that are not already attributes on the viewset. Only
+    # add_cohost sets a scope — every other action stays unthrottled.
+    throttle_scope = None
     queryset = Event.objects.all()
     serializer_class = EventSerializer
     parser_classes = (JSONParser, MultiPartParser, FormParser)
@@ -1196,7 +925,10 @@ class EventViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(
                 Q(is_active=True, visibility='public') |
                 Q(owner=self.request.user) |
-                Q(cohosts__user=self.request.user)
+                Q(
+                    cohosts__user=self.request.user,
+                    cohosts__status=EventCoHost.STATUS_ACCEPTED,
+                )
             )
         queryset = queryset.distinct()
 
@@ -1725,61 +1457,105 @@ class EventViewSet(viewsets.ModelViewSet):
         serializer.save(event=event)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
     
-    @action(detail=True, methods=['POST'], permission_classes=[IsAuthenticated, IsEventOwner])
+    @action(detail=True, methods=['POST'], permission_classes=[IsAuthenticated, IsEventOwner],
+            throttle_classes=[ScopedRateThrottle], throttle_scope='cohost_invite')
     def add_cohost(self, request, slug=None):
         """
         Add co-host to event - only event owner can add co-hosts
         POST /api/events/{slug}/add_cohost/
         Body: {"email": "cohost@example.com"}
+
+        The invitee does not need a Byro account. If they have never signed in,
+        the grant is stored as pending and claimed automatically the first time
+        they sign in with this address (see auth_views.claim_pending_cohost_invites).
+        A pending grant confers no access.
         """
         event = self.get_object()
-        email = request.data.get('email')
-        
+        email = (request.data.get('email') or '').strip().lower()
+
         if not email:
             return Response(
                 {"error": "Email is required"},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
+
         try:
-            from django.contrib.auth import get_user_model
-            User = get_user_model()
-            cohost_user = User.objects.get(email=email)
-            
-            if event.owner == cohost_user:
-                return Response(
-                    {"error": "User is already the owner of this event"},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            
-            if EventCoHost.objects.filter(event=event, user=cohost_user).exists():
-                return Response(
-                    {"error": "User is already a co-host for this event"},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            
+            validate_email(email)
+        except DjangoValidationError:
+            return Response(
+                {"error": "Enter a valid email address"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        cohost_user = User.objects.filter(email__iexact=email).first()
+
+        if cohost_user and event.owner == cohost_user:
+            return Response(
+                {"error": "User is already the owner of this event"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        if event.owner.email.lower() == email:
+            return Response(
+                {"error": "User is already the owner of this event"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        existing = EventCoHost.objects.filter(event=event).filter(
+            Q(user=cohost_user) if cohost_user else Q(invited_email__iexact=email, user__isnull=True)
+        ).first()
+        if existing:
+            return Response(
+                {"error": "User is already a co-host for this event"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Registered user — grant immediately.
+        if cohost_user:
             cohost = EventCoHost.objects.create(
                 event=event,
                 user=cohost_user,
-                added_by=request.user
+                invited_email=email,
+                status=EventCoHost.STATUS_ACCEPTED,
+                accepted_at=timezone.now(),
+                added_by=request.user,
             )
-            
+            send_cohost_invite_email(email, event, request.user, is_new_user=False)
             return Response({
                 "message": f"{cohost_user.email} added as co-host",
                 "cohost_id": cohost.id,
+                "status": cohost.status,
                 "cohost": {
                     "id": cohost.id,
                     "email": cohost_user.email,
                     "name": cohost_user.get_full_name() or cohost_user.email,
-                    "added_at": cohost.added_at
+                    "added_at": cohost.added_at,
                 }
             }, status=status.HTTP_201_CREATED)
-            
-        except User.DoesNotExist:
-            return Response(
-                {"error": "User with this email not found"},
-                status=status.HTTP_404_NOT_FOUND
-            )
+
+        # Unknown email — invite them. This used to 404.
+        cohost = EventCoHost.objects.create(
+            event=event,
+            user=None,
+            invited_email=email,
+            status=EventCoHost.STATUS_PENDING,
+            added_by=request.user,
+        )
+        # Best-effort: WorkOS emails its own sign-up invitation, and we send the
+        # event-specific one. Neither failing should undo the pending grant.
+        workos_api.send_invitation(email)
+        send_cohost_invite_email(email, event, request.user, is_new_user=True)
+
+        return Response({
+            "message": f"Invitation sent to {email}",
+            "cohost_id": cohost.id,
+            "status": cohost.status,
+            "cohost": {
+                "id": cohost.id,
+                "email": email,
+                "name": email,
+                "added_at": cohost.added_at,
+            }
+        }, status=status.HTTP_201_CREATED)
     
     @action(detail=True, methods=['DELETE'], permission_classes=[IsAuthenticated, IsEventOwner])
     def remove_cohost(self, request, slug=None):
@@ -1799,7 +1575,9 @@ class EventViewSet(viewsets.ModelViewSet):
         
         try:
             cohost = EventCoHost.objects.get(id=cohost_id, event=event)
-            cohost_email = cohost.user.email
+            # A pending invite has no user yet — fall back to the invited address
+            # so revoking an unaccepted invitation works too.
+            cohost_email = cohost.user.email if cohost.user else cohost.invited_email
             cohost.delete()
             
             return Response({

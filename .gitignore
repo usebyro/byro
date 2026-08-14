@@ -61,3 +61,5 @@ frontend/.env.local
 frontend/.env
 frontend/.next/
 frontend/node_modules
+BACKEND_AND_AUTH.md 
+QR_TICKETS.md

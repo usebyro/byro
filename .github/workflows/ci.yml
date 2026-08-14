@@ -44,6 +44,14 @@ jobs:
     env:
       DB_ENGINE: django.db.backends.sqlite3
       DEBUG: "True"
+      # SECRET_KEY has no default any more — settings.py fails loudly rather
+      # than falling back to the insecure literal that used to be committed.
+      # This value is throwaway and only ever used by CI.
+      SECRET_KEY: ci-only-not-a-real-secret-key-do-not-reuse
+      # The test suite overrides every WorkOS setting explicitly, so these are
+      # only here to keep settings.py importable without a .env file.
+      WORKOS_CLIENT_ID: client_ci_placeholder
+      WORKOS_API_KEY: sk_ci_placeholder
     steps:
       - uses: actions/checkout@v4
 
