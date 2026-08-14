@@ -2,7 +2,7 @@ from rest_framework import serializers
 from django.utils import timezone
 from django.utils.text import slugify
 from .models import (
-    Payment, WaitList, PrivyUser, Ticket, Event, EventCoHost,
+    Payment, WaitList, Ticket, Event, EventCoHost,
     TicketTransfer, Payment, UserProfile, EventFormQuestion, EventFormAnswer,
     TicketTier, PayoutRequest,
 )
@@ -29,13 +29,6 @@ class WaitListSerializer(serializers.ModelSerializer):
         extra_kwargs = {
             'email': {'required': True}
         }
-
-
-class PrivyUserSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = PrivyUser
-        fields = ['privy_id', 'email', 'wallet_address', 'created_at']
-        read_only_fields = ['privy_id', 'created_at']
 
 
 # ---------------------------------------------------------------------------
@@ -151,14 +144,29 @@ class TicketTierSerializer(serializers.ModelSerializer):
 
 
 class EventCoHostSerializer(serializers.ModelSerializer):
-    """Serializer for co-host information"""
-    email = serializers.EmailField(source='user.email', read_only=True)
-    name = serializers.CharField(source='user.get_full_name', read_only=True)
-    
+    """
+    Serializer for co-host information.
+
+    A pending invite has no user row yet, so email/name fall back to the
+    address the organiser invited.
+    """
+    email = serializers.SerializerMethodField()
+    name = serializers.SerializerMethodField()
+
     class Meta:
         model = EventCoHost
-        fields = ['id', 'email', 'name', 'added_at']
-        read_only_fields = ['id', 'added_at']
+        fields = ['id', 'email', 'name', 'status', 'added_at', 'accepted_at']
+        read_only_fields = ['id', 'status', 'added_at', 'accepted_at']
+
+    def get_email(self, obj):
+        return obj.user.email if obj.user else obj.invited_email
+
+    def get_name(self, obj):
+        if not obj.user:
+            return obj.invited_email
+        profile = getattr(obj.user, 'profile', None)
+        display_name = profile.display_name if profile else ''
+        return display_name or obj.user.get_full_name() or obj.user.email
 
 
 class EventSerializer(serializers.ModelSerializer):

@@ -16,6 +16,7 @@ from .views import (
     AdminAnalyticsSummaryView,
     AdminAnalyticsRevenueTrendView,
 )
+from .auth_views import AuthSyncView
 
 
 router = DefaultRouter()
@@ -31,9 +32,9 @@ router.register(r'profile', ProfileViewSet, basename='profile')
 urlpatterns = [
     path('api/', include(router.urls)),
 
-    # Auth
-    path('api/auth/privy/', views.privy_login, name='privy_login'),
-    path('api/auth/social/', views.social_login, name='social_login'),
+    # Auth — WorkOS AuthKit. Called once per sign-in by the Next.js callback;
+    # every other request authenticates locally via WorkOSAuthentication.
+    path('api/auth/sync/', AuthSyncView.as_view(), name='auth_sync'),
 
     # Dashboard
     path('api/dashboard/', DashboardView.as_view(), name='dashboard'),

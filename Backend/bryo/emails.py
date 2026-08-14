@@ -200,3 +200,71 @@ def ticket_confirmation_email(name, event_name, date, time, location, ticket_id,
         "html": html,
         "text": plain_text,
     }
+
+
+def cohost_invite_email(event_name, inviter_name, event_url, is_new_user=False):
+    """
+    Co-host invitation email.
+
+    Sent when an organiser adds someone as a co-host. The invitee may not have a
+    Byro account yet — `is_new_user` switches the call to action from "open the
+    event" to "sign in to accept", since the grant stays pending until they sign
+    in with this address.
+
+    Args:
+        event_name (str): Event they have been invited to co-host.
+        inviter_name (str): Display name or email of the organiser who invited them.
+        event_url (str): Link to the event page.
+        is_new_user (bool): True when the invitee has no Byro account yet.
+    """
+    if is_new_user:
+        lead = (
+            f"{inviter_name} has invited you to co-host <strong>{event_name}</strong> on Byro."
+        )
+        instruction = (
+            "Sign in with this email address to accept the invitation. "
+            "Your co-host access activates as soon as you do."
+        )
+        cta = "Sign in to accept"
+    else:
+        lead = (
+            f"{inviter_name} has added you as a co-host of <strong>{event_name}</strong> on Byro."
+        )
+        instruction = (
+            "You can now edit the event, view attendees and check people in at the door."
+        )
+        cta = "Open the event"
+
+    html = f"""<div style="background-color:#f8fafc;padding:40px 20px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <table cellpadding="0" cellspacing="0" style="max-width:520px;margin:0 auto;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e2e8f0;">
+    <tr>
+      <td style="padding:32px 32px 24px;">
+        <p style="color:#94a3b8;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;margin:0 0 12px;">Co-host invitation</p>
+        <p style="color:#0f172a;font-size:18px;line-height:1.5;margin:0 0 16px;">{lead}</p>
+        <p style="color:#475569;font-size:14px;line-height:1.6;margin:0 0 24px;">{instruction}</p>
+        <a href="{event_url}" style="display:inline-block;background:#0f172a;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:12px 24px;border-radius:8px;">{cta}</a>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:0 32px 32px;">
+        <p style="color:#94a3b8;font-size:12px;line-height:1.6;margin:0;border-top:1px solid #e2e8f0;padding-top:20px;">
+          If you weren't expecting this, you can safely ignore this email — nothing changes until you sign in.
+        </p>
+      </td>
+    </tr>
+  </table>
+</div>"""
+
+    plain_text = (
+        f"{inviter_name} has invited you to co-host {event_name} on Byro.\n\n"
+        f"{instruction}\n\n"
+        f"{cta}: {event_url}\n\n"
+        f"If you weren't expecting this, you can safely ignore this email.\n\n"
+        f"Best regards,\nByro Team\nsupport@usebyro.com"
+    )
+
+    return {
+        "subject": f"You've been invited to co-host {event_name}",
+        "html": html,
+        "text": plain_text,
+    }

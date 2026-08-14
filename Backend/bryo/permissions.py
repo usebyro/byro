@@ -35,7 +35,7 @@ class IsEventOwnerOrCoHost(BasePermission):
         if obj.owner == request.user:
             return True
         
-        return obj.cohosts.filter(user=request.user).exists()
+        return obj.is_cohost(request.user)
 
 
 class IsEventOwnerOrCoHostOrReadOnly(BasePermission):
@@ -60,4 +60,4 @@ class IsEventOwnerOrCoHostOrReadOnly(BasePermission):
         if obj.owner == request.user:
             return True
         
-        return obj.cohosts.filter(user=request.user).exists()
+        return obj.is_cohost(request.user)

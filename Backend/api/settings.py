@@ -24,22 +24,29 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 config = AutoConfig(search_path=str(BASE_DIR))
 
 
-SECRET_KEY = 'django-insecure-k%pbsf-0fn&$pbh@%zt6ps=+unneeym49)*&o#l5$u^b%4_(ke'
-DEBUG = config('DEBUG', default=True, cast=bool)
-
 from dotenv import load_dotenv
 
-load_dotenv() 
+load_dotenv()
 
+# SECURITY WARNING: keep the secret key secret, and never commit a default.
+# This no longer signs API credentials — WorkOS does that — but Django still
+# uses it for sessions, the admin, CSRF and password-reset tokens.
+SECRET_KEY = config('SECRET_KEY')
 
+# SECURITY WARNING: don't run with debug turned on in production!
+DEBUG = config('DEBUG', default=False, cast=bool)
 
-# BlockRadar and Privy Settings
-JWKS_URL = "https://auth.privy.io/.well-known/jwks.json"
+# Comma-separated list, e.g. "usebyro.com,www.usebyro.com,byro.onrender.com".
+# Falls back to localhost only when DEBUG is on, so a misconfigured production
+# deploy fails loudly instead of silently accepting any Host header.
+ALLOWED_HOSTS = [
+    h.strip() for h in config(
+        'ALLOWED_HOSTS',
+        default='localhost,127.0.0.1' if DEBUG else '',
+    ).split(',') if h.strip()
+]
+
 BLOCKRADAR_API_KEY = os.environ.get('BLOCKRADAR_API_KEY')
-PRIVY_APP_ID = os.environ.get('PRIVY_APP_ID')
-PRIVY_VERIFICATION_KEY = os.environ.get('PRIVY_VERIFICATION_KEY')
-PRIVY_VERIFICATION_KEY_URL = f"https://auth.privy.io/api/v1/apps/{PRIVY_APP_ID}/verification_key"
-PRIVY_APP_SECRET = os.environ.get('PRIVY_APP_SECRET')
 FRONTEND_URL = os.environ.get('FRONTEND_URL')
 PAYSTACK_SECRET_KEY = config('PAYSTACK_SECRET_KEY', default='')
 PAYSTACK_PUBLIC_KEY = config('PAYSTACK_PUBLIC_KEY', default='')
@@ -51,24 +58,20 @@ RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')
 BREVO_SMTP_KEY = os.environ.get('BREVO_SMTP_KEY', '')
 
 
-# Web3Auth Settings
-# WEB3AUTH_CLIENT_ID: Your Web3Auth project's Client ID from the Web3Auth dashboard.
-# WEB3AUTH_JWKS_URL: Override if you use a custom network / self-hosted node.
-#   Default: https://api-auth.web3auth.io/jwks  (Core Kit SFA SDK)
-WEB3AUTH_CLIENT_ID = os.environ.get('WEB3AUTH_CLIENT_ID', '')
-WEB3AUTH_JWKS_URL = os.environ.get('WEB3AUTH_JWKS_URL', 'https://api-auth.web3auth.io/jwks')
-
-
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
-
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-k%pbsf-0fn&$pbh@%zt6ps=+unneeym49)*&o#l5$u^b%4_(ke'
-
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
-
-ALLOWED_HOSTS = ["*"]
+# WorkOS AuthKit — the sole identity provider.
+#   WORKOS_CLIENT_ID: the client ID from the WorkOS dashboard. Public; it also
+#     determines the JWKS and issuer URLs used to verify access tokens.
+#   WORKOS_API_KEY: server-side secret, used only for Management API calls
+#     (fetching a user's email at sign-in, sending co-host invitations).
+#   WORKOS_ISSUER: optional. Pin the `iss` claim access tokens must carry.
+#     Leave unset until you have confirmed the real value with
+#     `manage.py check_workos --token <token>`, which prints it for you.
+#     Unset is still safe: WorkOS publishes JWKS per client, so a valid
+#     signature already proves the token was issued for this client.
+WORKOS_CLIENT_ID = config('WORKOS_CLIENT_ID', default='')
+WORKOS_API_KEY = config('WORKOS_API_KEY', default='')
+WORKOS_ISSUER = config('WORKOS_ISSUER', default='')
+WORKOS_API_BASE_URL = config('WORKOS_API_BASE_URL', default='https://api.workos.com')
 
 
 INSTALLED_APPS = [
@@ -79,7 +82,6 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
-    'rest_framework_simplejwt',
     'corsheaders',
     'drf_yasg',
     'bryo',
@@ -99,8 +101,7 @@ MIDDLEWARE = [
 ]
 
 AUTHENTICATION_BACKENDS = [
-    'bryo.authentication.PrivyAuthenticationBackend',
-    'django.contrib.auth.backends.ModelBackend', 
+    'django.contrib.auth.backends.ModelBackend',
 ]
 
 
@@ -125,18 +126,6 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'api.wsgi.application'
 
-
-
-
-REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
-
-    ),
-    'DEFAULT_PERMISSION_CLASSES': (
-        'rest_framework.permissions.IsAuthenticated',  
-    ),
-}
 
 
 
@@ -180,14 +169,25 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 REST_FRAMEWORK = {
+    # WorkOS access tokens are the only API credential. Django mints nothing.
+    # Session/Basic auth are deliberately absent: the API is cross-origin and
+    # token-only, and leaving SessionAuthentication on would expose every
+    # endpoint to CSRF via the admin cookie.
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
-        'rest_framework.authentication.SessionAuthentication',
-        'rest_framework.authentication.BasicAuthentication',
+        'bryo.authentication.WorkOSAuthentication',
     ],
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
     ],
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.ScopedRateThrottle',
+    ],
+    # Only scoped endpoints are throttled. `auth_sync` is unauthenticated and
+    # makes an outbound WorkOS call, so it is the one that needs a ceiling.
+    'DEFAULT_THROTTLE_RATES': {
+        'auth_sync': '30/hour',
+        'cohost_invite': '60/hour',
+    },
 }
 
 # Internationalization
@@ -247,14 +247,6 @@ CORS_ALLOW_HEADERS = [
 ]
 
 
-from datetime import timedelta
-SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(hours=1),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
-    'ALGORITHM': 'HS256',  
-}
-
-
 AUTH_USER_MODEL = 'bryo.CustomUser'
  
 MEDIA_URL = '/media/'
@@ -280,35 +272,5 @@ STORAGES = {
     },
 }
 
-
-
-SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
-    'ROTATE_REFRESH_TOKENS': False,
-    'BLACKLIST_AFTER_ROTATION': False,
-    'UPDATE_LAST_LOGIN': True,
-
-    'ALGORITHM': 'HS256',           # ← THIS FIXES "alg not allowed"
-    'SIGNING_KEY': SECRET_KEY,
-    'VERIFYING_KEY': None,
-    'AUDIENCE': None,
-    'ISSUER': None,
-    'JSON_ENCODER': None,
-    'JWK_URL': None,
-    'LEEWAY': 0,
-
-    'AUTH_HEADER_TYPES': ('Bearer',),
-    'AUTH_HEADER_NAME': 'HTTP_AUTHORIZATION',
-    'USER_ID_FIELD': 'id',
-    'USER_ID_CLAIM': 'user_id',
-    'USER_AUTHENTICATION_RULE': 'rest_framework_simplejwt.authentication.default_user_authentication_rule',
-
-    'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
-    'TOKEN_TYPE_CLAIM': 'token_type',
-    'TOKEN_USER_CLASS': 'rest_framework_simplejwt.models.TokenUser',
-
-    'JTI_CLAIM': 'jti',
-}
 
 
