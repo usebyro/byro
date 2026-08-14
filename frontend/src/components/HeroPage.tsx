@@ -14,7 +14,7 @@ const HeroPage = () => {
 
   const handleGetStarted = async () => {
     if (token) {
-      router.push("/events");
+      router.push("/home");
       return;
     }
     await connect();

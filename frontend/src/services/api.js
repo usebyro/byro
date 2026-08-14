@@ -162,9 +162,36 @@ const API = {
     }
   },
 
+  updateTier: async (slug, tierId, tierData) => {
+    try {
+      const response = await axiosInstance.patch(`events/${slug}/tiers/${tierId}/`, tierData);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  deleteTier: async (slug, tierId) => {
+    try {
+      const response = await axiosInstance.delete(`events/${slug}/tiers/${tierId}/`);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
   getCategories: async () => {
     try {
       const response = await axiosInstance.get("events/categories/");
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  getLocations: async () => {
+    try {
+      const response = await axiosInstance.get("events/locations/");
       return response.data;
     } catch (error) {
       throw handleApiError(error);
@@ -320,10 +347,11 @@ const API = {
   },
 
   // ===== PAYMENTS =====
-  initializePayment: async ({ event_slug, customer_email, customer_name, quantity = 1, tier_id }) => {
+  initializePayment: async ({ event_slug, customer_email, customer_name, quantity = 1, tier_id, attendees }) => {
     try {
       const body = { event_slug, customer_email, customer_name, quantity };
       if (tier_id !== undefined && tier_id !== null) body.tier_id = tier_id;
+      if (Array.isArray(attendees) && attendees.length > 0) body.attendees = attendees;
       const response = await axiosInstance.post("payments/initialize/", body);
       return response.data;
     } catch (error) {
@@ -406,6 +434,54 @@ const API = {
         err.status = 404;
         throw err;
       }
+      throw handleApiError(error);
+    }
+  },
+
+  // ===== PAYOUTS =====
+  getPayouts: async () => {
+    try {
+      const response = await axiosInstance.get("payouts/");
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  getPayoutBalance: async () => {
+    try {
+      const response = await axiosInstance.get("payouts/balance/");
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  createPayout: async (payoutData) => {
+    try {
+      const response = await axiosInstance.post("payouts/", payoutData);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  getBanks: async (country = "nigeria") => {
+    try {
+      const response = await axiosInstance.get("paystack/banks/", { params: { country } });
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  resolveAccount: async (accountNumber, bankCode) => {
+    try {
+      const response = await axiosInstance.get("paystack/resolve-account/", {
+        params: { account_number: accountNumber, bank_code: bankCode },
+      });
+      return response.data;
+    } catch (error) {
       throw handleApiError(error);
     }
   },

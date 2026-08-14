@@ -14,6 +14,7 @@ interface Event {
   ticket_price: number;
   is_active: boolean;
   hosted_by?: string;
+  created_at?: string;
 }
 
 function formatDate(dateStr: string) {
@@ -25,22 +26,59 @@ function formatDate(dateStr: string) {
   });
 }
 
-function StatusBadge({ active }: { active: boolean }) {
+function formatDateTime(dateStr?: string) {
+  if (!dateStr) return "—";
+  return new Date(dateStr).toLocaleString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function getEventStatus(event: Event): "active" | "inactive" | "ended" {
+  if (!event.day) return event.is_active ? "active" : "inactive";
+  const eventDate = new Date(event.day);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  eventDate.setHours(0, 0, 0, 0);
+  if (eventDate < today) return "ended";
+  return event.is_active ? "active" : "inactive";
+}
+
+function StatusBadge({ status }: { status: "active" | "inactive" | "ended" }) {
+  const styles = {
+    active: "bg-green-500/10 text-green-400",
+    inactive: "bg-gray-500/10 text-gray-400",
+    ended: "bg-red-500/10 text-red-400",
+  };
+  const dots = {
+    active: "bg-green-400",
+    inactive: "bg-gray-500",
+    ended: "bg-red-400",
+  };
+  const labels = { active: "Active", inactive: "Inactive", ended: "Ended" };
+
   return (
     <span
-      className={`inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded-full font-medium ${
-        active
-          ? "bg-green-500/10 text-green-400"
-          : "bg-gray-500/10 text-gray-400"
-      }`}
+      className={`inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded-full font-medium ${styles[status]}`}
     >
-      <span className={`w-1.5 h-1.5 rounded-full ${active ? "bg-green-400" : "bg-gray-500"}`} />
-      {active ? "Active" : "Inactive"}
+      <span className={`w-1.5 h-1.5 rounded-full ${dots[status]}`} />
+      {labels[status]}
     </span>
   );
 }
 
-function EventTable({ events, emptyText }: { events: Event[]; emptyText: string }) {
+function EventTable({
+  events,
+  emptyText,
+  ticketCounts,
+}: {
+  events: Event[];
+  emptyText: string;
+  ticketCounts: Record<number, number | null>;
+}) {
   if (events.length === 0) {
     return (
       <p className="text-gray-500 text-sm py-6 text-center">{emptyText}</p>
@@ -57,6 +95,8 @@ function EventTable({ events, emptyText }: { events: Event[]; emptyText: string 
             <th className="pb-3 pr-6 text-xs text-gray-500 uppercase tracking-wider font-medium">Location</th>
             <th className="pb-3 pr-6 text-xs text-gray-500 uppercase tracking-wider font-medium">Category</th>
             <th className="pb-3 pr-6 text-xs text-gray-500 uppercase tracking-wider font-medium">Price</th>
+            <th className="pb-3 pr-6 text-xs text-gray-500 uppercase tracking-wider font-medium">Created</th>
+            <th className="pb-3 pr-6 text-xs text-gray-500 uppercase tracking-wider font-medium">Tickets Sold</th>
             <th className="pb-3 text-xs text-gray-500 uppercase tracking-wider font-medium">Status</th>
           </tr>
         </thead>
@@ -87,8 +127,16 @@ function EventTable({ events, emptyText }: { events: Event[]; emptyText: string 
                   ? `₦${Number(event.ticket_price).toLocaleString()}`
                   : "Free"}
               </td>
+              <td className="py-3 pr-6 text-gray-400 whitespace-nowrap">
+                {formatDateTime(event.created_at)}
+              </td>
+              <td className="py-3 pr-6 text-gray-300 whitespace-nowrap">
+                {ticketCounts[event.id] === null || ticketCounts[event.id] === undefined
+                  ? "—"
+                  : ticketCounts[event.id]}
+              </td>
               <td className="py-3">
-                <StatusBadge active={event.is_active} />
+                <StatusBadge status={getEventStatus(event)} />
               </td>
             </tr>
           ))}
@@ -100,24 +148,54 @@ function EventTable({ events, emptyText }: { events: Event[]; emptyText: string 
 
 export default function AdminEventsPage() {
   const [events, setEvents] = useState<Event[]>([]);
+  const [ticketCounts, setTicketCounts] = useState<Record<number, number | null>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
+    let cancelled = false;
+
     axiosInstance
       .get("events/")
-      .then((res) => {
+      .then(async (res) => {
         const data: Event[] = Array.isArray(res.data)
           ? res.data
           : res.data?.results ?? [];
+        if (cancelled) return;
         setEvents(data);
+
+        const counts: Record<number, number | null> = {};
+        data.forEach((e) => { counts[e.id] = null; });
+
+        await Promise.allSettled(
+          data.map((event) =>
+            axiosInstance
+              .get(`events/${event.slug}/attendees/`)
+              .then((r) => {
+                counts[event.id] = r.data.count ?? 0;
+              })
+              .catch(() => {
+                counts[event.id] = null;
+              })
+          )
+        );
+
+        if (!cancelled) {
+          setTicketCounts({ ...counts });
+        }
       })
       .catch(() => setError("Failed to load events."))
-      .finally(() => setLoading(false));
+      .finally(() => { if (!cancelled) setLoading(false); });
+
+    return () => { cancelled = true; };
   }, []);
 
   const freeEvents = events.filter((e) => Number(e.ticket_price) === 0);
   const paidEvents = events.filter((e) => Number(e.ticket_price) > 0);
+  const totalTicketsSold = Object.values(ticketCounts).reduce<number>(
+    (sum, c) => sum + (c ?? 0),
+    0
+  );
 
   return (
     <div className="p-5 md:p-8">
@@ -128,11 +206,12 @@ export default function AdminEventsPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-8">
         {[
           { label: "Total Events", value: events.length },
           { label: "Free Events", value: freeEvents.length },
           { label: "Paid Events", value: paidEvents.length },
+          { label: "Tickets Sold", value: loading ? "—" : totalTicketsSold.toLocaleString() },
         ].map((stat) => (
           <div
             key={stat.label}
@@ -161,7 +240,7 @@ export default function AdminEventsPage() {
         {loading ? (
           <p className="text-gray-500 text-sm py-6 text-center">Loading...</p>
         ) : (
-          <EventTable events={freeEvents} emptyText="No free events yet." />
+          <EventTable events={freeEvents} emptyText="No free events yet." ticketCounts={ticketCounts} />
         )}
       </div>
 
@@ -176,7 +255,7 @@ export default function AdminEventsPage() {
         {loading ? (
           <p className="text-gray-500 text-sm py-6 text-center">Loading...</p>
         ) : (
-          <EventTable events={paidEvents} emptyText="No paid events yet." />
+          <EventTable events={paidEvents} emptyText="No paid events yet." ticketCounts={ticketCounts} />
         )}
       </div>
     </div>

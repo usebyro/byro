@@ -78,3 +78,76 @@ input[type=number] {
   background: linear-gradient(to right, #007AFF, #ff6584, #ffdf12, #09d059);
   z-index: 0;
 }
+
+@keyframes slideInLeft {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+.animate-slide-in-left {
+  animation: slideInLeft 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* "Get tickets" button styled like an actual ticket stub:
+   two semicircle notches bitten out of the top/bottom edge,
+   with a dashed perforation line separating the label from the icon. */
+.ticket-cta {
+  position: relative;
+  isolation: isolate;
+}
+
+.ticket-cta::before,
+.ticket-cta::after {
+  content: "";
+  position: absolute;
+  right: var(--ticket-notch-right, 30px);
+  width: 6px;
+  height: 6px;
+  background: var(--ticket-notch-color, #fff);
+  border-radius: 50%;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.ticket-cta::before {
+  top: 0;
+  transform: translate(50%, -55%);
+}
+
+.ticket-cta::after {
+  bottom: 0;
+  transform: translate(50%, 55%);
+}
+
+.ticket-cta-notch-left {
+  content: "";
+  position: absolute;
+  left: var(--ticket-notch-left, 14px);
+  width: 6px;
+  height: 6px;
+  background: var(--ticket-notch-color, #fff);
+  border-radius: 50%;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.ticket-cta-notch-left.ticket-cta-notch-top {
+  top: 0;
+  transform: translate(-50%, -55%);
+}
+
+.ticket-cta-notch-left.ticket-cta-notch-bottom {
+  bottom: 0;
+  transform: translate(-50%, 55%);
+}
+
+.ticket-cta-divider {
+  align-self: stretch;
+  width: 0;
+  margin: 0 1px;
+  border-left: 1.5px dashed rgba(255, 255, 255, 0.55);
+}

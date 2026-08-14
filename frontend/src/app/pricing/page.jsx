@@ -1,5 +1,4 @@
 "use client";
-import { useState } from "react";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
@@ -55,8 +54,6 @@ function CheckIcon({ color = "#22c55e" }) {
 }
 
 export default function PricingPage() {
-  const [tab, setTab] = useState("standard");
-
   return (
     <>
       <Navbar />
@@ -77,111 +74,103 @@ export default function PricingPage() {
           {/* Toggle */}
           <div className="mt-8 inline-flex items-center bg-white border border-gray-200 rounded-full p-1 shadow-sm">
             <button
-              onClick={() => setTab("standard")}
-              className={`px-6 py-2 rounded-full text-sm font-medium transition-all ${
-                tab === "standard"
-                  ? "bg-gray-900 text-white shadow-sm"
-                  : "text-gray-500 hover:text-gray-800"
-              }`}
+              className="px-6 py-2 rounded-full text-sm font-medium bg-gray-900 text-white shadow-sm"
             >
               Standard
             </button>
+            {/* Custom tab — commented out for now
             <button
-              onClick={() => setTab("custom")}
-              className={`px-6 py-2 rounded-full text-sm font-medium transition-all ${
-                tab === "custom"
-                  ? "bg-gray-900 text-white shadow-sm"
-                  : "text-gray-500 hover:text-gray-800"
-              }`}
+              className="px-6 py-2 rounded-full text-sm font-medium text-gray-500"
             >
               Custom
             </button>
+            */}
           </div>
         </div>
 
         {/* Plan Cards */}
         <div className="max-w-5xl mx-auto px-4 pb-16">
-          {tab === "standard" ? (
-            <div className="max-w-md mx-auto">
-              <div className="bg-white border-2 border-blue-500 rounded-2xl p-8 shadow-xl shadow-blue-100">
-                <h2 className="text-xl font-bold text-gray-900">Standard</h2>
-                <p className="text-gray-500 text-sm mt-1">
-                  For everyone selling tickets on Byro.
-                </p>
+          <div className="max-w-md mx-auto">
+            <div className="bg-white border-2 border-blue-500 rounded-2xl p-8 shadow-xl shadow-blue-100">
+              <h2 className="text-xl font-bold text-gray-900">Standard</h2>
+              <p className="text-gray-500 text-sm mt-1">
+                For everyone selling tickets on Byro.
+              </p>
 
-                <div className="mt-6">
-                  <span className="text-5xl font-extrabold text-gray-900">
-                    Free
-                  </span>
-                </div>
-                <p className="text-gray-500 text-sm mt-1 mb-6">
-                  8% + ₦100 per paid ticket
-                </p>
-
-                <Link
-                  href="/events/create"
-                  className="block w-full text-center bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-3 rounded-xl transition-colors text-sm"
-                >
-                  Start free
-                </Link>
-
-                <ul className="mt-8 space-y-3">
-                  {standardFeatures.map((f) => (
-                    <li
-                      key={f}
-                      className="flex items-start gap-2.5 text-sm text-gray-700"
-                    >
-                      <CheckIcon />
-                      {f}
-                    </li>
-                  ))}
-                </ul>
+              <div className="mt-6">
+                <span className="text-5xl font-extrabold text-gray-900">
+                  Free
+                </span>
               </div>
+              <p className="text-gray-500 text-sm mt-1 mb-6">
+                8% + ₦100 per paid ticket
+              </p>
+
+              <Link
+                href="/events/create"
+                className="block w-full text-center bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-3 rounded-xl transition-colors text-sm"
+              >
+                Start free
+              </Link>
+
+              <ul className="mt-8 space-y-3">
+                {standardFeatures.map((f) => (
+                  <li
+                    key={f}
+                    className="flex items-start gap-2.5 text-sm text-gray-700"
+                  >
+                    <CheckIcon />
+                    {f}
+                  </li>
+                ))}
+              </ul>
             </div>
-          ) : (
-            <div className="max-w-md mx-auto">
-              <div className="bg-white border border-gray-200 rounded-2xl p-8 shadow-sm relative">
-                <div className="absolute top-5 right-5">
-                  <span className="bg-gray-100 text-gray-500 text-xs font-semibold px-3 py-1.5 rounded-full">
-                    Coming soon
-                  </span>
-                </div>
+          </div>
 
-                <h2 className="text-xl font-bold text-gray-900">Custom</h2>
-                <p className="text-gray-500 text-sm mt-1">
-                  For venues and large promoters.
-                </p>
-
-                <div className="mt-6">
-                  <span className="text-5xl font-extrabold text-gray-900">
-                    Custom
-                  </span>
-                </div>
-                <p className="text-gray-500 text-sm mt-1 mb-6">
-                  Volume pricing &amp; dedicated rates
-                </p>
-
-                <button
-                  disabled
-                  className="w-full text-center bg-gray-100 text-gray-400 font-medium px-4 py-3 rounded-xl cursor-not-allowed text-sm"
-                >
+          {/* Custom plan — commented out for now
+          <div className="max-w-md mx-auto">
+            <div className="bg-white border border-gray-200 rounded-2xl p-8 shadow-sm relative">
+              <div className="absolute top-5 right-5">
+                <span className="bg-gray-100 text-gray-500 text-xs font-semibold px-3 py-1.5 rounded-full">
                   Coming soon
-                </button>
-
-                <ul className="mt-8 space-y-3">
-                  {customFeatures.map((f) => (
-                    <li
-                      key={f}
-                      className="flex items-start gap-2.5 text-sm text-gray-400"
-                    >
-                      <CheckIcon color="#9ca3af" />
-                      {f}
-                    </li>
-                  ))}
-                </ul>
+                </span>
               </div>
+
+              <h2 className="text-xl font-bold text-gray-900">Custom</h2>
+              <p className="text-gray-500 text-sm mt-1">
+                For venues and large promoters.
+              </p>
+
+              <div className="mt-6">
+                <span className="text-5xl font-extrabold text-gray-900">
+                  Custom
+                </span>
+              </div>
+              <p className="text-gray-500 text-sm mt-1 mb-6">
+                Volume pricing &amp; dedicated rates
+              </p>
+
+              <button
+                disabled
+                className="w-full text-center bg-gray-100 text-gray-400 font-medium px-4 py-3 rounded-xl cursor-not-allowed text-sm"
+              >
+                Coming soon
+              </button>
+
+              <ul className="mt-8 space-y-3">
+                {customFeatures.map((f) => (
+                  <li
+                    key={f}
+                    className="flex items-start gap-2.5 text-sm text-gray-400"
+                  >
+                    <CheckIcon color="#9ca3af" />
+                    {f}
+                  </li>
+                ))}
+              </ul>
             </div>
-          )}
+          </div>
+          */}
         </div>
 
         {/* Common Questions */}

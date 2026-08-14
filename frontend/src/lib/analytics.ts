@@ -85,11 +85,12 @@ export function trackViewEvent(params: {
 }
 
 /** Fired when user clicks the share button on an event page. */
-export function trackShareEvent(params: { eventName: string; eventSlug: string }) {
+export function trackShareEvent(params: { eventName: string; eventSlug: string; method?: string }) {
   gtag('event', 'share', {
     content_type: 'event',
     item_id: params.eventSlug,
     event_name: params.eventName,
+    method: params.method,
   });
 }
 
@@ -98,13 +99,23 @@ export function trackShareEvent(params: { eventName: string; eventSlug: string }
  * attributed to "share" traffic in GA4 rather than lumped in with
  * direct/organic traffic. `campaign` distinguishes what was shared
  * (e.g. "event_share", "profile_share"); `content` identifies the specific
- * item (event slug, username, etc).
+ * item (event slug, username, etc). `source` names the channel the user
+ * shared through (e.g. "whatsapp", "twitter") so GA4 can attribute traffic
+ * per platform instead of a generic "social" bucket — defaults preserve the
+ * old generic behaviour for the native OS share sheet, which can't tell us
+ * the target app.
  */
-export function withShareUtm(url: string, campaign: string, content: string): string {
+export function withShareUtm(
+  url: string,
+  campaign: string,
+  content: string,
+  source: string = 'byro_share',
+  medium: string = 'social',
+): string {
   try {
     const u = new URL(url);
-    u.searchParams.set('utm_source', 'byro_share');
-    u.searchParams.set('utm_medium', 'social');
+    u.searchParams.set('utm_source', source);
+    u.searchParams.set('utm_medium', medium);
     u.searchParams.set('utm_campaign', campaign);
     u.searchParams.set('utm_content', content);
     return u.toString();

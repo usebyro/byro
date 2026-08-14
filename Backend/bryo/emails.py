@@ -53,16 +53,14 @@ def ticket_confirmation_email(name, event_name, date, time, location, ticket_id,
       {location_row}
     </table>"""
 
-    # Ticket ID section
+    # Ticket attachment note — the scannable ticket (with QR) is attached to the email.
     ticket_id_section = ""
     if ticket_id:
-        ticket_id_section = f"""
+        ticket_id_section = """
     <table cellpadding="0" cellspacing="0" style="width:100%;">
       <tr>
         <td>
-          <p style="color:#94a3b8;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;margin:0 0 6px;">Scan at entry</p>
-          <p style="color:#0f172a;font-size:15px;font-weight:700;font-family:'Courier New',Courier,monospace;margin:0 0 4px;letter-spacing:0.04em;">{ticket_id}</p>
-          <p style="color:#94a3b8;font-size:12px;margin:0;">Your ticket is attached to this email — present it at the gate for entry</p>
+          <p style="color:#0f172a;font-size:15px;font-weight:700;margin:0;">Your ticket is attached to this email, present it at the gate for entry</p>
         </td>
       </tr>
     </table>"""
@@ -117,7 +115,7 @@ def ticket_confirmation_email(name, event_name, date, time, location, ticket_id,
 
         <!-- Intro -->
         <p style="color:#64748b;font-size:15px;line-height:1.6;margin:0 0 28px;">
-          Hi {name} &#8212; your booking is confirmed. Show your ticket ID at the gate for entry.
+          Hi {name}, your booking is confirmed. Show your ticket at the gate for entry.
         </p>
 
         <!-- Ticket card -->
@@ -154,7 +152,7 @@ def ticket_confirmation_email(name, event_name, date, time, location, ticket_id,
         <table cellpadding="0" cellspacing="0" style="width:100%;">
           <tr>
             <td style="text-align:center;">
-              <a href="{view_ticket_url}" style="display:block;background:#3b82f6;color:#ffffff;text-decoration:none;font-size:15px;font-weight:700;padding:16px 32px;border-radius:12px;text-align:center;">View my tickets</a>
+              <a href="{view_ticket_url}" style="display:block;background:#3b82f6;color:#ffffff;text-decoration:none;font-size:15px;font-weight:700;padding:16px 32px;border-radius:12px;text-align:center;">View my ticket</a>
             </td>
           </tr>
         </table>
@@ -184,8 +182,6 @@ def ticket_confirmation_email(name, event_name, date, time, location, ticket_id,
         plain_text += f"Doors: {time}\n"
     if location:
         plain_text += f"Venue: {location}\n"
-    if ticket_id:
-        plain_text += f"Ticket ID: {ticket_id}\n"
     if form_rows_text:
         plain_text += f"\nRegistration Details:\n{form_rows_text}"
     plain_text += (
@@ -252,10 +248,211 @@ def cohost_invite_email(event_name, inviter_name, event_url, is_new_user=False):
         </p>
       </td>
     </tr>
+def payout_requested_email(name, amount, bank_name, account_number, event_name=None):
+    """
+    Payout requested email — sent when organizer submits a payout request.
+
+    Args:
+        name (str): Organizer's name.
+        amount (decimal): Payout amount.
+        bank_name (str): Bank name.
+        account_number (str): Account number.
+        event_name (str, optional): Event name if payout is for a specific event.
+    """
+    formatted_amount = f"₦{amount:,.0f}"
+
+    event_section = ""
+    event_section_text = ""
+    if event_name:
+        event_section = f"""
+        <tr>
+          <td style="padding-bottom:16px;vertical-align:top;">
+            <p style="color:#94a3b8;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;margin:0 0 4px;">Event</p>
+            <p style="color:#0f172a;font-size:14px;font-weight:600;margin:0;">{event_name}</p>
+          </td>
+        </tr>"""
+        event_section_text = f"\nEvent: {event_name}"
+
+    html = f"""
+<div style="background-color:#f1f5f9;padding:32px 16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
+  <table cellpadding="0" cellspacing="0" style="max-width:560px;margin:0 auto;width:100%;">
+
+    <!-- Main white card -->
+    <tr>
+      <td style="background:#ffffff;border-radius:16px;padding:36px 32px 32px;box-shadow:0 2px 12px rgba(0,0,0,0.07);">
+
+        <!-- PAYOUT INITIATED label -->
+        <p style="color:#3b82f6;font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;margin:0 0 14px;">Payout Initiated</p>
+
+        <!-- Headline -->
+        <h1 style="margin:0 0 16px;font-size:28px;font-weight:800;color:#0f172a;line-height:1.2;">
+          Your payout is on the way.
+        </h1>
+
+        <!-- Intro -->
+        <p style="color:#64748b;font-size:15px;line-height:1.6;margin:0 0 28px;">
+          Hi {name}, your payout request has been initiated.
+        </p>
+
+        <!-- Details -->
+        <table cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;margin-bottom:24px;">
+          <tr>
+            <td style="width:50%;padding-bottom:16px;vertical-align:top;">
+              <p style="color:#94a3b8;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;margin:0 0 4px;">Amount</p>
+              <p style="color:#0f172a;font-size:14px;font-weight:600;margin:0;">{formatted_amount}</p>
+            </td>
+            <td style="width:50%;padding-bottom:16px;vertical-align:top;">
+              <p style="color:#94a3b8;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;margin:0 0 4px;">Bank</p>
+              <p style="color:#0f172a;font-size:14px;font-weight:600;margin:0;">{bank_name}</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding-bottom:16px;vertical-align:top;">
+              <p style="color:#94a3b8;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;margin:0 0 4px;">Account Number</p>
+              <p style="color:#0f172a;font-size:14px;font-weight:600;font-family:'Courier New',Courier,monospace;margin:0;">{account_number}</p>
+            </td>
+            <td style="padding-bottom:16px;vertical-align:top;">
+              {event_section}
+            </td>
+          </tr>
+        </table>
+
+        <!-- Note -->
+        <table cellpadding="0" cellspacing="0" style="width:100%;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;margin-bottom:0;">
+          <tr>
+            <td style="padding:16px 20px;">
+              <p style="color:#64748b;font-size:14px;line-height:1.5;margin:0;">
+                Payouts are processed within 24 hours. We'll send you a confirmation once it's completed.
+              </p>
+            </td>
+          </tr>
+        </table>
+
+      </td>
+    </tr>
+
+    <!-- Footer -->
+    <tr>
+      <td style="text-align:center;padding:24px 16px;">
+        <p style="color:#999999;font-size:12px;margin:0;">
+          If you have any questions, kindly reach out to
+          <a href="mailto:support@usebyro.com" style="color:#3b82f6;text-decoration:underline;">support@usebyro.com</a>
+        </p>
+        <p style="color:#999999;font-size:12px;margin:8px 0 0;">
+          &#169; 2026 Byro Technologies. All rights reserved.
+        </p>
+      </td>
+    </tr>
+
   </table>
 </div>"""
 
     plain_text = (
+        f"Hi {name},\n\n"
+        f"Your payout request has been initiated.\n\n"
+        f"Amount: {formatted_amount}\n"
+        f"Bank: {bank_name}\n"
+        f"Account Number: {account_number}"
+        f"{event_section_text}\n\n"
+        f"Payouts are processed within 24 hours. We'll send you a confirmation once it's completed.\n\n"
+        f"If you have any questions, kindly reach out to support@usebyro.com.\n\n"
+        f"Thanks,\n"
+        f"The Byro Team"
+    )
+
+    return {
+        "subject": f"Your Payout Request of {formatted_amount} has been Initiated",
+        "html": html,
+        "text": plain_text,
+    }
+
+
+def payout_completed_email(name, amount, bank_name, account_number, event_name=None):
+    """
+    Payout completed email — sent when admin marks payout as processed.
+
+    Args:
+        name (str): Organizer's name.
+        amount (decimal): Payout amount.
+        bank_name (str): Bank name.
+        account_number (str): Account number.
+        event_name (str, optional): Event name if payout is for a specific event.
+    """
+    formatted_amount = f"₦{amount:,.0f}"
+
+    event_cell = ""
+    event_row_text = ""
+    if event_name:
+        event_cell = f"""
+            <p style="color:#94a3b8;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;margin:0 0 4px;">Event</p>
+            <p style="color:#0f172a;font-size:14px;font-weight:600;margin:0;">{event_name}</p>"""
+        event_row_text = f"\nEvent: {event_name}"
+
+    html = f"""
+<div style="background-color:#f1f5f9;padding:32px 16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
+  <table cellpadding="0" cellspacing="0" style="max-width:560px;margin:0 auto;width:100%;">
+
+    <!-- Main white card -->
+    <tr>
+      <td style="background:#ffffff;border-radius:16px;padding:36px 32px 32px;box-shadow:0 2px 12px rgba(0,0,0,0.07);">
+
+        <!-- PAYOUT COMPLETED label -->
+        <p style="color:#16B979;font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;margin:0 0 14px;">Payout Completed</p>
+
+        <!-- Headline -->
+        <h1 style="margin:0 0 16px;font-size:28px;font-weight:800;color:#0f172a;line-height:1.2;">
+          You've been paid. <em style="color:#16B979;font-style:italic;">Nice one.</em>
+        </h1>
+
+        <!-- Intro -->
+        <p style="color:#64748b;font-size:15px;line-height:1.6;margin:0 0 28px;">
+          Hi {name} - your payout has been processed and sent to your bank account.
+        </p>
+
+        <!-- Details -->
+        <table cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;margin-bottom:24px;">
+          <tr>
+            <td style="width:50%;padding-bottom:16px;vertical-align:top;">
+              <p style="color:#94a3b8;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;margin:0 0 4px;">Amount</p>
+              <p style="color:#0f172a;font-size:14px;font-weight:600;margin:0;">{formatted_amount}</p>
+            </td>
+            <td style="width:50%;padding-bottom:16px;vertical-align:top;">
+              <p style="color:#94a3b8;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;margin:0 0 4px;">Bank</p>
+              <p style="color:#0f172a;font-size:14px;font-weight:600;margin:0;">{bank_name}</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding-bottom:16px;vertical-align:top;">
+              <p style="color:#94a3b8;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;margin:0 0 4px;">Account Number</p>
+              <p style="color:#0f172a;font-size:14px;font-weight:600;font-family:'Courier New',Courier,monospace;margin:0;">{account_number}</p>
+            </td>
+            <td style="padding-bottom:16px;vertical-align:top;">
+              {event_cell}
+            </td>
+          </tr>
+        </table>
+
+      </td>
+    </tr>
+
+    <!-- Footer -->
+    <tr>
+      <td style="text-align:center;padding:24px 16px;">
+        <p style="color:#999999;font-size:12px;margin:0;">
+          If you have any questions, kindly reach out to
+          <a href="mailto:support@usebyro.com" style="color:#3b82f6;text-decoration:underline;">support@usebyro.com</a>
+        </p>
+        <p style="color:#999999;font-size:12px;margin:8px 0 0;">
+          &#169; 2026 Byro Technologies. All rights reserved.
+        </p>
+      </td>
+    </tr>
+
+  </table>
+</div>"""
+
+    plain_text = (
+<<<<<<< feat/auth
         f"{inviter_name} has invited you to co-host {event_name} on Byro.\n\n"
         f"{instruction}\n\n"
         f"{cta}: {event_url}\n\n"
@@ -265,6 +462,21 @@ def cohost_invite_email(event_name, inviter_name, event_url, is_new_user=False):
 
     return {
         "subject": f"You've been invited to co-host {event_name}",
+=======
+        f"Hi {name},\n\n"
+        f"Your payout has been completed.\n\n"
+        f"Amount: {formatted_amount}\n"
+        f"Bank: {bank_name}\n"
+        f"Account Number: {account_number}"
+        f"{event_row_text}\n\n"
+        f"If you have any questions, kindly reach out to support@usebyro.com.\n\n"
+        f"Thanks,\n"
+        f"The Byro Team"
+    )
+
+    return {
+        "subject": f"Your Payout of {formatted_amount} has been Completed",
+>>>>>>> main
         "html": html,
         "text": plain_text,
     }

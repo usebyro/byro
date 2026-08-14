@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import EventCard from "@/components/landing/EventCard";
-import Link from "next/link";
 import API from "@/services/api";
 
 interface Event {
@@ -28,18 +28,16 @@ interface Category {
   count: number;
 }
 
-const WHEN_OPTIONS = [
-  { value: "today", label: "Today", count: 24 },
-  { value: "weekend", label: "This weekend", count: 88 },
-  { value: "month", label: "This month", count: 410 },
-  { value: "custom", label: "Pick a date", count: null as null },
-];
+interface Location {
+  value: string;
+  label: string;
+  count: number;
+}
 
-const AREAS = [
-  { value: "victoria_island", label: "Victoria Island", count: 112 },
-  { value: "ikoyi", label: "Ikoyi", count: 76 },
-  { value: "lekki", label: "Lekki", count: 94 },
-  { value: "mainland", label: "Mainland", count: 130 },
+const WHEN_OPTIONS = [
+  { value: "today", label: "Today", count: null as null },
+  { value: "weekend", label: "This weekend", count: null as null },
+  { value: "month", label: "This month", count: null as null },
 ];
 
 const SORT_OPTIONS = [
@@ -49,10 +47,12 @@ const SORT_OPTIONS = [
   { value: "price_desc", label: "Price: High to Low" },
 ];
 
-export default function DiscoverPage() {
+function DiscoverPageContent() {
+  const searchParams = useSearchParams();
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [locations, setLocations] = useState<Location[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedWhen, setSelectedWhen] = useState<string[]>([]);
   const [selectedAreas, setSelectedAreas] = useState<string[]>([]);
@@ -61,6 +61,7 @@ export default function DiscoverPage() {
   const [userCity, setUserCity] = useState("Lagos");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [visibleCount, setVisibleCount] = useState(6);
+  const search = searchParams.get("search") || "";
 
   useEffect(() => {
     API.getCategories()
@@ -69,6 +70,13 @@ export default function DiscoverPage() {
         if (cats.length > 0) setCategories(cats);
       })
       .catch(() => {/* keep empty, sidebar won't show categories */});
+
+    API.getLocations()
+      .then((data) => {
+        const locs: Location[] = data?.locations || [];
+        if (locs.length > 0) setLocations(locs);
+      })
+      .catch(() => {/* keep empty, sidebar won't show locations */});
   }, []);
 
   useEffect(() => {
@@ -76,6 +84,7 @@ export default function DiscoverPage() {
       setLoading(true);
       try {
         const params: Record<string, string | number> = {};
+        if (search.trim()) params.search = search.trim();
         if (selectedCategories.length > 0) params.category = selectedCategories[0];
         if (selectedWhen.length > 0) params.when = selectedWhen[0];
         if (selectedAreas.length > 0) params.area = selectedAreas[0];
@@ -98,7 +107,7 @@ export default function DiscoverPage() {
       }
     };
     fetchEvents();
-  }, [selectedCategories, selectedWhen, selectedAreas, priceMax, sortBy]);
+  }, [search, selectedCategories, selectedWhen, selectedAreas, priceMax, sortBy]);
 
   useEffect(() => {
     if (!navigator.geolocation) return;
@@ -155,7 +164,7 @@ export default function DiscoverPage() {
       (v) => WHEN_OPTIONS.find((w) => w.value === v)?.label || v
     ),
     ...selectedAreas.map(
-      (v) => AREAS.find((a) => a.value === v)?.label || v
+      (v) => locations.find((a) => a.value === v)?.label || v
     ),
   ];
 
@@ -172,7 +181,7 @@ export default function DiscoverPage() {
     if (cat) setSelectedCategories((prev) => prev.filter((c) => c !== cat.value));
     const when = WHEN_OPTIONS.find((w) => w.label === label);
     if (when) setSelectedWhen((prev) => prev.filter((w) => w !== when.value));
-    const area = AREAS.find((a) => a.label === label);
+    const area = locations.find((a) => a.label === label);
     if (area) setSelectedAreas((prev) => prev.filter((a) => a !== area.value));
   };
 
@@ -205,15 +214,6 @@ export default function DiscoverPage() {
       <Navbar />
       <main className="min-h-screen bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          {/* Breadcrumb */}
-          <div className="flex items-center gap-2 text-sm text-gray-500 mb-4">
-            <Link href="/" className="hover:text-gray-900 transition-colors">
-              Discover
-            </Link>
-            <span>·</span>
-            <span>All events</span>
-          </div>
-
           {/* Page title */}
           <h1 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-8">
             Events in{" "}
@@ -342,7 +342,7 @@ export default function DiscoverPage() {
                   Area
                 </h4>
                 <div className="space-y-2.5">
-                  {AREAS.map((area) => (
+                  {locations.map((area) => (
                     <label
                       key={area.value}
                       className="flex items-center gap-2.5 cursor-pointer group"
@@ -536,5 +536,13 @@ export default function DiscoverPage() {
       </main>
       <Footer />
     </>
+  );
+}
+
+export default function DiscoverPage() {
+  return (
+    <Suspense fallback={null}>
+      <DiscoverPageContent />
+    </Suspense>
   );
 }

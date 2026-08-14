@@ -108,6 +108,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
 
   /* form state */
   const [eventName, setEventName] = useState("");
+  const categories = CATEGORIES;
   const [category, setCategory] = useState("entertainment");
   const [description, setDescription] = useState("");
   const [date, setDate] = useState("");
@@ -131,6 +132,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
 
   /* ticket tiers (UI only — we submit the first tier's price to the API) */
   const [tiers, setTiers] = useState(DEFAULT_TIERS);
+  const [originalTiers, setOriginalTiers] = useState([]); // snapshot of saved tiers, for edit diffing
   const [editingTierId, setEditingTierId] = useState(null);
   const [editTierData, setEditTierData] = useState({});
 
@@ -150,6 +152,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
     setVirtualLink(d.virtual_link || "");
     setDescription(d.description || "");
     setTicketsTransferable(d.transferable || false);
+    setShowRemainingCount(d.show_remaining_count || false);
     setCategory(d.category || "entertainment");
     setEventVisibility(d.visibility === "public");
     if (d.event_image_url || d.event_image) {
@@ -165,14 +168,16 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
     API.getEventTiers(editSlug)
       .then((data) => {
         if (Array.isArray(data) && data.length > 0) {
-          setTiers(
-            data.map((t) => ({
-              id: t.id, // real numeric backend ID — won't match "tier_" filter, so won't be re-POSTed
-              name: t.name,
-              price: t.price != null ? String(t.price) : "",
-              available: t.capacity != null ? String(t.capacity) : "Unlimited",
-            }))
-          );
+          const mapped = data.map((t) => ({
+            id: t.id, // real numeric backend ID — won't match "tier_" filter, so won't be re-POSTed
+            name: t.name,
+            price: t.price != null ? String(t.price) : "",
+            available: t.capacity != null ? String(t.capacity) : "Unlimited",
+            admits: t.admits_count != null ? String(t.admits_count) : "1",
+          }));
+          setTiers(mapped);
+          // Deep-copy snapshot so we can diff for PATCH/DELETE on save
+          setOriginalTiers(mapped.map((t) => ({ ...t })));
         }
       })
       .catch(() => {}); // silently fail — form still works without pre-loaded tiers
@@ -193,7 +198,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
   /* Tier editing helpers */
   const startEditTier = (tier) => {
     setEditingTierId(tier.id);
-    setEditTierData({ name: tier.name, available: tier.available, price: tier.price });
+    setEditTierData({ name: tier.name, available: tier.available, price: tier.price, admits: tier.admits ?? "1" });
   };
 
   const saveEditTier = () => {
@@ -207,9 +212,9 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
 
   const addTier = () => {
     const newId = `tier_${Date.now()}`;
-    setTiers(prev => [...prev, { id: newId, name: "New Tier", available: "100", price: "" }]);
+    setTiers(prev => [...prev, { id: newId, name: "New Tier", available: "100", price: "", admits: "1" }]);
     setEditingTierId(newId);
-    setEditTierData({ name: "New Tier", available: "100", price: "" });
+    setEditTierData({ name: "New Tier", available: "100", price: "", admits: "1" });
   };
 
   const handleVenueChange = useCallback((val) => {
@@ -268,6 +273,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
       time_to: convertTo24Hour(timeFrom), // same for now; no end-time in design
       ticket_price: ticketPrice,
       transferable: ticketsTransferable.toString(),
+      show_remaining_count: showRemainingCount.toString(),
       visibility: isDraft ? "private" : (eventVisibility ? "public" : "private"),
       category,
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "GMT+01:00",
@@ -286,6 +292,19 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
       return isNaN(n) ? null : n;
     };
 
+    const parseAdmits = (val) => {
+      const n = parseInt(String(val ?? "1"), 10);
+      return isNaN(n) || n < 1 ? 1 : n;
+    };
+
+    const tierPayload = (tier, idx) => ({
+      name: tier.name,
+      price: parseFloat(tier.price) || 0,
+      capacity: parseCapacity(tier.available),
+      admits_count: parseAdmits(tier.admits),
+      order: idx,
+    });
+
     try {
       setIsSubmitting(true);
       const response = editSlug
@@ -295,24 +314,43 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
       if (response) {
         const slug = editSlug || response.slug;
 
-        const tiersToCreate = editSlug
-          ? tiers.filter((t) => String(t.id).startsWith("tier_"))
-          : tiers;
+        let tierOps;
+        if (editSlug) {
+          // Diff against the snapshot loaded from the server:
+          //  • new tiers (temp "tier_" id)      → POST
+          //  • existing tiers with changed fields → PATCH
+          //  • saved tiers no longer present      → DELETE
+          const currentIds = new Set(tiers.map((t) => String(t.id)));
+          const ops = [];
+          tiers.forEach((tier, idx) => {
+            if (String(tier.id).startsWith("tier_")) {
+              ops.push(API.createTier(slug, tierPayload(tier, idx)));
+              return;
+            }
+            const orig = originalTiers.find((o) => String(o.id) === String(tier.id));
+            const changed =
+              !orig ||
+              orig.name !== tier.name ||
+              orig.price !== tier.price ||
+              orig.available !== tier.available ||
+              (orig.admits ?? "1") !== (tier.admits ?? "1");
+            if (changed) ops.push(API.updateTier(slug, tier.id, tierPayload(tier, idx)));
+          });
+          originalTiers.forEach((orig) => {
+            if (!currentIds.has(String(orig.id))) {
+              ops.push(API.deleteTier(slug, orig.id));
+            }
+          });
+          tierOps = ops;
+        } else {
+          tierOps = tiers.map((tier, idx) => API.createTier(slug, tierPayload(tier, idx)));
+        }
 
-        if (tiersToCreate.length > 0) {
-          const results = await Promise.allSettled(
-            tiersToCreate.map((tier, idx) =>
-              API.createTier(slug, {
-                name: tier.name,
-                price: parseFloat(tier.price) || 0,
-                capacity: parseCapacity(tier.available),
-                order: idx,
-              })
-            )
-          );
+        if (tierOps.length > 0) {
+          const results = await Promise.allSettled(tierOps);
           const failures = results.filter((r) => r.status === "rejected");
           if (failures.length > 0) {
-            toast.error(`Event saved but ${failures.length} tier(s) failed: ${failures[0]?.reason?.message || "unknown error"}`);
+            toast.error(`Event saved but ${failures.length} tier change(s) failed: ${failures[0]?.reason?.message || "unknown error"}`);
           }
         }
 
@@ -336,34 +374,33 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
   return (
     <div className="min-h-screen bg-[#F5F6FA]">
       {/* ── Top bar ── */}
-      <div className="bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between sticky top-0 z-10">
-        <div className="flex items-center gap-4">
-          <button onClick={() => router.back()} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors">
-            <HugeiconsIcon icon={ArrowLeft01Icon} size={16} color="#6b7280" />
-            Events
+      <div className="bg-white border-b border-gray-100 px-3 sm:px-6 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sticky top-0 z-10">
+        <div className="flex items-center gap-2">
+          <button onClick={() => router.back()} className="flex items-center justify-center w-7 h-7 rounded-lg text-gray-500 hover:text-gray-800 hover:bg-gray-50 transition-colors shrink-0">
+            <HugeiconsIcon icon={ArrowLeft01Icon} size={14} color="#6b7280" />
           </button>
-          <span className="text-gray-200">/</span>
-          <h1 className="text-xl font-bold text-gray-900">
+          <span className="text-gray-200 text-sm">/</span>
+          <h1 className="text-base sm:text-lg font-bold text-gray-900 truncate">
             {editSlug ? "Edit event" : "Create event"}
           </h1>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="grid grid-cols-2 gap-2 w-full sm:flex sm:w-auto sm:items-center sm:gap-2.5">
           <button
             onClick={() => handleSubmit(true)}
             disabled={isSubmitting}
-            className="border border-gray-200 text-gray-700 text-sm font-semibold px-5 py-2.5 rounded-xl hover:bg-gray-50 transition-colors disabled:opacity-40"
+            className="border border-gray-200 text-gray-700 text-[11px] sm:text-xs font-semibold px-2.5 py-2 rounded-xl hover:bg-gray-50 transition-colors disabled:opacity-40 text-center w-full sm:w-auto"
           >
             Save draft
           </button>
           <button
             onClick={() => handleSubmit(false)}
             disabled={isSubmitting}
-            className="bg-blue-600 text-white text-sm font-semibold px-5 py-2.5 rounded-xl hover:bg-blue-700 transition-colors flex items-center gap-2 disabled:opacity-40"
+            className="bg-blue-600 text-white text-[11px] sm:text-xs font-semibold px-2.5 py-2 rounded-xl hover:bg-blue-700 transition-colors flex items-center justify-center gap-1 sm:gap-1.5 disabled:opacity-40 w-full sm:w-auto"
           >
             {isSubmitting ? (
-              <svg className="animate-spin" width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25" /><path d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" fill="currentColor" className="opacity-75" /></svg>
+              <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25" /><path d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" fill="currentColor" className="opacity-75" /></svg>
             ) : (
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12" /></svg>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12" /></svg>
             )}
             {isSubmitting ? "Saving..." : "Publish event"}
           </button>
@@ -396,7 +433,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
             <div className="mb-5">
               <label className="block text-sm font-medium text-gray-700 mb-3">Category</label>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {CATEGORIES.map(cat => (
+                {categories.map(cat => (
                   <button
                     key={cat.id}
                     type="button"
@@ -586,6 +623,21 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
                           placeholder="e.g. 8500"
                         />
                       </div>
+                      <div>
+                        <label className="text-xs font-medium text-gray-600 mb-1 block">People per ticket</label>
+                        <input
+                          type="number"
+                          min="1"
+                          step="1"
+                          value={editTierData.admits ?? "1"}
+                          onChange={e => setEditTierData(p => ({ ...p, admits: e.target.value }))}
+                          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="1"
+                        />
+                        <p className="text-[11px] text-gray-400 mt-1">
+                          For group tickets (e.g. &quot;Group of 4&quot; → 4). This is one ticket that admits that many people; the buyer fills in each guest&apos;s details at checkout.
+                        </p>
+                      </div>
                       <div className="flex gap-2">
                         <button type="button" onClick={saveEditTier} className="bg-blue-600 text-white text-xs font-semibold px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">Save</button>
                         <button type="button" onClick={() => setEditingTierId(null)} className="border border-gray-200 text-gray-600 text-xs font-medium px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors">Cancel</button>
@@ -599,7 +651,10 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
                       </span>
                       <div className="flex-1 min-w-0">
                         <p className="font-semibold text-gray-900 text-sm">{tier.name}</p>
-                        <p className="text-xs text-gray-400 mt-0.5">{tier.available} available</p>
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          {tier.available} available
+                          {parseInt(tier.admits, 10) > 1 ? ` · admits ${tier.admits} per ticket` : ""}
+                        </p>
                       </div>
                       <span className="font-bold text-gray-900 text-sm mr-2">
                         {tier.price ? fmt(parseFloat(tier.price)) : "Free"}
@@ -619,7 +674,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
             </div>
 
             <p className="text-xs text-gray-400 mt-4">
-              Free event? Skip this section. For paid events, add at least one tier with a price — the first tier&apos;s price becomes the event ticket price.
+              Free event? Skip this section. For paid events, add at least one tier with a price, the first tier&apos;s price becomes the event ticket price.
             </p>
           </div>
         </div>

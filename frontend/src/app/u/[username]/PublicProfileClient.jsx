@@ -19,7 +19,8 @@ import API from "@/services/api";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { toast } from "sonner";
-import { withShareUtm } from "@/lib/analytics";
+import ShareMenu from "@/components/ShareMenu";
+import { FaXTwitter, FaInstagram, FaLinkedinIn, FaTelegram } from "react-icons/fa6";
 
 const CATEGORY_ICONS = {
   entertainment: MusicNote01Icon,
@@ -119,17 +120,6 @@ export default function PublicProfileClient({ username }) {
 
     return { upcomingEvents: upcoming, pastEvents: past };
   }, [events]);
-
-  const handleShare = () => {
-    const shareUrl = withShareUtm(window.location.href, "profile_share", username);
-    if (navigator.share) {
-      navigator.share({ title: profile?.display_name, url: shareUrl });
-    } else {
-      navigator.clipboard.writeText(shareUrl).then(() => {
-        toast.success("Profile link copied to clipboard!");
-      });
-    }
-  };
 
   const handleFollowToggle = () => {
     setIsFollowing((f) => !f);
@@ -250,13 +240,16 @@ export default function PublicProfileClient({ username }) {
               >
                 {isFollowing ? "Following" : "Follow"}
               </button>
-              <button
-                onClick={handleShare}
+              <ShareMenu
+                url={typeof window !== "undefined" ? window.location.href : ""}
+                title={profile?.display_name || username}
+                campaign="profile_share"
+                content={username}
                 className="px-4 py-2.5 border border-gray-200 rounded-full hover:bg-gray-50 text-gray-600 transition-colors shadow-sm"
                 aria-label="Share Profile"
               >
                 <HugeiconsIcon icon={Share01Icon} size={16} />
-              </button>
+              </ShareMenu>
             </div>
 
           </div>
@@ -371,22 +364,26 @@ export default function PublicProfileClient({ username }) {
                 <h4 className="font-bold text-gray-900 text-sm mb-3">Connect on Socials</h4>
                 <div className="flex flex-wrap gap-4">
                   {profile.twitter && (
-                    <a href={`https://twitter.com/${profile.twitter}`} target="_blank" rel="noopener noreferrer" className="text-sm px-4 py-2 bg-gray-50 rounded-xl hover:bg-gray-100 text-gray-700 transition-colors font-medium">
+                    <a href={`https://twitter.com/${profile.twitter}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-sm px-4 py-2 bg-gray-50 rounded-xl hover:bg-gray-100 text-gray-700 transition-colors font-medium">
+                      <FaXTwitter size={15} color="#000000" />
                       Twitter
                     </a>
                   )}
                   {profile.instagram && (
-                    <a href={`https://instagram.com/${profile.instagram}`} target="_blank" rel="noopener noreferrer" className="text-sm px-4 py-2 bg-gray-50 rounded-xl hover:bg-gray-100 text-gray-700 transition-colors font-medium">
+                    <a href={`https://instagram.com/${profile.instagram}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-sm px-4 py-2 bg-gray-50 rounded-xl hover:bg-gray-100 text-gray-700 transition-colors font-medium">
+                      <FaInstagram size={15} color="#E4405F" />
                       Instagram
                     </a>
                   )}
                   {profile.linkedin && (
-                    <a href={`https://linkedin.com/in/${profile.linkedin}`} target="_blank" rel="noopener noreferrer" className="text-sm px-4 py-2 bg-gray-50 rounded-xl hover:bg-gray-100 text-gray-700 transition-colors font-medium">
+                    <a href={`https://linkedin.com/in/${profile.linkedin}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-sm px-4 py-2 bg-gray-50 rounded-xl hover:bg-gray-100 text-gray-700 transition-colors font-medium">
+                      <FaLinkedinIn size={15} color="#0A66C2" />
                       LinkedIn
                     </a>
                   )}
                   {profile.telegram && (
-                    <a href={`https://t.me/${profile.telegram}`} target="_blank" rel="noopener noreferrer" className="text-sm px-4 py-2 bg-gray-50 rounded-xl hover:bg-gray-100 text-gray-700 transition-colors font-medium">
+                    <a href={`https://t.me/${profile.telegram}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-sm px-4 py-2 bg-gray-50 rounded-xl hover:bg-gray-100 text-gray-700 transition-colors font-medium">
+                      <FaTelegram size={15} color="#26A5E4" />
                       Telegram
                     </a>
                   )}
@@ -506,8 +503,14 @@ function EventCard({ event }) {
             </span>
           </div>
 
-          <button className="bg-blue-600 text-white font-semibold text-xs px-4 py-2.5 rounded-full hover:bg-blue-700 transition-colors flex items-center gap-1 group-hover:shadow shadow-sm">
+          <button
+            className="ticket-cta bg-blue-600 text-white font-semibold text-xs pl-4 pr-3 py-2.5 rounded-full hover:bg-blue-700 transition-colors flex items-center gap-1.5 group-hover:shadow shadow-sm"
+            style={{ "--ticket-notch-right": "22px", "--ticket-notch-left": "14px" }}
+          >
+            <span className="ticket-cta-notch-left ticket-cta-notch-top" />
+            <span className="ticket-cta-notch-left ticket-cta-notch-bottom" />
             <span>Get tickets</span>
+            <span className="ticket-cta-divider" />
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <path d="M5 12h14M12 5l7 7-7 7" />
             </svg>

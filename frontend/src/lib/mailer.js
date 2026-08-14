@@ -1,7 +1,13 @@
 import { Resend } from "resend";
 import nodemailer from "nodemailer";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+let resend;
+function getResend() {
+  if (!resend) {
+    resend = new Resend(process.env.RESEND_API_KEY);
+  }
+  return resend;
+}
 
 const FROM = "Byro <hello@usebyro.com>";
 const REPLY_TO = "support@usebyro.com";
@@ -24,7 +30,7 @@ const brevoTransporter = nodemailer.createTransport({
 export async function sendEmail({ to, subject, text, html }) {
   // --- Try Resend first ---
   try {
-    const { data, error } = await resend.emails.send({
+    const { data, error } = await getResend().emails.send({
       from: FROM,
       replyTo: REPLY_TO,
       to,

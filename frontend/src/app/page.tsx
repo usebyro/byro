@@ -1,6 +1,6 @@
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { Hero, BrowseByCategory, TrendingEvents, AppBanner } from "@/components/landing";
+import { Hero, BrowseByCategory, TrendingEvents, CommunitySection } from "@/components/landing";
 
 interface Event {
   id: number;
@@ -48,7 +48,7 @@ export default async function Home() {
         <Hero />
         {/* <BrowseByCategory /> */}
         <TrendingEvents initialEvents={events} />
-        <AppBanner />
+        {/* <CommunitySection /> */}
       </main>
       <Footer />
     </>

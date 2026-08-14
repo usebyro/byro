@@ -15,7 +15,6 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import axiosInstance from "@/utils/axios";
-import { MOCK_PAYOUT_REQUESTS } from "@/lib/mockPayouts";
 import { resolveAdminHref } from "@/lib/adminNav";
 
 interface Event {
@@ -26,8 +25,22 @@ interface Event {
   created_at: string;
 }
 
-const MOCK_TICKETS_SOLD = 1284;
-const MOCK_REVENUE_TOTAL = 4820000;
+interface AnalyticsSummary {
+  total_tickets_sold: number;
+  total_revenue: number;
+  total_events: number;
+  active_events: number;
+}
+
+interface RevenueTrendPoint {
+  date: string; // ISO date, e.g. "2026-07-01"
+  revenue: number;
+}
+
+interface ChartPoint {
+  day: string;
+  revenue: number;
+}
 
 const REVENUE_RANGES = [
   { label: "7D", days: 7 },
@@ -35,27 +48,25 @@ const REVENUE_RANGES = [
   { label: "90D", days: 90 },
 ];
 
-// Placeholder trend generator — replace once a real analytics endpoint exists.
-// Deterministic per-day pseudo-randomness so the chart doesn't reshuffle on every render.
-function generateRevenueTrend(days: number) {
+// The revenue-trend endpoint only returns days that had successful payments, so
+// zero-fill the gaps to keep the line continuous across the whole range.
+function fillTrend(rows: RevenueTrendPoint[], days: number): ChartPoint[] {
+  const byDate = new Map(rows.map((r) => [r.date, Number(r.revenue) || 0]));
   const today = new Date();
-  const data = [];
+  const out: ChartPoint[] = [];
   for (let i = days - 1; i >= 0; i--) {
     const d = new Date(today);
     d.setDate(d.getDate() - i);
-    const seed = d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
-    const pseudoRandom = Math.abs(Math.sin(seed));
-    const weekendBoost = d.getDay() === 0 || d.getDay() === 6 ? 1.3 : 1;
-    const revenue = Math.round((40000 + pseudoRandom * 100000) * weekendBoost);
-    data.push({
+    const iso = d.toISOString().slice(0, 10);
+    out.push({
       day:
         days <= 14
           ? d.toLocaleDateString("en-US", { weekday: "short" })
           : d.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-      revenue,
+      revenue: byDate.get(iso) ?? 0,
     });
   }
-  return data;
+  return out;
 }
 
 function StatCard({ label, value, sublabel }: { label: string; value: string | number; sublabel?: string }) {
@@ -85,22 +96,65 @@ const CATEGORY_LABELS: Record<string, string> = {
 export default function AdminDashboardPage() {
   const pathname = usePathname();
   const [events, setEvents] = useState<Event[]>([]);
+  const [summary, setSummary] = useState<AnalyticsSummary | null>(null);
+  const [revenueTrend, setRevenueTrend] = useState<ChartPoint[]>([]);
+  const [trendLoading, setTrendLoading] = useState(true);
+  const [pendingPayouts, setPendingPayouts] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [revenueRangeDays, setRevenueRangeDays] = useState(7);
 
-  const revenueTrend = useMemo(() => generateRevenueTrend(revenueRangeDays), [revenueRangeDays]);
-
+  // Events power the "Events by category" chart; summary powers the stat cards.
   useEffect(() => {
-    axiosInstance
-      .get("events/")
-      .then((res) => {
-        const data: Event[] = Array.isArray(res.data) ? res.data : res.data?.results ?? [];
-        setEvents(data);
-      })
-      .catch(() => setError("Failed to load platform events."))
+    Promise.all([
+      axiosInstance
+        .get("events/")
+        .then((res) => {
+          const data: Event[] = Array.isArray(res.data) ? res.data : res.data?.results ?? [];
+          setEvents(data);
+        }),
+      fetch("/api/admin/analytics/summary")
+        .then((res) => {
+          if (!res.ok) throw new Error("summary");
+          return res.json();
+        })
+        .then((data: AnalyticsSummary) => setSummary(data)),
+    ])
+      .catch(() => setError("Failed to load platform analytics."))
       .finally(() => setLoading(false));
   }, []);
+
+  // Pending-payout count for the callout — reuses the existing payouts proxy.
+  useEffect(() => {
+    fetch("/api/admin/payouts")
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => {
+        const list = Array.isArray(data) ? data : [];
+        setPendingPayouts(list.filter((p) => p.status === "pending").length);
+      })
+      .catch(() => setPendingPayouts(null));
+  }, []);
+
+  // Refetch the revenue trend whenever the range toggle changes.
+  useEffect(() => {
+    let cancelled = false;
+    setTrendLoading(true);
+    fetch(`/api/admin/analytics/revenue-trend?days=${revenueRangeDays}`)
+      .then((res) => (res.ok ? res.json() : []))
+      .then((rows: RevenueTrendPoint[]) => {
+        if (cancelled) return;
+        setRevenueTrend(fillTrend(Array.isArray(rows) ? rows : [], revenueRangeDays));
+      })
+      .catch(() => {
+        if (!cancelled) setRevenueTrend(fillTrend([], revenueRangeDays));
+      })
+      .finally(() => {
+        if (!cancelled) setTrendLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [revenueRangeDays]);
 
   const categoryData = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -114,9 +168,9 @@ export default function AdminDashboardPage() {
     }));
   }, [events]);
 
-  const activeEvents = events.filter((e) => e.is_active).length;
+  const totalEvents = summary?.total_events ?? events.length;
+  const activeEvents = summary?.active_events ?? events.filter((e) => e.is_active).length;
   const paidEvents = events.filter((e) => Number(e.ticket_price) > 0).length;
-  const pendingPayouts = MOCK_PAYOUT_REQUESTS.filter((p) => p.status === "pending").length;
 
   return (
     <div className="p-5 md:p-8">
@@ -130,17 +184,23 @@ export default function AdminDashboardPage() {
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <StatCard label="Total Events" value={loading ? "—" : events.length} sublabel={`${loading ? "—" : activeEvents} active`} />
+        <StatCard label="Total Events" value={loading ? "—" : totalEvents} sublabel={`${loading ? "—" : activeEvents} active`} />
         <StatCard label="Paid Events" value={loading ? "—" : paidEvents} sublabel={`${loading ? "—" : events.length - paidEvents} free`} />
-        <StatCard label="Tickets Sold" value={MOCK_TICKETS_SOLD.toLocaleString()} sublabel="Preview data" />
-        <StatCard label="Revenue" value={fmtNaira(MOCK_REVENUE_TOTAL)} sublabel="Preview data" />
+        <StatCard
+          label="Tickets Sold"
+          value={loading || !summary ? "—" : summary.total_tickets_sold.toLocaleString()}
+        />
+        <StatCard
+          label="Revenue"
+          value={loading || !summary ? "—" : fmtNaira(Number(summary.total_revenue))}
+        />
       </div>
 
       {/* Payouts callout */}
       <div className="flex items-center justify-between bg-[#1a1d27] border border-white/10 rounded-xl px-5 py-4 mb-8">
         <div>
           <p className="text-white font-semibold text-sm">
-            {pendingPayouts} pending payout{pendingPayouts === 1 ? "" : "s"}
+            {pendingPayouts ?? "—"} pending payout{pendingPayouts === 1 ? "" : "s"}
           </p>
           <p className="text-gray-400 text-xs mt-0.5">Organizers waiting for withdrawal approval</p>
         </div>
@@ -175,7 +235,9 @@ export default function AdminDashboardPage() {
           <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
             <div className="flex items-center gap-2">
               <h2 className="text-white font-semibold text-sm">Revenue</h2>
-              <span className="text-[10px] text-gray-500 bg-white/5 px-2 py-0.5 rounded-full">Preview data</span>
+              {trendLoading && (
+                <span className="text-[10px] text-gray-500 bg-white/5 px-2 py-0.5 rounded-full">Loading…</span>
+              )}
             </div>
             <div className="flex items-center gap-1">
               {REVENUE_RANGES.map((r) => (

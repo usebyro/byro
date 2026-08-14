@@ -22,7 +22,7 @@ export default function Login() {
   // Redirect once backend token is set (by Navbar's useEffect)
   useEffect(() => {
     if (token) {
-      router.push("/events");
+      router.push("/home");
     }
   }, [token, router]);
 
