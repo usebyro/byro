@@ -128,6 +128,7 @@ export default function OnboardingScreen() {
   };
 
   const handleSkip = () => {
+    if (isNextDisabled) return;
     setStage("done");
   };
 
@@ -265,7 +266,9 @@ export default function OnboardingScreen() {
                     <button
                       type="button"
                       onClick={handleSkip}
-                      className="text-sm font-medium text-gray-400 hover:text-gray-600 transition-colors"
+                      disabled={isNextDisabled}
+                      title={isNextDisabled ? "Fill in the required field before skipping" : undefined}
+                      className="text-sm font-medium text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-gray-400"
                     >
                       Skip
                     </button>
