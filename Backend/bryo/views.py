@@ -1950,13 +1950,54 @@ class AdminAnalyticsSummaryView(APIView):
         )['total'] or 0
         total_events = Event.objects.count()
         active_events = Event.objects.filter(is_active=True).count()
+        total_users = User.objects.count()
+        total_organizers = UserProfile.objects.filter(role='organizer').count()
+        total_attendees = UserProfile.objects.filter(role='attendee').count()
 
         return Response({
             'total_tickets_sold': total_tickets,
             'total_revenue': total_revenue,
             'total_events': total_events,
             'active_events': active_events,
+            'total_users': total_users,
+            'total_organizers': total_organizers,
+            'total_attendees': total_attendees,
         })
+
+
+class AdminUsersListView(APIView):
+    """
+    GET /api/admin/users/?role=organizer
+
+    Registered users with the onboarding role they picked (blank if they
+    signed up before this field existed or never finished onboarding) and
+    how many events they've created. ?role=organizer|attendee filters to
+    that self-reported role; omit it to list everyone.
+    """
+    permission_classes = [IsAdminSecret]
+
+    def get(self, request):
+        role = (request.query_params.get('role') or '').strip()
+
+        profiles = UserProfile.objects.select_related('user').annotate(
+            events_created=Count('user__owned_events', distinct=True),
+        )
+        if role in dict(UserProfile.ROLE_CHOICES):
+            profiles = profiles.filter(role=role)
+
+        data = [
+            {
+                'id': p.user_id,
+                'email': p.user.email,
+                'display_name': p.display_name,
+                'handle': p.handle,
+                'role': p.role,
+                'events_created': p.events_created,
+                'date_joined': p.user.date_joined,
+            }
+            for p in profiles.order_by('-user__date_joined')
+        ]
+        return Response(data)
 
 
 class AdminAnalyticsRevenueTrendView(APIView):

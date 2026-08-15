@@ -97,6 +97,15 @@ class UserProfile(models.Model):
         related_name='profile',
         primary_key=True,
     )
+    # Self-reported at onboarding ("Discover and Attend Events" vs "Host
+    # Event"). Blank for accounts created before this field existed, or that
+    # never finished onboarding — do not assume blank means attendee.
+    ROLE_CHOICES = [
+        ('attendee', 'Attendee'),
+        ('organizer', 'Organizer'),
+    ]
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, blank=True, db_index=True)
+
     # Public identity
     display_name = models.CharField(max_length=100, blank=True)
     # Unique handle used in public URLs: /u/<handle>

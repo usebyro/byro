@@ -9,6 +9,7 @@ import {
   Calendar03Icon,
   DashboardSquare01Icon,
   Wallet01Icon,
+  UserMultipleIcon,
   Menu01Icon,
   Cancel01Icon,
 } from "@hugeicons/core-free-icons";
@@ -18,6 +19,7 @@ import NotificationBell from "@/components/admin/NotificationBell";
 const navItems = [
   { label: "Dashboard", href: "/", icon: DashboardSquare01Icon },
   { label: "Events", href: "/events", icon: Calendar03Icon },
+  { label: "Users", href: "/users", icon: UserMultipleIcon },
   { label: "Payouts", href: "/payouts", icon: Wallet01Icon },
 ];
 

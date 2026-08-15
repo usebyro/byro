@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { CompassIcon, Megaphone01Icon, Tick02Icon, Camera01Icon, UserIcon } from "@hugeicons/core-free-icons";
+import API from "@/services/api";
 
 const ROLES = [
   {
@@ -94,6 +95,11 @@ export default function OnboardingScreen() {
 
   const handleSelectRole = (id) => {
     setRole(id);
+    // Best-effort — the choice still drives the local wizard even if this
+    // fails, but the admin-side role filter needs it saved.
+    API.updateProfile({ role: id }).catch((err) => {
+      console.error("Could not save onboarding role:", err);
+    });
     if (id === "organizer") {
       setWizardStep(0);
       setStage("organizer-details");

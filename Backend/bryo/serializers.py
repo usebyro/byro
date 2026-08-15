@@ -43,7 +43,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserProfile
         fields = [
-            'email', 'auth_provider',
+            'email', 'auth_provider', 'role',
             'display_name', 'handle', 'bio',
             'avatar', 'avatar_url',
             'location', 'website',

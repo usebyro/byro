@@ -16,6 +16,7 @@ from .views import (
     PaystackResolveAccountView,
     AdminAnalyticsSummaryView,
     AdminAnalyticsRevenueTrendView,
+    AdminUsersListView,
 )
 from .auth_views import (
     MagicAuthSendView,
@@ -85,6 +86,9 @@ urlpatterns = [
     # Admin — analytics
     path('api/admin/analytics/summary/', AdminAnalyticsSummaryView.as_view(), name='admin-analytics-summary'),
     path('api/admin/analytics/revenue-trend/', AdminAnalyticsRevenueTrendView.as_view(), name='admin-analytics-revenue-trend'),
+
+    # Admin — users
+    path('api/admin/users/', AdminUsersListView.as_view(), name='admin-users-list'),
 
     # Public short-URL for events (must be last — catch-all slug)
     path('<slug:slug>/', EventViewSet.as_view({'get': 'retrieve'}), name='event-short-url'),
