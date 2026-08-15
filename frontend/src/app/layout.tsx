@@ -3,9 +3,6 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Script from "next/script";
 import { Providers } from "@/redux/Providers";
-import Provider from "./web3auth/provider"
-import { headers } from "next/headers";
-import { cookieToWeb3AuthState } from "@web3auth/modal";
 import { Toaster } from 'sonner';
 
 const geistSans = Geist({
@@ -111,9 +108,7 @@ export const metadata: Metadata = {
   manifest: "/favicon_io/site.webmanifest",
 };
 
-export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const headersList = await headers();
-  const web3authInitialState = cookieToWeb3AuthState(headersList.get('cookie'));
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <Script
@@ -157,13 +152,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
          
         />
 
-     <Provider web3authInitialState={web3authInitialState}>
-          <Providers>
-            <div className="flex flex-col min-h-screen">
-              <main className="flex-1">{children}</main>
-            </div>
-          </Providers>
-       </Provider>
+        <Providers>
+          <div className="flex flex-col min-h-screen">
+            <main className="flex-1">{children}</main>
+          </div>
+        </Providers>
         <Script id="tawk-to" strategy="afterInteractive">{`
           var Tawk_API=Tawk_API||{}, Tawk_LoadStart=new Date();
           (function(){

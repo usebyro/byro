@@ -2,22 +2,16 @@
 
 import Image from "next/image";
 import { Sparkle } from "../app/assets/index";
-import { useWeb3AuthConnect } from "@web3auth/modal/react";
 import { useSelector } from "react-redux";
 import { useRouter } from "next/navigation";
 
 
 const HeroPage = () => {
-  const { connect } = useWeb3AuthConnect();
-  const { token } = useSelector((state: { auth: { token: string | null } }) => state.auth);
+  const { token } = useSelector((state: { auth: { token: unknown } }) => state.auth);
   const router = useRouter();
 
-  const handleGetStarted = async () => {
-    if (token) {
-      router.push("/home");
-      return;
-    }
-    await connect();
+  const handleGetStarted = () => {
+    router.push(token ? "/home" : "/login");
   };
 
   return (

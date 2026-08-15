@@ -4,8 +4,12 @@ import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useDispatch } from "react-redux";
 import { FcGoogle } from "react-icons/fc";
 import { FaApple } from "react-icons/fa";
+import axiosInstance from "@/utils/axios";
+import API from "@/services/api";
+import { authSuccess } from "@/redux/auth/authSlice";
 
 const OTP_LENGTH = 6;
 const RESEND_COOLDOWN_SECONDS = 30;
@@ -55,14 +59,25 @@ const SLIDES = [
 
 export default function AuthScreen() {
   const router = useRouter();
+  const dispatch = useDispatch();
   const [mode, setMode] = useState("signup");
   const [currentSlide, setCurrentSlide] = useState(0);
   const [step, setStep] = useState("email");
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState(Array(OTP_LENGTH).fill(""));
   const [resendCooldown, setResendCooldown] = useState(0);
+  const [isSubmittingEmail, setIsSubmittingEmail] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [oauthProvider, setOauthProvider] = useState(null);
+  const [error, setError] = useState("");
   const otpInputRefs = useRef([]);
   const copy = COPY[mode];
+
+  const completeSignIn = (data) => {
+    API.setAuthToken(data.tokens.access);
+    dispatch(authSuccess({ user: data.user, token: data.tokens }));
+    router.push(data.user.is_profile_complete ? "/home" : "/onboarding-preview");
+  };
 
   useEffect(() => {
     document.title = mode === "signup" ? "Create account | Byro" : "Sign in | Byro";
@@ -89,21 +104,55 @@ export default function AuthScreen() {
     }
   }, [step]);
 
+  const sendMagicAuthCode = async () => {
+    setError("");
+    setIsSubmittingEmail(true);
+    try {
+      await axiosInstance.post("auth/magic/send/", { email });
+      setOtp(Array(OTP_LENGTH).fill(""));
+      setResendCooldown(RESEND_COOLDOWN_SECONDS);
+      setStep("otp");
+    } catch (err) {
+      setError(err.response?.data?.error || "Could not send a code. Please try again.");
+    } finally {
+      setIsSubmittingEmail(false);
+    }
+  };
+
   const handleEmailSubmit = (e) => {
     e.preventDefault();
-    if (!email.trim()) return;
-    setOtp(Array(OTP_LENGTH).fill(""));
-    setResendCooldown(RESEND_COOLDOWN_SECONDS);
-    setStep("otp");
+    if (!email.trim() || isSubmittingEmail) return;
+    sendMagicAuthCode();
   };
 
   const handleChangeEmail = () => {
     setStep("email");
+    setError("");
     setOtp(Array(OTP_LENGTH).fill(""));
   };
 
-  const handleVerify = () => {
-    router.push("/onboarding-preview");
+  const handleVerify = async (code) => {
+    setError("");
+    setIsVerifying(true);
+    try {
+      const { data } = await axiosInstance.post("auth/magic/verify/", { email, code });
+      completeSignIn(data);
+    } catch (err) {
+      setError(err.response?.data?.error || "That code is incorrect or has expired.");
+      setIsVerifying(false);
+    }
+  };
+
+  const handleOAuthClick = async (provider) => {
+    setError("");
+    setOauthProvider(provider);
+    try {
+      const { data } = await axiosInstance.post("auth/oauth/authorize/", { provider });
+      window.location.href = data.authorization_url;
+    } catch (err) {
+      setError(err.response?.data?.error || "Could not start sign-in with that provider.");
+      setOauthProvider(null);
+    }
   };
 
   const applyDigits = (digits) => {
@@ -116,7 +165,7 @@ export default function AuthScreen() {
     const focusIndex = Math.min(chars.length, OTP_LENGTH - 1);
     otpInputRefs.current[focusIndex]?.focus();
     if (next.every((d) => d !== "")) {
-      handleVerify();
+      handleVerify(next.join(""));
     }
   };
 
@@ -129,7 +178,7 @@ export default function AuthScreen() {
       otpInputRefs.current[index + 1]?.focus();
     }
     if (next.every((d) => d !== "")) {
-      handleVerify();
+      handleVerify(next.join(""));
     }
   };
 
@@ -146,8 +195,7 @@ export default function AuthScreen() {
 
   const handleResend = () => {
     if (resendCooldown > 0) return;
-    setOtp(Array(OTP_LENGTH).fill(""));
-    setResendCooldown(RESEND_COOLDOWN_SECONDS);
+    sendMagicAuthCode();
     otpInputRefs.current[0]?.focus();
   };
 
@@ -234,11 +282,14 @@ export default function AuthScreen() {
                     </div>
                   </div>
 
+                  {error && <p className="text-sm text-red-600">{error}</p>}
+
                   <button
                     type="submit"
-                    className="w-full bg-blue-600 text-white font-semibold py-3 rounded-full hover:bg-blue-700 transition-colors text-sm"
+                    disabled={isSubmittingEmail}
+                    className="w-full bg-blue-600 text-white font-semibold py-3 rounded-full hover:bg-blue-700 transition-colors text-sm disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                    {copy.cta}
+                    {isSubmittingEmail ? "Sending..." : copy.cta}
                   </button>
                 </form>
 
@@ -251,17 +302,21 @@ export default function AuthScreen() {
                 <div className="flex gap-3">
                   <button
                     type="button"
-                    className="flex-1 flex items-center justify-center gap-2 border border-gray-200 rounded-full py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                    onClick={() => handleOAuthClick("google")}
+                    disabled={oauthProvider !== null}
+                    className="flex-1 flex items-center justify-center gap-2 border border-gray-200 rounded-full py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     <FcGoogle size={18} />
-                    Google
+                    {oauthProvider === "google" ? "Redirecting..." : "Google"}
                   </button>
                   <button
                     type="button"
-                    className="flex-1 flex items-center justify-center gap-2 border border-gray-200 rounded-full py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                    onClick={() => handleOAuthClick("apple")}
+                    disabled={oauthProvider !== null}
+                    className="flex-1 flex items-center justify-center gap-2 border border-gray-200 rounded-full py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     <FaApple size={18} />
-                    Apple
+                    {oauthProvider === "apple" ? "Redirecting..." : "Apple"}
                   </button>
                 </div>
 
@@ -299,6 +354,7 @@ export default function AuthScreen() {
                   className="space-y-4"
                   onSubmit={(e) => {
                     e.preventDefault();
+                    if (isOtpComplete) handleVerify(otp.join(""));
                   }}
                 >
                   <div className="flex justify-between gap-2" onPaste={handleOtpPaste}>
@@ -313,19 +369,22 @@ export default function AuthScreen() {
                         autoComplete="one-time-code"
                         maxLength={1}
                         value={digit}
+                        disabled={isVerifying}
                         onChange={(e) => handleOtpChange(index, e.target.value)}
                         onKeyDown={(e) => handleOtpKeyDown(index, e)}
-                        className="w-11 h-12 text-center text-lg font-semibold border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
+                        className="w-11 h-12 text-center text-lg font-semibold border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 disabled:opacity-60"
                       />
                     ))}
                   </div>
 
+                  {error && <p className="text-sm text-red-600">{error}</p>}
+
                   <button
                     type="submit"
-                    disabled={!isOtpComplete}
+                    disabled={!isOtpComplete || isVerifying}
                     className="w-full bg-blue-600 text-white font-semibold py-3 rounded-full hover:bg-blue-700 transition-colors text-sm disabled:opacity-40 disabled:cursor-not-allowed"
                   >
-                    Verify
+                    {isVerifying ? "Verifying..." : "Verify"}
                   </button>
                 </form>
 

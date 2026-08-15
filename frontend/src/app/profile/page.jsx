@@ -2,7 +2,6 @@
 
 import { useState, useEffect, Suspense } from "react";
 import { useSelector, useDispatch } from "react-redux";
-import { useWeb3AuthDisconnect } from "@web3auth/modal/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -40,8 +39,6 @@ function ProfilePageContent() {
   const searchParams = useSearchParams();
   const dispatch = useDispatch();
   const { user, token } = useSelector((s) => s.auth);
-  const { disconnect } = useWeb3AuthDisconnect();
-
   const [profile,     setProfile]     = useState(null);
   const [loading,     setLoading]     = useState(true);
   const [isEditing,   setIsEditing]   = useState(() => searchParams.get("onboarding") === "1");

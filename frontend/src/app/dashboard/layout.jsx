@@ -15,7 +15,6 @@ import {
   Menu01Icon,
   Cancel01Icon,
 } from "@hugeicons/core-free-icons";
-import { useWeb3AuthDisconnect } from "@web3auth/modal/react";
 import { Providers } from "@/redux/Providers";
 import { useSelector, useDispatch } from "react-redux";
 import { signOut } from "@/redux/auth/authSlice";
@@ -35,7 +34,6 @@ function StudioShell({ children }) {
   const router   = useRouter();
   const dispatch = useDispatch();
   const user     = useSelector((s) => s.auth?.user);
-  const { disconnect } = useWeb3AuthDisconnect();
 
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -47,8 +45,7 @@ function StudioShell({ children }) {
     setMobileOpen(false);
   }
 
-  const handleLogout = async () => {
-    await disconnect();
+  const handleLogout = () => {
     dispatch(signOut());
     router.push("/");
   };

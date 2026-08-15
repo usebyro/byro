@@ -1,19 +1,16 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { useWeb3AuthConnect, useWeb3AuthDisconnect, useIdentityToken } from "@web3auth/modal/react";
 import { usePathname, useRouter } from "next/navigation";
 import { useSelector, useDispatch } from "react-redux";
-import { toast } from "react-toastify";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { CompassIcon, UserGroupIcon, Calendar02Icon } from "@hugeicons/core-free-icons";
 import API from "@/services/api";
+import axiosInstance from "@/utils/axios";
 import { signOut, authSuccess } from "@/redux/auth/authSlice";
 import UserMenu from "@/components/auth/UserMenu";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 type NavLink = {
   label: string;
@@ -30,75 +27,37 @@ const navLinks: NavLink[] = [
 
 const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [isSigningIn, setIsSigningIn] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const { connect, isConnected, loading: connectLoading } = useWeb3AuthConnect();
-  const { disconnect } = useWeb3AuthDisconnect();
-  const { getIdentityToken } = useIdentityToken();
   const pathname = usePathname();
   const dispatch = useDispatch();
   const router = useRouter();
   const { user, token } = useSelector(
-    (state: { auth: { user: { display_name?: string; email?: string } | null; token: string | null } }) => state.auth
+    (state: { auth: { user: { display_name?: string; email?: string } | null; token: unknown } }) => state.auth
   );
   const isLoggedIn = !!token;
-
-  const exchangeWithBackend = useCallback(async () => {
-    try {
-      const idToken = await getIdentityToken();
-      if (!idToken) return null;
-      const res = await fetch(`${API_URL}auth/social/`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ provider: "web3auth", token: idToken }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        API.setAuthToken(data.tokens.access);
-        dispatch(authSuccess({ user: data.user, token: data.tokens.access }));
-        return data.user;
-      }
-      console.error("[Auth] backend rejected:", data.error);
-      await disconnect();
-      return null;
-    } catch (err) {
-      console.error("[Auth] exchange failed:", err);
-      await disconnect();
-      return null;
-    }
-  }, [getIdentityToken, disconnect, dispatch]);
-
-  const handleSignIn = async () => {
-    setIsSigningIn(true);
-    try {
-      const provider = await connect();
-      if (!provider) return;
-      const newUser = await exchangeWithBackend();
-      if (newUser) {
-        const needsProfile = !newUser.display_name && !newUser.displayName && !newUser.handle;
-        router.push(needsProfile ? "/profile?onboarding=1" : "/home");
-      } else {
-        toast.error("Sign in failed. Please try again.");
-      }
-    } catch (err) {
-      console.error("[Auth] sign in failed:", err);
-      toast.error("Sign in failed. Please try again.");
-    } finally {
-      setIsSigningIn(false);
-    }
-  };
-
-  useEffect(() => {
-    if (isConnected && !token) {
-      exchangeWithBackend();
-    }
-  }, [isConnected, token, exchangeWithBackend]);
 
   useEffect(() => {
     if (token) {
       API.setAuthToken(token);
     }
   }, [token]);
+
+  // Revalidate the session on load — also proactively refreshes an expired
+  // access token via axios.jsx's interceptor before any other request needs it.
+  useEffect(() => {
+    if (!token) return;
+    axiosInstance
+      .get("auth/me/")
+      .then(({ data }) => {
+        dispatch(authSuccess({ user: data.user, token }));
+      })
+      .catch(() => {
+        // A hard failure here (refresh also failed) already triggers
+        // sign-out via axios.jsx's response interceptor.
+      });
+    // Only ever needs to run once per mount, not on every token write.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const isActive = (href: string) => pathname === href;
 
@@ -131,8 +90,7 @@ const Navbar = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery]);
 
-  const handleLogout = async () => {
-    await disconnect();
+  const handleLogout = () => {
     dispatch(signOut());
   };
 
@@ -227,13 +185,12 @@ const Navbar = () => {
               </>
             ) : (
               <>
-                <button
-                  onClick={handleSignIn}
-                  disabled={connectLoading || isSigningIn}
-                  className="text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors disabled:opacity-50"
+                <Link
+                  href="/login"
+                  className="text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors"
                 >
-                  {connectLoading || isSigningIn ? "Signing in..." : "Sign in"}
-                </button>
+                  Sign in
+                </Link>
                 <Link
                   href="/events/create"
                   className="bg-blue-600 text-white text-sm font-medium py-2 px-4 rounded-full hover:bg-blue-700 transition-colors flex items-center gap-2"
@@ -273,13 +230,9 @@ const Navbar = () => {
               </>
             ) : (
               <>
-                <button
-                  onClick={handleSignIn}
-                  disabled={connectLoading || isSigningIn}
-                  className="text-sm font-medium text-gray-700"
-                >
+                <Link href="/login" className="text-sm font-medium text-gray-700">
                   Sign in
-                </button>
+                </Link>
                 <button
                   onClick={() => setIsMenuOpen(!isMenuOpen)}
                   className="text-gray-600 p-1"

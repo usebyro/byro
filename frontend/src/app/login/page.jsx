@@ -1,3 +1,3 @@
-import Login from "../../components/auth/Login"
+import AuthScreen from "@/components/auth/AuthScreen";
 
-export default Login
+export default AuthScreen;

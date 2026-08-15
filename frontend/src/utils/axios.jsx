@@ -101,30 +101,81 @@ axiosInstance.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
+const forceSignOut = (config) => {
+  localStorage.removeItem("accessToken");
+  localStorage.removeItem("authToken");
+  localStorage.removeItem("token");
+
+  if (typeof window !== "undefined") {
+    import("../redux/store").then(({ store }) => {
+      import("../redux/auth/authSlice").then(({ signOut }) => {
+        store.dispatch(signOut());
+      });
+    });
+    // Only redirect if this was not already a login/auth request
+    const url = config?.url || "";
+    if (!url.includes("auth/") && !url.includes("token/") && !url.includes("my_ticket")) {
+      window.location.href = "/";
+    }
+  }
+};
+
+// Shared across concurrent 401s so only one refresh call is ever in flight.
+let refreshPromise = null;
+
+const refreshAccessToken = () => {
+  if (!refreshPromise) {
+    let refreshToken = null;
+    try {
+      const stored = JSON.parse(localStorage.getItem("token") || "null");
+      refreshToken = stored?.refresh || null;
+    } catch {
+      refreshToken = null;
+    }
+
+    if (!refreshToken) {
+      refreshPromise = Promise.reject(new Error("No refresh token available"));
+    } else {
+      // Plain axios, not axiosInstance, so this call never re-enters these interceptors.
+      refreshPromise = axios
+        .post(`${API_BASE_URL}auth/refresh/`, { refresh_token: refreshToken })
+        .then(({ data }) => {
+          const tokens = { access: data.tokens.access, refresh: data.tokens.refresh || refreshToken };
+          localStorage.setItem("authToken", tokens.access);
+          localStorage.setItem("token", JSON.stringify(tokens));
+          axiosInstance.defaults.headers.common["Authorization"] = `Bearer ${tokens.access}`;
+          return tokens.access;
+        });
+    }
+    refreshPromise.finally(() => {
+      refreshPromise = null;
+    });
+  }
+  return refreshPromise;
+};
+
 // Response interceptor for error handling
 axiosInstance.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      // Clear all auth tokens from localStorage
-      localStorage.removeItem("accessToken");
-      localStorage.removeItem("authToken");
-      localStorage.removeItem("token");
+  async (error) => {
+    const { config, response } = error;
+    const isAuthRoute = (config?.url || "").includes("auth/");
 
-      // Clear Redux auth state and redirect to home
-      // Lazy-import to avoid circular deps at module load time
-      if (typeof window !== "undefined") {
-        import("../redux/store").then(({ store }) => {
-          import("../redux/auth/authSlice").then(({ signOut }) => {
-            store.dispatch(signOut());
-          });
-        });
-        // Only redirect if this was not already a login/auth request
-        const url = error.config?.url || "";
-        if (!url.includes("auth/") && !url.includes("token/") && !url.includes("my_ticket")) {
-          window.location.href = "/";
-        }
+    if (response?.status === 401 && config && !config._retry && !isAuthRoute) {
+      config._retry = true;
+      try {
+        const accessToken = await refreshAccessToken();
+        config.headers = config.headers || {};
+        config.headers["Authorization"] = `Bearer ${accessToken}`;
+        return axiosInstance(config);
+      } catch {
+        forceSignOut(config);
+        return Promise.reject(error);
       }
+    }
+
+    if (response?.status === 401) {
+      forceSignOut(config);
     }
     return Promise.reject(error);
   }
