@@ -14,25 +14,6 @@ import { authSuccess } from "@/redux/auth/authSlice";
 const OTP_LENGTH = 6;
 const RESEND_COOLDOWN_SECONDS = 30;
 
-const COPY = {
-  signup: {
-    tabLabel: "Create account",
-    heading: "Hello",
-    subtext: "Sign Up to Create, view your tickets and saved events.",
-    cta: "Sign Up",
-    switchPrompt: "Already have an account?",
-    switchAction: "Sign in",
-  },
-  signin: {
-    tabLabel: "Sign in",
-    heading: "Welcome back",
-    subtext: "Sign in to view your tickets and saved events.",
-    cta: "Sign In",
-    switchPrompt: "Don't have an account?",
-    switchAction: "Create account",
-  },
-};
-
 function FakeQrGlyph() {
   // Decorative placeholder pattern — not a real scannable code.
   const cells = [
@@ -60,7 +41,6 @@ const SLIDES = [
 export default function AuthScreen() {
   const router = useRouter();
   const dispatch = useDispatch();
-  const [mode, setMode] = useState("signup");
   const [currentSlide, setCurrentSlide] = useState(0);
   const [step, setStep] = useState("email");
   const [email, setEmail] = useState("");
@@ -68,10 +48,8 @@ export default function AuthScreen() {
   const [resendCooldown, setResendCooldown] = useState(0);
   const [isSubmittingEmail, setIsSubmittingEmail] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
-  const [oauthProvider, setOauthProvider] = useState(null);
   const [error, setError] = useState("");
   const otpInputRefs = useRef([]);
-  const copy = COPY[mode];
 
   const completeSignIn = (data) => {
     API.setAuthToken(data.tokens.access);
@@ -80,8 +58,8 @@ export default function AuthScreen() {
   };
 
   useEffect(() => {
-    document.title = mode === "signup" ? "Create account | Byro" : "Sign in | Byro";
-  }, [mode]);
+    document.title = "Sign in | Byro";
+  }, []);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -140,18 +118,6 @@ export default function AuthScreen() {
     } catch (err) {
       setError(err.response?.data?.error || "That code is incorrect or has expired.");
       setIsVerifying(false);
-    }
-  };
-
-  const handleOAuthClick = async (provider) => {
-    setError("");
-    setOauthProvider(provider);
-    try {
-      const { data } = await axiosInstance.post("auth/oauth/authorize/", { provider });
-      window.location.href = data.authorization_url;
-    } catch (err) {
-      setError(err.response?.data?.error || "Could not start sign-in with that provider.");
-      setOauthProvider(null);
     }
   };
 
@@ -229,29 +195,10 @@ export default function AuthScreen() {
           <div className="w-full max-w-sm">
             {step === "email" ? (
               <>
-                <div className="inline-flex bg-gray-100 rounded-full p-1 mb-8">
-                  <button
-                    type="button"
-                    onClick={() => setMode("signin")}
-                    className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                      mode === "signin" ? "bg-white text-gray-900 shadow-sm font-semibold" : "text-gray-500"
-                    }`}
-                  >
-                    Sign in
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setMode("signup")}
-                    className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                      mode === "signup" ? "bg-white text-gray-900 shadow-sm font-semibold" : "text-gray-500"
-                    }`}
-                  >
-                    Create account
-                  </button>
-                </div>
-
-                <h2 className="font-serif text-3xl text-gray-900 mb-2">{copy.heading}</h2>
-                <p className="text-gray-500 text-sm mb-8">{copy.subtext}</p>
+                <h2 className="font-serif text-3xl text-gray-900 mb-2">Welcome to Byro</h2>
+                <p className="text-gray-500 text-sm mb-8">
+                  Enter your email to sign in or create an account.
+                </p>
 
                 <form className="space-y-4" onSubmit={handleEmailSubmit}>
                   <div>
@@ -286,10 +233,10 @@ export default function AuthScreen() {
 
                   <button
                     type="submit"
-                    disabled={isSubmittingEmail}
+                    disabled={!email.trim() || isSubmittingEmail}
                     className="w-full bg-blue-600 text-white font-semibold py-3 rounded-full hover:bg-blue-700 transition-colors text-sm disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                    {isSubmittingEmail ? "Sending..." : copy.cta}
+                    {isSubmittingEmail ? "Sending..." : "Continue"}
                   </button>
                 </form>
 
@@ -302,34 +249,25 @@ export default function AuthScreen() {
                 <div className="flex gap-3">
                   <button
                     type="button"
-                    onClick={() => handleOAuthClick("google")}
-                    disabled={oauthProvider !== null}
-                    className="flex-1 flex items-center justify-center gap-2 border border-gray-200 rounded-full py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                    disabled
+                    title="Coming soon"
+                    aria-disabled="true"
+                    className="flex-1 flex items-center justify-center gap-2 border border-gray-200 rounded-full py-3 text-sm font-medium text-gray-400 opacity-60 cursor-not-allowed"
                   >
                     <FcGoogle size={18} />
-                    {oauthProvider === "google" ? "Redirecting..." : "Google"}
+                    Google
                   </button>
                   <button
                     type="button"
-                    onClick={() => handleOAuthClick("apple")}
-                    disabled={oauthProvider !== null}
-                    className="flex-1 flex items-center justify-center gap-2 border border-gray-200 rounded-full py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                    disabled
+                    title="Coming soon"
+                    aria-disabled="true"
+                    className="flex-1 flex items-center justify-center gap-2 border border-gray-200 rounded-full py-3 text-sm font-medium text-gray-400 opacity-60 cursor-not-allowed"
                   >
                     <FaApple size={18} />
-                    {oauthProvider === "apple" ? "Redirecting..." : "Apple"}
+                    Apple
                   </button>
                 </div>
-
-                <p className="text-center text-sm text-gray-500 mt-8">
-                  {copy.switchPrompt}{" "}
-                  <button
-                    type="button"
-                    onClick={() => setMode(mode === "signup" ? "signin" : "signup")}
-                    className="text-blue-600 font-semibold hover:underline"
-                  >
-                    {copy.switchAction}
-                  </button>
-                </p>
               </>
             ) : (
               <>
