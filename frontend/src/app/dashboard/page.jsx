@@ -263,9 +263,13 @@ export default function StudioDashboard() {
           </div>
         ) : all.length === 0 ? (
           <div className="text-center py-8">
+            <HugeiconsIcon icon={Calendar01Icon} size={24} color="currentColor" className="mx-auto mb-2 text-gray-300" />
             <p className="text-xs text-gray-400 mb-2">No events created yet</p>
-            <Link href="/events/create" className="text-xs font-bold text-[#4F6EF7] hover:text-blue-700">
-              Create your first event →
+            <Link
+              href="/events/create"
+              className="inline-block bg-[#4F6EF7] text-white text-xs font-bold py-2 px-4 rounded-full hover:bg-blue-700 transition-colors"
+            >
+              Create your first event
             </Link>
           </div>
         ) : (

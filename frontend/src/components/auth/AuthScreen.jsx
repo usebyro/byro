@@ -12,7 +12,7 @@ import API from "@/services/api";
 import { authSuccess } from "@/redux/auth/authSlice";
 
 const OTP_LENGTH = 6;
-const RESEND_COOLDOWN_SECONDS = 30;
+const RESEND_COOLDOWN_SECONDS = 60;
 
 function FakeQrGlyph() {
   // Decorative placeholder pattern — not a real scannable code.

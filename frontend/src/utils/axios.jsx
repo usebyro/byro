@@ -159,7 +159,18 @@ axiosInstance.interceptors.response.use(
   (response) => response,
   async (error) => {
     const { config, response } = error;
-    const isAuthRoute = (config?.url || "").includes("auth/");
+    // Only login/registration/refresh endpoints should be excluded from the
+    // refresh-and-retry path — everything else under auth/ (e.g. auth/me/)
+    // is a normal authenticated call and a 401 there just means the access
+    // token needs refreshing, per the backend's contract.
+    const NO_REFRESH_ROUTES = [
+      "auth/oauth/callback/",
+      "auth/magic/send/",
+      "auth/magic/verify/",
+      "auth/privy/",
+      "auth/refresh/",
+    ];
+    const isAuthRoute = NO_REFRESH_ROUTES.some((route) => (config?.url || "").includes(route));
 
     if (response?.status === 401 && config && !config._retry && !isAuthRoute) {
       config._retry = true;

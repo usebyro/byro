@@ -65,7 +65,7 @@ export default function UserMenu({
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
-          <Link href="/profile">
+          <Link href="/dashboard/profile">
             <HugeiconsIcon icon={UserIcon} size={15} color="currentColor" />
             Profile
           </Link>

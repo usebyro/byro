@@ -14,6 +14,7 @@ import {
   Ticket01Icon,
   Menu01Icon,
   Cancel01Icon,
+  UserCircleIcon,
 } from "@hugeicons/core-free-icons";
 import { Providers } from "@/redux/Providers";
 import { useSelector, useDispatch } from "react-redux";
@@ -22,10 +23,11 @@ import UserMenu from "@/components/auth/UserMenu";
 import NotificationBell from "@/components/dashboard/NotificationBell";
 
 const NAV = [
-  { label: "Dashboard", href: "/dashboard",         icon: Home01Icon,     exact: true },
+  { label: "Overview", href: "/dashboard/overview", icon: Home01Icon,     exact: true },
   { label: "Events",    href: "/dashboard/events",   icon: Ticket01Icon },
   { label: "Check-in", href: "/dashboard/check-in", icon: QrCodeIcon },
   { label: "Payouts",  href: "/dashboard/payouts",  icon: Money01Icon },
+  { label: "Profile",  href: "/dashboard/profile",  icon: UserCircleIcon },
   { label: "Settings", href: "/dashboard/settings", icon: Settings01Icon },
 ];
 
