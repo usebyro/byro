@@ -3,8 +3,9 @@
 import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { CompassIcon, Megaphone01Icon, Tick02Icon, Camera01Icon, UserIcon } from "@hugeicons/core-free-icons";
+import { CompassIcon, Megaphone01Icon, Camera01Icon, UserIcon } from "@hugeicons/core-free-icons";
 import API from "@/services/api";
 
 const ROLES = [
@@ -57,9 +58,9 @@ const SLIDES = [
 ];
 
 export default function OnboardingScreen() {
+  const router = useRouter();
   const [currentSlide, setCurrentSlide] = useState(0);
-  const [stage, setStage] = useState("select"); // "select" | "organizer-details" | "done"
-  const [role, setRole] = useState(null);
+  const [stage, setStage] = useState("select"); // "select" | "organizer-details"
   const [wizardStep, setWizardStep] = useState(0);
   const [hostForm, setHostForm] = useState({
     displayName: "",
@@ -94,7 +95,6 @@ export default function OnboardingScreen() {
   };
 
   const handleSelectRole = (id) => {
-    setRole(id);
     // Best-effort — the choice still drives the local wizard even if this
     // fails, but the admin-side role filter needs it saved.
     API.updateProfile({ role: id }).catch((err) => {
@@ -104,7 +104,7 @@ export default function OnboardingScreen() {
       setWizardStep(0);
       setStage("organizer-details");
     } else {
-      setStage("done");
+      router.push("/home");
     }
   };
 
@@ -118,7 +118,7 @@ export default function OnboardingScreen() {
   const handleNext = () => {
     if (isNextDisabled) return;
     if (isLastWizardStep) {
-      setStage("done");
+      router.push("/dashboard");
     } else {
       setWizardStep((s) => s + 1);
     }
@@ -126,7 +126,6 @@ export default function OnboardingScreen() {
 
   const handlePrevious = () => {
     if (wizardStep === 0) {
-      setRole(null);
       setStage("select");
     } else {
       setWizardStep((s) => s - 1);
@@ -135,11 +134,7 @@ export default function OnboardingScreen() {
 
   const handleSkip = () => {
     if (isNextDisabled) return;
-    setStage("done");
-  };
-
-  const handleContinue = () => {
-    // Preview only — organizer path will call the same profile-update API used on /profile.
+    router.push("/dashboard");
   };
 
   return (
@@ -289,33 +284,6 @@ export default function OnboardingScreen() {
                   </div>
                 </div>
               </>
-            )}
-
-            {stage === "done" && (
-              <div className="text-center">
-                <div className="w-14 h-14 rounded-full bg-blue-50 flex items-center justify-center mx-auto mb-5">
-                  <HugeiconsIcon icon={Tick02Icon} size={22} color="#2563eb" />
-                </div>
-                {role === "organizer" ? (
-                  <>
-                    <h2 className="font-serif text-3xl text-gray-900 mb-2">You&apos;re all set</h2>
-                    <p className="text-gray-500 text-sm mb-8">
-                      Your organiser profile is ready. Let&apos;s get your first event live.
-                    </p>
-                  </>
-                ) : (
-                  <h2 className="font-serif text-2xl text-gray-900 mb-8">
-                    You&apos;re all set to Attend Events and Create Memories
-                  </h2>
-                )}
-                <button
-                  type="button"
-                  onClick={handleContinue}
-                  className="w-full bg-blue-600 text-white font-semibold py-3 rounded-full hover:bg-blue-700 transition-colors text-sm"
-                >
-                  Continue
-                </button>
-              </div>
             )}
           </div>
         </div>
