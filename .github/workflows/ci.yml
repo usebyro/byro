@@ -52,6 +52,10 @@ jobs:
       # only here to keep settings.py importable without a .env file.
       WORKOS_CLIENT_ID: client_ci_placeholder
       WORKOS_API_KEY: sk_ci_placeholder
+      # bryo.apps.BryoConfig.ready() raises in DEBUG if these are unset, so
+      # they're required just to let manage.py check/test start up.
+      POSTHOG_PROJECT_TOKEN: ci_posthog_placeholder
+      POSTHOG_HOST: https://us.i.posthog.com
     steps:
       - uses: actions/checkout@v4
 
