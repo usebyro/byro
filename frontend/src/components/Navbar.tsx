@@ -192,7 +192,7 @@ const Navbar = () => {
                   Sign in
                 </Link>
                 <Link
-                  href="/events/create"
+                  href="/login?redirect=/events/create"
                   className="bg-blue-600 text-white text-sm font-medium py-2 px-4 rounded-full hover:bg-blue-700 transition-colors flex items-center gap-2"
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

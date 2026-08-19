@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useDispatch } from "react-redux";
 import { FcGoogle } from "react-icons/fc";
 import { FaApple } from "react-icons/fa";
@@ -40,6 +40,8 @@ const SLIDES = [
 
 export default function AuthScreen() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectTo = searchParams.get("redirect");
   const dispatch = useDispatch();
   const [currentSlide, setCurrentSlide] = useState(0);
   const [step, setStep] = useState("email");
@@ -54,7 +56,11 @@ export default function AuthScreen() {
   const completeSignIn = (data) => {
     API.setAuthToken(data.tokens.access);
     dispatch(authSuccess({ user: data.user, token: data.tokens }));
-    router.push(data.user.is_profile_complete ? "/home" : "/onboarding-preview");
+    if (!data.user.is_profile_complete) {
+      router.push("/onboarding-preview");
+    } else {
+      router.push(redirectTo || "/home");
+    }
   };
 
   useEffect(() => {
