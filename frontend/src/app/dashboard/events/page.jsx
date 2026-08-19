@@ -209,7 +209,10 @@ export default function StudioEvents() {
               {search ? "No events match your search" : "No events yet"}
             </p>
             {!search && (
-              <Link href="/events/create" className="text-xs font-bold text-[#4F6EF7] hover:text-blue-700">
+              <Link
+                href="/events/create"
+                className="inline-block bg-[#4F6EF7] text-white text-xs font-bold py-2 px-4 rounded-full hover:bg-blue-700 transition-colors"
+              >
                 Create your first event
               </Link>
             )}

@@ -19,6 +19,10 @@ import {
   QrCodeIcon,
   Camera01Icon,
   KeyboardIcon,
+  DiscountTag01Icon,
+  Copy02Icon,
+  AddCircleIcon,
+  MoreVerticalIcon,
 } from "@hugeicons/core-free-icons";
 import { useReactToPrint } from "react-to-print";
 import { toast } from "sonner";
@@ -119,6 +123,18 @@ export default function StudioEventPage() {
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [checkInMode, setCheckInMode] = useState("scan"); // scan | manual
   const [cameraError, setCameraError] = useState("");
+
+  // Discount codes (client-side only until the backend endpoints ship)
+  const [discountCodes, setDiscountCodes] = useState([]);
+  const [showDiscountModal, setShowDiscountModal] = useState(false);
+  const [discountMenuOpen, setDiscountMenuOpen] = useState(null);
+  const [discountForm, setDiscountForm] = useState({
+    code: "",
+    type: "percent", // percent | fixed
+    value: "",
+    maxUses: "",
+    expiresAt: "",
+  });
 
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -267,6 +283,66 @@ export default function StudioEventPage() {
     }
   };
 
+  const generateCode = () => {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    let code = "";
+    for (let i = 0; i < 8; i++) code += chars[Math.floor(Math.random() * chars.length)];
+    setDiscountForm((f) => ({ ...f, code }));
+  };
+
+  const resetDiscountForm = () =>
+    setDiscountForm({ code: "", type: "percent", value: "", maxUses: "", expiresAt: "" });
+
+  const handleCreateDiscount = (e) => {
+    e.preventDefault();
+    const code = discountForm.code.trim().toUpperCase();
+    if (!code || !discountForm.value) return;
+    if (discountCodes.some((d) => d.code === code)) {
+      toast.error("That code already exists for this event.");
+      return;
+    }
+    setDiscountCodes((prev) => [
+      {
+        id: crypto.randomUUID(),
+        code,
+        type: discountForm.type,
+        value: Number(discountForm.value),
+        maxUses: discountForm.maxUses ? Number(discountForm.maxUses) : null,
+        used: 0,
+        expiresAt: discountForm.expiresAt || null,
+        active: true,
+      },
+      ...prev,
+    ]);
+    toast.success(`Discount code ${code} created.`);
+    setShowDiscountModal(false);
+    resetDiscountForm();
+  };
+
+  const toggleDiscountActive = (id) => {
+    setDiscountCodes((prev) =>
+      prev.map((d) => (d.id === id ? { ...d, active: !d.active } : d))
+    );
+    setDiscountMenuOpen(null);
+  };
+
+  const deleteDiscount = (id) => {
+    setDiscountCodes((prev) => prev.filter((d) => d.id !== id));
+    setDiscountMenuOpen(null);
+  };
+
+  const copyDiscountCode = (code) => {
+    navigator.clipboard?.writeText(code);
+    toast.success(`${code} copied to clipboard.`);
+  };
+
+  const getDiscountStatus = (d) => {
+    if (!d.active) return { label: "Deactivated", color: "text-gray-400 bg-gray-100" };
+    if (d.expiresAt && new Date(d.expiresAt) < new Date()) return { label: "Expired", color: "text-red-500 bg-red-50" };
+    if (d.maxUses && d.used >= d.maxUses) return { label: "Exhausted", color: "text-amber-600 bg-amber-50" };
+    return { label: "Active", color: "text-green-600 bg-green-50" };
+  };
+
   if (eventError) return notFound();
 
   const grad = CATEGORY_GRADIENT[event?.category] || CATEGORY_GRADIENT.other;
@@ -373,7 +449,7 @@ export default function StudioEventPage() {
 
       {/* Tabs */}
       <div className="flex gap-4 border-b border-gray-100 pb-0.5">
-        {["attendees", "tiers"].map((tab) => (
+        {["attendees", "tiers", "discounts"].map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -534,6 +610,114 @@ export default function StudioEventPage() {
         </div>
       )}
 
+      {activeTab === "discounts" && (
+        <div className="bg-white rounded-xl border border-gray-100/80 shadow-sm overflow-visible">
+          {/* Header */}
+          <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-gray-100 bg-white">
+            <div className="flex items-center gap-1.5">
+              <p className="font-bold text-gray-800 text-sm">Discount codes</p>
+              <span className="text-gray-400 text-xs">({discountCodes.length})</span>
+            </div>
+            <button
+              onClick={() => { resetDiscountForm(); setShowDiscountModal(true); }}
+              className="flex items-center justify-center gap-1 bg-[#4F6EF7] text-white text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-blue-700 transition-colors shadow-sm shadow-[#4F6EF7]/10"
+            >
+              <HugeiconsIcon icon={AddCircleIcon} size={13} color="white" />
+              Create code
+            </button>
+          </div>
+
+          {discountCodes.length === 0 ? (
+            <div className="text-center py-10 px-4">
+              <HugeiconsIcon icon={DiscountTag01Icon} size={22} color="currentColor" className="mx-auto mb-2 text-gray-300" />
+              <p className="text-xs text-gray-400 mb-2">No discount codes yet</p>
+              <button
+                onClick={() => { resetDiscountForm(); setShowDiscountModal(true); }}
+                className="inline-block bg-[#4F6EF7] text-white text-xs font-bold py-2 px-4 rounded-full hover:bg-blue-700 transition-colors"
+              >
+                Create your first discount code
+              </button>
+            </div>
+          ) : (
+            <>
+              {/* Column headers */}
+              <div className="grid grid-cols-12 px-4 py-2 border-b border-gray-100 bg-gray-50/50">
+                <div className="col-span-4 md:col-span-3 text-[10px] font-bold text-gray-400 tracking-wider uppercase">Code</div>
+                <div className="hidden md:block md:col-span-2 text-[10px] font-bold text-gray-400 tracking-wider uppercase">Discount</div>
+                <div className="hidden md:block md:col-span-2 text-[10px] font-bold text-gray-400 tracking-wider uppercase">Uses</div>
+                <div className="hidden md:block md:col-span-3 text-[10px] font-bold text-gray-400 tracking-wider uppercase">Expires</div>
+                <div className="col-span-6 md:col-span-1 text-[10px] font-bold text-gray-400 tracking-wider uppercase text-right md:text-left">Status</div>
+                <div className="col-span-2 md:col-span-1" />
+              </div>
+
+              <div className="divide-y divide-gray-50">
+                {discountCodes.map((d) => {
+                  const status = getDiscountStatus(d);
+                  return (
+                    <div key={d.id} className="grid grid-cols-12 px-4 py-2.5 hover:bg-gray-50/50 items-center transition-colors relative">
+                      {/* Code */}
+                      <div className="col-span-4 md:col-span-3 flex items-center gap-1.5 min-w-0">
+                        <span className="text-xs font-mono font-bold text-gray-800 truncate">{d.code}</span>
+                        <button onClick={() => copyDiscountCode(d.code)} aria-label="Copy code" className="text-gray-300 hover:text-gray-600 shrink-0">
+                          <HugeiconsIcon icon={Copy02Icon} size={12} color="currentColor" />
+                        </button>
+                      </div>
+                      {/* Discount */}
+                      <div className="hidden md:block md:col-span-2 text-xs text-gray-600">
+                        {d.type === "percent" ? `${d.value}% off` : `₦${d.value.toLocaleString()} off`}
+                      </div>
+                      {/* Uses */}
+                      <div className="hidden md:block md:col-span-2 text-xs text-gray-600">
+                        {d.used} / {d.maxUses ?? "∞"}
+                      </div>
+                      {/* Expires */}
+                      <div className="hidden md:block md:col-span-3 text-xs text-gray-600">
+                        {d.expiresAt ? formatDate(d.expiresAt) : "No expiry"}
+                      </div>
+                      {/* Status */}
+                      <div className="col-span-6 md:col-span-1 text-right md:text-left">
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${status.color}`}>
+                          {status.label}
+                        </span>
+                      </div>
+                      {/* Actions */}
+                      <div className="col-span-2 md:col-span-1 flex justify-end">
+                        <button
+                          onClick={() => setDiscountMenuOpen(discountMenuOpen === d.id ? null : d.id)}
+                          aria-label="More actions"
+                          className="text-gray-400 hover:text-gray-700 p-1"
+                        >
+                          <HugeiconsIcon icon={MoreVerticalIcon} size={14} color="currentColor" />
+                        </button>
+                        {discountMenuOpen === d.id && (
+                          <>
+                            <div className="fixed inset-0 z-10" onClick={() => setDiscountMenuOpen(null)} />
+                            <div className="absolute right-4 top-9 z-20 bg-white border border-gray-100 rounded-lg shadow-lg py-1 w-36">
+                              <button
+                                onClick={() => toggleDiscountActive(d.id)}
+                                className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
+                              >
+                                {d.active ? "Deactivate" : "Activate"}
+                              </button>
+                              <button
+                                onClick={() => deleteDiscount(d.id)}
+                                className="w-full text-left px-3 py-1.5 text-xs text-red-500 hover:bg-red-50"
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
       {/* Delete button */}
       <div className="mt-4 flex justify-end">
         <button
@@ -629,6 +813,116 @@ export default function StudioEventPage() {
               )}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Create discount modal */}
+      {showDiscountModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
+          <form
+            onSubmit={handleCreateDiscount}
+            className="bg-white rounded-xl shadow-xl p-5 w-full max-w-sm"
+          >
+            <div className="flex items-center justify-between mb-3.5">
+              <h3 className="text-sm font-bold text-gray-900">Create discount code</h3>
+              <button type="button" onClick={() => setShowDiscountModal(false)}>
+                <HugeiconsIcon icon={CircleXIcon} size={18} color="#9ca3af" />
+              </button>
+            </div>
+
+            {/* Code */}
+            <label className="block text-[11px] font-semibold text-gray-500 mb-1.5">Code</label>
+            <div className="flex gap-1.5 mb-3.5">
+              <input
+                type="text"
+                value={discountForm.code}
+                onChange={(e) => setDiscountForm((f) => ({ ...f, code: e.target.value.toUpperCase() }))}
+                placeholder="e.g. EARLYBIRD"
+                autoFocus
+                className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs font-mono text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#4F6EF7]/20"
+              />
+              <button
+                type="button"
+                onClick={generateCode}
+                className="px-3 py-2 rounded-lg border border-gray-200 text-[11px] font-semibold text-gray-600 hover:bg-gray-50 shrink-0"
+              >
+                Generate
+              </button>
+            </div>
+
+            {/* Type + value */}
+            <label className="block text-[11px] font-semibold text-gray-500 mb-1.5">Discount</label>
+            <div className="flex gap-1.5 mb-3.5">
+              <div className="flex bg-gray-50 rounded-lg p-0.5 border border-gray-100/50">
+                {[
+                  { key: "percent", label: "%" },
+                  { key: "fixed", label: "₦" },
+                ].map((opt) => (
+                  <button
+                    key={opt.key}
+                    type="button"
+                    onClick={() => setDiscountForm((f) => ({ ...f, type: opt.key }))}
+                    className={`w-9 py-1.5 rounded-md text-xs font-bold transition-all ${
+                      discountForm.type === opt.key ? "bg-white text-gray-900 shadow-sm" : "text-gray-400"
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              <input
+                type="number"
+                min="0"
+                step={discountForm.type === "percent" ? "1" : "50"}
+                value={discountForm.value}
+                onChange={(e) => setDiscountForm((f) => ({ ...f, value: e.target.value }))}
+                placeholder={discountForm.type === "percent" ? "10" : "1000"}
+                required
+                className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#4F6EF7]/20"
+              />
+            </div>
+
+            {/* Max uses + expiry */}
+            <div className="grid grid-cols-2 gap-1.5 mb-4">
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-500 mb-1.5">Max uses</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={discountForm.maxUses}
+                  onChange={(e) => setDiscountForm((f) => ({ ...f, maxUses: e.target.value }))}
+                  placeholder="Unlimited"
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#4F6EF7]/20"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-500 mb-1.5">Expires</label>
+                <input
+                  type="date"
+                  value={discountForm.expiresAt}
+                  onChange={(e) => setDiscountForm((f) => ({ ...f, expiresAt: e.target.value }))}
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#4F6EF7]/20"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setShowDiscountModal(false)}
+                className="flex-1 py-2 rounded-lg border border-gray-200 text-xs font-semibold text-gray-500 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={!discountForm.code.trim() || !discountForm.value}
+                className="flex-1 py-2 rounded-lg bg-[#4F6EF7] text-white text-xs font-bold hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-sm shadow-[#4F6EF7]/10"
+              >
+                Create code
+              </button>
+            </div>
+          </form>
         </div>
       )}
 
