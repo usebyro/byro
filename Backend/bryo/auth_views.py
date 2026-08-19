@@ -33,6 +33,7 @@ from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
+from . import apps
 from .models import EventCoHost, UserProfile
 from .services import workos_api
 from .services.workos_api import WorkOSAPIError
@@ -207,17 +208,48 @@ def _backfill_display_name(profile, workos_user):
         profile.save(update_fields=['display_name'])
 
 
+def _identify_posthog_user(user, profile):
+    """Identify the current sign-in request after its user is established."""
+    if apps.posthog_client is None:
+        return
+
+    user_id = str(user.pk)
+    apps.posthog_client.identify_context(user_id)
+    apps.posthog_client.set(
+        distinct_id=user_id,
+        properties={
+            'email': user.email,
+            'username': user.username,
+            'display_name': profile.display_name,
+            'email_verified': user.email_verified,
+            'auth_provider': user.auth_provider,
+        },
+    )
+
+
 def complete_sign_in(auth_response):
     """
     Turn a successful WorkOS authentication into a Byro session response.
 
     Shared by every sign-in route — Magic Auth and OAuth differ only in how
-    they obtain `auth_response`.
+    they obtain `auth_response`. The middleware saw this request as anonymous,
+    so establish its PostHog identity once the local user exists.
     """
     user, created = upsert_user(auth_response.user)
     profile, _ = UserProfile.objects.get_or_create(user=user)
     _backfill_display_name(profile, auth_response.user)
+    _identify_posthog_user(user, profile)
     claimed = claim_pending_cohost_invites(user)
+
+    if apps.posthog_client is not None:
+        apps.posthog_client.capture(
+            'sign_in_completed',
+            properties={
+                'auth_provider': user.auth_provider,
+                'is_new_user': created,
+                'cohost_invites_claimed': claimed,
+            },
+        )
 
     return {
         'success': True,

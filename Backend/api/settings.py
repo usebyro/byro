@@ -85,6 +85,9 @@ WORKOS_OAUTH_REDIRECT_URI = config(
     default=(os.environ.get('FRONTEND_URL', 'http://localhost:3000').rstrip('/') + '/auth/callback'),
 )
 
+POSTHOG_PROJECT_TOKEN = config('POSTHOG_PROJECT_TOKEN', default='')
+POSTHOG_HOST = config('POSTHOG_HOST', default='')
+
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -98,7 +101,7 @@ INSTALLED_APPS = [
     'drf_yasg',
     'cloudinary',
     'cloudinary_storage',
-    'bryo',
+    'bryo.apps.BryoConfig',
 ]
 
 MIDDLEWARE = [
@@ -109,6 +112,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'posthog.integrations.django.PosthogContextMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 

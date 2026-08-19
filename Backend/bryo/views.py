@@ -8,6 +8,7 @@ from rest_framework.throttling import ScopedRateThrottle
 from django.core.validators import validate_email
 from django.core.exceptions import ValidationError as DjangoValidationError
 from .services import workos_api
+from . import apps
 from .serializers import (
     WaitListSerializer, EventSerializer, TicketSerializer,
     TicketTransferSerializer, PaymentInitializeSerializer,
@@ -334,6 +335,15 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
             # Send each free ticket to its own attendee
             _email_tickets(tickets, event)
 
+            if apps.posthog_client is not None:
+                apps.posthog_client.capture(
+                    'free_ticket_claimed',
+                    properties={
+                        'ticket_count': len(tickets),
+                        'has_ticket_tier': tier is not None,
+                    },
+                )
+
             return Response({
                 'status': 'success',
                 'message': 'Free ticket(s) created successfully',
@@ -408,6 +418,18 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                         'display_total': str(fees['display_total']),
                     }
                 )
+
+                if apps.posthog_client is not None:
+                    apps.posthog_client.capture(
+                        'payment_initialized',
+                        properties={
+                            'amount': float(amount),
+                            'currency': 'NGN',
+                            'quantity': quantity,
+                            'seat_count': seats,
+                            'has_ticket_tier': tier is not None,
+                        },
+                    )
 
                 return Response({
                     'status': 'success',
@@ -505,6 +527,17 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
 
                     # Send each ticket to its attendee
                     _email_tickets(tickets, payment.event)
+
+                    if apps.posthog_client is not None:
+                        apps.posthog_client.capture(
+                            'payment_completed',
+                            properties={
+                                'amount': float(payment.amount),
+                                'currency': payment.currency,
+                                'ticket_count': len(tickets),
+                                'payment_channel': payment.channel or 'unknown',
+                            },
+                        )
 
                     return Response({
                         'status': 'success',
@@ -626,6 +659,8 @@ class WaitListViewSet(viewsets.ModelViewSet):
             return Response(serializer.errors, status=400)
         
         serializer.save()
+        if apps.posthog_client is not None:
+            apps.posthog_client.capture('waitlist_joined')
         return Response(serializer.data, status=201)
 
 
@@ -666,6 +701,8 @@ class ProfileViewSet(viewsets.GenericViewSet):
         )
         serializer.is_valid(raise_exception=True)
         serializer.save()
+        if apps.posthog_client is not None:
+            apps.posthog_client.capture('profile_updated')
         return Response(serializer.data)
 
     @action(detail=False, methods=['POST'], url_path='me/avatar',
@@ -1060,6 +1097,16 @@ class EventViewSet(viewsets.ModelViewSet):
             serializer.validated_data['transferable'] = True
         
         self.perform_create(serializer)
+
+        if apps.posthog_client is not None:
+            apps.posthog_client.capture(
+                'event_created',
+                properties={
+                    'has_ticket_tier': serializer.instance.tiers.exists(),
+                    'is_free': serializer.instance.ticket_price == 0,
+                    'visibility': serializer.instance.visibility,
+                },
+            )
         
         # Build response with full URLs
         event_url = request.build_absolute_uri(
@@ -1081,6 +1128,8 @@ class EventViewSet(viewsets.ModelViewSet):
         if instance.event_image:
             instance.event_image.delete(save=False)
         instance.delete()
+        if apps.posthog_client is not None:
+            apps.posthog_client.capture('event_deleted')
 
     def update(self, request, *args, **kwargs):
         """Update event - both owner and co-hosts can edit"""
@@ -1105,6 +1154,9 @@ class EventViewSet(viewsets.ModelViewSet):
         new_image = serializer.instance.event_image.name if serializer.instance.event_image else None
         if old_image and old_image != new_image:
             serializer.instance.event_image.storage.delete(old_image)
+
+        if apps.posthog_client is not None:
+            apps.posthog_client.capture('event_updated')
 
         return Response(serializer.data)
 
@@ -1132,6 +1184,8 @@ class EventViewSet(viewsets.ModelViewSet):
         serializer = TicketTierSerializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
         serializer.save(event=event)
+        if apps.posthog_client is not None:
+            apps.posthog_client.capture('ticket_tier_created')
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     @action(
@@ -1155,6 +1209,8 @@ class EventViewSet(viewsets.ModelViewSet):
 
         if request.method == 'DELETE':
             tier.delete()
+            if apps.posthog_client is not None:
+                apps.posthog_client.capture('ticket_tier_deleted')
             return Response(status=status.HTTP_204_NO_CONTENT)
 
         serializer = TicketTierSerializer(
@@ -1162,6 +1218,8 @@ class EventViewSet(viewsets.ModelViewSet):
         )
         serializer.is_valid(raise_exception=True)
         serializer.save()
+        if apps.posthog_client is not None:
+            apps.posthog_client.capture('ticket_tier_updated')
         return Response(serializer.data)
 
     @action(detail=True, methods=['GET'], permission_classes=[IsAuthenticated])
@@ -1384,6 +1442,9 @@ class EventViewSet(viewsets.ModelViewSet):
         ticket.checked_in_at = timezone.now()
         ticket.save(update_fields=['checked_in', 'checked_in_at'])
 
+        if apps.posthog_client is not None:
+            apps.posthog_client.capture('attendee_checked_in')
+
         return Response({
             'success': True,
             'attendee': {
@@ -1520,6 +1581,10 @@ class EventViewSet(viewsets.ModelViewSet):
                 added_by=request.user,
             )
             send_cohost_invite_email(email, event, request.user, is_new_user=False)
+            if apps.posthog_client is not None:
+                apps.posthog_client.capture(
+                    'cohost_invited', properties={'invitee_has_account': True}
+                )
             return Response({
                 "message": f"{cohost_user.email} added as co-host",
                 "cohost_id": cohost.id,
@@ -1544,6 +1609,10 @@ class EventViewSet(viewsets.ModelViewSet):
         # event-specific one. Neither failing should undo the pending grant.
         workos_api.send_invitation(email)
         send_cohost_invite_email(email, event, request.user, is_new_user=True)
+        if apps.posthog_client is not None:
+            apps.posthog_client.capture(
+                'cohost_invited', properties={'invitee_has_account': False}
+            )
 
         return Response({
             "message": f"Invitation sent to {email}",
@@ -1691,6 +1760,9 @@ class TicketTransferViewSet(viewsets.ModelViewSet):
         
         transfer.is_accepted = True
         transfer.save()
+
+        if apps.posthog_client is not None:
+            apps.posthog_client.capture('ticket_transfer_completed')
         
         ticket_url = request.build_absolute_uri(
             reverse('ticket-detail', args=[str(ticket.ticket_id)])
@@ -1814,6 +1886,16 @@ class PayoutRequestView(APIView):
             )
         except Exception as e:
             logger.error(f"Failed to send payout request email for payout {payout.pk}: {e}")
+
+        if apps.posthog_client is not None:
+            apps.posthog_client.capture(
+                'payout_requested',
+                properties={
+                    'amount': float(payout.amount),
+                    'method': payout.method,
+                    'is_event_specific': payout.event_id is not None,
+                },
+            )
 
         return Response(PayoutRequestSerializer(payout).data, status=status.HTTP_201_CREATED)
 

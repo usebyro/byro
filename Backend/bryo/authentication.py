@@ -13,6 +13,7 @@ sign-in, which is where a local user row gets created.
 from django.contrib.auth import get_user_model
 from rest_framework import authentication, exceptions
 
+from . import apps
 from .services.workos_auth import verify_access_token
 
 User = get_user_model()
@@ -55,6 +56,15 @@ class WorkOSAuthentication(authentication.BaseAuthentication):
 
         if not user.is_active:
             raise exceptions.AuthenticationFailed('This account is inactive.')
+
+        # Django's PostHog middleware opens the request context before DRF
+        # authenticates bearer credentials, so it initially sees an anonymous
+        # user. Tag the existing context as soon as this authenticated user is
+        # known, so subsequent events and exceptions in this request attribute
+        # to them — person properties are synced once at sign-in, not here,
+        # to keep this hot path cheap.
+        if apps.posthog_client is not None:
+            apps.posthog_client.identify_context(str(user.pk))
 
         return (user, claims)
 
