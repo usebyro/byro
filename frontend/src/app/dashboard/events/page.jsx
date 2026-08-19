@@ -123,6 +123,10 @@ export default function StudioEvents() {
   const [filter, setFilter] = useState("all"); // all | upcoming | past | draft
 
   useEffect(() => {
+    document.title = "Events | Byro";
+  }, []);
+
+  useEffect(() => {
     API.getDashboard()
       .then(setDashboard)
       .catch(() => setDashboard(null))

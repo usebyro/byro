@@ -41,6 +41,10 @@ function ProfilePageContent() {
   const [avatarPreview, setAvatarPreview] = useState("");
   const [preferences, setPreferences] = useState([]);
 
+  useEffect(() => {
+    document.title = "Profile | Byro";
+  }, []);
+
   const [form, setForm] = useState({
     display_name: "",
     handle:       "",

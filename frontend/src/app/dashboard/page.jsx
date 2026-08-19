@@ -110,6 +110,10 @@ export default function StudioDashboard() {
   const firstName = (user?.displayName || user?.name || "").split(" ")[0] || "there";
 
   useEffect(() => {
+    document.title = "Overview | Byro";
+  }, []);
+
+  useEffect(() => {
     API.getDashboard()
       .then(setDashboard)
       .catch(() => setDashboard(null))

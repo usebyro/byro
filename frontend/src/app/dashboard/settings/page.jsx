@@ -1,9 +1,14 @@
 "use client";
 
+import { useEffect } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Settings01Icon } from "@hugeicons/core-free-icons";
 
 export default function StudioSettings() {
+  useEffect(() => {
+    document.title = "Settings | Byro";
+  }, []);
+
   return (
     <div className="p-6 max-w-2xl mx-auto">
       <div className="mb-7">

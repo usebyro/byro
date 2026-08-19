@@ -140,6 +140,10 @@ export default function StudioEventPage() {
       .finally(() => setLoadingEvent(false));
   }, [slug]);
 
+  useEffect(() => {
+    document.title = event?.name ? `${event.name} | Byro` : "Event | Byro";
+  }, [event]);
+
   const loadAttendees = () => {
     if (!slug) return;
     setLoadingAttendees(true);

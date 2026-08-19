@@ -72,6 +72,10 @@ export default function StudioPayouts() {
 
   const [balance, setBalance] = useState(null);
 
+  useEffect(() => {
+    document.title = "Payouts | Byro";
+  }, []);
+
   // Load saved bank details (local cache — backend doesn't expose a
   // standalone "saved bank details" read; it's inferred from payout history).
   useEffect(() => {

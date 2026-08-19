@@ -17,6 +17,10 @@ export default function StudioCheckIn() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    document.title = "Check-in | Byro";
+  }, []);
+
+  useEffect(() => {
     API.getDashboard()
       .then(setDashboard)
       .catch(() => setDashboard(null))
