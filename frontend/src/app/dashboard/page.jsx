@@ -107,7 +107,10 @@ export default function StudioDashboard() {
   const [dashboard, setDashboard] = useState(null);
   const [loading, setLoading]     = useState(true);
   const user = useSelector((s) => s.auth?.user);
-  const firstName = (user?.displayName || user?.name || "").split(" ")[0] || "there";
+  const firstName = (user?.display_name || user?.displayName || user?.name || "").split(" ")[0] || "there";
+
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
 
   useEffect(() => {
     document.title = "Overview | Byro";
@@ -132,7 +135,7 @@ export default function StudioDashboard() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-gray-100/50">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
-            Welcome back, {firstName} 👋
+            {greeting}, {firstName} 👋
           </h1>
           <p className="text-xs text-gray-400 mt-0.5">Here is how your events are performing.</p>
         </div>
