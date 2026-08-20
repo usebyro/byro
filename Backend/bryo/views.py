@@ -955,18 +955,34 @@ class EventViewSet(viewsets.ModelViewSet):
         if max_price is not None:
             queryset = queryset.filter(effective_price__lte=max_price)
 
-        # Permission-based filtering
-        if not self.request.user.is_authenticated:
-            queryset = queryset.filter(is_active=True, visibility='public')
-        elif not self.request.user.is_superuser:
-            queryset = queryset.filter(
-                Q(is_active=True, visibility='public') |
-                Q(owner=self.request.user) |
+        # Permission-based filtering.
+        #
+        # `private` means UNLISTED, not secret: the event is kept out of every
+        # listing (discover, search, categories, locations, sitemap) but anyone
+        # holding the link can open its page and buy a ticket. That is the whole
+        # point of a private event — the host shares the URL themselves.
+        # So the visibility filter applies to listings only; detail lookups
+        # (retrieve, register, tiers, ...) resolve any visibility.
+        #
+        # `is_active` is a different axis — a deactivated event is hidden from
+        # everyone but its host, on listings and by direct link alike.
+        user = self.request.user
+        is_listing = self.action == 'list'
+
+        if not user.is_authenticated:
+            queryset = queryset.filter(is_active=True)
+            if is_listing:
+                queryset = queryset.filter(visibility='public')
+        elif not user.is_superuser:
+            own = (
+                Q(owner=user) |
                 Q(
-                    cohosts__user=self.request.user,
+                    cohosts__user=user,
                     cohosts__status=EventCoHost.STATUS_ACCEPTED,
                 )
             )
+            visible = Q(is_active=True, visibility='public') if is_listing else Q(is_active=True)
+            queryset = queryset.filter(visible | own)
         queryset = queryset.distinct()
 
         sort = self.request.query_params.get('sort', 'newest')
