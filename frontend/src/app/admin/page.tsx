@@ -83,6 +83,12 @@ function fmtNaira(n: number) {
   return `₦${n.toLocaleString()}`;
 }
 
+// Compact axis label: avoid collapsing everything under ₦1,000 to "₦0k".
+function fmtNairaCompact(n: number) {
+  if (n >= 1000) return `₦${(n / 1000).toFixed(n % 1000 === 0 ? 0 : 1)}k`;
+  return `₦${n}`;
+}
+
 const CATEGORY_LABELS: Record<string, string> = {
   entertainment: "Entertainment",
   web3_crypto: "Web3 & Crypto",
@@ -264,7 +270,12 @@ export default function AdminDashboardPage() {
                   tick={{ fill: "#9ca3af", fontSize: 11 }}
                   interval={revenueRangeDays > 14 ? Math.ceil(revenueRangeDays / 8) : 0}
                 />
-                <YAxis tick={{ fill: "#9ca3af", fontSize: 11 }} tickFormatter={(v) => `₦${(v / 1000).toFixed(0)}k`} />
+                <YAxis
+                  tick={{ fill: "#9ca3af", fontSize: 11 }}
+                  tickFormatter={fmtNairaCompact}
+                  domain={[0, (max: number) => Math.max(max, 1000)]}
+                  allowDecimals={false}
+                />
                 <Tooltip
                   contentStyle={{ background: "#1a1d27", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 12 }}
                   formatter={(value) => [fmtNaira(Number(value)), "Revenue"]}

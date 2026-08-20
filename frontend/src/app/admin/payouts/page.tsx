@@ -61,6 +61,9 @@ export default function AdminPayoutsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [updatingId, setUpdatingId] = useState<number | null>(null);
+  const [confirming, setConfirming] = useState<{ payout: PayoutRequest; action: "processed" | "rejected" } | null>(
+    null
+  );
 
   const loadPayouts = useCallback(async () => {
     setLoading(true);
@@ -81,19 +84,20 @@ export default function AdminPayoutsPage() {
     loadPayouts();
   }, [loadPayouts]);
 
-  const markProcessed = async (id: number) => {
+  const updateStatus = async (id: number, status: "processed" | "rejected") => {
     setUpdatingId(id);
+    setConfirming(null);
     try {
       const res = await fetch(`/api/admin/payouts/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "processed" }),
+        body: JSON.stringify({ status }),
       });
       if (!res.ok) throw new Error("Failed to update payout");
       const updated = await res.json();
       setPayouts((prev) => prev.map((p) => (p.id === id ? updated : p)));
     } catch {
-      setError("Couldn't update that payout. Please try again.");
+      setError(`Couldn't ${status === "processed" ? "process" : "reject"} that payout. Please try again.`);
     } finally {
       setUpdatingId(null);
     }
@@ -101,6 +105,7 @@ export default function AdminPayoutsPage() {
 
   const pending = payouts.filter((p) => p.status === "pending");
   const processed = payouts.filter((p) => p.status === "processed");
+  const rejected = payouts.filter((p) => p.status === "rejected");
 
   return (
     <div className="p-5 md:p-8">
@@ -117,7 +122,7 @@ export default function AdminPayoutsPage() {
       )}
 
       {/* Stats */}
-      <div className="grid grid-cols-2 gap-4 mb-8">
+      <div className="grid grid-cols-3 gap-4 mb-8">
         <div className="bg-[#1a1d27] border border-white/10 rounded-xl px-5 py-4">
           <p className="text-gray-400 text-xs uppercase tracking-wider mb-1">Pending</p>
           <p className="text-white text-2xl font-bold">{pending.length}</p>
@@ -125,6 +130,10 @@ export default function AdminPayoutsPage() {
         <div className="bg-[#1a1d27] border border-white/10 rounded-xl px-5 py-4">
           <p className="text-gray-400 text-xs uppercase tracking-wider mb-1">Processed</p>
           <p className="text-white text-2xl font-bold">{processed.length}</p>
+        </div>
+        <div className="bg-[#1a1d27] border border-white/10 rounded-xl px-5 py-4">
+          <p className="text-gray-400 text-xs uppercase tracking-wider mb-1">Rejected</p>
+          <p className="text-white text-2xl font-bold">{rejected.length}</p>
         </div>
       </div>
 
@@ -163,13 +172,22 @@ export default function AdminPayoutsPage() {
                     </td>
                     <td className="py-3">
                       {p.status === "pending" ? (
-                        <button
-                          onClick={() => markProcessed(p.id)}
-                          disabled={updatingId === p.id}
-                          className="text-xs font-semibold text-blue-400 hover:text-blue-300 bg-blue-500/10 hover:bg-blue-500/20 disabled:opacity-50 px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap"
-                        >
-                          {updatingId === p.id ? "Updating…" : "Mark as processed"}
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => setConfirming({ payout: p, action: "processed" })}
+                            disabled={updatingId === p.id}
+                            className="text-xs font-semibold text-blue-400 hover:text-blue-300 bg-blue-500/10 hover:bg-blue-500/20 disabled:opacity-50 px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap"
+                          >
+                            {updatingId === p.id ? "Updating…" : "Mark as processed"}
+                          </button>
+                          <button
+                            onClick={() => setConfirming({ payout: p, action: "rejected" })}
+                            disabled={updatingId === p.id}
+                            className="text-xs font-semibold text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 disabled:opacity-50 px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap"
+                          >
+                            Reject
+                          </button>
+                        </div>
                       ) : (
                         <span className="text-xs text-gray-600 whitespace-nowrap">—</span>
                       )}
@@ -181,6 +199,48 @@ export default function AdminPayoutsPage() {
           </div>
         )}
       </div>
+
+      {/* Confirmation modal */}
+      {confirming && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/70"
+            onClick={() => setConfirming(null)}
+          />
+          <div className="relative w-full max-w-sm bg-[#1a1d27] border border-white/10 rounded-xl p-6 shadow-2xl">
+            <h3 className="text-white font-semibold text-sm mb-2">
+              {confirming.action === "processed" ? "Mark payout as processed?" : "Reject this payout request?"}
+            </h3>
+            <p className="text-gray-400 text-xs leading-relaxed mb-1">
+              {confirming.payout.user_email} · {fmtNaira(confirming.payout.amount)} ·{" "}
+              {destinationOf(confirming.payout)}
+            </p>
+            <p className="text-gray-500 text-xs leading-relaxed mb-5">
+              {confirming.action === "processed"
+                ? "This confirms the funds have already been sent outside Byro. This cannot be undone here."
+                : "The organizer will need to submit a new request. This cannot be undone here."}
+            </p>
+            <div className="flex items-center justify-end gap-2">
+              <button
+                onClick={() => setConfirming(null)}
+                className="text-xs font-semibold text-gray-300 hover:text-white px-3 py-2 rounded-lg hover:bg-white/5 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => updateStatus(confirming.payout.id, confirming.action)}
+                className={`text-xs font-semibold px-3 py-2 rounded-lg transition-colors ${
+                  confirming.action === "processed"
+                    ? "text-blue-400 bg-blue-500/10 hover:bg-blue-500/20"
+                    : "text-red-400 bg-red-500/10 hover:bg-red-500/20"
+                }`}
+              >
+                {confirming.action === "processed" ? "Confirm processed" : "Confirm reject"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

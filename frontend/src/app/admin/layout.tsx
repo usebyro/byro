@@ -31,6 +31,7 @@ function isActive(pathname: string, href: string) {
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const isLoginPage = pathname === "/admin/login" || pathname === "/login";
 
   // Close the mobile drawer whenever the route changes
   const [prevPathname, setPrevPathname] = useState(pathname);
@@ -83,6 +84,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </nav>
     </>
   );
+
+  // The login page renders its own full-screen layout — showing the
+  // authenticated sidebar/topbar behind it leaks the nav to logged-out
+  // visitors and looks broken while the password form is unauthenticated.
+  if (isLoginPage) {
+    return <>{children}</>;
+  }
 
   return (
     <div className="min-h-screen bg-[#0f1117] flex">

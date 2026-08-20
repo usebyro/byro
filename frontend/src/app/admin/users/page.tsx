@@ -59,6 +59,7 @@ export default function AdminUsersPage() {
   const [summary, setSummary] = useState<AnalyticsSummary | null>(null);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [filter, setFilter] = useState<(typeof FILTERS)[number]["value"]>("");
+  const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -97,6 +98,17 @@ export default function AdminUsersPage() {
     return summary.total_users - summary.total_organizers - summary.total_attendees;
   }, [summary]);
 
+  const visibleUsers = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return users;
+    return users.filter(
+      (u) =>
+        u.email.toLowerCase().includes(q) ||
+        (u.display_name ?? "").toLowerCase().includes(q) ||
+        (u.handle ?? "").toLowerCase().includes(q)
+    );
+  }, [users, search]);
+
   return (
     <div className="p-5 md:p-8">
       {/* Header */}
@@ -122,11 +134,11 @@ export default function AdminUsersPage() {
       {error && <p className="text-red-400 text-sm mb-6">{error}</p>}
 
       <div className="bg-[#1a1d27] border border-white/10 rounded-xl p-6">
-        <div className="flex items-center justify-between gap-2 flex-wrap mb-5">
+        <div className="flex items-center justify-between gap-2 flex-wrap mb-4">
           <div className="flex items-center gap-2">
             <h2 className="text-white font-semibold">All Users</h2>
             <span className="text-xs bg-white/5 text-gray-400 px-2 py-0.5 rounded-full">
-              {loading ? "—" : users.length}
+              {loading ? "—" : visibleUsers.length}
             </span>
           </div>
           <div className="flex items-center gap-1">
@@ -146,10 +158,20 @@ export default function AdminUsersPage() {
           </div>
         </div>
 
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search by email or name…"
+          className="w-full sm:w-72 mb-5 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500/50"
+        />
+
         {loading ? (
           <p className="text-gray-500 text-sm py-6 text-center">Loading...</p>
-        ) : users.length === 0 ? (
-          <p className="text-gray-500 text-sm py-6 text-center">No users match this filter.</p>
+        ) : visibleUsers.length === 0 ? (
+          <p className="text-gray-500 text-sm py-6 text-center">
+            {search ? "No users match your search." : "No users match this filter."}
+          </p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -163,7 +185,7 @@ export default function AdminUsersPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
-                {users.map((u) => (
+                {visibleUsers.map((u) => (
                   <tr key={u.id}>
                     <td className="py-3 pr-6 text-white font-medium truncate max-w-[220px]">{u.email}</td>
                     <td className="py-3 pr-6 text-gray-400 truncate max-w-[160px]">
