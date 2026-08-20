@@ -360,7 +360,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
         } else {
           setEventSlug(response.slug || response.id);
           setEventCreated(true);
-          router.push(`/${response.slug}?preview=true`);
+          router.push(`/discover/${response.slug}?preview=true`);
         }
       }
     } catch (err) {

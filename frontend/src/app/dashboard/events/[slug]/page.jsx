@@ -395,7 +395,7 @@ export default function StudioEventPage() {
           </div>
           <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto">
             <ShareMenu
-              url={typeof window !== "undefined" ? `${window.location.origin}/${slug}` : ""}
+              url={typeof window !== "undefined" ? `${window.location.origin}/discover/${slug}` : ""}
               title={event?.name || ""}
               campaign="event_share"
               content={slug}
@@ -405,7 +405,7 @@ export default function StudioEventPage() {
               Share
             </ShareMenu>
             <Link
-              href={`/${slug}/edit`}
+              href={`/discover/${slug}/edit`}
               className="flex-1 sm:flex-initial flex items-center justify-center gap-1 bg-[#4F6EF7] text-white text-xs font-semibold px-3 py-2 rounded-lg hover:bg-blue-700 transition-colors shadow-sm shadow-[#4F6EF7]/10"
             >
               <HugeiconsIcon icon={Edit03Icon} size={13} color="white" />

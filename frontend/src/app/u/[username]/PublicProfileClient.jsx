@@ -437,7 +437,7 @@ function EventCard({ event }) {
 
   return (
     <div
-      onClick={() => router.push(`/${event.slug}`)}
+      onClick={() => router.push(`/discover/${event.slug}`)}
       className="group bg-white rounded-3xl overflow-hidden border border-gray-100/80 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col h-[380px] cursor-pointer relative"
     >
       {/* Event Image / Gradient */}

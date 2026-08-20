@@ -83,7 +83,7 @@ const EventCard = ({ event }) => {
   };
 
   return (
-    <Link href={`/${eventSlug}`} className="block group">
+    <Link href={`/discover/${eventSlug}`} className="block group">
       <div className="bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-300 border border-gray-100 p-2 sm:p-3">
         {/* Event Image */}
         <div className="relative h-40 sm:h-48 w-full overflow-hidden rounded-lg">

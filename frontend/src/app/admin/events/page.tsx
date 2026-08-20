@@ -121,7 +121,7 @@ function EventTable({
             >
               <td className="py-3 pr-6">
                 <a
-                  href={`/${event.slug}`}
+                  href={`/discover/${event.slug}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={(e) => e.stopPropagation()}
@@ -383,7 +383,7 @@ export default function AdminEventsPage() {
               </div>
 
               <a
-                href={`/${selected.slug}`}
+                href={`/discover/${selected.slug}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-block text-xs font-semibold text-blue-400 hover:text-blue-300"

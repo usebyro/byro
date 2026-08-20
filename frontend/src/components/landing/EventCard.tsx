@@ -137,7 +137,7 @@ const EventCard = ({ event }: { event: Event }) => {
     <>
       <div className="bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-lg transition-all duration-200 group flex flex-col">
         {/* Image / gradient with overlaid content */}
-        <Link href={`/${event.slug}`} className="block relative h-52 overflow-hidden flex-shrink-0">
+        <Link href={`/discover/${event.slug}`} className="block relative h-52 overflow-hidden flex-shrink-0">
           {event.event_image_url && !imageError ? (
             <Image
               src={event.event_image_url}

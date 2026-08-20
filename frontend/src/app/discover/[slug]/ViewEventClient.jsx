@@ -5,7 +5,7 @@ import { useRouter, notFound } from "next/navigation";
 import Image from "next/image";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Share01Icon, FavouriteIcon, Calendar01Icon, Location01Icon, UserGroupIcon } from "@hugeicons/core-free-icons";
-import API from "../../services/api";
+import API from "@/services/api";
 import { toast } from "sonner";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
@@ -96,7 +96,7 @@ export default function ViewEventClient({ slug }) {
         ]);
         if (eventData?.id || eventData?.slug) {
           setEvent(eventData);
-          if (eventData.slug && eventData.slug !== slug) router.replace(`/${eventData.slug}`);
+          if (eventData.slug && eventData.slug !== slug) router.replace(`/discover/${eventData.slug}`);
           // Try tiers embedded in event first, then fall back to dedicated endpoint
           const embeddedTiers = Array.isArray(eventData.tiers) ? eventData.tiers : [];
           const fetchedTiers = Array.isArray(tiersData)

@@ -38,8 +38,8 @@ export default async function sitemap() {
     const eventEntries = events
       .filter((e) => e.slug && e.is_active !== false)
       .map((e) => ({
-        // Events live at /{slug}, NOT /events/{slug}
-        url: `${BASE_URL}/${e.slug}`,
+        // Events live at /discover/{slug}, NOT /events/{slug}
+        url: `${BASE_URL}/discover/${e.slug}`,
         lastModified: e.updated_at ? new Date(e.updated_at) : now,
         changeFrequency: 'weekly',
         priority: 0.8,
