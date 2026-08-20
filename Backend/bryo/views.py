@@ -181,7 +181,7 @@ def send_cohost_invite_email(email, event, inviter, is_new_user=False):
         email_data = cohost_invite_email(
             event_name=event.name,
             inviter_name=inviter_name,
-            event_url=f"{frontend_url}/{event.slug}",
+            event_url=f"{frontend_url}/discover/{event.slug}",
             is_new_user=is_new_user,
         )
         send_email(
