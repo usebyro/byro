@@ -563,3 +563,53 @@ class ThrottlingTests(WorkOSAuthTestCase):
 
         self.assertEqual(codes[:3], [200, 200, 200])
         self.assertEqual(codes[3:], [429, 429])
+
+
+@override_settings(**WORKOS_TEST_SETTINGS)
+class PrivateEventVisibilityTests(WorkOSAuthTestCase):
+    """
+    `private` means unlisted, not secret. The host shares the link themselves,
+    so anyone holding it must be able to open the page and register — while the
+    event stays out of every listing surface (discover, search, categories,
+    locations, and the sitemap that is built from the list endpoint).
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.owner = User.objects.create_user(email='owner@example.com', workos_id='user_owner')
+        self.private = make_event(name='Private Party', owner=self.owner, visibility='private')
+        self.public = make_event(name='Open Party', owner=self.owner, visibility='public')
+
+    def listed_slugs(self, params=''):
+        body = self.client.get(f'/api/events/{params}').json()
+        rows = body['results'] if isinstance(body, dict) else body
+        return [e['slug'] for e in rows]
+
+    def test_anonymous_can_open_a_private_event_by_link(self):
+        res = self.client.get(f'/api/events/{self.private.slug}/')
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json()['slug'], self.private.slug)
+
+    def test_private_event_stays_out_of_listings(self):
+        slugs = self.listed_slugs()
+        self.assertIn(self.public.slug, slugs)
+        self.assertNotIn(self.private.slug, slugs)
+
+    def test_private_event_stays_out_of_search_results(self):
+        self.assertNotIn(self.private.slug, self.listed_slugs('?search=Private'))
+
+    def test_private_event_is_not_counted_in_categories(self):
+        counts = {c['value']: c['count'] for c in self.client.get('/api/events/categories/').json()['categories']}
+        self.assertEqual(counts[self.public.category], 1)
+
+    def test_deactivated_event_is_hidden_even_by_link(self):
+        """is_active is the other axis — a deactivated event is gone for visitors."""
+        self.private.is_active = False
+        self.private.save(update_fields=['is_active'])
+        self.assertEqual(self.client.get(f'/api/events/{self.private.slug}/').status_code, 404)
+
+    def test_owner_can_still_open_their_deactivated_event(self):
+        self.private.is_active = False
+        self.private.save(update_fields=['is_active'])
+        self.auth(make_token(sub='user_owner'))
+        self.assertEqual(self.client.get(f'/api/events/{self.private.slug}/').status_code, 200)
