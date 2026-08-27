@@ -210,6 +210,12 @@ class MagicAuthTests(WorkOSAuthTestCase):
     SEND = '/api/auth/magic/send/'
     VERIFY = '/api/auth/magic/verify/'
 
+    def setUp(self):
+        super().setUp()
+        patcher = patch('bryo.auth_views.check_and_remember_verification', return_value=True)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def test_send_requests_a_code(self):
         with patch('bryo.auth_views.workos_api.send_magic_auth_code', return_value=True) as send:
             res = self.client.post(self.SEND, {'email': 'someone@example.com'}, format='json')
@@ -554,7 +560,8 @@ class ThrottlingTests(WorkOSAuthTestCase):
     def test_magic_send_is_throttled(self):
         self.set_throttle_rates({**ScopedRateThrottle.THROTTLE_RATES, 'auth_send': '3/hour'})
 
-        with patch('bryo.auth_views.workos_api.send_magic_auth_code', return_value=True):
+        with patch('bryo.auth_views.workos_api.send_magic_auth_code', return_value=True), \
+             patch('bryo.auth_views.check_and_remember_verification', return_value=True):
             codes = [
                 self.client.post('/api/auth/magic/send/',
                                  {'email': 'spam@example.com'}, format='json').status_code
