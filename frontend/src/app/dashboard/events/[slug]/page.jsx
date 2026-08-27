@@ -124,8 +124,9 @@ export default function StudioEventPage() {
   const [checkInMode, setCheckInMode] = useState("scan"); // scan | manual
   const [cameraError, setCameraError] = useState("");
 
-  // Discount codes (client-side only until the backend endpoints ship)
+  // Discount codes
   const [discountCodes, setDiscountCodes] = useState([]);
+  const [savingDiscount, setSavingDiscount] = useState(false);
   const [showDiscountModal, setShowDiscountModal] = useState(false);
   const [discountMenuOpen, setDiscountMenuOpen] = useState(null);
   const [discountForm, setDiscountForm] = useState({
@@ -134,6 +135,18 @@ export default function StudioEventPage() {
     value: "",
     maxUses: "",
     expiresAt: "",
+  });
+
+  // Backend <-> UI shape mapping for promo codes.
+  const mapPromoFromApi = (p) => ({
+    id: p.id,
+    code: p.code,
+    type: p.discount_type === "percentage" ? "percent" : "fixed",
+    value: Number(p.amount),
+    maxUses: p.max_redemptions ?? null,
+    used: p.redeemed_count ?? 0,
+    expiresAt: p.expires_at ? p.expires_at.slice(0, 10) : null,
+    active: p.active,
   });
 
   const videoRef = useRef(null);
@@ -181,6 +194,13 @@ export default function StudioEventPage() {
   };
 
   useEffect(() => { loadAttendees(); }, [slug]);
+
+  useEffect(() => {
+    if (!slug) return;
+    API.getPromoCodes(slug)
+      .then((res) => setDiscountCodes((res || []).map(mapPromoFromApi)))
+      .catch(() => {});
+  }, [slug]);
 
   const handleCheckIn = async (valueOverride) => {
     const value = (valueOverride ?? checkInValue).trim();
@@ -293,42 +313,54 @@ export default function StudioEventPage() {
   const resetDiscountForm = () =>
     setDiscountForm({ code: "", type: "percent", value: "", maxUses: "", expiresAt: "" });
 
-  const handleCreateDiscount = (e) => {
+  const handleCreateDiscount = async (e) => {
     e.preventDefault();
     const code = discountForm.code.trim().toUpperCase();
-    if (!code || !discountForm.value) return;
+    if (!code || !discountForm.value || savingDiscount) return;
     if (discountCodes.some((d) => d.code === code)) {
       toast.error("That code already exists for this event.");
       return;
     }
-    setDiscountCodes((prev) => [
-      {
-        id: crypto.randomUUID(),
+    setSavingDiscount(true);
+    try {
+      const created = await API.createPromoCode(slug, {
         code,
-        type: discountForm.type,
-        value: Number(discountForm.value),
-        maxUses: discountForm.maxUses ? Number(discountForm.maxUses) : null,
-        used: 0,
-        expiresAt: discountForm.expiresAt || null,
-        active: true,
-      },
-      ...prev,
-    ]);
-    toast.success(`Discount code ${code} created.`);
-    setShowDiscountModal(false);
-    resetDiscountForm();
+        discount_type: discountForm.type === "percent" ? "percentage" : "fixed",
+        amount: Number(discountForm.value),
+        max_redemptions: discountForm.maxUses ? Number(discountForm.maxUses) : null,
+        expires_at: discountForm.expiresAt || null,
+      });
+      setDiscountCodes((prev) => [mapPromoFromApi(created), ...prev]);
+      toast.success(`Discount code ${code} created.`);
+      setShowDiscountModal(false);
+      resetDiscountForm();
+    } catch (err) {
+      toast.error(err?.message || "Failed to create discount code.");
+    } finally {
+      setSavingDiscount(false);
+    }
   };
 
-  const toggleDiscountActive = (id) => {
-    setDiscountCodes((prev) =>
-      prev.map((d) => (d.id === id ? { ...d, active: !d.active } : d))
-    );
+  const toggleDiscountActive = async (id) => {
     setDiscountMenuOpen(null);
+    const current = discountCodes.find((d) => d.id === id);
+    if (!current) return;
+    try {
+      const updated = await API.updatePromoCode(slug, id, { active: !current.active });
+      setDiscountCodes((prev) => prev.map((d) => (d.id === id ? mapPromoFromApi(updated) : d)));
+    } catch (err) {
+      toast.error(err?.message || "Failed to update discount code.");
+    }
   };
 
-  const deleteDiscount = (id) => {
-    setDiscountCodes((prev) => prev.filter((d) => d.id !== id));
+  const deleteDiscount = async (id) => {
     setDiscountMenuOpen(null);
+    try {
+      await API.deletePromoCode(slug, id);
+      setDiscountCodes((prev) => prev.filter((d) => d.id !== id));
+    } catch (err) {
+      toast.error(err?.message || "Failed to delete discount code.");
+    }
   };
 
   const copyDiscountCode = (code) => {
@@ -916,10 +948,10 @@ export default function StudioEventPage() {
               </button>
               <button
                 type="submit"
-                disabled={!discountForm.code.trim() || !discountForm.value}
+                disabled={!discountForm.code.trim() || !discountForm.value || savingDiscount}
                 className="flex-1 py-2 rounded-lg bg-[#4F6EF7] text-white text-xs font-bold hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-sm shadow-[#4F6EF7]/10"
               >
-                Create code
+                {savingDiscount ? "Creating..." : "Create code"}
               </button>
             </div>
           </form>

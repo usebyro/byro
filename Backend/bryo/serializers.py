@@ -4,7 +4,7 @@ from django.utils.text import slugify
 from .models import (
     Payment, WaitList, Ticket, Event, EventCoHost,
     TicketTransfer, Payment, UserProfile, EventFormQuestion, EventFormAnswer,
-    TicketTier, PayoutRequest,
+    TicketTier, PayoutRequest, PromoCode,
 )
 from django.core.mail import send_mail
 from django.contrib.auth import get_user_model
@@ -146,6 +146,31 @@ class TicketTierSerializer(serializers.ModelSerializer):
         if value is None or value < 1:
             raise serializers.ValidationError("A ticket must admit at least 1 person.")
         return value
+
+
+class PromoCodeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PromoCode
+        fields = [
+            'id', 'code', 'discount_type', 'amount',
+            'max_redemptions', 'redeemed_count', 'active', 'expires_at', 'created_at',
+        ]
+        read_only_fields = ['id', 'redeemed_count', 'created_at']
+
+    def validate_code(self, value):
+        return value.strip().upper()
+
+    def validate_amount(self, value):
+        if value <= 0:
+            raise serializers.ValidationError("Amount must be greater than 0.")
+        return value
+
+    def validate(self, data):
+        discount_type = data.get('discount_type', getattr(self.instance, 'discount_type', None))
+        amount = data.get('amount', getattr(self.instance, 'amount', None))
+        if discount_type == PromoCode.DISCOUNT_PERCENTAGE and amount is not None and amount > 100:
+            raise serializers.ValidationError({'amount': 'A percentage discount cannot exceed 100.'})
+        return data
 
 
 class EventCoHostSerializer(serializers.ModelSerializer):

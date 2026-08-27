@@ -28,13 +28,13 @@ from django.contrib.auth import get_user_model
 from .models import (
     WaitList, Event, Ticket, TicketTransfer,
     EventCoHost, Payment, UserProfile, EventFormQuestion, EventFormAnswer,
-    TicketTier, PayoutRequest,
+    TicketTier, PayoutRequest, PromoCode,
 )
 from .pricing import calculate_ticket_fees
 from django.urls import reverse
-from .serializers import EventSerializer, TicketSerializer, PaymentSerializer, TicketTierSerializer
+from .serializers import EventSerializer, TicketSerializer, PaymentSerializer, TicketTierSerializer, PromoCodeSerializer
 from .permissions import IsEventOwnerOrCoHost, IsEventOwner, IsAdminSecret
-from django.db import transaction
+from django.db import transaction, IntegrityError
 from django.db import models
 from django.db.models import Q, Min, OuterRef, Subquery, Sum, Count, F
 from django.db.models.functions import TruncDate
@@ -293,6 +293,7 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
         quantity = int(request.data.get('quantity', 1))
         tier_id = request.data.get('tier_id')
         attendees_raw = request.data.get('attendees')
+        promo_code_str = (request.data.get('promo_code') or '').strip().upper()
 
         if not all([event_slug, customer_email, customer_name]):
             return Response(
@@ -316,7 +317,20 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
         # Calculate amount (tier price takes precedence over the legacy flat price)
         unit_price = tier.price if tier is not None else event.ticket_price
         subtotal = unit_price * quantity
-        fees = calculate_ticket_fees(subtotal)
+
+        # Promo codes are re-validated here, not trusted from the cart's
+        # earlier validate-promo call, so the charge can never be manipulated
+        # client-side.
+        promo = None
+        discount_amount = Decimal('0')
+        if promo_code_str:
+            promo = PromoCode.objects.filter(event=event, code=promo_code_str).first()
+            if not promo or not promo.is_valid():
+                return Response({'error': 'Invalid or expired promo code'}, status=status.HTTP_400_BAD_REQUEST)
+            discount_amount = promo.compute_discount(subtotal)
+
+        discounted_subtotal = subtotal - discount_amount
+        fees = calculate_ticket_fees(discounted_subtotal)
         amount = fees['total']
 
         # For free events/tiers, create ticket(s) directly
@@ -331,6 +345,8 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                     event, tier, attendees,
                     payment_status='free', user=linked_user,
                 )
+                if promo is not None:
+                    PromoCode.objects.filter(pk=promo.pk).update(redeemed_count=F('redeemed_count') + 1)
 
             # Send each free ticket to its own attendee
             _email_tickets(tickets, event)
@@ -374,6 +390,8 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                 'tier_id': tier.id if tier is not None else None,
                 'subtotal': str(fees['subtotal']),
                 'service_fee': str(fees['service_fee']),
+                'promo_code': promo.code if promo is not None else None,
+                'discount_amount': str(discount_amount),
             },
             'callback_url': settings.PAYSTACK_CALLBACK_URL
         }
@@ -397,6 +415,7 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                 payment = Payment.objects.create(
                     event=event,
                     tier=tier,
+                    promo_code=promo,
                     customer_email=customer_email,
                     customer_name=customer_name,
                     amount=amount,
@@ -416,6 +435,7 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                         'service_fee': str(fees['service_fee']),
                         'paystack_fee': str(fees['paystack_fee']),
                         'display_total': str(fees['display_total']),
+                        'discount_amount': str(discount_amount),
                     }
                 )
 
@@ -518,6 +538,10 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                     payment.channel = transaction_data.get('channel')
                     payment.paid_at = timezone.now()
                     payment.save()
+                    if payment.promo_code_id:
+                        PromoCode.objects.filter(pk=payment.promo_code_id).update(
+                            redeemed_count=F('redeemed_count') + 1
+                        )
 
                     # Create one ticket per attendee (each its own QR)
                     tickets = _create_tickets(
@@ -606,6 +630,10 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                     payment.channel = data.get('channel')
                     payment.paid_at = timezone.now()
                     payment.save()
+                    if payment.promo_code_id:
+                        PromoCode.objects.filter(pk=payment.promo_code_id).update(
+                            redeemed_count=F('redeemed_count') + 1
+                        )
 
                 existing_count = payment.tickets_purchased.count()
                 attendees = _attendees_from_payment(payment)
@@ -1238,6 +1266,68 @@ class EventViewSet(viewsets.ModelViewSet):
             apps.posthog_client.capture('ticket_tier_updated')
         return Response(serializer.data)
 
+    @action(detail=True, methods=['GET', 'POST'], url_path='promo-codes', permission_classes=[IsAuthenticated])
+    def promo_codes(self, request, slug=None):
+        """
+        GET  /api/events/{slug}/promo-codes/  — list this event's codes (owner/co-host only)
+        POST /api/events/{slug}/promo-codes/  — create a code (owner/co-host only)
+        """
+        event = self.get_object()
+        if not event.is_owner_or_cohost(request.user):
+            return Response(
+                {"error": "You don't have permission to manage promo codes for this event"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if request.method == 'GET':
+            queryset = event.promo_codes.all()
+            serializer = PromoCodeSerializer(queryset, many=True)
+            return Response(serializer.data)
+
+        serializer = PromoCodeSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            serializer.save(event=event)
+        except IntegrityError:
+            return Response(
+                {"error": "That code already exists for this event"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    @action(
+        detail=True, methods=['PATCH', 'DELETE'],
+        url_path=r'promo-codes/(?P<promo_id>\d+)', permission_classes=[IsAuthenticated],
+    )
+    def promo_code_detail(self, request, slug=None, promo_id=None):
+        """
+        PATCH  /api/events/{slug}/promo-codes/{promo_id}/ — update a code (owner/co-host only)
+        DELETE /api/events/{slug}/promo-codes/{promo_id}/ — delete a code (owner/co-host only)
+        """
+        event = self.get_object()
+        if not event.is_owner_or_cohost(request.user):
+            return Response(
+                {"error": "You don't have permission to manage promo codes for this event"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        promo = get_object_or_404(PromoCode, pk=promo_id, event=event)
+
+        if request.method == 'DELETE':
+            promo.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+
+        serializer = PromoCodeSerializer(promo, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        try:
+            serializer.save()
+        except IntegrityError:
+            return Response(
+                {"error": "That code already exists for this event"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return Response(serializer.data)
+
     @action(detail=True, methods=['GET'], permission_classes=[IsAuthenticated])
     def my_role(self, request, slug=None):
         """
@@ -1346,6 +1436,31 @@ class EventViewSet(viewsets.ModelViewSet):
                 {"error": "An error occurred during registration"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
+    @action(detail=True, methods=['POST'], url_path='validate-promo', permission_classes=[AllowAny])
+    def validate_promo(self, request, slug=None):
+        """
+        POST /api/events/<slug>/validate-promo/   {code}
+
+        Tells the checkout cart what a code is worth so it can show a live
+        discount. The charge itself is still recomputed and re-validated
+        server-side in initialize_payment — this endpoint is display-only.
+        """
+        event = self.get_object()
+        code = (request.data.get('code') or '').strip().upper()
+        if not code:
+            return Response({'valid': False, 'error': 'A promo code is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        promo = PromoCode.objects.filter(event=event, code=code).first()
+        if not promo or not promo.is_valid():
+            return Response({'valid': False, 'error': 'Invalid or expired promo code'}, status=status.HTTP_404_NOT_FOUND)
+
+        return Response({
+            'valid': True,
+            'code': promo.code,
+            'discount_type': promo.discount_type,
+            'amount': str(promo.amount),
+        })
 
     @action(detail=True, methods=['GET'], permission_classes=[IsAuthenticated])
     def my_ticket(self, request, slug=None):

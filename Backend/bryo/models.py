@@ -1,8 +1,11 @@
+from decimal import Decimal, ROUND_HALF_UP
+
 from django.db import models, transaction, IntegrityError
 from django.contrib.auth.models import AbstractUser, UserManager
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.conf import settings
+from django.utils import timezone
 from django.utils.crypto import get_random_string
 import uuid
 
@@ -174,6 +177,13 @@ class Payment(models.Model):
     event = models.ForeignKey('Event', on_delete=models.CASCADE, related_name='payments')
     tier = models.ForeignKey(
         'TicketTier',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='payments',
+    )
+    promo_code = models.ForeignKey(
+        'PromoCode',
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
@@ -531,6 +541,60 @@ class TicketTier(models.Model):
 
     def __str__(self):
         return f"{self.event.name} - {self.name}"
+
+
+class PromoCode(models.Model):
+    """A discount code an organiser can hand out for one event."""
+
+    DISCOUNT_FIXED = 'fixed'
+    DISCOUNT_PERCENTAGE = 'percentage'
+    DISCOUNT_TYPES = [
+        (DISCOUNT_FIXED, 'Fixed amount (NGN)'),
+        (DISCOUNT_PERCENTAGE, 'Percentage'),
+    ]
+
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='promo_codes')
+    code = models.CharField(max_length=32)
+    discount_type = models.CharField(max_length=10, choices=DISCOUNT_TYPES, default=DISCOUNT_FIXED)
+    # NGN amount for `fixed`, or 0-100 for `percentage`.
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    max_redemptions = models.PositiveIntegerField(
+        null=True, blank=True, help_text="Blank = unlimited"
+    )
+    redeemed_count = models.PositiveIntegerField(default=0)
+    active = models.BooleanField(default=True)
+    expires_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('event', 'code')
+        ordering = ['-created_at']
+
+    def save(self, *args, **kwargs):
+        self.code = self.code.strip().upper()
+        super().save(*args, **kwargs)
+
+    def is_valid(self):
+        if not self.active:
+            return False
+        if self.expires_at and timezone.now() > self.expires_at:
+            return False
+        if self.max_redemptions is not None and self.redeemed_count >= self.max_redemptions:
+            return False
+        return True
+
+    def compute_discount(self, subtotal):
+        """Discount in NGN for a given subtotal, never more than the subtotal itself."""
+        subtotal = Decimal(str(subtotal))
+        if self.discount_type == self.DISCOUNT_PERCENTAGE:
+            discount = subtotal * self.amount / Decimal('100')
+        else:
+            discount = self.amount
+        discount = discount.quantize(Decimal('1'), rounding=ROUND_HALF_UP)
+        return min(discount, subtotal)
+
+    def __str__(self):
+        return f"{self.code} ({self.event.slug})"
 
 
 class Ticket(models.Model):

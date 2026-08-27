@@ -180,6 +180,41 @@ const API = {
     }
   },
 
+  getPromoCodes: async (slug) => {
+    try {
+      const response = await axiosInstance.get(`events/${slug}/promo-codes/`);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  createPromoCode: async (slug, data) => {
+    try {
+      const response = await axiosInstance.post(`events/${slug}/promo-codes/`, data);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  updatePromoCode: async (slug, promoId, data) => {
+    try {
+      const response = await axiosInstance.patch(`events/${slug}/promo-codes/${promoId}/`, data);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  deletePromoCode: async (slug, promoId) => {
+    try {
+      await axiosInstance.delete(`events/${slug}/promo-codes/${promoId}/`);
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
   getCategories: async () => {
     try {
       const response = await axiosInstance.get("events/categories/");
@@ -346,12 +381,20 @@ const API = {
     }
   },
 
+  // Look up a promo code's discount for display before checkout; the charge
+  // itself re-validates the code server-side in initializePayment.
+  validatePromoCode: async (eventSlug, code) => {
+    const response = await axiosInstance.post(`events/${eventSlug}/validate-promo/`, { code });
+    return response.data;
+  },
+
   // ===== PAYMENTS =====
-  initializePayment: async ({ event_slug, customer_email, customer_name, quantity = 1, tier_id, attendees }) => {
+  initializePayment: async ({ event_slug, customer_email, customer_name, quantity = 1, tier_id, attendees, promo_code }) => {
     try {
       const body = { event_slug, customer_email, customer_name, quantity };
       if (tier_id !== undefined && tier_id !== null) body.tier_id = tier_id;
       if (Array.isArray(attendees) && attendees.length > 0) body.attendees = attendees;
+      if (promo_code) body.promo_code = promo_code;
       const response = await axiosInstance.post("payments/initialize/", body);
       return response.data;
     } catch (error) {

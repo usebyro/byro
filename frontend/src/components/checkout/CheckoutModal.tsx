@@ -122,9 +122,13 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
     return init;
   });
   const [promoCode, setPromoCode] = useState("");
-  const [promoApplied, setPromoApplied] = useState(false);
-  const [promoDiscount] = useState(1000);
-  const [promoLabel] = useState("EARLYBIRD");
+  const [appliedPromo, setAppliedPromo] = useState<{
+    code: string;
+    discountType: "fixed" | "percentage";
+    amount: number;
+  } | null>(null);
+  const [promoError, setPromoError] = useState("");
+  const [isApplyingPromo, setIsApplyingPromo] = useState(false);
 
   /* ── Details ── */
   const [fullName, setFullName] = useState("");
@@ -142,13 +146,23 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
     (s, t) => s + parseFloat(String(t.price)) * (quantities[String(t.id)] || 0),
     0
   );
-  const fees = calculateTicketFees(subtotal);
+  // Discount is taken off the subtotal before fees, same order the backend
+  // uses when it re-validates the code and computes the actual charge.
+  const discount = appliedPromo
+    ? Math.min(
+        appliedPromo.discountType === "percentage"
+          ? Math.round((subtotal * appliedPromo.amount) / 100)
+          : appliedPromo.amount,
+        subtotal
+      )
+    : 0;
+  const discountedSubtotal = subtotal - discount;
+  const fees = calculateTicketFees(discountedSubtotal);
   // Buyer-facing "service fee" = everything added on top of the subtotal
   // (Byro's 6.5% + the simulated Paystack cut), so the shown total equals what
   // Paystack will actually charge and no fee jumps at checkout.
   const serviceFee = fees.displayTotal - fees.subtotal;
-  const discount = promoApplied ? promoDiscount : 0;
-  const total = subtotal + serviceFee - discount;
+  const total = discountedSubtotal + serviceFee;
   const totalQty = Object.values(quantities).reduce((a: number, b: number) => a + b, 0);
 
   /* ── Attendees (per-seat guest capture) ──
@@ -224,8 +238,28 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
       : recipients;
   };
 
-  const applyPromo = () => {
-    if (promoCode.trim().toUpperCase() === "EARLYBIRD") setPromoApplied(true);
+  const applyPromo = async () => {
+    const code = promoCode.trim();
+    if (!code || isApplyingPromo) return;
+
+    setPromoError("");
+    setIsApplyingPromo(true);
+    try {
+      const result = await API.validatePromoCode(event.slug, code);
+      setAppliedPromo({
+        code: result.code,
+        discountType: result.discount_type,
+        amount: parseFloat(result.amount),
+      });
+    } catch (err: unknown) {
+      setAppliedPromo(null);
+      const message =
+        (err as { response?: { data?: { error?: string } } })?.response?.data?.error ||
+        "Invalid or expired promo code.";
+      setPromoError(message);
+    } finally {
+      setIsApplyingPromo(false);
+    }
   };
 
   const handlePayment = async () => {
@@ -255,6 +289,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
           quantity: totalQty,
           tier_id,
           attendees,
+          promo_code: appliedPromo?.code,
         });
         const ticket = result.tickets?.[0];
         const ticketData = {
@@ -286,6 +321,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
         quantity: totalQty,
         tier_id,
         attendees,
+        promo_code: appliedPromo?.code,
       });
 
       if (result?.data?.authorization_url) {
@@ -568,19 +604,24 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                     <input
                       type="text"
                       value={promoCode}
-                      onChange={(e) => setPromoCode(e.target.value)}
+                      onChange={(e) => {
+                        setPromoCode(e.target.value);
+                        if (appliedPromo) setAppliedPromo(null);
+                        if (promoError) setPromoError("");
+                      }}
                       placeholder="Have a promo code?"
                       className="flex-1 text-sm text-gray-700 placeholder-gray-400 focus:outline-none bg-transparent"
                     />
                   </div>
                   <button
                     onClick={applyPromo}
-                    className="px-5 py-3 text-sm font-semibold text-gray-700 border-l border-gray-200 hover:bg-gray-50 transition-colors"
+                    disabled={!promoCode.trim() || isApplyingPromo}
+                    className="px-5 py-3 text-sm font-semibold text-gray-700 border-l border-gray-200 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Apply
+                    {isApplyingPromo ? "Checking..." : "Apply"}
                   </button>
                 </div>
-                {promoApplied && (
+                {appliedPromo && (
                   <p className="text-sm text-emerald-600 flex items-center gap-1.5 mt-2">
                     <svg
                       width="13"
@@ -594,6 +635,9 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                     </svg>
                     Promo code applied!
                   </p>
+                )}
+                {promoError && (
+                  <p className="text-sm text-red-600 mt-2">{promoError}</p>
                 )}
               </div>
             )}
@@ -1034,7 +1078,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                         </span>
                         <span className="text-gray-700">{fmt(serviceFee)}</span>
                       </div>
-                      {promoApplied && (
+                      {appliedPromo && (
                         <div className="flex justify-between text-sm">
                           <span className="text-emerald-600 flex items-center gap-1">
                             <svg
@@ -1047,10 +1091,10 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                             >
                               <polyline points="20 6 9 17 4 12" />
                             </svg>
-                            Promo: {promoLabel}
+                            Promo: {appliedPromo.code}
                           </span>
                           <span className="text-emerald-600">
-                            -{fmt(promoDiscount)}
+                            -{fmt(discount)}
                           </span>
                         </div>
                       )}
