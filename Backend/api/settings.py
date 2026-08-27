@@ -61,6 +61,9 @@ PAYSTACK_CALLBACK_URL = config('PAYSTACK_CALLBACK_URL', default='https://usebyro
 RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')
 BREVO_SMTP_KEY = os.environ.get('BREVO_SMTP_KEY', '')
 
+# Cloudflare Turnstile
+TURNSTILE_SECRET_KEY = os.environ.get('TURNSTILE_SECRET_KEY', '')
+
 
 # WorkOS AuthKit — the sole identity provider.
 #   WORKOS_CLIENT_ID: the client ID from the WorkOS dashboard. Public; it also

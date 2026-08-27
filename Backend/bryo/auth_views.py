@@ -36,6 +36,7 @@ from rest_framework.views import APIView
 from . import apps
 from .models import EventCoHost, UserProfile
 from .services import workos_api
+from .services.turnstile import check_and_remember_verification
 from .services.workos_api import WorkOSAPIError
 
 logger = logging.getLogger(__name__)
@@ -289,7 +290,15 @@ class MagicAuthSendView(_AuthEndpoint):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        workos_api.send_magic_auth_code(email, **_client_meta(request))
+        client_meta = _client_meta(request)
+        turnstile_token = request.data.get('turnstile_token')
+        if not check_and_remember_verification(turnstile_token, email, remote_ip=client_meta['ip_address']):
+            return Response(
+                {'error': 'Verification failed. Please try again.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        workos_api.send_magic_auth_code(email, **client_meta)
 
         return Response({
             'success': True,

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import Script from "next/script";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useDispatch } from "react-redux";
 import { FcGoogle } from "react-icons/fc";
@@ -13,6 +14,7 @@ import { authSuccess } from "@/redux/auth/authSlice";
 
 const OTP_LENGTH = 6;
 const RESEND_COOLDOWN_SECONDS = 60;
+const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
 
 function FakeQrGlyph() {
   // Decorative placeholder pattern — not a real scannable code.
@@ -52,6 +54,10 @@ export default function AuthScreen() {
   const [isVerifying, setIsVerifying] = useState(false);
   const [error, setError] = useState("");
   const otpInputRefs = useRef([]);
+  const turnstileRef = useRef(null);
+  const turnstileWidgetId = useRef(null);
+  const [turnstileToken, setTurnstileToken] = useState("");
+  const [turnstileReady, setTurnstileReady] = useState(false);
 
   const completeSignIn = (data) => {
     API.setAuthToken(data.tokens.access);
@@ -88,11 +94,27 @@ export default function AuthScreen() {
     }
   }, [step]);
 
+  useEffect(() => {
+    if (!turnstileReady || !turnstileRef.current) return;
+
+    if (turnstileWidgetId.current !== null && window.turnstile) {
+      window.turnstile.remove(turnstileWidgetId.current);
+    }
+    setTurnstileToken("");
+    turnstileWidgetId.current = window.turnstile.render(turnstileRef.current, {
+      sitekey: TURNSTILE_SITE_KEY,
+      theme: "light",
+      callback: (token) => setTurnstileToken(token),
+      "expired-callback": () => setTurnstileToken(""),
+      "error-callback": () => setTurnstileToken(""),
+    });
+  }, [step, turnstileReady]);
+
   const sendMagicAuthCode = async () => {
     setError("");
     setIsSubmittingEmail(true);
     try {
-      await axiosInstance.post("auth/magic/send/", { email });
+      await axiosInstance.post("auth/magic/send/", { email, turnstile_token: turnstileToken });
       setOtp(Array(OTP_LENGTH).fill(""));
       setResendCooldown(RESEND_COOLDOWN_SECONDS);
       setStep("otp");
@@ -100,12 +122,16 @@ export default function AuthScreen() {
       setError(err.response?.data?.error || "Could not send a code. Please try again.");
     } finally {
       setIsSubmittingEmail(false);
+      setTurnstileToken("");
+      if (turnstileWidgetId.current !== null && window.turnstile) {
+        window.turnstile.reset(turnstileWidgetId.current);
+      }
     }
   };
 
   const handleEmailSubmit = (e) => {
     e.preventDefault();
-    if (!email.trim() || isSubmittingEmail) return;
+    if (!email.trim() || isSubmittingEmail || !turnstileToken) return;
     sendMagicAuthCode();
   };
 
@@ -175,6 +201,11 @@ export default function AuthScreen() {
 
   return (
     <div className="min-h-screen bg-white">
+      <Script
+        src="https://challenges.cloudflare.com/turnstile/v0/api.js"
+        strategy="afterInteractive"
+        onLoad={() => setTurnstileReady(true)}
+      />
       <div className="w-full grid grid-cols-1 md:grid-cols-2 min-h-screen">
         {/* Left — brand panel */}
         <div className="relative hidden md:block overflow-hidden h-full">
@@ -235,11 +266,13 @@ export default function AuthScreen() {
                     </div>
                   </div>
 
+                  <div ref={turnstileRef} className="flex justify-center" />
+
                   {error && <p className="text-sm text-red-600">{error}</p>}
 
                   <button
                     type="submit"
-                    disabled={!email.trim() || isSubmittingEmail}
+                    disabled={!email.trim() || isSubmittingEmail || !turnstileToken}
                     className="w-full bg-blue-600 text-white font-semibold py-3 rounded-full hover:bg-blue-700 transition-colors text-sm disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     {isSubmittingEmail ? "Sending..." : "Continue"}
