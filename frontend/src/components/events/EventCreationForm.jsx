@@ -18,6 +18,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import API from "../../services/api";
 import RichTextEditor from "./RichTextEditor";
+import EventPublishedModal from "./EventPublishedModal";
 
 /* ── Category options ── */
 const CATEGORIES = [
@@ -357,10 +358,11 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
         toast.success(editSlug ? "Event updated!" : isDraft ? "Draft saved!" : "Event published!");
         if (editSlug) {
           router.push(`/dashboard/events/${editSlug}`);
+        } else if (isDraft) {
+          router.push(`/discover/${response.slug}?preview=true`);
         } else {
           setEventSlug(response.slug || response.id);
           setEventCreated(true);
-          router.push(`/discover/${response.slug}?preview=true`);
         }
       }
     } catch (err) {
@@ -748,6 +750,13 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
           )}
         </div>
       </div>
+
+      {eventCreated && eventSlug && (
+        <EventPublishedModal
+          event={{ slug: eventSlug, name: eventName }}
+          onClose={() => router.push(`/discover/${eventSlug}?preview=true`)}
+        />
+      )}
     </div>
   );
 }
