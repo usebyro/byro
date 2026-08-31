@@ -10,18 +10,18 @@ export default function StudioSettings() {
   }, []);
 
   return (
-    <div className="p-6 max-w-2xl mx-auto">
-      <div className="mb-7">
-        <h1 className="text-2xl font-bold text-gray-900 mb-1">Settings</h1>
-        <p className="text-sm text-gray-400">Manage your studio preferences.</p>
+    <div className="p-4 sm:p-6 max-w-2xl mx-auto space-y-4">
+      <div className="pb-2 border-b border-gray-100/50">
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Settings</h1>
+        <p className="text-xs text-gray-450 mt-0.5">Manage your studio preferences.</p>
       </div>
 
-      <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center">
-        <div className="w-14 h-14 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-          <HugeiconsIcon icon={Settings01Icon} size={24} color="#d1d5db" />
+      <div className="bg-white rounded-xl border border-gray-100/80 p-8 text-center shadow-sm">
+        <div className="w-10 h-10 bg-gray-50 rounded-xl flex items-center justify-center mx-auto mb-3 border border-gray-100/50">
+          <HugeiconsIcon icon={Settings01Icon} size={20} color="#9ca3af" />
         </div>
-        <p className="text-sm text-gray-500 font-semibold mb-1">Coming soon</p>
-        <p className="text-xs text-gray-400">Studio settings will be available in an upcoming update.</p>
+        <p className="text-xs text-gray-550 font-bold mb-0.5">Coming soon</p>
+        <p className="text-[11px] text-gray-400">Studio settings will be available in an upcoming update.</p>
       </div>
     </div>
   );

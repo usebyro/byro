@@ -250,94 +250,104 @@ export default function StudioPayouts() {
   const canWithdraw = availableAmount !== null && availableAmount > 0;
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
-      <div className="mb-7">
-        <h1 className="text-2xl font-bold text-gray-900 mb-1">Payouts</h1>
-        <p className="text-sm text-gray-400">Track earnings and withdraw to your bank.</p>
+    <div className="p-4 sm:p-6 max-w-4xl mx-auto space-y-4">
+      <div className="pb-2 border-b border-gray-100/50">
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Payouts</h1>
+        <p className="text-xs text-gray-450 mt-0.5">Track earnings and withdraw to your bank.</p>
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
         {/* Available */}
-        <div className="sm:col-span-1 bg-gradient-to-br from-blue-700 to-purple-700 rounded-2xl p-5 text-white">
-          <p className="text-sm text-white/70 mb-3">Available to withdraw</p>
-          <p className="text-3xl font-bold mb-1">
-            {balance ? fmt(balance.available) : "—"}
-          </p>
-          <p className="text-xs text-white/50 mb-5">Pending clearance after events</p>
-          <div className="flex items-center gap-2">
+        <div className="sm:col-span-1 bg-gradient-to-br from-[#4F6EF7] to-[#6366f1] rounded-xl p-4 text-white shadow-sm flex flex-col justify-between">
+          <div>
+            <p className="text-[11px] font-bold text-white/80 uppercase tracking-wider mb-2">Available to withdraw</p>
+            <p className="text-2xl font-black tracking-tight mb-0.5">
+              {balance ? fmt(balance.available) : "—"}
+            </p>
+            <p className="text-[10px] text-white/60 mb-4">Pending clearance after events</p>
+          </div>
+          <div className="flex items-center gap-1.5">
             <button
               onClick={() => setWithdrawModalOpen(true)}
               disabled={!canWithdraw}
-              className="flex items-center gap-1.5 bg-white text-blue-700 text-xs font-bold px-4 py-2 rounded-xl hover:bg-white/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 flex items-center justify-center gap-1 bg-white text-[#4F6EF7] text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-white/95 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
             >
-              <HugeiconsIcon icon={WalletAdd01Icon} size={13} color="currentColor" />
+              <HugeiconsIcon icon={WalletAdd01Icon} size={12} color="currentColor" />
               Withdraw
             </button>
             <button
               onClick={openBankModal}
-              className="flex items-center gap-1.5 bg-white/15 text-white text-xs font-semibold px-3 py-2 rounded-xl hover:bg-white/20 transition-colors"
+              className="flex-1 flex items-center justify-center gap-0.5 bg-white/10 text-white text-xs font-semibold px-2 py-1.5 rounded-lg hover:bg-white/15 transition-colors border border-white/10"
             >
-              {hasBankDetails ? `${bankDetails.bankName} ····` : "Add bank details"}
-              <span className="text-white/60 ml-1">↓</span>
+              {hasBankDetails ? "Bank Details" : "Add Bank"}
+              <span className="text-white/60 ml-0.5">↓</span>
             </button>
           </div>
         </div>
 
         {/* Paid out */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-5">
-          <div className="flex items-start justify-between mb-4">
-            <p className="text-sm text-gray-400">Paid out</p>
-            <div className="w-8 h-8 rounded-xl bg-green-50 text-green-600 flex items-center justify-center">
-              <HugeiconsIcon icon={ArrowUpRight01Icon} size={16} color="currentColor" />
+        <div className="bg-white rounded-xl border border-gray-100/80 shadow-sm p-4 flex flex-col justify-between min-h-[120px]">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Paid out</p>
+            <div className="w-7 h-7 rounded-lg bg-green-50 text-green-600 flex items-center justify-center">
+              <HugeiconsIcon icon={ArrowUpRight01Icon} size={14} color="currentColor" />
             </div>
           </div>
-          <p className="text-2xl font-bold text-gray-900 mb-1">
-            {fmt(payouts.filter((p) => p.status === "processed").reduce((sum, p) => sum + Number(p.amount), 0))}
-          </p>
+          <div>
+            <p className="text-xl font-extrabold text-gray-800 tracking-tight">
+              {fmt(payouts.filter((p) => p.status === "processed").reduce((sum, p) => sum + Number(p.amount), 0))}
+            </p>
+            <p className="text-[10px] text-gray-400 mt-1">Processed payouts</p>
+          </div>
         </div>
 
         {/* Pending */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-5">
-          <div className="flex items-start justify-between mb-4">
-            <p className="text-sm text-gray-400">Pending</p>
-            <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
-              <HugeiconsIcon icon={Calendar01Icon} size={16} color="currentColor" />
+        <div className="bg-white rounded-xl border border-gray-100/80 shadow-sm p-4 flex flex-col justify-between min-h-[120px]">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Pending</p>
+            <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+              <HugeiconsIcon icon={Calendar01Icon} size={14} color="currentColor" />
             </div>
           </div>
-          <p className="text-2xl font-bold text-gray-900 mb-1">
-            {fmt(payouts.filter((p) => p.status === "pending").reduce((sum, p) => sum + Number(p.amount), 0))}
-          </p>
+          <div>
+            <p className="text-xl font-extrabold text-gray-800 tracking-tight">
+              {fmt(payouts.filter((p) => p.status === "pending").reduce((sum, p) => sum + Number(p.amount), 0))}
+            </p>
+            <p className="text-[10px] text-gray-400 mt-1">Awaiting approval</p>
+          </div>
         </div>
       </div>
 
       {/* Payout history */}
-      <div className="bg-white rounded-2xl border border-gray-100 p-5">
-        <div className="flex items-center justify-between mb-5">
-          <p className="font-semibold text-gray-900">Payout history</p>
+      <div className="bg-white rounded-xl border border-gray-100/80 shadow-sm p-4">
+        <div className="pb-3 mb-3 border-b border-gray-100 flex items-center justify-between">
+          <p className="text-sm font-bold text-gray-800">Payout history</p>
         </div>
 
         {loadingPayouts ? (
-          <p className="text-sm text-gray-400 py-6 text-center">Loading…</p>
+          <p className="text-xs text-gray-400 py-6 text-center">Loading payout history…</p>
         ) : payouts.length === 0 ? (
-          <p className="text-sm text-gray-400 py-6 text-center">No payout requests yet.</p>
+          <p className="text-xs text-gray-400 py-6 text-center">No payout requests yet.</p>
         ) : (
           <div className="divide-y divide-gray-50">
             {payouts.map((p) => (
-              <div key={p.id} className="flex items-center gap-4 py-3.5">
-                <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 bg-teal-50 text-teal-600">
-                  <HugeiconsIcon icon={WalletAdd01Icon} size={16} color="currentColor" />
+              <div key={p.id} className="flex items-center gap-3 py-2.5 hover:bg-gray-50/50 px-1 rounded-lg transition-colors">
+                <div className="w-8.5 h-8.5 rounded-lg flex items-center justify-center shrink-0 bg-indigo-50 text-[#4F6EF7]">
+                  <HugeiconsIcon icon={WalletAdd01Icon} size={14} color="currentColor" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-gray-900 truncate">
+                  <p className="text-xs font-semibold text-gray-800 truncate">
                     {p.method === "bank" ? `Payout to ${p.bank_name}` : "Payout to wallet"}
                   </p>
-                  <p className="text-xs text-gray-400 mt-0.5">{fmtDate(p.requested_at)}</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">{fmtDate(p.requested_at)}</p>
                 </div>
-                <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full shrink-0 ${STATUS_STYLE[p.status] || ""}`}>
+                <span className={`inline-flex items-center justify-center text-[9px] font-bold px-2 py-0.5 rounded-md shrink-0 w-16 text-center ${
+                  STATUS_STYLE[p.status] || "bg-gray-100 text-gray-500 border border-gray-100"
+                }`}>
                   {p.status?.toUpperCase()}
                 </span>
-                <p className="text-sm font-bold text-gray-900 shrink-0 w-24 text-right">{fmt(p.amount)}</p>
+                <p className="text-xs font-bold text-gray-800 shrink-0 w-24 text-right">{fmt(p.amount)}</p>
               </div>
             ))}
           </div>
@@ -346,10 +356,10 @@ export default function StudioPayouts() {
 
       {/* Bank details modal */}
       {bankModalOpen && (
-        <Modal title="Bank details" onClose={() => setBankModalOpen(false)}>
-          <form onSubmit={saveBankDetails} className="space-y-3">
+        <Modal title="Bank Details" onClose={() => setBankModalOpen(false)}>
+          <form onSubmit={saveBankDetails} className="space-y-3.5">
             <div>
-              <label className="text-xs text-gray-500 block mb-1">Bank</label>
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Bank Name</label>
               <input
                 type="text"
                 list="bank-options"
@@ -367,7 +377,7 @@ export default function StudioPayouts() {
                 }}
                 placeholder={loadingBanks ? "Loading banks…" : "Type your bank name"}
                 autoComplete="off"
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-xs text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#4F6EF7]/20 bg-white transition-all"
               />
               <datalist id="bank-options">
                 {banks.map((b) => (
@@ -376,7 +386,7 @@ export default function StudioPayouts() {
               </datalist>
             </div>
             <div>
-              <label className="text-xs text-gray-500 block mb-1">Account number</label>
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Account Number</label>
               <input
                 type="text"
                 inputMode="numeric"
@@ -386,15 +396,15 @@ export default function StudioPayouts() {
                 }
                 placeholder="0123456789"
                 maxLength={10}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-xs text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#4F6EF7]/20 transition-all"
               />
-              <p className="text-xs mt-1.5 min-h-[1rem]">
-                {resolving && <span className="text-gray-400">Verifying account…</span>}
+              <p className="text-[10px] mt-1 min-h-[1rem]">
+                {resolving && <span className="text-gray-450">Verifying account…</span>}
                 {!resolving && resolvedName && (
                   <span className="text-green-600 font-medium inline-flex items-center gap-1">
                     <svg
-                      width="14"
-                      height="14"
+                      width="12"
+                      height="12"
                       viewBox="0 0 24 24"
                       fill="none"
                       stroke="currentColor"
@@ -416,9 +426,9 @@ export default function StudioPayouts() {
             <button
               type="submit"
               disabled={!resolvedName}
-              className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors mt-2"
+              className="w-full bg-[#4F6EF7] hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-bold py-2 rounded-lg transition-colors mt-2 shadow-sm shadow-[#4F6EF7]/10"
             >
-              Save
+              Save Bank details
             </button>
           </form>
         </Modal>
@@ -426,12 +436,12 @@ export default function StudioPayouts() {
 
       {/* Withdraw modal */}
       {withdrawModalOpen && (
-        <Modal title="Withdraw" onClose={() => setWithdrawModalOpen(false)}>
-          <form onSubmit={submitWithdrawal} className="space-y-3">
+        <Modal title="Request Withdrawal" onClose={() => setWithdrawModalOpen(false)}>
+          <form onSubmit={submitWithdrawal} className="space-y-3.5">
             <div>
-              <label className="text-xs text-gray-500 block mb-1">Amount</label>
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Amount</label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">₦</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">₦</span>
                 <input
                   type="number"
                   min="1"
@@ -440,11 +450,11 @@ export default function StudioPayouts() {
                   onChange={(e) => setWithdrawAmount(e.target.value)}
                   placeholder="0.00"
                   autoFocus
-                  className="w-full border border-gray-200 rounded-lg pl-7 pr-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full border border-gray-200 rounded-lg pl-7 pr-3 py-1.5 text-xs text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#4F6EF7]/20 transition-all"
                 />
               </div>
             </div>
-            <p className="text-xs text-gray-400">
+            <p className="text-[10px] text-gray-450 leading-relaxed">
               {hasBankDetails
                 ? `Sent to ${bankDetails.bankName} ···· ${bankDetails.accountNumber.slice(-4)}`
                 : "You'll be asked to add bank details before this can be sent."}
@@ -452,9 +462,9 @@ export default function StudioPayouts() {
             <button
               type="submit"
               disabled={submitting}
-              className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors mt-2"
+              className="w-full bg-[#4F6EF7] hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-bold py-2 rounded-lg transition-colors mt-2 shadow-sm shadow-[#4F6EF7]/10"
             >
-              {submitting ? "Submitting..." : "Request withdrawal"}
+              {submitting ? "Submitting..." : "Confirm withdrawal"}
             </button>
           </form>
         </Modal>
