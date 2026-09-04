@@ -248,6 +248,79 @@ def _email_tickets(tickets, event):
         except Exception as email_err:
             logger.error(f"Failed to send ticket confirmation email: {email_err}")
 
+    if tickets:
+        _check_and_notify_milestones(event)
+
+
+MILESTONE_BASE = (1, 10, 25, 50)
+MILESTONE_STEP = 100  # every 100 after the base thresholds
+
+
+def _milestones_up_to(count):
+    """Sorted milestone thresholds <= count: 1, 10, 25, 50, then every 100."""
+    thresholds = {m for m in MILESTONE_BASE if m <= count}
+    thresholds.update(
+        MILESTONE_STEP * n for n in range(1, count // MILESTONE_STEP + 1)
+    )
+    return sorted(thresholds)
+
+
+def _organizer_recipients(event):
+    """(name, email) pairs for the event owner and every accepted co-host."""
+    recipients = []
+    if event.owner_id and event.owner.email:
+        name = event.owner.get_full_name() or event.owner.email
+        recipients.append((name, event.owner.email))
+    for cohost in event.cohosts.filter(status=EventCoHost.STATUS_ACCEPTED).select_related('user'):
+        if cohost.user and cohost.user.email:
+            name = cohost.user.get_full_name() or cohost.user.email
+            recipients.append((name, cohost.user.email))
+    return recipients
+
+
+def _check_and_notify_milestones(event):
+    """Email the organizer/co-hosts once when total tickets sold crosses a
+    milestone (1st sale, 10, 25, 50, then every 100). Best-effort — a mail
+    failure here must not affect ticket issuance."""
+    try:
+        from .emails import milestone_reached_email
+        from .mailer import send_email
+
+        total_sold = event.tickets.filter(payment_status__in=['paid', 'free']).count()
+        already_notified = set(event.milestones_notified or [])
+        newly_crossed = [
+            m for m in _milestones_up_to(total_sold) if m not in already_notified
+        ]
+        if not newly_crossed:
+            return
+
+        frontend_url = (settings.FRONTEND_URL or "https://usebyro.com").rstrip('/')
+        dashboard_url = f"{frontend_url}/dashboard/events/{event.slug}"
+        recipients = _organizer_recipients(event)
+
+        for milestone in newly_crossed:
+            for name, email in recipients:
+                try:
+                    email_data = milestone_reached_email(
+                        name=name,
+                        event_name=event.name,
+                        milestone=milestone,
+                        tickets_sold=total_sold,
+                        dashboard_url=dashboard_url,
+                    )
+                    send_email(
+                        to=email, subject=email_data['subject'],
+                        html=email_data['html'], text=email_data['text'],
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to send milestone email to {email}: {e}")
+
+        Event.objects.filter(pk=event.pk).update(
+            milestones_notified=sorted(already_notified.union(newly_crossed))
+        )
+    except Exception as e:
+        logger.error(f"Milestone check failed for event {event.pk}: {e}")
+
 
 def _attendees_from_payment(payment):
     """Rebuild the per-seat attendee list stored at initialize time.
