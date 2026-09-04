@@ -194,7 +194,7 @@ def send_cohost_invite_email(email, event, inviter, is_new_user=False):
         logger.error("Failed to send co-host invite email to %s: %s", email, e)
 
 
-def _send_event_published_email(event, event_url):
+def _send_event_published_email(event):
     """
     Congratulate the organizer on publishing and nudge them to share.
 
@@ -215,7 +215,9 @@ def _send_event_published_email(event, event_url):
             or event.owner.email
         )
         frontend_url = (settings.FRONTEND_URL or "https://usebyro.com").rstrip('/')
-        share_url = f"{frontend_url}/discover/{event.slug}"
+        public_url = f"{frontend_url}/discover/{event.slug}"
+        share_cta_url = f"{frontend_url}/dashboard/events/{event.slug}?share=1"
+        is_first_event = Event.objects.filter(owner=event.owner, is_active=True).count() <= 1
         date_str = event.day.strftime('%A, %B %d, %Y') if event.day else ''
         time_str = event.time_from.strftime('%I:%M %p') if event.time_from else ''
         email_data = event_published_email(
@@ -224,8 +226,9 @@ def _send_event_published_email(event, event_url):
             date=date_str,
             time=time_str,
             location=event.location or '',
-            event_url=event_url,
-            share_url=share_url,
+            event_url=public_url,
+            share_cta_url=share_cta_url,
+            is_first_event=is_first_event,
         )
         send_email(
             to=event.owner.email,
@@ -1275,7 +1278,7 @@ class EventViewSet(viewsets.ModelViewSet):
             reverse('event-detail', kwargs={'slug': serializer.data['slug']})
         )
 
-        _send_event_published_email(serializer.instance, event_url)
+        _send_event_published_email(serializer.instance)
 
         response_data = serializer.data
         response_data['event_url'] = event_url

@@ -398,9 +398,13 @@ def milestone_reached_email(name, event_name, milestone, tickets_sold, dashboard
         "text": plain_text,
     }
 
-def event_published_email(name, event_name, date, time, location, event_url, share_url=None):
+def event_published_email(name, event_name, date, time, location, event_url, share_cta_url=None, is_first_event=True):
     """
     Event published email — sent to the organizer right after an event goes live.
+
+    Two variants share the same layout: a first-timer gets a more instructive
+    push ("do this first"), a returning organizer gets a shorter one that
+    assumes they already know the playbook.
 
     Args:
         name (str): Organizer's name.
@@ -408,10 +412,65 @@ def event_published_email(name, event_name, date, time, location, event_url, sha
         date (str): Formatted event date e.g. "Saturday, July 5, 2026".
         time (str): Formatted start time e.g. "6:00 PM".
         location (str): Event location.
-        event_url (str): Link to the public event page (used for the CTA and share box).
-        share_url (str, optional): Link to share, if different from event_url.
+        event_url (str): Link to the public event page ("View Event").
+        share_cta_url (str, optional): Link for the primary share CTA — opens
+            the in-app share options (WhatsApp, X, copy link, etc). Falls
+            back to event_url if not given.
+        is_first_event (bool): True if this is the organizer's first-ever
+            published event.
     """
-    link = share_url or event_url
+    primary_url = share_cta_url or event_url
+
+    if is_first_event:
+        subject = "Your first event is live. Here's how to sell it out."
+        label = "Published"
+        headline = "You're live. <em style=\"color:#16B979;font-style:italic;\">Here's how to sell it out.</em>"
+        intro_html = (
+            f"<p style=\"color:#64748b;font-size:15px;line-height:1.6;margin:0 0 16px;\">"
+            f"Hi {name}, <a href=\"{event_url}\" style=\"color:#0f172a;font-weight:700;text-decoration:none;\">{event_name}</a> "
+            f"is published on Byro. That's the hard part done, now for the part that actually fills the room."
+            f"</p>"
+            f"<p style=\"color:#64748b;font-size:15px;line-height:1.6;margin:0 0 16px;\">"
+            f"Nobody buys a ticket to an event they've never heard of. The fastest tickets you'll ever sell are the ones you sell yourself."
+            f"</p>"
+            f"<p style=\"color:#64748b;font-size:15px;line-height:1.6;margin:0 0 28px;\">"
+            f"Do this first: DM five people right now with your event link. That single move will outsell a week of hoping people find your page on their own."
+            f"</p>"
+        )
+        intro_text = (
+            f"Hi {name},\n\n"
+            f"{event_name} is published on Byro. That's the hard part done, now for the part that actually fills the room.\n\n"
+            f"Nobody buys a ticket to an event they've never heard of. The fastest tickets you'll ever sell are the ones you sell yourself.\n\n"
+            f"Do this first: DM five people right now with your event link. That single move will outsell a week of hoping people find your page on their own.\n\n"
+        )
+        primary_label = "Get my first 5 RSVPs"
+        closing_html = (
+            f"<p style=\"color:#64748b;font-size:14px;line-height:1.6;margin:0;\">"
+            f"Once you've sent those five DMs, drop the link in your WhatsApp status and group chats too. Every share is a door someone might walk through."
+            f"</p>"
+        )
+        closing_text = "Once you've sent those five DMs, drop the link in your WhatsApp status and group chats too. Every share is a door someone might walk through.\n\n"
+    else:
+        subject = f"{event_name} is live. You already know what works."
+        label = "Published"
+        headline = "You're live. <em style=\"color:#16B979;font-style:italic;\">You already know what works.</em>"
+        intro_html = (
+            f"<p style=\"color:#64748b;font-size:15px;line-height:1.6;margin:0 0 28px;\">"
+            f"Hi {name}, <a href=\"{event_url}\" style=\"color:#0f172a;font-weight:700;text-decoration:none;\">{event_name}</a> "
+            f"is published. You've done this before, so you know the drill: the tickets you sell yourself beat the ones you wait for."
+            f"</p>"
+        )
+        intro_text = (
+            f"Hi {name},\n\n"
+            f"{event_name} is published. You've done this before, so you know the drill: the tickets you sell yourself beat the ones you wait for.\n\n"
+        )
+        primary_label = "Sell my first tickets"
+        closing_html = (
+            f"<p style=\"color:#64748b;font-size:14px;line-height:1.6;margin:0;\">"
+            f"Same playbook as last time: DM the people most likely to come before you post anywhere public. If it worked then, it'll work again."
+            f"</p>"
+        )
+        closing_text = "Same playbook as last time: DM the people most likely to come before you post anywhere public. If it worked then, it'll work again.\n\n"
 
     location_row = ""
     if location:
@@ -446,20 +505,15 @@ def event_published_email(name, event_name, date, time, location, event_url, sha
       <td style="background:#ffffff;border-radius:16px;padding:36px 32px 32px;box-shadow:0 2px 12px rgba(0,0,0,0.07);">
 
         <!-- PUBLISHED label -->
-        <p style="color:#16B979;font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;margin:0 0 14px;">Published</p>
+        <p style="color:#16B979;font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;margin:0 0 14px;">{label}</p>
 
         <!-- Headline -->
         <h1 style="margin:0 0 16px;font-size:28px;font-weight:800;color:#0f172a;line-height:1.2;">
-          You're live. <em style="color:#16B979;font-style:italic;">Now go get your crowd.</em>
+          {headline}
         </h1>
 
         <!-- Intro -->
-        <p style="color:#64748b;font-size:15px;line-height:1.6;margin:0 0 16px;">
-          Hi {name}, <strong style="color:#0f172a;">{event_name}</strong> is live. Nobody buys a ticket to an event they've never heard of, so the very next thing worth doing is telling people, before you do anything else.
-        </p>
-        <p style="color:#64748b;font-size:15px;line-height:1.6;margin:0 0 28px;">
-          The fastest tickets you'll ever sell are the ones you sell yourself: share the link with the people you already know. A DM to five friends will outsell a week of hoping people stumble onto your page.
-        </p>
+        {intro_html}
 
         <!-- Event card -->
         <table cellpadding="0" cellspacing="0" style="width:100%;border-collapse:separate;border-spacing:0;border-radius:16px;overflow:hidden;margin-bottom:24px;">
@@ -472,7 +526,9 @@ def event_published_email(name, event_name, date, time, location, event_url, sha
                   </td>
                 </tr>
               </table>
-              <h2 style="color:#ffffff;font-size:22px;font-weight:700;margin:0;line-height:1.3;">{event_name}</h2>
+              <h2 style="color:#ffffff;font-size:22px;font-weight:700;margin:0;line-height:1.3;">
+                <a href="{event_url}" style="color:#ffffff;text-decoration:none;">{event_name}</a>
+              </h2>
             </td>
           </tr>
           <tr>
@@ -482,29 +538,22 @@ def event_published_email(name, event_name, date, time, location, event_url, sha
           </tr>
         </table>
 
-        <!-- Share link box -->
-        <table cellpadding="0" cellspacing="0" style="width:100%;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;margin-bottom:24px;">
-          <tr>
-            <td style="padding:16px 20px;">
-              <p style="color:#94a3b8;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;margin:0 0 6px;">Your event link</p>
-              <p style="color:#0f172a;font-size:14px;font-weight:600;font-family:'Courier New',Courier,monospace;margin:0;word-break:break-all;">{link}</p>
-            </td>
-          </tr>
-        </table>
-
-        <!-- CTA Button -->
+        <!-- CTA Buttons -->
         <table cellpadding="0" cellspacing="0" style="width:100%;margin-bottom:24px;">
           <tr>
-            <td style="text-align:center;">
-              <a href="{event_url}" style="display:block;background:#16B979;color:#ffffff;text-decoration:none;font-size:15px;font-weight:700;padding:16px 32px;border-radius:12px;text-align:center;">Share my event</a>
+            <td style="padding-bottom:10px;">
+              <a href="{primary_url}" style="display:block;background:#16B979;color:#ffffff;text-decoration:none;font-size:15px;font-weight:700;padding:16px 32px;border-radius:12px;text-align:center;">{primary_label}</a>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <a href="{event_url}" style="display:block;background:#f8fafc;border:1px solid #e2e8f0;color:#0f172a;text-decoration:none;font-size:15px;font-weight:700;padding:16px 32px;border-radius:12px;text-align:center;">View Event</a>
             </td>
           </tr>
         </table>
 
         <!-- Closing tip -->
-        <p style="color:#64748b;font-size:14px;line-height:1.6;margin:0;">
-          Post it to your WhatsApp status, drop it in the group chats, and pin it to your bio. Every share is a door someone might walk through.
-        </p>
+        {closing_html}
 
       </td>
     </tr>
@@ -523,23 +572,23 @@ def event_published_email(name, event_name, date, time, location, event_url, sha
 </div>"""
 
     plain_text = (
-        f"Hi {name},\n\n"
-        f"{event_name} is live. Nobody buys a ticket to an event they've never heard of, so the very next thing worth doing is telling people, before you do anything else.\n\n"
-        f"The fastest tickets you'll ever sell are the ones you sell yourself: share the link with the people you already know.\n\n"
+        f"{intro_text}"
+        f"Event: {event_name} ({event_url})\n"
         f"Date: {date}\n"
         f"Doors: {time}\n"
     )
     if location:
         plain_text += f"Venue: {location}\n"
     plain_text += (
-        f"\nYour event link: {link}\n\n"
-        f"Post it to your WhatsApp status, drop it in the group chats, and pin it to your bio. Every share is a door someone might walk through.\n\n"
+        f"\n{primary_label}: {primary_url}\n"
+        f"View Event: {event_url}\n\n"
+        f"{closing_text}"
         f"Best regards,\nByro Team\nsupport@usebyro.com\n\n"
         f"You're getting this because you published an event on Byro."
     )
 
     return {
-        "subject": f"{event_name} is live, now let's fill it up",
+        "subject": subject,
         "html": html,
         "text": plain_text,
     }
