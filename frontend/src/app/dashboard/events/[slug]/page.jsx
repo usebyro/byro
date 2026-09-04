@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { useParams, useRouter, useSearchParams, notFound } from "next/navigation";
+import { useParams, useRouter, notFound } from "next/navigation";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Share01Icon,
@@ -29,7 +29,6 @@ import { toast } from "sonner";
 import jsQR from "jsqr";
 import API from "@/services/api";
 import ShareMenu from "@/components/ShareMenu";
-import EventPublishedModal from "@/components/events/EventPublishedModal";
 
 const BASE_URL = (process.env.NEXT_PUBLIC_API_URL || "https://byro.onrender.com").replace(/\/api\/?$/, "");
 
@@ -106,10 +105,8 @@ const PrintableList = ({ attendees, eventName, ref: r }) => (
 export default function StudioEventPage() {
   const { slug } = useParams();
   const router = useRouter();
-  const searchParams = useSearchParams();
 
   const [event, setEvent] = useState(null);
-  const [showShareModal, setShowShareModal] = useState(false);
   const [attendees, setAttendees] = useState([]);
   const [checkedInCount, setCheckedInCount] = useState(0);
   const [loadingEvent, setLoadingEvent] = useState(true);
@@ -175,16 +172,6 @@ export default function StudioEventPage() {
   useEffect(() => {
     document.title = event?.name ? `${event.name} | Byro` : "Event | Byro";
   }, [event]);
-
-  // Deep link from the "event published" email's share CTA: /dashboard/events/:slug?share=1
-  useEffect(() => {
-    if (!event || searchParams.get("share") !== "1") return;
-    setShowShareModal(true);
-    const params = new URLSearchParams(searchParams);
-    params.delete("share");
-    const qs = params.toString();
-    router.replace(`/dashboard/events/${slug}${qs ? `?${qs}` : ""}`, { scroll: false });
-  }, [event, searchParams, router, slug]);
 
   const loadAttendees = () => {
     if (!slug) return;
@@ -1015,10 +1002,6 @@ export default function StudioEventPage() {
       <div style={{ display: "none" }}>
         <PrintableList ref={printRef} attendees={attendees} eventName={event?.name || ""} />
       </div>
-
-      {showShareModal && event && (
-        <EventPublishedModal event={event} onClose={() => setShowShareModal(false)} />
-      )}
     </div>
   );
 }

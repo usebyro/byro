@@ -542,10 +542,10 @@ def event_published_email(name, event_name, date, time, location, event_url, sha
         <table cellpadding="0" cellspacing="0" style="width:100%;margin-bottom:24px;">
           <tr>
             <td style="width:50%;padding-right:6px;">
-              <a href="{primary_url}" style="display:block;background:#16B979;color:#ffffff;text-decoration:none;font-size:14px;font-weight:700;padding:16px 12px;border-radius:12px;text-align:center;">{primary_label}</a>
+              <a href="{primary_url}" style="display:block;background:#16B979;color:#ffffff;text-decoration:none;font-size:12px;line-height:1.3;font-weight:700;padding:11px 8px;border-radius:10px;text-align:center;">{primary_label}</a>
             </td>
             <td style="width:50%;padding-left:6px;">
-              <a href="{event_url}" style="display:block;background:#f8fafc;border:1px solid #e2e8f0;color:#0f172a;text-decoration:none;font-size:14px;font-weight:700;padding:16px 12px;border-radius:12px;text-align:center;">View Event</a>
+              <a href="{event_url}" style="display:block;background:#f8fafc;border:1px solid #e2e8f0;color:#0f172a;text-decoration:none;font-size:12px;line-height:1.3;font-weight:700;padding:11px 8px;border-radius:10px;text-align:center;">View Event</a>
             </td>
           </tr>
         </table>

@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import ViewEventClient from "./ViewEventClient";
 
 /* ── API helpers (server-side only) ── */
@@ -176,7 +177,9 @@ export default async function EventPage({ params }) {
           dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }}
         />
       )}
-      <ViewEventClient slug={slug} />
+      <Suspense fallback={null}>
+        <ViewEventClient slug={slug} />
+      </Suspense>
     </>
   );
 }

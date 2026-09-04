@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { useRouter, notFound } from "next/navigation";
+import { useRouter, useSearchParams, notFound } from "next/navigation";
 import Image from "next/image";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Share01Icon, FavouriteIcon, Calendar01Icon, Location01Icon, UserGroupIcon } from "@hugeicons/core-free-icons";
@@ -12,6 +12,7 @@ import Footer from "@/components/Footer";
 import { Providers } from "@/redux/Providers";
 import CheckoutModal from "@/components/checkout/CheckoutModal";
 import ShareMenu from "@/components/ShareMenu";
+import EventPublishedModal from "@/components/events/EventPublishedModal";
 import { trackViewEvent, trackShareEvent, trackSaveEvent, trackBeginCheckout } from "@/lib/analytics";
 import { calculateTicketFees } from "@/lib/pricing";
 
@@ -42,6 +43,7 @@ const categoryLabels = {
 
 export default function ViewEventClient({ slug }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [event, setEvent] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -49,6 +51,7 @@ export default function ViewEventClient({ slug }) {
   const [ticketId, setTicketId] = useState(null);
   const [showCheckout, setShowCheckout] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
 
   /* Ticket tier selection */
   const [selectedTier, setSelectedTier] = useState("general");
@@ -77,6 +80,16 @@ export default function ViewEventClient({ slug }) {
       });
     }
   }, [event?.name]);
+
+  /* Deep link from the "event published" email's share CTA: /discover/:slug?share=1 */
+  useEffect(() => {
+    if (!event || searchParams.get("share") !== "1") return;
+    setShowShareModal(true);
+    const params = new URLSearchParams(searchParams);
+    params.delete("share");
+    const qs = params.toString();
+    router.replace(`/discover/${slug}${qs ? `?${qs}` : ""}`, { scroll: false });
+  }, [event, searchParams, router, slug]);
 
   /* Fetch event */
   useEffect(() => {
@@ -531,6 +544,10 @@ export default function ViewEventClient({ slug }) {
 
         {showCheckout && (
           <CheckoutModal event={event} onClose={() => setShowCheckout(false)} tiers={realTiers} />
+        )}
+
+        {showShareModal && event && (
+          <EventPublishedModal event={event} onClose={() => setShowShareModal(false)} />
         )}
       </div>
     </Providers>

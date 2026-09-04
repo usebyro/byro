@@ -216,7 +216,7 @@ def _send_event_published_email(event):
         )
         frontend_url = (settings.FRONTEND_URL or "https://usebyro.com").rstrip('/')
         public_url = f"{frontend_url}/discover/{event.slug}"
-        share_cta_url = f"{frontend_url}/dashboard/events/{event.slug}?share=1"
+        share_cta_url = f"{public_url}?share=1"
         is_first_event = Event.objects.filter(owner=event.owner, is_active=True).count() <= 1
         date_str = event.day.strftime('%A, %B %d, %Y') if event.day else ''
         time_str = event.time_from.strftime('%I:%M %p') if event.time_from else ''
