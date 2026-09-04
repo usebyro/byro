@@ -541,13 +541,11 @@ def event_published_email(name, event_name, date, time, location, event_url, sha
         <!-- CTA Buttons -->
         <table cellpadding="0" cellspacing="0" style="width:100%;margin-bottom:24px;">
           <tr>
-            <td style="padding-bottom:10px;">
-              <a href="{primary_url}" style="display:block;background:#16B979;color:#ffffff;text-decoration:none;font-size:15px;font-weight:700;padding:16px 32px;border-radius:12px;text-align:center;">{primary_label}</a>
+            <td style="width:50%;padding-right:6px;">
+              <a href="{primary_url}" style="display:block;background:#16B979;color:#ffffff;text-decoration:none;font-size:14px;font-weight:700;padding:16px 12px;border-radius:12px;text-align:center;">{primary_label}</a>
             </td>
-          </tr>
-          <tr>
-            <td>
-              <a href="{event_url}" style="display:block;background:#f8fafc;border:1px solid #e2e8f0;color:#0f172a;text-decoration:none;font-size:15px;font-weight:700;padding:16px 32px;border-radius:12px;text-align:center;">View Event</a>
+            <td style="width:50%;padding-left:6px;">
+              <a href="{event_url}" style="display:block;background:#f8fafc;border:1px solid #e2e8f0;color:#0f172a;text-decoration:none;font-size:14px;font-weight:700;padding:16px 12px;border-radius:12px;text-align:center;">View Event</a>
             </td>
           </tr>
         </table>
