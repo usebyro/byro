@@ -309,6 +309,18 @@ class Event(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    # Reminder/notification bookkeeping — set by the send_event_reminders
+    # management command and the ticket-sales milestone check, so re-runs
+    # don't re-send the same email.
+    reminder_sent_at = models.DateTimeField(
+        null=True, blank=True,
+        help_text="When the 24h-before attendee/organizer reminder was sent"
+    )
+    milestones_notified = models.JSONField(
+        default=list, blank=True,
+        help_text="Ticket-sold milestone thresholds already emailed to the organizer"
+    )
+
     def save(self, *args, **kwargs):
         if self.slug:
             super().save(*args, **kwargs)
