@@ -192,6 +192,51 @@ def send_cohost_invite_email(email, event, inviter, is_new_user=False):
         )
     except Exception as e:
         logger.error("Failed to send co-host invite email to %s: %s", email, e)
+
+
+def _send_event_published_email(event, event_url):
+    """
+    Congratulate the organizer on publishing and nudge them to share.
+
+    Best-effort: a mail failure must not affect event creation, which has
+    already committed by the time this runs.
+    """
+    if not event.owner_id or not event.owner.email:
+        return
+
+    from .emails import event_published_email
+    from .mailer import send_email
+
+    try:
+        owner_profile = getattr(event.owner, 'profile', None)
+        owner_name = (
+            (owner_profile.display_name if owner_profile else '')
+            or event.owner.get_full_name()
+            or event.owner.email
+        )
+        frontend_url = (settings.FRONTEND_URL or "https://usebyro.com").rstrip('/')
+        share_url = f"{frontend_url}/discover/{event.slug}"
+        date_str = event.day.strftime('%A, %B %d, %Y') if event.day else ''
+        time_str = event.time_from.strftime('%I:%M %p') if event.time_from else ''
+        email_data = event_published_email(
+            name=owner_name,
+            event_name=event.name,
+            date=date_str,
+            time=time_str,
+            location=event.location or '',
+            event_url=event_url,
+            share_url=share_url,
+        )
+        send_email(
+            to=event.owner.email,
+            subject=email_data['subject'],
+            html=email_data['html'],
+            text=email_data['text'],
+        )
+    except Exception as e:
+        logger.error("Failed to send event published email for event %s: %s", event.pk, e)
+
+
 def _seats_for(tier, quantity):
     """Total attendee slots a purchase produces = quantity × people-per-ticket.
 
@@ -1229,7 +1274,9 @@ class EventViewSet(viewsets.ModelViewSet):
         event_url = request.build_absolute_uri(
             reverse('event-detail', kwargs={'slug': serializer.data['slug']})
         )
-        
+
+        _send_event_published_email(serializer.instance, event_url)
+
         response_data = serializer.data
         response_data['event_url'] = event_url
         
