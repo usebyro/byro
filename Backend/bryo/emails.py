@@ -398,6 +398,200 @@ def milestone_reached_email(name, event_name, milestone, tickets_sold, dashboard
         "text": plain_text,
     }
 
+def event_published_email(name, event_name, date, time, location, event_url, share_cta_url=None, is_first_event=True):
+    """
+    Event published email — sent to the organizer right after an event goes live.
+
+    Two variants share the same layout: a first-timer gets a more instructive
+    push ("do this first"), a returning organizer gets a shorter one that
+    assumes they already know the playbook.
+
+    Args:
+        name (str): Organizer's name.
+        event_name (str): Event name.
+        date (str): Formatted event date e.g. "Saturday, July 5, 2026".
+        time (str): Formatted start time e.g. "6:00 PM".
+        location (str): Event location.
+        event_url (str): Link to the public event page ("View Event").
+        share_cta_url (str, optional): Link for the primary share CTA — opens
+            the in-app share options (WhatsApp, X, copy link, etc). Falls
+            back to event_url if not given.
+        is_first_event (bool): True if this is the organizer's first-ever
+            published event.
+    """
+    primary_url = share_cta_url or event_url
+
+    if is_first_event:
+        subject = "Your first event is live. Here's how to sell it out."
+        label = "Published"
+        headline = "You're live. <em style=\"color:#16B979;font-style:italic;\">Here's how to sell it out.</em>"
+        intro_html = (
+            f"<p style=\"color:#64748b;font-size:15px;line-height:1.6;margin:0 0 16px;\">"
+            f"Hi {name}, <a href=\"{event_url}\" style=\"color:#0f172a;font-weight:700;text-decoration:none;\">{event_name}</a> "
+            f"is published on Byro. That's the hard part done, now for the part that actually fills the room."
+            f"</p>"
+            f"<p style=\"color:#64748b;font-size:15px;line-height:1.6;margin:0 0 16px;\">"
+            f"Nobody buys a ticket to an event they've never heard of. The fastest tickets you'll ever sell are the ones you sell yourself."
+            f"</p>"
+            f"<p style=\"color:#64748b;font-size:15px;line-height:1.6;margin:0 0 28px;\">"
+            f"Do this first: DM five people right now with your event link. That single move will outsell a week of hoping people find your page on their own."
+            f"</p>"
+        )
+        intro_text = (
+            f"Hi {name},\n\n"
+            f"{event_name} is published on Byro. That's the hard part done, now for the part that actually fills the room.\n\n"
+            f"Nobody buys a ticket to an event they've never heard of. The fastest tickets you'll ever sell are the ones you sell yourself.\n\n"
+            f"Do this first: DM five people right now with your event link. That single move will outsell a week of hoping people find your page on their own.\n\n"
+        )
+        primary_label = "Get my first 5 RSVPs"
+        closing_html = (
+            f"<p style=\"color:#64748b;font-size:14px;line-height:1.6;margin:0;\">"
+            f"Once you've sent those five DMs, drop the link in your WhatsApp status and group chats too. Every share is a door someone might walk through."
+            f"</p>"
+        )
+        closing_text = "Once you've sent those five DMs, drop the link in your WhatsApp status and group chats too. Every share is a door someone might walk through.\n\n"
+    else:
+        subject = f"{event_name} is live. You already know what works."
+        label = "Published"
+        headline = "You're live. <em style=\"color:#16B979;font-style:italic;\">You already know what works.</em>"
+        intro_html = (
+            f"<p style=\"color:#64748b;font-size:15px;line-height:1.6;margin:0 0 28px;\">"
+            f"Hi {name}, <a href=\"{event_url}\" style=\"color:#0f172a;font-weight:700;text-decoration:none;\">{event_name}</a> "
+            f"is published. You've done this before, so you know the drill: the tickets you sell yourself beat the ones you wait for."
+            f"</p>"
+        )
+        intro_text = (
+            f"Hi {name},\n\n"
+            f"{event_name} is published. You've done this before, so you know the drill: the tickets you sell yourself beat the ones you wait for.\n\n"
+        )
+        primary_label = "Sell my first tickets"
+        closing_html = (
+            f"<p style=\"color:#64748b;font-size:14px;line-height:1.6;margin:0;\">"
+            f"Same playbook as last time: DM the people most likely to come before you post anywhere public. If it worked then, it'll work again."
+            f"</p>"
+        )
+        closing_text = "Same playbook as last time: DM the people most likely to come before you post anywhere public. If it worked then, it'll work again.\n\n"
+
+    location_row = ""
+    if location:
+        location_row = f"""<tr>
+        <td colspan="2" style="vertical-align:top;">
+          <p style="color:#94a3b8;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;margin:0 0 4px;">Venue</p>
+          <p style="color:#0f172a;font-size:14px;font-weight:600;margin:0;">{location}</p>
+        </td>
+      </tr>"""
+
+    details_grid = f"""
+    <table cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;">
+      <tr>
+        <td style="width:50%;padding-bottom:16px;vertical-align:top;">
+          <p style="color:#94a3b8;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;margin:0 0 4px;">Date</p>
+          <p style="color:#0f172a;font-size:14px;font-weight:600;margin:0;">{date}</p>
+        </td>
+        <td style="width:50%;padding-bottom:16px;vertical-align:top;">
+          <p style="color:#94a3b8;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;margin:0 0 4px;">Doors</p>
+          <p style="color:#0f172a;font-size:14px;font-weight:600;margin:0;">{time}</p>
+        </td>
+      </tr>
+      {location_row}
+    </table>"""
+
+    html = f"""
+<div style="background-color:#f1f5f9;padding:32px 16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
+  <table cellpadding="0" cellspacing="0" style="max-width:560px;margin:0 auto;width:100%;">
+
+    <!-- Main white card -->
+    <tr>
+      <td style="background:#ffffff;border-radius:16px;padding:36px 32px 32px;box-shadow:0 2px 12px rgba(0,0,0,0.07);">
+
+        <!-- PUBLISHED label -->
+        <p style="color:#16B979;font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;margin:0 0 14px;">{label}</p>
+
+        <!-- Headline -->
+        <h1 style="margin:0 0 16px;font-size:28px;font-weight:800;color:#0f172a;line-height:1.2;">
+          {headline}
+        </h1>
+
+        <!-- Intro -->
+        {intro_html}
+
+        <!-- Event card -->
+        <table cellpadding="0" cellspacing="0" style="width:100%;border-collapse:separate;border-spacing:0;border-radius:16px;overflow:hidden;margin-bottom:24px;">
+          <tr>
+            <td style="background:linear-gradient(135deg,#0f0a2e 0%,#4c1d95 50%,#a855f7 100%);padding:28px 24px 24px;border-radius:16px 16px 0 0;">
+              <table cellpadding="0" cellspacing="0" style="margin-bottom:14px;">
+                <tr>
+                  <td style="background:rgba(255,255,255,0.15);border-radius:20px;padding:4px 12px;">
+                    <span style="color:#ffffff;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;">&#9679; Event</span>
+                  </td>
+                </tr>
+              </table>
+              <h2 style="color:#ffffff;font-size:22px;font-weight:700;margin:0;line-height:1.3;">
+                <a href="{event_url}" style="color:#ffffff;text-decoration:none;">{event_name}</a>
+              </h2>
+            </td>
+          </tr>
+          <tr>
+            <td style="background:#f8fafc;padding:20px 24px;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 16px 16px;">
+              {details_grid}
+            </td>
+          </tr>
+        </table>
+
+        <!-- CTA Buttons -->
+        <table cellpadding="0" cellspacing="0" style="width:100%;margin-bottom:24px;">
+          <tr>
+            <td style="width:50%;padding-right:6px;">
+              <a href="{primary_url}" style="display:block;background:#16B979;color:#ffffff;text-decoration:none;font-size:12px;line-height:1.3;font-weight:700;padding:11px 8px;border-radius:10px;text-align:center;">{primary_label}</a>
+            </td>
+            <td style="width:50%;padding-left:6px;">
+              <a href="{event_url}" style="display:block;background:#f8fafc;border:1px solid #e2e8f0;color:#0f172a;text-decoration:none;font-size:12px;line-height:1.3;font-weight:700;padding:11px 8px;border-radius:10px;text-align:center;">View Event</a>
+            </td>
+          </tr>
+        </table>
+
+        <!-- Closing tip -->
+        {closing_html}
+
+      </td>
+    </tr>
+
+    <!-- Footer -->
+    <tr>
+      <td style="text-align:center;padding:24px 16px;">
+        <p style="color:#999999;font-size:12px;margin:0;">
+          You're getting this because you published an event on Byro.
+          <a href="mailto:support@usebyro.com?subject=Unsubscribe" style="color:#999999;text-decoration:underline;">Unsubscribe</a>
+        </p>
+      </td>
+    </tr>
+
+  </table>
+</div>"""
+
+    plain_text = (
+        f"{intro_text}"
+        f"Event: {event_name} ({event_url})\n"
+        f"Date: {date}\n"
+        f"Doors: {time}\n"
+    )
+    if location:
+        plain_text += f"Venue: {location}\n"
+    plain_text += (
+        f"\n{primary_label}: {primary_url}\n"
+        f"View Event: {event_url}\n\n"
+        f"{closing_text}"
+        f"Best regards,\nByro Team\nsupport@usebyro.com\n\n"
+        f"You're getting this because you published an event on Byro."
+    )
+
+    return {
+        "subject": subject,
+        "html": html,
+        "text": plain_text,
+    }
+
+
 
 def cohost_invite_email(event_name, inviter_name, event_url, is_new_user=False):
     """
