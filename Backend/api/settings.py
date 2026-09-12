@@ -157,27 +157,20 @@ STATICFILES_DIRS = [
 ] if os.path.exists(os.path.join(BASE_DIR, 'static')) else []
 
 
-import dj_database_url
-
 _db_engine = os.getenv('DB_ENGINE', 'django.db.backends.postgresql')
 _is_sqlite = _db_engine == 'django.db.backends.sqlite3'
 
-if _is_sqlite:
-    DATABASES = {
-        'default': {
-            'ENGINE': _db_engine,
-            'NAME': BASE_DIR / 'db.sqlite3',
-        }
+DATABASES = {
+    'default': {
+        'ENGINE': _db_engine,
+        'NAME': BASE_DIR / 'db.sqlite3' if _is_sqlite else os.getenv('DB_NAME'),
+        'USER': '' if _is_sqlite else os.getenv('DB_USER'),
+        'PASSWORD': '' if _is_sqlite else os.getenv('DB_PASSWORD'),
+        'HOST': '' if _is_sqlite else os.getenv('DB_HOST'),
+        'PORT': '' if _is_sqlite else os.getenv('DB_PORT'),
+        **({} if _is_sqlite else {'OPTIONS': {'sslmode': 'require'}}),
     }
-else:
-    DATABASES = {
-        'default': dj_database_url.config(
-            default=os.getenv('DATABASE_URL'),
-            conn_max_age=600,
-            conn_health_checks=True,
-            ssl_require=True,
-        )
-    }
+}
 
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
