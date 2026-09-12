@@ -175,6 +175,12 @@ export default function AdminEventsPage() {
   const [attendeesError, setAttendeesError] = useState("");
   const [attendeesLoading, setAttendeesLoading] = useState(false);
 
+  const [updatingId, setUpdatingId] = useState<number | null>(null);
+  const [actionError, setActionError] = useState("");
+  const [confirming, setConfirming] = useState<
+    { event: Event; action: "suspend" | "reactivate" | "delete" } | null
+  >(null);
+
   const openEvent = (event: Event) => {
     setSelected(event);
     setAttendees(null);
@@ -244,6 +250,39 @@ export default function AdminEventsPage() {
 
     return () => { cancelled = true; };
   }, []);
+
+  const runAction = async (event: Event, action: "suspend" | "reactivate" | "delete") => {
+    setUpdatingId(event.id);
+    setActionError("");
+    setConfirming(null);
+    try {
+      if (action === "delete") {
+        const res = await fetch(`/api/admin/events/${event.id}`, { method: "DELETE" });
+        if (!res.ok) throw new Error("Failed to delete event");
+        setEvents((prev) => prev.filter((e) => e.id !== event.id));
+        setSelected(null);
+      } else {
+        const is_active = action === "reactivate";
+        const res = await fetch(`/api/admin/events/${event.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ is_active }),
+        });
+        if (!res.ok) throw new Error("Failed to update event");
+        const updated: Event = await res.json();
+        setEvents((prev) => prev.map((e) => (e.id === event.id ? { ...e, ...updated } : e)));
+        setSelected((prev) => (prev && prev.id === event.id ? { ...prev, ...updated } : prev));
+      }
+    } catch {
+      setActionError(
+        action === "delete"
+          ? "Couldn't delete this event. Please try again."
+          : `Couldn't ${action === "suspend" ? "suspend" : "reactivate"} this event. Please try again.`
+      );
+    } finally {
+      setUpdatingId(null);
+    }
+  };
 
   const [search, setSearch] = useState("");
   const q = search.trim().toLowerCase();
@@ -392,6 +431,36 @@ export default function AdminEventsPage() {
               </a>
 
               <div>
+                <h4 className="text-white text-sm font-semibold mb-2">Moderation</h4>
+                {actionError && <p className="text-red-400 text-xs mb-2">{actionError}</p>}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    onClick={() =>
+                      setConfirming({
+                        event: selected,
+                        action: selected.is_active ? "suspend" : "reactivate",
+                      })
+                    }
+                    disabled={updatingId === selected.id}
+                    className={`text-xs font-semibold px-3 py-2 rounded-lg transition-colors disabled:opacity-50 ${
+                      selected.is_active
+                        ? "text-yellow-400 bg-yellow-500/10 hover:bg-yellow-500/20"
+                        : "text-green-400 bg-green-500/10 hover:bg-green-500/20"
+                    }`}
+                  >
+                    {selected.is_active ? "Suspend event" : "Reactivate event"}
+                  </button>
+                  <button
+                    onClick={() => setConfirming({ event: selected, action: "delete" })}
+                    disabled={updatingId === selected.id}
+                    className="text-xs font-semibold text-red-400 bg-red-500/10 hover:bg-red-500/20 disabled:opacity-50 px-3 py-2 rounded-lg transition-colors"
+                  >
+                    Delete event
+                  </button>
+                </div>
+              </div>
+
+              <div>
                 <h4 className="text-white text-sm font-semibold mb-3">
                   Attendees{attendees ? ` (${attendees.length})` : ""}
                 </h4>
@@ -424,6 +493,50 @@ export default function AdminEventsPage() {
                   <p className="text-gray-500 text-sm">No attendees yet.</p>
                 )}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Suspend/reactivate/delete confirmation modal */}
+      {confirming && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/70" onClick={() => setConfirming(null)} />
+          <div className="relative w-full max-w-sm bg-[#1a1d27] border border-white/10 rounded-xl p-6 shadow-2xl">
+            <h3 className="text-white font-semibold text-sm mb-2">
+              {confirming.action === "suspend" && "Suspend this event?"}
+              {confirming.action === "reactivate" && "Reactivate this event?"}
+              {confirming.action === "delete" && "Delete this event?"}
+            </h3>
+            <p className="text-gray-400 text-xs leading-relaxed mb-5">
+              {confirming.action === "suspend" &&
+                `${confirming.event.name} will be hidden from discovery and can't accept new registrations.`}
+              {confirming.action === "reactivate" &&
+                `${confirming.event.name} will be visible on the platform again.`}
+              {confirming.action === "delete" &&
+                `${confirming.event.name} and its data will be permanently removed. This cannot be undone.`}
+            </p>
+            <div className="flex items-center justify-end gap-2">
+              <button
+                onClick={() => setConfirming(null)}
+                className="text-xs font-semibold text-gray-300 hover:text-white px-3 py-2 rounded-lg hover:bg-white/5 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => runAction(confirming.event, confirming.action)}
+                className={`text-xs font-semibold px-3 py-2 rounded-lg transition-colors ${
+                  confirming.action === "delete"
+                    ? "text-red-400 bg-red-500/10 hover:bg-red-500/20"
+                    : confirming.action === "suspend"
+                      ? "text-yellow-400 bg-yellow-500/10 hover:bg-yellow-500/20"
+                      : "text-green-400 bg-green-500/10 hover:bg-green-500/20"
+                }`}
+              >
+                {confirming.action === "suspend" && "Confirm suspend"}
+                {confirming.action === "reactivate" && "Confirm reactivate"}
+                {confirming.action === "delete" && "Confirm delete"}
+              </button>
             </div>
           </div>
         </div>
