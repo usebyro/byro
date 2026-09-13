@@ -114,11 +114,13 @@ def lock_and_check_capacity(event, tier_id, quantity):
 
 
 def send_ticket_confirmation_email(ticket, customer_name, customer_email, event):
-    """Send the "you're in" email for a single ticket, with a ticket image (QR + event details) attached."""
+    """Send the "you're in" email for a single ticket, with a ticket image (QR + event details) and a calendar invite attached."""
+    from datetime import datetime, timedelta
     from .emails import ticket_confirmation_email
     from .mailer import send_email
     from .models import EventFormAnswer
     from .ticket_image import generate_ticket_png
+    from .ics import generate_ics
 
     form_answers = [
         {"question": a.question.question, "answer": str(a.answer)}
@@ -146,16 +148,38 @@ def send_ticket_confirmation_email(ticket, customer_name, customer_email, event)
         ticket_id=str(ticket.ticket_id),
         qr_data=str(ticket.qr_token),
     )
+    start = datetime.combine(event.day, event.time_from)
+    end = (
+        datetime.combine(event.day, event.time_to)
+        if event.time_to and event.time_to > event.time_from
+        else start + timedelta(hours=2)
+    )
+    ics_bytes = generate_ics(
+        event_name=event.name,
+        description=event.description,
+        location=event.location or '',
+        start=start,
+        end=end,
+        organizer_name='Byro',
+        uid=f"byro-ticket-{ticket.ticket_id}@usebyro.com",
+    )
     send_email(
         to=customer_email,
         subject=email_data['subject'],
         html=email_data['html'],
         text=email_data['text'],
-        attachments=[{
-            "filename": "ticket.png",
-            "content": ticket_png,
-            "content_type": "image/png",
-        }],
+        attachments=[
+            {
+                "filename": "ticket.png",
+                "content": ticket_png,
+                "content_type": "image/png",
+            },
+            {
+                "filename": "event.ics",
+                "content": ics_bytes,
+                "content_type": "text/calendar; charset=utf-8; method=PUBLISH",
+            },
+        ],
     )
 
 
@@ -1984,6 +2008,34 @@ class TicketViewSet(viewsets.ModelViewSet):
         ticket = self.get_object()
         png_bytes = generate_qr_png(str(ticket.qr_token))
         return HttpResponse(png_bytes, content_type='image/png')
+
+    @action(detail=True, methods=['get'], permission_classes=[AllowAny])
+    def calendar(self, request, ticket_id=None):
+        """.ics calendar file for this ticket's event."""
+        from datetime import datetime, timedelta
+        from django.utils.text import slugify
+        from .ics import generate_ics
+        ticket = self.get_object()
+        event = ticket.event
+        start = datetime.combine(event.day, event.time_from)
+        end = (
+            datetime.combine(event.day, event.time_to)
+            if event.time_to and event.time_to > event.time_from
+            else start + timedelta(hours=2)
+        )
+        ics_bytes = generate_ics(
+            event_name=event.name,
+            description=event.description,
+            location=event.location or '',
+            start=start,
+            end=end,
+            organizer_name='Byro',
+            uid=f"byro-ticket-{ticket.ticket_id}@usebyro.com",
+        )
+        response = HttpResponse(ics_bytes, content_type='text/calendar; charset=utf-8')
+        filename = slugify(event.name) or 'event'
+        response['Content-Disposition'] = f'attachment; filename="{filename}.ics"'
+        return response
 
 class TicketTransferViewSet(viewsets.ModelViewSet):
     """
