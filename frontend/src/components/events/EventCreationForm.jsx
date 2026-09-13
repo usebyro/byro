@@ -21,51 +21,100 @@ import RichTextEditor from "./RichTextEditor";
 import EventPublishedModal from "./EventPublishedModal";
 
 /* ── Category options ── */
+/* Each category keeps its own accent when selected (a chip tints toward its
+ * own color) rather than every category sharing one generic selection ring. */
 const CATEGORIES = [
   {
     id: "entertainment",
     label: "Concerts",
-    gradient: "from-purple-600 to-pink-500",
+    accent: "#9333ea",
+    tint: "#f5ebfe",
     icon: (
-      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+      <>
         <path d="M9 18V5l12-2v13" />
         <circle cx="6" cy="18" r="3" />
         <circle cx="18" cy="16" r="3" />
-      </svg>
+      </>
     ),
   },
   {
     id: "fitness",
     label: "Sports",
-    gradient: "from-orange-500 to-amber-400",
+    accent: "#ea580c",
+    tint: "#fef1e6",
     icon: (
-      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
-        <circle cx="12" cy="12" r="10" />
-        <path d="M4.93 4.93l4.24 4.24M14.83 14.83l4.24 4.24M4.93 19.07l4.24-4.24M14.83 9.17l4.24-4.24" />
-      </svg>
+      <>
+        <circle cx="12" cy="12" r="9" />
+        <path d="M4.9 4.9l4.2 4.2M14.8 14.8l4.2 4.2M4.9 19.1l4.2-4.2M14.8 9.2l4.2-4.2" />
+      </>
     ),
   },
   {
     id: "art_culture",
     label: "Nightlife",
-    gradient: "from-pink-600 to-rose-400",
+    accent: "#e11d48",
+    tint: "#fdecef",
     icon: (
-      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
-        <path d="M21 10.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
-      </svg>
+      <path d="M20 9.5A7.5 7.5 0 0 1 12.5 17a7.5 7.5 0 0 1-3.5-.85L4 18l1.85-5A7.5 7.5 0 0 1 5 9.5 7.5 7.5 0 0 1 12.5 2h.4A7.6 7.6 0 0 1 20 9.5z" />
     ),
   },
   {
     id: "conference",
     label: "Conferences",
-    gradient: "from-teal-600 to-emerald-400",
+    accent: "#0d9488",
+    tint: "#e8f7f5",
     icon: (
-      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+      <>
         <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
         <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
         <line x1="12" y1="19" x2="12" y2="22" />
-        <line x1="8" y1="22" x2="16" y2="22" />
-      </svg>
+      </>
+    ),
+  },
+  {
+    id: "web3_crypto",
+    label: "Web3 & Crypto",
+    accent: "#0891b2",
+    tint: "#e6f6f9",
+    icon: (
+      <>
+        <polygon points="12 2 21 7 21 17 12 22 3 17 3 7" />
+        <line x1="12" y1="12" x2="12" y2="22" />
+        <line x1="12" y1="12" x2="21" y2="7" />
+        <line x1="12" y1="12" x2="3" y2="7" />
+      </>
+    ),
+  },
+  {
+    id: "technology",
+    label: "Technology",
+    accent: "#4f46e5",
+    tint: "#edecfd",
+    icon: (
+      <>
+        <rect x="6" y="6" width="12" height="12" rx="2" />
+        <line x1="9" y1="2" x2="9" y2="6" />
+        <line x1="15" y1="2" x2="15" y2="6" />
+        <line x1="9" y1="18" x2="9" y2="22" />
+        <line x1="15" y1="18" x2="15" y2="22" />
+        <line x1="2" y1="9" x2="6" y2="9" />
+        <line x1="2" y1="15" x2="6" y2="15" />
+        <line x1="18" y1="9" x2="22" y2="9" />
+        <line x1="18" y1="15" x2="22" y2="15" />
+      </>
+    ),
+  },
+  {
+    id: "other",
+    label: "Other",
+    accent: "#4b5563",
+    tint: "#f0f1f3",
+    icon: (
+      <>
+        <circle cx="5" cy="12" r="1.4" fill="currentColor" stroke="none" />
+        <circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none" />
+        <circle cx="19" cy="12" r="1.4" fill="currentColor" stroke="none" />
+      </>
     ),
   },
 ];
@@ -434,27 +483,46 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
             {/* Category */}
             <div className="mb-5">
               <label className="block text-sm font-medium text-gray-700 mb-3">Category</label>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {categories.map(cat => (
-                  <button
-                    key={cat.id}
-                    type="button"
-                    onClick={() => setCategory(cat.id)}
-                    className={`relative flex flex-col items-center justify-center p-5 rounded-2xl bg-gradient-to-br ${cat.gradient} transition-all ${
-                      category === cat.id
-                        ? "ring-2 ring-offset-2 ring-blue-500 scale-[1.02]"
-                        : "opacity-70 hover:opacity-90"
-                    }`}
-                  >
-                    {cat.icon}
-                    <span className="text-white text-xs font-semibold mt-2">{cat.label}</span>
-                    {category === cat.id && (
-                      <div className="absolute top-2 right-2 w-4 h-4 bg-white rounded-full flex items-center justify-center">
-                        <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="3"><polyline points="20 6 9 17 4 12" /></svg>
-                      </div>
-                    )}
-                  </button>
-                ))}
+              <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-1 px-1 pb-1">
+                {categories.map(cat => {
+                  const selected = category === cat.id;
+                  return (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => setCategory(cat.id)}
+                      style={{
+                        borderColor: selected ? cat.accent : undefined,
+                        backgroundColor: selected ? cat.tint : undefined,
+                      }}
+                      className={`flex-none flex items-center gap-2 pl-1.5 pr-3.5 py-1.5 rounded-full border transition-colors ${
+                        selected
+                          ? "font-semibold text-gray-900"
+                          : "border-gray-200 text-gray-600 hover:border-gray-300"
+                      }`}
+                    >
+                      <span
+                        className="flex items-center justify-center w-[26px] h-[26px] rounded-full flex-none"
+                        style={{ backgroundColor: cat.accent }}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          {cat.icon}
+                        </svg>
+                      </span>
+                      <span className="text-sm whitespace-nowrap">{cat.label}</span>
+                      {selected && (
+                        <span
+                          className="flex items-center justify-center w-3.5 h-3.5 rounded-full flex-none"
+                          style={{ backgroundColor: cat.accent }}
+                        >
+                          <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
