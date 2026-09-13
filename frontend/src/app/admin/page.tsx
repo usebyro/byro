@@ -225,15 +225,21 @@ export default function AdminDashboardPage() {
             <h2 className="text-white font-semibold text-sm">Events by category</h2>
           </div>
           <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={categoryData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                <XAxis dataKey="name" tick={{ fill: "#9ca3af", fontSize: 11 }} interval={0} angle={-20} textAnchor="end" height={60} />
-                <YAxis tick={{ fill: "#9ca3af", fontSize: 11 }} allowDecimals={false} />
-                <Tooltip contentStyle={{ background: "#1a1d27", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 12 }} />
-                <Bar dataKey="count" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            {!loading && categoryData.length === 0 ? (
+              <div className="h-full flex items-center justify-center">
+                <p className="text-gray-500 text-sm">No events yet</p>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={categoryData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                  <XAxis dataKey="name" tick={{ fill: "#9ca3af", fontSize: 11 }} interval={0} angle={-20} textAnchor="end" height={60} />
+                  <YAxis tick={{ fill: "#9ca3af", fontSize: 11 }} allowDecimals={false} />
+                  <Tooltip contentStyle={{ background: "#1a1d27", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 12 }} />
+                  <Bar dataKey="count" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
 
@@ -261,7 +267,12 @@ export default function AdminDashboardPage() {
               ))}
             </div>
           </div>
-          <div className="h-64">
+          <div className="h-64 relative">
+            {!trendLoading && revenueTrend.every((p) => p.revenue === 0) && (
+              <p className="absolute inset-0 flex items-center justify-center text-gray-500 text-sm pointer-events-none z-10">
+                No revenue in this period
+              </p>
+            )}
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={revenueTrend}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />

@@ -294,8 +294,7 @@ export default function AdminUsersPage() {
 
         {!loading && unspecified !== null && unspecified > 0 && filter === "" && (
           <p className="text-gray-500 text-xs mt-4">
-            {unspecified} user{unspecified === 1 ? "" : "s"} haven&apos;t picked a role yet (signed up before this
-            existed, or never finished onboarding).
+            {`${unspecified} ${unspecified === 1 ? "user hasn't" : "users haven't"} picked a role yet (signed up before this existed, or never finished onboarding).`}
           </p>
         )}
       </div>
