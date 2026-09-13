@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { MailAdd01Icon, Delete02Icon } from "@hugeicons/core-free-icons";
+import { MailAdd01Icon, Delete02Icon, Alert02Icon } from "@hugeicons/core-free-icons";
 
 interface AdminTeamMember {
   id: number;
@@ -112,8 +112,6 @@ export default function AdminTeamPage() {
         <p className="text-gray-400 text-sm mt-1">People with access to this admin panel</p>
       </div>
 
-      {error && <p className="text-red-400 text-sm mb-6">{error}</p>}
-
       {/* Invite form */}
       <div className="bg-[#1a1d27] border border-white/10 rounded-xl p-6 mb-6">
         <h2 className="text-white font-semibold mb-1">Invite an admin</h2>
@@ -153,6 +151,17 @@ export default function AdminTeamPage() {
 
         {loading ? (
           <p className="text-gray-500 text-sm py-6 text-center">Loading...</p>
+        ) : error ? (
+          <div className="flex flex-col items-center gap-3 py-8 text-center">
+            <HugeiconsIcon icon={Alert02Icon} size={20} color="#f87171" />
+            <p className="text-gray-400 text-sm">{error}</p>
+            <button
+              onClick={loadMembers}
+              className="text-xs font-semibold text-gray-300 hover:text-white bg-white/5 hover:bg-white/10 px-3 py-1.5 rounded-lg transition-colors"
+            >
+              Try again
+            </button>
+          </div>
         ) : members.length === 0 ? (
           <p className="text-gray-500 text-sm py-6 text-center">No admins added yet.</p>
         ) : (

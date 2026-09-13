@@ -165,7 +165,7 @@ export default function AdminPayoutsPage() {
                     </td>
                     <td className="py-3 pr-6 text-gray-400 truncate max-w-[160px]">{p.event_name || "—"}</td>
                     <td className="py-3 pr-6 text-gray-200 whitespace-nowrap font-medium">{fmtNaira(p.amount)}</td>
-                    <td className="py-3 pr-6 text-gray-400 whitespace-nowrap capitalize">{destinationOf(p)}</td>
+                    <td className="py-3 pr-6 text-gray-400 truncate max-w-[220px] capitalize" title={destinationOf(p)}>{destinationOf(p)}</td>
                     <td className="py-3 pr-6 text-gray-400 whitespace-nowrap">{fmtDate(p.requested_at)}</td>
                     <td className="py-3 pr-6">
                       <StatusBadge status={p.status} />
