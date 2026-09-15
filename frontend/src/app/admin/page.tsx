@@ -69,11 +69,25 @@ function fillTrend(rows: RevenueTrendPoint[], days: number): ChartPoint[] {
   return out;
 }
 
-function StatCard({ label, value, sublabel }: { label: string; value: string | number; sublabel?: string }) {
+function StatCard({
+  label,
+  value,
+  sublabel,
+  emphasize,
+}: {
+  label: string;
+  value: string | number;
+  sublabel?: string;
+  emphasize?: boolean;
+}) {
   return (
-    <div className="bg-[#1a1d27] border border-white/10 rounded-xl px-5 py-4">
-      <p className="text-gray-400 text-xs uppercase tracking-wider mb-1">{label}</p>
-      <p className="text-white text-2xl font-bold">{value}</p>
+    <div
+      className={`bg-[#1a1d27] border border-white/10 rounded-xl px-5 py-4 ${
+        emphasize ? "border-l-2 border-l-[#4F6EF7]/60" : ""
+      }`}
+    >
+      <p className="text-gray-400 text-xs mb-1.5">{label}</p>
+      <p className={`text-white font-semibold tabular-nums ${emphasize ? "text-3xl" : "text-2xl"}`}>{value}</p>
       {sublabel && <p className="text-gray-500 text-xs mt-1">{sublabel}</p>}
     </div>
   );
@@ -199,6 +213,7 @@ export default function AdminDashboardPage() {
         <StatCard
           label="Revenue"
           value={loading || !summary ? "—" : fmtNaira(Number(summary.total_revenue))}
+          emphasize
         />
       </div>
 
@@ -214,7 +229,7 @@ export default function AdminDashboardPage() {
           href={resolveAdminHref(pathname, "/payouts")}
           className="text-xs font-semibold text-blue-400 hover:text-blue-300 bg-blue-500/10 px-3 py-2 rounded-lg transition-colors"
         >
-          Review payouts →
+          Review payouts
         </Link>
       </div>
 
@@ -236,7 +251,7 @@ export default function AdminDashboardPage() {
                   <XAxis dataKey="name" tick={{ fill: "#9ca3af", fontSize: 11 }} interval={0} angle={-20} textAnchor="end" height={60} />
                   <YAxis tick={{ fill: "#9ca3af", fontSize: 11 }} allowDecimals={false} />
                   <Tooltip contentStyle={{ background: "#1a1d27", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 12 }} />
-                  <Bar dataKey="count" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="count" fill="#4F6EF7" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             )}
@@ -291,7 +306,7 @@ export default function AdminDashboardPage() {
                   contentStyle={{ background: "#1a1d27", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 12 }}
                   formatter={(value) => [fmtNaira(Number(value)), "Revenue"]}
                 />
-                <Line type="monotone" dataKey="revenue" stroke="#22c55e" strokeWidth={2} dot={revenueRangeDays <= 14} />
+                <Line type="monotone" dataKey="revenue" stroke="#4F6EF7" strokeWidth={2} dot={revenueRangeDays <= 14} />
               </LineChart>
             </ResponsiveContainer>
           </div>

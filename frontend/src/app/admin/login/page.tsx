@@ -47,7 +47,7 @@ export default function AdminLogin() {
           className="bg-[#1a1d27] border border-white/10 rounded-xl p-6 space-y-4"
         >
           <div>
-            <label className="text-xs text-gray-400 uppercase tracking-wider block mb-2">
+            <label className="text-xs text-gray-400 block mb-2">
               Password
             </label>
             <input

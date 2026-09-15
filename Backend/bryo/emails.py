@@ -108,11 +108,11 @@ def ticket_confirmation_email(name, event_name, date, time, location, ticket_id,
       <td style="background:#ffffff;border-radius:16px;padding:36px 32px 32px;box-shadow:0 2px 12px rgba(0,0,0,0.07);">
 
         <!-- BOOKING CONFIRMED label -->
-        <p style="color:#0891b2;font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;margin:0 0 14px;">Booking Confirmed</p>
+        <p style="color:#4F6EF7;font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;margin:0 0 14px;">Booking Confirmed</p>
 
         <!-- Headline -->
         <h1 style="margin:0 0 16px;font-size:28px;font-weight:800;color:#0f172a;line-height:1.2;">
-          You're in. <em style="color:#0891b2;font-style:italic;">See you there.</em>
+          You're in. <em style="color:#4F6EF7;font-style:italic;">See you there.</em>
         </h1>
 
         <!-- Intro -->
@@ -154,7 +154,7 @@ def ticket_confirmation_email(name, event_name, date, time, location, ticket_id,
         <table cellpadding="0" cellspacing="0" style="width:100%;">
           <tr>
             <td style="text-align:center;">
-              <a href="{view_ticket_url}" style="display:block;background:#3b82f6;color:#ffffff;text-decoration:none;font-size:15px;font-weight:700;padding:16px 32px;border-radius:12px;text-align:center;">View my tickets</a>
+              <a href="{view_ticket_url}" style="display:block;background:#4F6EF7;color:#ffffff;text-decoration:none;font-size:15px;font-weight:700;padding:16px 32px;border-radius:12px;text-align:center;">View my tickets</a>
             </td>
           </tr>
         </table>
@@ -247,10 +247,10 @@ def event_reminder_email(name, event_name, date, time, location, ticket_url=None
     <tr>
       <td style="background:#ffffff;border-radius:16px;padding:36px 32px 32px;box-shadow:0 2px 12px rgba(0,0,0,0.07);">
 
-        <p style="color:#f59e0b;font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;margin:0 0 14px;">Coming up tomorrow</p>
+        <p style="color:#4F6EF7;font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;margin:0 0 14px;">Coming up tomorrow</p>
 
         <h1 style="margin:0 0 16px;font-size:28px;font-weight:800;color:#0f172a;line-height:1.2;">
-          {event_name} <em style="color:#f59e0b;font-style:italic;">is almost here.</em>
+          {event_name} <em style="color:#4F6EF7;font-style:italic;">is almost here.</em>
         </h1>
 
         <p style="color:#64748b;font-size:15px;line-height:1.6;margin:0 0 28px;">
@@ -276,7 +276,7 @@ def event_reminder_email(name, event_name, date, time, location, ticket_url=None
         <table cellpadding="0" cellspacing="0" style="width:100%;">
           <tr>
             <td style="text-align:center;">
-              <a href="{view_ticket_url}" style="display:block;background:#3b82f6;color:#ffffff;text-decoration:none;font-size:15px;font-weight:700;padding:16px 32px;border-radius:12px;text-align:center;">View my ticket</a>
+              <a href="{view_ticket_url}" style="display:block;background:#4F6EF7;color:#ffffff;text-decoration:none;font-size:15px;font-weight:700;padding:16px 32px;border-radius:12px;text-align:center;">View my ticket</a>
             </td>
           </tr>
         </table>
@@ -326,25 +326,71 @@ def organizer_event_reminder_email(name, event_name, date, time, tickets_sold, d
         dashboard_url (str, optional): Link to the event's organizer dashboard.
     """
     view_dashboard_url = dashboard_url or "https://usebyro.com"
+    plural = "s" if tickets_sold != 1 else ""
 
     html = f"""
-<div style="background-color:#f8fafc;padding:40px 20px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
-  <table cellpadding="0" cellspacing="0" style="max-width:520px;margin:0 auto;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e2e8f0;">
+<div style="background-color:#f1f5f9;padding:32px 16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
+  <table cellpadding="0" cellspacing="0" style="max-width:560px;margin:0 auto;width:100%;">
+
+    <!-- Main white card -->
     <tr>
-      <td style="padding:32px 32px 24px;">
-        <p style="color:#94a3b8;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;margin:0 0 12px;">Event starting soon</p>
-        <p style="color:#0f172a;font-size:18px;line-height:1.5;margin:0 0 16px;"><strong>{event_name}</strong> is happening tomorrow, {date} at {time}.</p>
-        <p style="color:#475569;font-size:14px;line-height:1.6;margin:0 0 24px;">You've sold <strong>{tickets_sold}</strong> ticket{'s' if tickets_sold != 1 else ''} so far. Good time for a final check on attendee numbers, staffing and check-in.</p>
-        <a href="{view_dashboard_url}" style="display:inline-block;background:#0f172a;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:12px 24px;border-radius:8px;">Open dashboard</a>
+      <td style="background:#ffffff;border-radius:16px;padding:36px 32px 32px;box-shadow:0 2px 12px rgba(0,0,0,0.07);">
+
+        <p style="color:#4F6EF7;font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;margin:0 0 14px;">Event starting soon</p>
+
+        <h1 style="margin:0 0 16px;font-size:28px;font-weight:800;color:#0f172a;line-height:1.2;">
+          {event_name} <em style="color:#4F6EF7;font-style:italic;">is happening tomorrow.</em>
+        </h1>
+
+        <p style="color:#64748b;font-size:15px;line-height:1.6;margin:0 0 28px;">
+          Hi {name}, doors open {date} at {time}. You've sold <strong style="color:#0f172a;">{tickets_sold}</strong> ticket{plural} so far &#8212; a good time for a final check on staffing and check-in.
+        </p>
+
+        <table cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;margin-bottom:24px;">
+          <tr>
+            <td style="padding:20px 20px 0;width:33%;vertical-align:top;">
+              <p style="color:#94a3b8;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;margin:0 0 4px;">Date</p>
+              <p style="color:#0f172a;font-size:14px;font-weight:600;margin:0;">{date}</p>
+            </td>
+            <td style="padding:20px 20px 0;width:33%;vertical-align:top;">
+              <p style="color:#94a3b8;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;margin:0 0 4px;">Doors</p>
+              <p style="color:#0f172a;font-size:14px;font-weight:600;margin:0;">{time}</p>
+            </td>
+            <td style="padding:20px 20px 0;width:34%;vertical-align:top;">
+              <p style="color:#94a3b8;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;margin:0 0 4px;">Sold</p>
+              <p style="color:#0f172a;font-size:14px;font-weight:600;margin:0;">{tickets_sold}</p>
+            </td>
+          </tr>
+          <tr><td colspan="3" style="height:20px;"></td></tr>
+        </table>
+
+        <table cellpadding="0" cellspacing="0" style="width:100%;">
+          <tr>
+            <td style="text-align:center;">
+              <a href="{view_dashboard_url}" style="display:block;background:#0f172a;color:#ffffff;text-decoration:none;font-size:15px;font-weight:700;padding:16px 32px;border-radius:12px;text-align:center;">Open dashboard</a>
+            </td>
+          </tr>
+        </table>
+
       </td>
     </tr>
+
+    <!-- Footer -->
+    <tr>
+      <td style="text-align:center;padding:24px 16px;">
+        <p style="color:#999999;font-size:12px;margin:0;">
+          You're getting this because you're hosting an event on Byro.
+        </p>
+      </td>
+    </tr>
+
   </table>
 </div>"""
 
     plain_text = (
         f"Hi {name},\n\n"
         f"{event_name} is happening tomorrow, {date} at {time}.\n\n"
-        f"You've sold {tickets_sold} ticket{'s' if tickets_sold != 1 else ''} so far.\n\n"
+        f"You've sold {tickets_sold} ticket{plural} so far.\n\n"
         f"Dashboard: {view_dashboard_url}\n\n"
         f"Best regards,\nByro Team\nsupport@usebyro.com"
     )
@@ -369,31 +415,71 @@ def milestone_reached_email(name, event_name, milestone, tickets_sold, dashboard
         dashboard_url (str, optional): Link to the event's organizer dashboard.
     """
     view_dashboard_url = dashboard_url or "https://usebyro.com"
-    headline = "Your first ticket just sold!" if milestone == 1 else f"You've hit {milestone} tickets sold!"
+    plural = "s" if tickets_sold != 1 else ""
+    headline = "Your first ticket <em style=\"color:#4F6EF7;font-style:italic;\">just sold.</em>" if milestone == 1 else f"{milestone} tickets sold. <em style=\"color:#4F6EF7;font-style:italic;\">Keep going.</em>"
 
-    html = f"""<div style="background-color:#f8fafc;padding:40px 20px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
-  <table cellpadding="0" cellspacing="0" style="max-width:520px;margin:0 auto;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e2e8f0;">
+    html = f"""
+<div style="background-color:#f1f5f9;padding:32px 16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
+  <table cellpadding="0" cellspacing="0" style="max-width:560px;margin:0 auto;width:100%;">
+
+    <!-- Main white card -->
     <tr>
-      <td style="padding:32px 32px 24px;">
-        <p style="color:#16B979;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;margin:0 0 12px;">Milestone reached</p>
-        <p style="color:#0f172a;font-size:18px;line-height:1.5;margin:0 0 16px;">{headline}</p>
-        <p style="color:#475569;font-size:14px;line-height:1.6;margin:0 0 24px;"><strong>{event_name}</strong> has now sold <strong>{tickets_sold}</strong> ticket{'s' if tickets_sold != 1 else ''} in total.</p>
-        <a href="{view_dashboard_url}" style="display:inline-block;background:#0f172a;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:12px 24px;border-radius:8px;">Open dashboard</a>
+      <td style="background:#ffffff;border-radius:16px;padding:36px 32px 32px;box-shadow:0 2px 12px rgba(0,0,0,0.07);">
+
+        <p style="color:#4F6EF7;font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;margin:0 0 14px;">Milestone reached</p>
+
+        <h1 style="margin:0 0 16px;font-size:28px;font-weight:800;color:#0f172a;line-height:1.2;">
+          {headline}
+        </h1>
+
+        <p style="color:#64748b;font-size:15px;line-height:1.6;margin:0 0 28px;">
+          Hi {name}, <strong style="color:#0f172a;">{event_name}</strong> has now sold <strong style="color:#0f172a;">{tickets_sold}</strong> ticket{plural} in total.
+        </p>
+
+        <!-- Big stat -->
+        <table cellpadding="0" cellspacing="0" style="width:100%;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;margin-bottom:24px;">
+          <tr>
+            <td style="padding:24px;text-align:center;">
+              <p style="color:#4F6EF7;font-size:40px;font-weight:800;margin:0;line-height:1;">{tickets_sold}</p>
+              <p style="color:#94a3b8;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;margin:8px 0 0;">Tickets sold to date</p>
+            </td>
+          </tr>
+        </table>
+
+        <table cellpadding="0" cellspacing="0" style="width:100%;">
+          <tr>
+            <td style="text-align:center;">
+              <a href="{view_dashboard_url}" style="display:block;background:#0f172a;color:#ffffff;text-decoration:none;font-size:15px;font-weight:700;padding:16px 32px;border-radius:12px;text-align:center;">Open dashboard</a>
+            </td>
+          </tr>
+        </table>
+
       </td>
     </tr>
+
+    <!-- Footer -->
+    <tr>
+      <td style="text-align:center;padding:24px 16px;">
+        <p style="color:#999999;font-size:12px;margin:0;">
+          You're getting this because you're hosting an event on Byro.
+        </p>
+      </td>
+    </tr>
+
   </table>
 </div>"""
 
+    plain_headline = "Your first ticket just sold!" if milestone == 1 else f"You've hit {milestone} tickets sold!"
     plain_text = (
         f"Hi {name},\n\n"
-        f"{headline}\n\n"
-        f"{event_name} has now sold {tickets_sold} ticket{'s' if tickets_sold != 1 else ''} in total.\n\n"
+        f"{plain_headline}\n\n"
+        f"{event_name} has now sold {tickets_sold} ticket{plural} in total.\n\n"
         f"Dashboard: {view_dashboard_url}\n\n"
         f"Best regards,\nByro Team\nsupport@usebyro.com"
     )
 
     return {
-        "subject": f"{event_name}: {headline}",
+        "subject": f"{event_name}: {plain_headline}",
         "html": html,
         "text": plain_text,
     }
@@ -425,53 +511,33 @@ def event_published_email(name, event_name, date, time, location, event_url, sha
     if is_first_event:
         subject = "Your first event is live. Here's how to sell it out."
         label = "Published"
-        headline = "You're live. <em style=\"color:#16B979;font-style:italic;\">Here's how to sell it out.</em>"
+        headline = "You're live. <em style=\"color:#4F6EF7;font-style:italic;\">Now DM five people.</em>"
         intro_html = (
-            f"<p style=\"color:#64748b;font-size:15px;line-height:1.6;margin:0 0 16px;\">"
-            f"Hi {name}, <a href=\"{event_url}\" style=\"color:#0f172a;font-weight:700;text-decoration:none;\">{event_name}</a> "
-            f"is published on Byro. That's the hard part done, now for the part that actually fills the room."
-            f"</p>"
-            f"<p style=\"color:#64748b;font-size:15px;line-height:1.6;margin:0 0 16px;\">"
-            f"Nobody buys a ticket to an event they've never heard of. The fastest tickets you'll ever sell are the ones you sell yourself."
-            f"</p>"
             f"<p style=\"color:#64748b;font-size:15px;line-height:1.6;margin:0 0 28px;\">"
-            f"Do this first: DM five people right now with your event link. That single move will outsell a week of hoping people find your page on their own."
+            f"Hi {name}, <a href=\"{event_url}\" style=\"color:#0f172a;font-weight:700;text-decoration:none;\">{event_name}</a> "
+            f"is published on Byro. The fastest tickets you'll ever sell are the ones you sell yourself — start with the five people most likely to come."
             f"</p>"
         )
         intro_text = (
             f"Hi {name},\n\n"
-            f"{event_name} is published on Byro. That's the hard part done, now for the part that actually fills the room.\n\n"
-            f"Nobody buys a ticket to an event they've never heard of. The fastest tickets you'll ever sell are the ones you sell yourself.\n\n"
-            f"Do this first: DM five people right now with your event link. That single move will outsell a week of hoping people find your page on their own.\n\n"
+            f"{event_name} is published on Byro. The fastest tickets you'll ever sell are the ones you sell yourself — start with the five people most likely to come.\n\n"
         )
-        primary_label = "Get my first 5 RSVPs"
-        closing_html = (
-            f"<p style=\"color:#64748b;font-size:14px;line-height:1.6;margin:0;\">"
-            f"Once you've sent those five DMs, drop the link in your WhatsApp status and group chats too. Every share is a door someone might walk through."
-            f"</p>"
-        )
-        closing_text = "Once you've sent those five DMs, drop the link in your WhatsApp status and group chats too. Every share is a door someone might walk through.\n\n"
+        primary_label = "Share my event"
     else:
         subject = f"{event_name} is live. You already know what works."
         label = "Published"
-        headline = "You're live. <em style=\"color:#16B979;font-style:italic;\">You already know what works.</em>"
+        headline = "You're live. <em style=\"color:#4F6EF7;font-style:italic;\">You know the drill.</em>"
         intro_html = (
             f"<p style=\"color:#64748b;font-size:15px;line-height:1.6;margin:0 0 28px;\">"
             f"Hi {name}, <a href=\"{event_url}\" style=\"color:#0f172a;font-weight:700;text-decoration:none;\">{event_name}</a> "
-            f"is published. You've done this before, so you know the drill: the tickets you sell yourself beat the ones you wait for."
+            f"is published. DM the people most likely to come before you post anywhere public — same playbook as last time."
             f"</p>"
         )
         intro_text = (
             f"Hi {name},\n\n"
-            f"{event_name} is published. You've done this before, so you know the drill: the tickets you sell yourself beat the ones you wait for.\n\n"
+            f"{event_name} is published. DM the people most likely to come before you post anywhere public — same playbook as last time.\n\n"
         )
-        primary_label = "Sell my first tickets"
-        closing_html = (
-            f"<p style=\"color:#64748b;font-size:14px;line-height:1.6;margin:0;\">"
-            f"Same playbook as last time: DM the people most likely to come before you post anywhere public. If it worked then, it'll work again."
-            f"</p>"
-        )
-        closing_text = "Same playbook as last time: DM the people most likely to come before you post anywhere public. If it worked then, it'll work again.\n\n"
+        primary_label = "Share my event"
 
     location_row = ""
     if location:
@@ -506,7 +572,7 @@ def event_published_email(name, event_name, date, time, location, event_url, sha
       <td style="background:#ffffff;border-radius:16px;padding:36px 32px 32px;box-shadow:0 2px 12px rgba(0,0,0,0.07);">
 
         <!-- PUBLISHED label -->
-        <p style="color:#16B979;font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;margin:0 0 14px;">{label}</p>
+        <p style="color:#4F6EF7;font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;margin:0 0 14px;">{label}</p>
 
         <!-- Headline -->
         <h1 style="margin:0 0 16px;font-size:28px;font-weight:800;color:#0f172a;line-height:1.2;">
@@ -539,20 +605,21 @@ def event_published_email(name, event_name, date, time, location, event_url, sha
           </tr>
         </table>
 
-        <!-- CTA Buttons -->
-        <table cellpadding="0" cellspacing="0" style="width:100%;margin-bottom:24px;">
+        <!-- CTA -->
+        <table cellpadding="0" cellspacing="0" style="width:100%;">
           <tr>
-            <td style="width:50%;padding-right:6px;">
-              <a href="{primary_url}" style="display:block;background:#16B979;color:#ffffff;text-decoration:none;font-size:12px;line-height:1.3;font-weight:700;padding:11px 8px;border-radius:10px;text-align:center;">{primary_label}</a>
-            </td>
-            <td style="width:50%;padding-left:6px;">
-              <a href="{event_url}" style="display:block;background:#f8fafc;border:1px solid #e2e8f0;color:#0f172a;text-decoration:none;font-size:12px;line-height:1.3;font-weight:700;padding:11px 8px;border-radius:10px;text-align:center;">View Event</a>
+            <td style="text-align:center;">
+              <a href="{primary_url}" style="display:block;background:#4F6EF7;color:#ffffff;text-decoration:none;font-size:15px;font-weight:700;padding:16px 32px;border-radius:12px;text-align:center;">{primary_label}</a>
             </td>
           </tr>
         </table>
-
-        <!-- Closing tip -->
-        {closing_html}
+        <table cellpadding="0" cellspacing="0" style="width:100%;margin-top:14px;">
+          <tr>
+            <td style="text-align:center;">
+              <a href="{event_url}" style="color:#64748b;text-decoration:underline;font-size:13px;font-weight:600;">View event page</a>
+            </td>
+          </tr>
+        </table>
 
       </td>
     </tr>
@@ -580,8 +647,7 @@ def event_published_email(name, event_name, date, time, location, event_url, sha
         plain_text += f"Venue: {location}\n"
     plain_text += (
         f"\n{primary_label}: {primary_url}\n"
-        f"View Event: {event_url}\n\n"
-        f"{closing_text}"
+        f"View event page: {event_url}\n\n"
         f"Best regards,\nByro Team\nsupport@usebyro.com\n\n"
         f"You're getting this because you published an event on Byro."
     )
@@ -598,14 +664,16 @@ def cohost_invite_email(event_name, inviter_name, event_url, is_new_user=False):
     Co-host invitation email.
 
     Sent when an organiser adds someone as a co-host. The invitee may not have a
-    Byro account yet — `is_new_user` switches the call to action from "open the
-    event" to "sign in to accept", since the grant stays pending until they sign
-    in with this address.
+    Byro account yet — `is_new_user` adds a note that they'll need to sign in
+    with this email address first, since the grant stays pending until they do.
+    The button always points at the event dashboard and always reads "View
+    event"; a new user hitting that link while signed out is sent through sign-in
+    first by the dashboard route itself.
 
     Args:
         event_name (str): Event they have been invited to co-host.
         inviter_name (str): Display name or email of the organiser who invited them.
-        event_url (str): Link to the event page.
+        event_url (str): Link to the event's dashboard.
         is_new_user (bool): True when the invitee has no Byro account yet.
     """
     if is_new_user:
@@ -613,10 +681,9 @@ def cohost_invite_email(event_name, inviter_name, event_url, is_new_user=False):
             f"{inviter_name} has invited you to co-host <strong>{event_name}</strong> on Byro."
         )
         instruction = (
-            "Sign in with this email address to accept the invitation. "
-            "Your co-host access activates as soon as you do."
+            "Sign in with this email address to accept &#8212; your co-host access "
+            "activates as soon as you do."
         )
-        cta = "Sign in to accept"
     else:
         lead = (
             f"{inviter_name} has added you as a co-host of <strong>{event_name}</strong> on Byro."
@@ -624,25 +691,69 @@ def cohost_invite_email(event_name, inviter_name, event_url, is_new_user=False):
         instruction = (
             "You can now edit the event, view attendees and check people in at the door."
         )
-        cta = "Open the event"
+    cta = "View event"
 
-    html = f"""<div style="background-color:#f8fafc;padding:40px 20px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
-  <table cellpadding="0" cellspacing="0" style="max-width:520px;margin:0 auto;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e2e8f0;">
+    headline = "You're invited to co-host." if is_new_user else "You're a co-host now."
+    accent_word = "co-host" if is_new_user else "now"
+
+    html = f"""
+<div style="background-color:#f1f5f9;padding:32px 16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
+  <table cellpadding="0" cellspacing="0" style="max-width:560px;margin:0 auto;width:100%;">
+
+    <!-- Main white card -->
     <tr>
-      <td style="padding:32px 32px 24px;">
-        <p style="color:#94a3b8;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;margin:0 0 12px;">Co-host invitation</p>
-        <p style="color:#0f172a;font-size:18px;line-height:1.5;margin:0 0 16px;">{lead}</p>
-        <p style="color:#475569;font-size:14px;line-height:1.6;margin:0 0 24px;">{instruction}</p>
-        <a href="{event_url}" style="display:inline-block;background:#0f172a;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:12px 24px;border-radius:8px;">{cta}</a>
+      <td style="background:#ffffff;border-radius:16px;padding:36px 32px 32px;box-shadow:0 2px 12px rgba(0,0,0,0.07);">
+
+        <p style="color:#4F6EF7;font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;margin:0 0 14px;">Co-host invitation</p>
+
+        <h1 style="margin:0 0 16px;font-size:28px;font-weight:800;color:#0f172a;line-height:1.2;">
+          {"You're invited to " if is_new_user else "You're a "}<em style="color:#4F6EF7;font-style:italic;">{accent_word}.</em>
+        </h1>
+
+        <p style="color:#64748b;font-size:15px;line-height:1.6;margin:0 0 28px;">
+          {lead} {instruction}
+        </p>
+
+        <!-- Event card -->
+        <table cellpadding="0" cellspacing="0" style="width:100%;border-collapse:separate;border-spacing:0;border-radius:16px;overflow:hidden;margin-bottom:24px;">
+          <tr>
+            <td style="background:linear-gradient(135deg,#0f0a2e 0%,#4c1d95 50%,#a855f7 100%);padding:24px;">
+              <table cellpadding="0" cellspacing="0" style="margin-bottom:12px;">
+                <tr>
+                  <td style="background:rgba(255,255,255,0.15);border-radius:20px;padding:4px 12px;">
+                    <span style="color:#ffffff;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;">&#9679; Event</span>
+                  </td>
+                </tr>
+              </table>
+              <h2 style="color:#ffffff;font-size:20px;font-weight:700;margin:0;line-height:1.3;">{event_name}</h2>
+            </td>
+          </tr>
+        </table>
+
+        <table cellpadding="0" cellspacing="0" style="width:100%;">
+          <tr>
+            <td style="text-align:center;">
+              <a href="{event_url}" style="display:block;background:#4F6EF7;color:#ffffff;text-decoration:none;font-size:15px;font-weight:700;padding:16px 32px;border-radius:12px;text-align:center;">{cta}</a>
+            </td>
+          </tr>
+        </table>
+
+        <p style="color:#94a3b8;font-size:12px;line-height:1.6;margin:24px 0 0;border-top:1px solid #e2e8f0;padding-top:20px;">
+          If you weren't expecting this, you can safely ignore this email &#8212; nothing changes until you sign in.
+        </p>
+
       </td>
     </tr>
+
+    <!-- Footer -->
     <tr>
-      <td style="padding:0 32px 32px;">
-        <p style="color:#94a3b8;font-size:12px;line-height:1.6;margin:0;border-top:1px solid #e2e8f0;padding-top:20px;">
-          If you weren't expecting this, you can safely ignore this email — nothing changes until you sign in.
+      <td style="text-align:center;padding:24px 16px;">
+        <p style="color:#999999;font-size:12px;margin:0;">
+          You're getting this because someone invited you to co-host an event on Byro.
         </p>
       </td>
     </tr>
+
   </table>
 </div>"""
 
@@ -678,12 +789,8 @@ def payout_requested_email(name, amount, bank_name, account_number, event_name=N
     event_section_text = ""
     if event_name:
         event_section = f"""
-        <tr>
-          <td style="padding-bottom:16px;vertical-align:top;">
             <p style="color:#94a3b8;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;margin:0 0 4px;">Event</p>
-            <p style="color:#0f172a;font-size:14px;font-weight:600;margin:0;">{event_name}</p>
-          </td>
-        </tr>"""
+            <p style="color:#0f172a;font-size:14px;font-weight:600;margin:0;">{event_name}</p>"""
         event_section_text = f"\nEvent: {event_name}"
 
     html = f"""
@@ -695,7 +802,7 @@ def payout_requested_email(name, amount, bank_name, account_number, event_name=N
       <td style="background:#ffffff;border-radius:16px;padding:36px 32px 32px;box-shadow:0 2px 12px rgba(0,0,0,0.07);">
 
         <!-- PAYOUT INITIATED label -->
-        <p style="color:#3b82f6;font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;margin:0 0 14px;">Payout Initiated</p>
+        <p style="color:#4F6EF7;font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;margin:0 0 14px;">Payout Initiated</p>
 
         <!-- Headline -->
         <h1 style="margin:0 0 16px;font-size:28px;font-weight:800;color:#0f172a;line-height:1.2;">
@@ -749,7 +856,7 @@ def payout_requested_email(name, amount, bank_name, account_number, event_name=N
       <td style="text-align:center;padding:24px 16px;">
         <p style="color:#999999;font-size:12px;margin:0;">
           If you have any questions, kindly reach out to
-          <a href="mailto:support@usebyro.com" style="color:#3b82f6;text-decoration:underline;">support@usebyro.com</a>
+          <a href="mailto:support@usebyro.com" style="color:#4F6EF7;text-decoration:underline;">support@usebyro.com</a>
         </p>
         <p style="color:#999999;font-size:12px;margin:8px 0 0;">
           &#169; 2026 Byro Technologies. All rights reserved.
@@ -810,11 +917,11 @@ def payout_completed_email(name, amount, bank_name, account_number, event_name=N
       <td style="background:#ffffff;border-radius:16px;padding:36px 32px 32px;box-shadow:0 2px 12px rgba(0,0,0,0.07);">
 
         <!-- PAYOUT COMPLETED label -->
-        <p style="color:#16B979;font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;margin:0 0 14px;">Payout Completed</p>
+        <p style="color:#4F6EF7;font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;margin:0 0 14px;">Payout Completed</p>
 
         <!-- Headline -->
         <h1 style="margin:0 0 16px;font-size:28px;font-weight:800;color:#0f172a;line-height:1.2;">
-          You've been paid. <em style="color:#16B979;font-style:italic;">Nice one.</em>
+          You've been paid. <em style="color:#4F6EF7;font-style:italic;">Nice one.</em>
         </h1>
 
         <!-- Intro -->
@@ -853,7 +960,7 @@ def payout_completed_email(name, amount, bank_name, account_number, event_name=N
       <td style="text-align:center;padding:24px 16px;">
         <p style="color:#999999;font-size:12px;margin:0;">
           If you have any questions, kindly reach out to
-          <a href="mailto:support@usebyro.com" style="color:#3b82f6;text-decoration:underline;">support@usebyro.com</a>
+          <a href="mailto:support@usebyro.com" style="color:#4F6EF7;text-decoration:underline;">support@usebyro.com</a>
         </p>
         <p style="color:#999999;font-size:12px;margin:8px 0 0;">
           &#169; 2026 Byro Technologies. All rights reserved.

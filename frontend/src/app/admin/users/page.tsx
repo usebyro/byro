@@ -206,8 +206,8 @@ export default function AdminUsersPage() {
           { label: "Attendees", value: summary?.total_attendees },
         ].map((stat) => (
           <div key={stat.label} className="bg-[#1a1d27] border border-white/10 rounded-xl px-5 py-4">
-            <p className="text-gray-400 text-xs uppercase tracking-wider mb-1">{stat.label}</p>
-            <p className="text-white text-2xl font-bold">{stat.value ?? "—"}</p>
+            <p className="text-gray-400 text-xs mb-1.5">{stat.label}</p>
+            <p className="text-white text-2xl font-semibold tabular-nums">{stat.value ?? "—"}</p>
           </div>
         ))}
       </div>
@@ -258,12 +258,12 @@ export default function AdminUsersPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-white/5 text-left">
-                  <th className="pb-3 pr-6 text-xs text-gray-500 uppercase tracking-wider font-medium">Email</th>
-                  <th className="pb-3 pr-6 text-xs text-gray-500 uppercase tracking-wider font-medium">Name</th>
-                  <th className="pb-3 pr-6 text-xs text-gray-500 uppercase tracking-wider font-medium">Role</th>
-                  <th className="pb-3 pr-6 text-xs text-gray-500 uppercase tracking-wider font-medium">Events Created</th>
-                  <th className="pb-3 pr-6 text-xs text-gray-500 uppercase tracking-wider font-medium">Joined</th>
-                  <th className="pb-3 text-xs text-gray-500 uppercase tracking-wider font-medium">Status</th>
+                  <th className="pb-3 pr-6 text-xs text-gray-500 font-medium">Email</th>
+                  <th className="pb-3 pr-6 text-xs text-gray-500 font-medium">Name</th>
+                  <th className="pb-3 pr-6 text-xs text-gray-500 font-medium">Role</th>
+                  <th className="pb-3 pr-6 text-xs text-gray-500 font-medium">Events created</th>
+                  <th className="pb-3 pr-6 text-xs text-gray-500 font-medium">Joined</th>
+                  <th className="pb-3 text-xs text-gray-500 font-medium">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
@@ -280,7 +280,7 @@ export default function AdminUsersPage() {
                     <td className="py-3 pr-6">
                       <RoleBadge role={u.role} />
                     </td>
-                    <td className="py-3 pr-6 text-gray-300">{u.events_created}</td>
+                    <td className="py-3 pr-6 text-gray-300 tabular-nums">{u.events_created}</td>
                     <td className="py-3 pr-6 text-gray-400 whitespace-nowrap">{formatDate(u.date_joined)}</td>
                     <td className="py-3">
                       <StatusBadge isActive={u.is_active !== false} />
@@ -321,19 +321,19 @@ export default function AdminUsersPage() {
             <div className="p-6 space-y-6">
               <div className="grid grid-cols-2 gap-3">
                 <div className="bg-white/5 rounded-lg px-3 py-2.5">
-                  <p className="text-gray-500 text-[10px] uppercase tracking-wider mb-0.5">Handle</p>
+                  <p className="text-gray-500 text-[11px] mb-0.5">Handle</p>
                   <p className="text-white text-sm">{selected.handle ? `@${selected.handle}` : "—"}</p>
                 </div>
                 <div className="bg-white/5 rounded-lg px-3 py-2.5">
-                  <p className="text-gray-500 text-[10px] uppercase tracking-wider mb-0.5">Events Created</p>
-                  <p className="text-white text-sm">{selected.events_created}</p>
+                  <p className="text-gray-500 text-[11px] mb-0.5">Events created</p>
+                  <p className="text-white text-sm tabular-nums">{selected.events_created}</p>
                 </div>
                 <div className="bg-white/5 rounded-lg px-3 py-2.5">
-                  <p className="text-gray-500 text-[10px] uppercase tracking-wider mb-0.5">Joined</p>
+                  <p className="text-gray-500 text-[11px] mb-0.5">Joined</p>
                   <p className="text-white text-sm">{formatDate(selected.date_joined)}</p>
                 </div>
                 <div className="bg-white/5 rounded-lg px-3 py-2.5">
-                  <p className="text-gray-500 text-[10px] uppercase tracking-wider mb-0.5">Status</p>
+                  <p className="text-gray-500 text-[11px] mb-0.5">Status</p>
                   <StatusBadge isActive={selected.is_active !== false} />
                 </div>
               </div>

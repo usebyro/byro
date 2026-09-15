@@ -123,17 +123,17 @@ export default function AdminPayoutsPage() {
 
       {/* Stats */}
       <div className="grid grid-cols-3 gap-4 mb-8">
-        <div className="bg-[#1a1d27] border border-white/10 rounded-xl px-5 py-4">
-          <p className="text-gray-400 text-xs uppercase tracking-wider mb-1">Pending</p>
-          <p className="text-white text-2xl font-bold">{pending.length}</p>
+        <div className="bg-[#1a1d27] border border-white/10 rounded-xl px-5 py-4 border-l-2 border-l-yellow-500/50">
+          <p className="text-gray-400 text-xs mb-1.5">Pending</p>
+          <p className="text-white text-2xl font-semibold tabular-nums">{pending.length}</p>
         </div>
         <div className="bg-[#1a1d27] border border-white/10 rounded-xl px-5 py-4">
-          <p className="text-gray-400 text-xs uppercase tracking-wider mb-1">Processed</p>
-          <p className="text-white text-2xl font-bold">{processed.length}</p>
+          <p className="text-gray-400 text-xs mb-1.5">Processed</p>
+          <p className="text-white text-2xl font-semibold tabular-nums">{processed.length}</p>
         </div>
         <div className="bg-[#1a1d27] border border-white/10 rounded-xl px-5 py-4">
-          <p className="text-gray-400 text-xs uppercase tracking-wider mb-1">Rejected</p>
-          <p className="text-white text-2xl font-bold">{rejected.length}</p>
+          <p className="text-gray-400 text-xs mb-1.5">Rejected</p>
+          <p className="text-white text-2xl font-semibold tabular-nums">{rejected.length}</p>
         </div>
       </div>
 
@@ -148,13 +148,13 @@ export default function AdminPayoutsPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-white/5 text-left">
-                  <th className="pb-3 pr-6 text-xs text-gray-500 uppercase tracking-wider font-medium whitespace-nowrap">Organizer</th>
-                  <th className="pb-3 pr-6 text-xs text-gray-500 uppercase tracking-wider font-medium whitespace-nowrap">Event</th>
-                  <th className="pb-3 pr-6 text-xs text-gray-500 uppercase tracking-wider font-medium whitespace-nowrap">Amount</th>
-                  <th className="pb-3 pr-6 text-xs text-gray-500 uppercase tracking-wider font-medium whitespace-nowrap">Destination</th>
-                  <th className="pb-3 pr-6 text-xs text-gray-500 uppercase tracking-wider font-medium whitespace-nowrap">Requested</th>
-                  <th className="pb-3 pr-6 text-xs text-gray-500 uppercase tracking-wider font-medium whitespace-nowrap">Status</th>
-                  <th className="pb-3 text-xs text-gray-500 uppercase tracking-wider font-medium whitespace-nowrap">Action</th>
+                  <th className="pb-3 pr-6 text-xs text-gray-500 font-medium whitespace-nowrap">Organizer</th>
+                  <th className="pb-3 pr-6 text-xs text-gray-500 font-medium whitespace-nowrap">Event</th>
+                  <th className="pb-3 pr-6 text-xs text-gray-500 font-medium whitespace-nowrap">Amount</th>
+                  <th className="pb-3 pr-6 text-xs text-gray-500 font-medium whitespace-nowrap">Destination</th>
+                  <th className="pb-3 pr-6 text-xs text-gray-500 font-medium whitespace-nowrap">Requested</th>
+                  <th className="pb-3 pr-6 text-xs text-gray-500 font-medium whitespace-nowrap">Status</th>
+                  <th className="pb-3 text-xs text-gray-500 font-medium whitespace-nowrap">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
@@ -164,7 +164,7 @@ export default function AdminPayoutsPage() {
                       <p className="text-white font-medium truncate max-w-[160px]">{p.user_email}</p>
                     </td>
                     <td className="py-3 pr-6 text-gray-400 truncate max-w-[160px]">{p.event_name || "—"}</td>
-                    <td className="py-3 pr-6 text-gray-200 whitespace-nowrap font-medium">{fmtNaira(p.amount)}</td>
+                    <td className="py-3 pr-6 text-gray-200 whitespace-nowrap font-medium tabular-nums">{fmtNaira(p.amount)}</td>
                     <td className="py-3 pr-6 text-gray-400 truncate max-w-[220px] capitalize" title={destinationOf(p)}>{destinationOf(p)}</td>
                     <td className="py-3 pr-6 text-gray-400 whitespace-nowrap">{fmtDate(p.requested_at)}</td>
                     <td className="py-3 pr-6">
@@ -211,10 +211,10 @@ export default function AdminPayoutsPage() {
             <h3 className="text-white font-semibold text-sm mb-2">
               {confirming.action === "processed" ? "Mark payout as processed?" : "Reject this payout request?"}
             </h3>
-            <p className="text-gray-400 text-xs leading-relaxed mb-1">
-              {confirming.payout.user_email} · {fmtNaira(confirming.payout.amount)} ·{" "}
-              {destinationOf(confirming.payout)}
-            </p>
+            <div className="bg-white/5 rounded-lg px-3 py-2.5 mb-4 space-y-1">
+              <p className="text-white text-sm font-medium truncate">{confirming.payout.user_email}</p>
+              <p className="text-gray-400 text-xs tabular-nums">{fmtNaira(confirming.payout.amount)} to {destinationOf(confirming.payout)}</p>
+            </div>
             <p className="text-gray-500 text-xs leading-relaxed mb-5">
               {confirming.action === "processed"
                 ? "This confirms the funds have already been sent outside Byro. This cannot be undone here."
