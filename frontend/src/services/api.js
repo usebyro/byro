@@ -113,6 +113,8 @@ const API = {
 
   getTicketQrUrl: (ticketId) => `${axiosInstance.defaults.baseURL}tickets/${ticketId}/qr/`,
 
+  getTicketCalendarUrl: (ticketId) => `${axiosInstance.defaults.baseURL}tickets/${ticketId}/calendar/`,
+
   getMyTicket: async (slug) => {
     try {
       const response = await axiosInstance.get(`events/${slug}/my_ticket/`);

@@ -73,6 +73,14 @@ export default function TicketCard({ ticket }) {
           />
           <p className="text-xs text-gray-400 mt-3">Present this QR code at the gate for entry</p>
         </div>
+
+        {/* Add to calendar */}
+        <a
+          href={API.getTicketCalendarUrl(ticket.ticket_id)}
+          className="mt-5 flex items-center justify-center gap-2 w-full text-sm font-semibold text-gray-900 bg-white border border-gray-200 rounded-xl py-3 hover:bg-gray-50 transition-colors"
+        >
+          Add to Calendar
+        </a>
       </div>
     </div>
   );
