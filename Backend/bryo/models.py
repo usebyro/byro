@@ -241,21 +241,20 @@ class Event(models.Model):
         ('private', 'Private'),
     ]
     
-    # New: Event Categories based on your requirements
+    # The "Create event" category picker sends one of these values directly
+    # (its display labels differ from these — e.g. it shows "Concerts" for
+    # `entertainment`, "Sports" for `fitness`, "Nightlife" for `art_culture`,
+    # and "Conferences" for `conference`). Keep this list as the single
+    # source of truth; a category the picker doesn't (yet) offer a button
+    # for can still be set here without introducing a duplicate slug.
     CATEGORY_CHOICES = [
-        ('web3_crypto', 'Web3 & Crypto'),
         ('entertainment', 'Entertainment'),
-        ('art_culture', 'Art & Culture'),
         ('fitness', 'Fitness'),
+        ('art_culture', 'Art & Culture'),
         ('conference', 'Conference'),
+        ('web3_crypto', 'Web3 & Crypto'),
         ('technology', 'Technology'),
         ('other', 'Other'),
-        # Added to match the "Create event" category picker (Concerts, Sports,
-        # Nightlife, Conferences) — kept alongside the existing choices above.
-        ('concerts', 'Concerts'),
-        ('sports', 'Sports'),
-        ('nightlife', 'Nightlife'),
-        ('conferences', 'Conferences'),
     ]
 
     name = models.CharField(max_length=100)

@@ -151,3 +151,12 @@ input[type=number] {
   margin: 0 1px;
   border-left: 1.5px dashed rgba(255, 255, 255, 0.55);
 }
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}

@@ -2,15 +2,10 @@
 Transactional email templates for Byro.
 Each function returns a dict: { subject, html, text }
 
-Shared visual system: one 560px card, one type scale, and four status
-colors that mean something rather than varying per template —
-    neutral (slate)  confirmations, invitations
-    time    (amber)  reminders
-    growth  (violet) sales momentum — milestones, going live
-    money   (green)  payouts
-Each color is used for exactly two things: the small status badge at the
-top of the email, and the primary button below it — so "what happened"
-and "what to do next" always read as the same color per email.
+Shared visual system: one 560px card, one type scale, and Byro's actual
+brand color (#4F6EF7 — the same indigo used for primary buttons and the
+active nav state across the app) for every status badge and primary
+button, instead of a color that varies per template.
 """
 
 INK = "#0f172a"
@@ -20,14 +15,17 @@ BORDER = "#e2e8f0"
 SURFACE = "#f8fafc"
 PAGE_BG = "#f1f5f9"
 
-NEUTRAL = "#334155"
-NEUTRAL_BG = "#f1f5f9"
-TIME = "#b45309"
-TIME_BG = "#fffbeb"
-GROWTH = "#6d28d9"
-GROWTH_BG = "#f5f3ff"
-MONEY = "#047857"
-MONEY_BG = "#ecfdf5"
+BRAND = "#4F6EF7"
+BRAND_BG = "#EEF2FF"
+
+NEUTRAL = BRAND
+NEUTRAL_BG = BRAND_BG
+TIME = BRAND
+TIME_BG = BRAND_BG
+GROWTH = BRAND
+GROWTH_BG = BRAND_BG
+MONEY = BRAND
+MONEY_BG = BRAND_BG
 
 FONT_STACK = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif"
 
@@ -497,27 +495,28 @@ def cohost_invite_email(event_name, inviter_name, event_url, is_new_user=False):
     Co-host invitation email.
 
     Sent when an organiser adds someone as a co-host. The invitee may not have a
-    Byro account yet — `is_new_user` switches the call to action from "open the
-    event" to "sign in to accept", since the grant stays pending until they sign
-    in with this address.
+    Byro account yet — `is_new_user` adds a note that they'll need to sign in
+    with this email address first, since the grant stays pending until they do.
+    The button always points at the event dashboard and always reads "View
+    event"; a new user hitting that link while signed out is sent through
+    sign-in first by the dashboard route itself.
 
     Args:
         event_name (str): Event they have been invited to co-host.
         inviter_name (str): Display name or email of the organiser who invited them.
-        event_url (str): Link to the event page.
+        event_url (str): Link to the event's dashboard.
         is_new_user (bool): True when the invitee has no Byro account yet.
     """
     if is_new_user:
         lead = f"{inviter_name} has invited you to co-host <strong style=\"color:{INK};\">{event_name}</strong> on Byro."
         instruction = (
-            "Sign in with this email address to accept the invitation. "
-            "Your co-host access activates as soon as you do."
+            "Sign in with this email address to accept — your co-host access "
+            "activates as soon as you do."
         )
-        cta = "Sign in to accept"
     else:
         lead = f"{inviter_name} has added you as a co-host of <strong style=\"color:{INK};\">{event_name}</strong> on Byro."
         instruction = "You can now edit the event, view attendees and check people in at the door."
-        cta = "Open the event"
+    cta = "View event"
 
     body_html = f"""
         <p style="color:{BODY};font-size:15px;line-height:1.6;margin:0 0 16px;">{lead}</p>

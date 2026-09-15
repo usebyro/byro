@@ -102,14 +102,14 @@ function EventTable({
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-white/5 text-left">
-            <th className="pb-3 pr-6 text-xs text-gray-500 uppercase tracking-wider font-medium">Event</th>
-            <th className="pb-3 pr-6 text-xs text-gray-500 uppercase tracking-wider font-medium">Date</th>
-            <th className="pb-3 pr-6 text-xs text-gray-500 uppercase tracking-wider font-medium">Location</th>
-            <th className="pb-3 pr-6 text-xs text-gray-500 uppercase tracking-wider font-medium">Category</th>
-            <th className="pb-3 pr-6 text-xs text-gray-500 uppercase tracking-wider font-medium">Price</th>
-            <th className="pb-3 pr-6 text-xs text-gray-500 uppercase tracking-wider font-medium">Created</th>
-            <th className="pb-3 pr-6 text-xs text-gray-500 uppercase tracking-wider font-medium">Tickets Sold</th>
-            <th className="pb-3 text-xs text-gray-500 uppercase tracking-wider font-medium">Status</th>
+            <th className="pb-3 pr-6 text-xs text-gray-500 font-medium">Event</th>
+            <th className="pb-3 pr-6 text-xs text-gray-500 font-medium">Date</th>
+            <th className="pb-3 pr-6 text-xs text-gray-500 font-medium">Location</th>
+            <th className="pb-3 pr-6 text-xs text-gray-500 font-medium">Category</th>
+            <th className="pb-3 pr-6 text-xs text-gray-500 font-medium">Price</th>
+            <th className="pb-3 pr-6 text-xs text-gray-500 font-medium">Created</th>
+            <th className="pb-3 pr-6 text-xs text-gray-500 font-medium">Tickets sold</th>
+            <th className="pb-3 text-xs text-gray-500 font-medium">Status</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-white/5">
@@ -139,7 +139,7 @@ function EventTable({
               <td className="py-3 pr-6 text-gray-400 capitalize">
                 {event.category?.replace(/_/g, " ") || "—"}
               </td>
-              <td className="py-3 pr-6 text-gray-300 whitespace-nowrap">
+              <td className="py-3 pr-6 text-gray-300 whitespace-nowrap tabular-nums">
                 {event.ticket_price > 0
                   ? `₦${Number(event.ticket_price).toLocaleString()}`
                   : "Free"}
@@ -147,7 +147,7 @@ function EventTable({
               <td className="py-3 pr-6 text-gray-400 whitespace-nowrap">
                 {formatDateTime(event.created_at)}
               </td>
-              <td className="py-3 pr-6 text-gray-300 whitespace-nowrap">
+              <td className="py-3 pr-6 text-gray-300 whitespace-nowrap tabular-nums">
                 {ticketCounts[event.id] === null || ticketCounts[event.id] === undefined
                   ? "—"
                   : ticketCounts[event.id]}
@@ -326,8 +326,8 @@ export default function AdminEventsPage() {
             key={stat.label}
             className="bg-[#1a1d27] border border-white/10 rounded-xl px-5 py-4"
           >
-            <p className="text-gray-400 text-xs uppercase tracking-wider mb-1">{stat.label}</p>
-            <p className="text-white text-2xl font-bold">
+            <p className="text-gray-400 text-xs mb-1.5">{stat.label}</p>
+            <p className="text-white text-2xl font-semibold tabular-nums">
               {loading ? "—" : stat.value}
             </p>
           </div>
@@ -387,7 +387,9 @@ export default function AdminEventsPage() {
               <div className="min-w-0">
                 <h3 className="text-white font-semibold truncate">{selected.name}</h3>
                 <p className="text-gray-500 text-xs mt-0.5">
-                  {formatDate(selected.day)} · {selected.location || "No location set"}
+                  {selected.location
+                    ? `${formatDate(selected.day)}, ${selected.location}`
+                    : `${formatDate(selected.day)}, no location set`}
                 </p>
               </div>
               <button
@@ -402,21 +404,21 @@ export default function AdminEventsPage() {
             <div className="p-6 space-y-6">
               <div className="grid grid-cols-2 gap-3">
                 <div className="bg-white/5 rounded-lg px-3 py-2.5">
-                  <p className="text-gray-500 text-[10px] uppercase tracking-wider mb-0.5">Category</p>
+                  <p className="text-gray-500 text-[11px] mb-0.5">Category</p>
                   <p className="text-white text-sm capitalize">{selected.category?.replace(/_/g, " ") || "—"}</p>
                 </div>
                 <div className="bg-white/5 rounded-lg px-3 py-2.5">
-                  <p className="text-gray-500 text-[10px] uppercase tracking-wider mb-0.5">Price</p>
-                  <p className="text-white text-sm">
+                  <p className="text-gray-500 text-[11px] mb-0.5">Price</p>
+                  <p className="text-white text-sm tabular-nums">
                     {selected.ticket_price > 0 ? `₦${Number(selected.ticket_price).toLocaleString()}` : "Free"}
                   </p>
                 </div>
                 <div className="bg-white/5 rounded-lg px-3 py-2.5">
-                  <p className="text-gray-500 text-[10px] uppercase tracking-wider mb-0.5">Status</p>
+                  <p className="text-gray-500 text-[11px] mb-0.5">Status</p>
                   <StatusBadge status={getEventStatus(selected)} />
                 </div>
                 <div className="bg-white/5 rounded-lg px-3 py-2.5">
-                  <p className="text-gray-500 text-[10px] uppercase tracking-wider mb-0.5">Created</p>
+                  <p className="text-gray-500 text-[11px] mb-0.5">Created</p>
                   <p className="text-white text-sm">{formatDateTime(selected.created_at)}</p>
                 </div>
               </div>
@@ -427,7 +429,7 @@ export default function AdminEventsPage() {
                 rel="noopener noreferrer"
                 className="inline-block text-xs font-semibold text-blue-400 hover:text-blue-300"
               >
-                View public event page ↗
+                View public event page
               </a>
 
               <div>
