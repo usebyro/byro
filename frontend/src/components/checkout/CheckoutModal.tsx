@@ -450,23 +450,23 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
 
       {showExitConfirm && (
         <div className="fixed inset-0 z-[60] bg-black/40 flex items-center justify-center px-4">
-          <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6 text-center">
-            <h2 className="text-lg font-bold text-gray-900 mb-2">
-              Are you sure you want to cancel?
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-8 text-center">
+            <h2 className="text-xl font-bold text-gray-900 mb-3">
+              Release tickets
             </h2>
-            <p className="text-sm text-gray-500 mb-6">
-              This will cancel the order and release your tickets.
+            <p className="text-sm text-gray-500 mb-8 leading-relaxed">
+              Cancel this order and release your tickets?
             </p>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-4">
               <button
                 onClick={() => setShowExitConfirm(false)}
-                className="flex-1 border border-gray-200 text-gray-700 font-semibold py-2.5 rounded-full hover:bg-gray-50 transition-colors"
+                className="flex-1 border border-gray-200 text-gray-700 font-semibold py-3 rounded-full hover:bg-gray-50 transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={onClose}
-                className="flex-1 bg-red-600 text-white font-semibold py-2.5 rounded-full hover:bg-red-700 transition-colors"
+                className="flex-1 bg-blue-600 text-white font-semibold py-3 rounded-full hover:bg-blue-700 transition-colors"
               >
                 Release ticket
               </button>
