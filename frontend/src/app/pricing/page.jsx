@@ -194,7 +194,7 @@ function PayoutCalculator() {
           </span>
           <span className="text-lg font-black">{formatNaira(payout)}</span>
         </div>
-        <p className="text-[10px] text-slate-500 leading-relaxed">
+        <p className="text-[10px] text-slate-500 leading-relaxed text-center">
           Final payment charge is dependent on payment gateway.
         </p>
       </div>
