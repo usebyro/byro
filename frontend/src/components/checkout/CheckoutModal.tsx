@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import API from "@/services/api";
 import { toast } from "sonner";
@@ -111,6 +110,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
 
   /* ── Tickets ── */
   const hasTiers = tiersProp && tiersProp.length > 0;
@@ -370,16 +370,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
     <div className="fixed inset-0 z-50 bg-[#F1F4F9] overflow-y-auto">
       {/* ── Checkout header ── */}
       <div className="sticky top-0 z-10 bg-white border-b border-gray-100 px-4 sm:px-6 py-3.5 flex items-center justify-between">
-        <Link href="/" onClick={onClose}>
-          <Image
-            src="/assets/images/logo.svg"
-            alt="byro"
-            width={70}
-            height={28}
-            className="h-7 w-auto"
-            priority
-          />
-        </Link>
+        <div className="w-[70px]" aria-hidden="true" />
         <div className="flex items-center gap-1.5 text-sm text-gray-400">
           <svg
             width="13"
@@ -395,7 +386,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
           Secure checkout
         </div>
         <button
-          onClick={onClose}
+          onClick={() => setShowExitConfirm(true)}
           className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 transition-colors"
         >
           <svg
@@ -412,6 +403,33 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
           Exit
         </button>
       </div>
+
+      {showExitConfirm && (
+        <div className="fixed inset-0 z-[60] bg-black/40 flex items-center justify-center px-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6 text-center">
+            <h2 className="text-lg font-bold text-gray-900 mb-2">
+              Are you sure you want to cancel?
+            </h2>
+            <p className="text-sm text-gray-500 mb-6">
+              This will cancel the order and release your tickets.
+            </p>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setShowExitConfirm(false)}
+                className="flex-1 border border-gray-200 text-gray-700 font-semibold py-2.5 rounded-full hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={onClose}
+                className="flex-1 bg-red-600 text-white font-semibold py-2.5 rounded-full hover:bg-red-700 transition-colors"
+              >
+                Release ticket
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Step indicator ── */}
       <div className="bg-white border-b border-gray-100 px-6 py-4">
@@ -1079,8 +1097,8 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                               <line x1="12" y1="16" x2="12" y2="12" />
                               <line x1="12" y1="8" x2="12.01" y2="8" />
                             </svg>
-                            <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block whitespace-nowrap bg-gray-800 text-white text-[10px] leading-tight px-2.5 py-1.5 rounded-lg pointer-events-none shadow-lg z-10">
-                              To serve you better
+                            <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-40 text-center bg-gray-800 text-white text-[10px] leading-tight px-2.5 py-1.5 rounded-lg pointer-events-none shadow-lg z-10">
+                              To serve you better. Non-refundable.
                               <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
                             </span>
                           </span>
