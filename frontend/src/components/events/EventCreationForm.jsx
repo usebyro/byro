@@ -120,7 +120,7 @@ const CATEGORIES = [
 ];
 
 const fmt = (n) =>
-  new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN", minimumFractionDigits: 0 }).format(n);
+  new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n);
 
 const convertTo24Hour = (t) => (!t ? "00:00:00" : `${t}:00`);
 
@@ -168,6 +168,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
   const [eventVisibility, setEventVisibility] = useState(true);
   const [showRemainingCount, setShowRemainingCount] = useState(false);
   const [ticketsTransferable, setTicketsTransferable] = useState(false);
+  const [passFeeToAttendee, setPassFeeToAttendee] = useState(true);
   const [capacity, setCapacity] = useState("Unlimited");
 
   /* venue autocomplete */
@@ -203,6 +204,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
     setDescription(d.description || "");
     setTicketsTransferable(d.transferable || false);
     setShowRemainingCount(d.show_remaining_count || false);
+    setPassFeeToAttendee(d.pass_fee_to_attendee !== undefined ? d.pass_fee_to_attendee : true);
     setCategory(d.category || "entertainment");
     setEventVisibility(d.visibility === "public");
     if (d.event_image_url || d.event_image) {
@@ -324,6 +326,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
       ticket_price: ticketPrice,
       transferable: ticketsTransferable.toString(),
       show_remaining_count: showRemainingCount.toString(),
+      pass_fee_to_attendee: passFeeToAttendee.toString(),
       visibility: isDraft ? "private" : (eventVisibility ? "public" : "private"),
       category,
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "GMT+01:00",
@@ -790,8 +793,9 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
             <div className="space-y-4">
               {[
                 { label: "Public event", value: eventVisibility, toggle: () => setEventVisibility(v => !v) },
-                { label: "Show remaining count", value: showRemainingCount, toggle: () => setShowRemainingCount(v => !v) },
-                { label: "Transferable tickets", value: ticketsTransferable, toggle: () => setTicketsTransferable(v => !v) },
+                { label: "Show ticket count", value: showRemainingCount, toggle: () => setShowRemainingCount(v => !v) },
+                // { label: "Transferable tickets", value: ticketsTransferable, toggle: () => setTicketsTransferable(v => !v) }, // disabled for now
+                { label: "Pass service fee to attendees", value: passFeeToAttendee, toggle: () => setPassFeeToAttendee(v => !v) },
               ].map(({ label, value, toggle }) => (
                 <div key={label} className="flex items-center justify-between">
                   <span className="text-sm text-gray-700">{label}</span>
@@ -805,6 +809,11 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
                 </div>
               ))}
             </div>
+            <p className="text-xs text-gray-400 mt-3">
+              {passFeeToAttendee
+                ? "Byro's platform fee is added at checkout."
+                : "Byro's platform fee will be deducted from your payout."}
+            </p>
           </div>
 
           {editSlug && (
