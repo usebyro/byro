@@ -8,6 +8,7 @@ from rest_framework.throttling import ScopedRateThrottle
 from django.core.validators import validate_email
 from django.core.exceptions import ValidationError as DjangoValidationError
 from .services import workos_api
+from .services.turnstile import check_and_remember_verification
 from . import apps
 from .serializers import (
     WaitListSerializer, EventSerializer, TicketSerializer,
@@ -444,6 +445,15 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
             return Response(
                 {'error': 'event_slug, customer_email, and customer_name are required'},
                 status=status.HTTP_400_BAD_REQUEST
+            )
+
+        turnstile_token = request.data.get('turnstile_token')
+        if not check_and_remember_verification(
+            turnstile_token, customer_email, remote_ip=self.get_client_ip(request)
+        ):
+            return Response(
+                {'error': 'Verification failed. Please try again.'},
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         # Get event
