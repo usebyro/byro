@@ -151,24 +151,22 @@ function PayoutCalculator() {
           </label>
         </div>
 
-        <div className="flex bg-white/5 border border-slate-800 rounded-xl p-1 mb-6">
+        <div className="flex items-center justify-between bg-white/5 border border-slate-800 rounded-xl px-3.5 py-3 mb-6">
+          <span className="text-[11px] font-semibold text-slate-300">
+            I absorb fee
+          </span>
           <button
             type="button"
-            onClick={() => setAttendeePaysFee(true)}
-            className={`flex-1 text-[11px] font-semibold py-2 rounded-lg transition-colors ${
-              attendeePaysFee ? "bg-[#4F6EF7] text-white" : "text-slate-400"
+            onClick={() => setAttendeePaysFee((v) => !v)}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+              !attendeePaysFee ? "bg-[#4F6EF7]" : "bg-slate-700"
             }`}
           >
-            Attendee pays fee
-          </button>
-          <button
-            type="button"
-            onClick={() => setAttendeePaysFee(false)}
-            className={`flex-1 text-[11px] font-semibold py-2 rounded-lg transition-colors ${
-              !attendeePaysFee ? "bg-[#4F6EF7] text-white" : "text-slate-400"
-            }`}
-          >
-            I absorb the fee
+            <span
+              className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                !attendeePaysFee ? "translate-x-6" : "translate-x-1"
+              }`}
+            />
           </button>
         </div>
       </div>
