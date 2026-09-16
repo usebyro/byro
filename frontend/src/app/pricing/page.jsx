@@ -195,8 +195,7 @@ function PayoutCalculator() {
           <span className="text-lg font-black">{formatNaira(payout)}</span>
         </div>
         <p className="text-[10px] text-slate-500 leading-relaxed">
-          You choose per event whether attendees or you cover the platform
-          fee at checkout.
+          Final payment charge is dependent on payment gateway.
         </p>
       </div>
     </div>
