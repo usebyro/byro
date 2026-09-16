@@ -11,6 +11,25 @@ import { calculateTicketFees } from "@/lib/pricing";
 
 const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
 
+interface TurnstileApi {
+  render: (
+    container: HTMLElement,
+    options: {
+      sitekey: string | undefined;
+      theme?: string;
+      callback?: (token: string) => void;
+      "expired-callback"?: () => void;
+      "error-callback"?: () => void;
+    }
+  ) => string;
+  remove: (widgetId: string) => void;
+  reset: (widgetId: string) => void;
+}
+
+function getTurnstile(): TurnstileApi | undefined {
+  return (window as unknown as { turnstile?: TurnstileApi }).turnstile;
+}
+
 interface Event {
   id: number;
   slug: string;
@@ -123,7 +142,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
 
   useEffect(() => {
     if (step !== 2 || !turnstileReady || !turnstileRef.current) return;
-    const turnstile = (window as unknown as { turnstile?: any }).turnstile;
+    const turnstile = getTurnstile();
     if (!turnstile) return;
 
     if (turnstileWidgetId.current !== null) {
@@ -383,7 +402,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
       const message = err instanceof Error ? err.message : "Payment failed. Please try again.";
       toast.error(message);
       setTurnstileToken("");
-      const turnstile = (window as unknown as { turnstile?: any }).turnstile;
+      const turnstile = getTurnstile();
       if (turnstileWidgetId.current !== null && turnstile) {
         turnstile.reset(turnstileWidgetId.current);
       }
