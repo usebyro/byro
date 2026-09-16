@@ -89,6 +89,7 @@ const formatPrice = (price: number) =>
     style: "currency",
     currency: "NGN",
     minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
   }).format(price);
 
 const EventCard = ({ event }: { event: Event }) => {

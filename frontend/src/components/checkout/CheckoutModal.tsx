@@ -1,13 +1,34 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
-import Link from "next/link";
+import Script from "next/script";
 import { useRouter } from "next/navigation";
 import API from "@/services/api";
 import { toast } from "sonner";
 import { trackPurchase, trackSelectTicket } from "@/lib/analytics";
 import { calculateTicketFees } from "@/lib/pricing";
+
+const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+
+interface TurnstileApi {
+  render: (
+    container: HTMLElement,
+    options: {
+      sitekey: string | undefined;
+      theme?: string;
+      callback?: (token: string) => void;
+      "expired-callback"?: () => void;
+      "error-callback"?: () => void;
+    }
+  ) => string;
+  remove: (widgetId: string) => void;
+  reset: (widgetId: string) => void;
+}
+
+function getTurnstile(): TurnstileApi | undefined {
+  return (window as unknown as { turnstile?: TurnstileApi }).turnstile;
+}
 
 interface Event {
   id: number;
@@ -23,6 +44,7 @@ interface Event {
   event_image_url?: string;
   is_active: boolean;
   show_remaining_count?: boolean;
+  pass_fee_to_attendee?: boolean;
 }
 
 interface TicketTier {
@@ -34,6 +56,9 @@ interface TicketTier {
   sold?: number | null;
   admits_count?: number | null;
 }
+
+// Max tickets a buyer can select per tier in a single checkout.
+const MAX_QTY_PER_TIER = 5;
 
 const categoryGradients: Record<string, string> = {
   entertainment: "from-purple-700 via-purple-500 to-pink-500",
@@ -92,6 +117,7 @@ const fmt = (price: number) =>
     style: "currency",
     currency: "NGN",
     minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
   }).format(price);
 
 const STEPS = ["Tickets", "Details", "Payment", "Done"];
@@ -106,6 +132,31 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
+
+  /* ── Turnstile (bot check before the ticket/payment request is sent) ── */
+  const turnstileRef = useRef<HTMLDivElement | null>(null);
+  const turnstileWidgetId = useRef<string | null>(null);
+  const [turnstileToken, setTurnstileToken] = useState("");
+  const [turnstileReady, setTurnstileReady] = useState(false);
+
+  useEffect(() => {
+    if (step !== 2 || !turnstileReady || !turnstileRef.current) return;
+    const turnstile = getTurnstile();
+    if (!turnstile) return;
+
+    if (turnstileWidgetId.current !== null) {
+      turnstile.remove(turnstileWidgetId.current);
+    }
+    setTurnstileToken("");
+    turnstileWidgetId.current = turnstile.render(turnstileRef.current, {
+      sitekey: TURNSTILE_SITE_KEY,
+      theme: "light",
+      callback: (token: string) => setTurnstileToken(token),
+      "expired-callback": () => setTurnstileToken(""),
+      "error-callback": () => setTurnstileToken(""),
+    });
+  }, [step, turnstileReady]);
 
   /* ── Tickets ── */
   const hasTiers = tiersProp && tiersProp.length > 0;
@@ -157,10 +208,12 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
       )
     : 0;
   const discountedSubtotal = subtotal - discount;
-  const fees = calculateTicketFees(discountedSubtotal);
+  const passFeeToAttendee = event.pass_fee_to_attendee !== false;
+  const fees = calculateTicketFees(discountedSubtotal, passFeeToAttendee);
   // Buyer-facing "service fee" = everything added on top of the subtotal
   // (Byro's 6.5% + the simulated Paystack cut), so the shown total equals what
-  // Paystack will actually charge and no fee jumps at checkout.
+  // Paystack will actually charge and no fee jumps at checkout. When the
+  // organizer absorbs the fee, this is just the simulated Paystack cut.
   const serviceFee = fees.displayTotal - fees.subtotal;
   const total = discountedSubtotal + serviceFee;
   const totalQty = Object.values(quantities).reduce((a: number, b: number) => a + b, 0);
@@ -274,6 +327,11 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
       return;
     }
 
+    if (!turnstileToken) {
+      toast.error("Please complete the verification check to continue.");
+      return;
+    }
+
     setIsProcessing(true);
     try {
       // Find the first tier with quantity > 0 to pass as tier_id
@@ -290,6 +348,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
           tier_id,
           attendees,
           promo_code: appliedPromo?.code,
+          turnstile_token: turnstileToken,
         });
         const ticket = result.tickets?.[0];
         const ticketData = {
@@ -322,6 +381,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
         tier_id,
         attendees,
         promo_code: appliedPromo?.code,
+        turnstile_token: turnstileToken,
       });
 
       if (result?.data?.authorization_url) {
@@ -341,6 +401,11 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
       console.error("Payment error:", err);
       const message = err instanceof Error ? err.message : "Payment failed. Please try again.";
       toast.error(message);
+      setTurnstileToken("");
+      const turnstile = getTurnstile();
+      if (turnstileWidgetId.current !== null && turnstile) {
+        turnstile.reset(turnstileWidgetId.current);
+      }
     } finally {
       setIsProcessing(false);
     }
@@ -361,18 +426,14 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
 
   return (
     <div className="fixed inset-0 z-50 bg-[#F1F4F9] overflow-y-auto">
+      <Script
+        src="https://challenges.cloudflare.com/turnstile/v0/api.js"
+        strategy="lazyOnload"
+        onLoad={() => setTurnstileReady(true)}
+      />
       {/* ── Checkout header ── */}
       <div className="sticky top-0 z-10 bg-white border-b border-gray-100 px-4 sm:px-6 py-3.5 flex items-center justify-between">
-        <Link href="/" onClick={onClose}>
-          <Image
-            src="/assets/images/logo.svg"
-            alt="byro"
-            width={70}
-            height={28}
-            className="h-7 w-auto"
-            priority
-          />
-        </Link>
+        <div className="w-[70px]" aria-hidden="true" />
         <div className="flex items-center gap-1.5 text-sm text-gray-400">
           <svg
             width="13"
@@ -388,7 +449,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
           Secure checkout
         </div>
         <button
-          onClick={onClose}
+          onClick={() => setShowExitConfirm(true)}
           className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 transition-colors"
         >
           <svg
@@ -405,6 +466,33 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
           Exit
         </button>
       </div>
+
+      {showExitConfirm && (
+        <div className="fixed inset-0 z-[60] bg-black/40 flex items-center justify-center px-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-8 text-center">
+            <h2 className="text-xl font-bold text-gray-900 mb-3">
+              Release tickets
+            </h2>
+            <p className="text-sm text-gray-500 mb-8 leading-relaxed">
+              Cancel this order and release your tickets?
+            </p>
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => setShowExitConfirm(false)}
+                className="flex-1 border border-gray-200 text-gray-700 font-semibold py-3 rounded-full hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={onClose}
+                className="flex-1 bg-blue-600 text-white font-semibold py-3 rounded-full hover:bg-blue-700 transition-colors"
+              >
+                Release ticket
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Step indicator ── */}
       <div className="bg-white border-b border-gray-100 px-6 py-4">
@@ -498,7 +586,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                     // becomes attendee slots, not extra tickets).
                     const isGroupTier = Number(tier.admits_count) > 1;
                     const currentQty = quantities[String(tier.id)] || 0;
-                    const atCap = isGroupTier && currentQty >= 1;
+                    const atCap = isGroupTier ? currentQty >= 1 : currentQty >= MAX_QTY_PER_TIER;
                     return (
                     <div
                       key={tier.id}
@@ -558,6 +646,8 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                                 const cur = p[String(tier.id)] || 0;
                                 // A group tier is a single ticket — never exceed qty 1.
                                 if (isGroupTier && cur >= 1) return p;
+                                // Otherwise cap purchases at MAX_QTY_PER_TIER per checkout.
+                                if (!isGroupTier && cur >= MAX_QTY_PER_TIER) return p;
                                 // Reset all other tiers to 0 — only one tier can be selected at a time
                                 const reset: Record<string, number> = {};
                                 tiers.forEach((t) => { reset[String(t.id)] = 0; });
@@ -815,6 +905,11 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                     </div>
                   )}
                 </div>
+
+                {/* Bot check — required before the ticket/payment request is sent */}
+                <div className="mt-5 flex justify-center">
+                  <div ref={turnstileRef} />
+                </div>
               </div>
             )}
 
@@ -1070,8 +1165,8 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                               <line x1="12" y1="16" x2="12" y2="12" />
                               <line x1="12" y1="8" x2="12.01" y2="8" />
                             </svg>
-                            <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block whitespace-nowrap bg-gray-800 text-white text-[10px] leading-tight px-2.5 py-1.5 rounded-lg pointer-events-none shadow-lg z-10">
-                              To serve you better
+                            <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-40 text-center bg-gray-800 text-white text-[10px] leading-tight px-2.5 py-1.5 rounded-lg pointer-events-none shadow-lg z-10">
+                              To serve you better. Non-refundable.
                               <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
                             </span>
                           </span>
@@ -1133,7 +1228,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                         setStep((s) => Math.min(s + 1, 4));
                       }
                     }}
-                    disabled={(step === 1 && totalQty === 0) || (step === 2 && !agreed) || (step === 2 && isProcessing) || (step === 3 && isProcessing)}
+                    disabled={(step === 1 && totalQty === 0) || (step === 2 && !agreed) || (step === 2 && !turnstileToken) || (step === 2 && isProcessing) || (step === 3 && isProcessing)}
                     className="mt-4 w-full bg-blue-600 text-white font-semibold py-3 rounded-full hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed text-sm"
                   >
                     {step === 1 && (

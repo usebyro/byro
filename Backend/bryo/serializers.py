@@ -229,7 +229,7 @@ class EventSerializer(serializers.ModelSerializer):
             'category', 'category_display',
             'day', 'time_from', 'time_to', 'location', 'description',
             'virtual_link', 'ticket_price', 'capacity', 'transferable',
-            'show_remaining_count',
+            'show_remaining_count', 'pass_fee_to_attendee',
             'event_image', 'event_image_url', 'visibility', 'timezone', 'hosted_by',
             'is_active', 'created_at', 'updated_at',
             'cohosts', 'role', 'tiers',

@@ -50,13 +50,19 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
-export function calculateTicketFees(subtotal: number): TicketFees {
+/**
+ * When `passFeeToAttendee` is false, the organizer absorbs Byro's service
+ * fee: `serviceFee` is still reported (so it can be shown as deducted from
+ * the organizer's payout), but it is NOT added to `total` / `displayTotal` -
+ * the attendee only pays the subtotal (plus Paystack's own fee).
+ */
+export function calculateTicketFees(subtotal: number, passFeeToAttendee: boolean = true): TicketFees {
   if (subtotal <= 0) {
     return { subtotal: 0, serviceFee: 0, total: 0, paystackFee: 0, displayTotal: 0 };
   }
 
   const serviceFee = Math.round(subtotal * FEE_RATE);
-  const total = subtotal + serviceFee;
+  const total = passFeeToAttendee ? subtotal + serviceFee : subtotal;
   const paystackFee = simulatePaystackFee(total);
   const displayTotal = total + paystackFee;
 

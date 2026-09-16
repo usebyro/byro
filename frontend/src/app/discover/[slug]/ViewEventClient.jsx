@@ -17,8 +17,11 @@ import { trackViewEvent, trackShareEvent, trackSaveEvent, trackBeginCheckout } f
 import { calculateTicketFees } from "@/lib/pricing";
 
 /* ── helpers ── */
+// Max tickets a buyer can select per tier in a single checkout.
+const MAX_QTY_PER_TIER = 5;
+
 const fmt = (price) =>
-  new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN", minimumFractionDigits: 0 }).format(price);
+  new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(price);
 
 const categoryGradients = {
   entertainment: "from-purple-800 via-purple-600 to-pink-500",
@@ -218,7 +221,8 @@ export default function ViewEventClient({ slug }) {
   // slots at checkout, not extra tickets).
   const isGroupTier = Number(activeTier?.admits_count) > 1;
   const effectiveQty = isGroupTier ? 1 : qty;
-  const tierFees = calculateTicketFees(activeTier.price * effectiveQty);
+  const passFeeToAttendee = event.pass_fee_to_attendee !== false;
+  const tierFees = calculateTicketFees(activeTier.price * effectiveQty, passFeeToAttendee);
   const tierSubtotal = tierFees.subtotal;
   // Buyer-facing "service fee" = everything added on top of the subtotal
   // (Byro's 6.5% + the simulated Paystack cut), so the breakdown reconciles
@@ -455,8 +459,8 @@ export default function ViewEventClient({ slug }) {
                       </button>
                       <span className="w-5 text-center font-bold text-gray-900 text-sm">{effectiveQty}</span>
                       <button
-                        onClick={() => { if (!isGroupTier) setQty(q => q + 1); }}
-                        disabled={isGroupTier}
+                        onClick={() => { if (!isGroupTier) setQty(q => Math.min(MAX_QTY_PER_TIER, q + 1)); }}
+                        disabled={isGroupTier || qty >= MAX_QTY_PER_TIER}
                         className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white hover:bg-blue-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
