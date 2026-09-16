@@ -1,12 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
+import Script from "next/script";
 import { useRouter } from "next/navigation";
 import API from "@/services/api";
 import { toast } from "sonner";
 import { trackPurchase, trackSelectTicket } from "@/lib/analytics";
 import { calculateTicketFees } from "@/lib/pricing";
+
+const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
 
 interface Event {
   id: number;
@@ -111,6 +114,30 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
   const [step, setStep] = useState(1);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showExitConfirm, setShowExitConfirm] = useState(false);
+
+  /* ── Turnstile (bot check before the ticket/payment request is sent) ── */
+  const turnstileRef = useRef<HTMLDivElement | null>(null);
+  const turnstileWidgetId = useRef<string | null>(null);
+  const [turnstileToken, setTurnstileToken] = useState("");
+  const [turnstileReady, setTurnstileReady] = useState(false);
+
+  useEffect(() => {
+    if (step !== 2 || !turnstileReady || !turnstileRef.current) return;
+    const turnstile = (window as unknown as { turnstile?: any }).turnstile;
+    if (!turnstile) return;
+
+    if (turnstileWidgetId.current !== null) {
+      turnstile.remove(turnstileWidgetId.current);
+    }
+    setTurnstileToken("");
+    turnstileWidgetId.current = turnstile.render(turnstileRef.current, {
+      sitekey: TURNSTILE_SITE_KEY,
+      theme: "light",
+      callback: (token: string) => setTurnstileToken(token),
+      "expired-callback": () => setTurnstileToken(""),
+      "error-callback": () => setTurnstileToken(""),
+    });
+  }, [step, turnstileReady]);
 
   /* ── Tickets ── */
   const hasTiers = tiersProp && tiersProp.length > 0;
@@ -281,6 +308,11 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
       return;
     }
 
+    if (!turnstileToken) {
+      toast.error("Please complete the verification check to continue.");
+      return;
+    }
+
     setIsProcessing(true);
     try {
       // Find the first tier with quantity > 0 to pass as tier_id
@@ -297,6 +329,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
           tier_id,
           attendees,
           promo_code: appliedPromo?.code,
+          turnstile_token: turnstileToken,
         });
         const ticket = result.tickets?.[0];
         const ticketData = {
@@ -329,6 +362,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
         tier_id,
         attendees,
         promo_code: appliedPromo?.code,
+        turnstile_token: turnstileToken,
       });
 
       if (result?.data?.authorization_url) {
@@ -348,6 +382,11 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
       console.error("Payment error:", err);
       const message = err instanceof Error ? err.message : "Payment failed. Please try again.";
       toast.error(message);
+      setTurnstileToken("");
+      const turnstile = (window as unknown as { turnstile?: any }).turnstile;
+      if (turnstileWidgetId.current !== null && turnstile) {
+        turnstile.reset(turnstileWidgetId.current);
+      }
     } finally {
       setIsProcessing(false);
     }
@@ -368,6 +407,11 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
 
   return (
     <div className="fixed inset-0 z-50 bg-[#F1F4F9] overflow-y-auto">
+      <Script
+        src="https://challenges.cloudflare.com/turnstile/v0/api.js"
+        strategy="lazyOnload"
+        onLoad={() => setTurnstileReady(true)}
+      />
       {/* ── Checkout header ── */}
       <div className="sticky top-0 z-10 bg-white border-b border-gray-100 px-4 sm:px-6 py-3.5 flex items-center justify-between">
         <div className="w-[70px]" aria-hidden="true" />
@@ -842,6 +886,11 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                     </div>
                   )}
                 </div>
+
+                {/* Bot check — required before the ticket/payment request is sent */}
+                <div className="mt-5 flex justify-center">
+                  <div ref={turnstileRef} />
+                </div>
               </div>
             )}
 
@@ -1160,7 +1209,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                         setStep((s) => Math.min(s + 1, 4));
                       }
                     }}
-                    disabled={(step === 1 && totalQty === 0) || (step === 2 && !agreed) || (step === 2 && isProcessing) || (step === 3 && isProcessing)}
+                    disabled={(step === 1 && totalQty === 0) || (step === 2 && !agreed) || (step === 2 && !turnstileToken) || (step === 2 && isProcessing) || (step === 3 && isProcessing)}
                     className="mt-4 w-full bg-blue-600 text-white font-semibold py-3 rounded-full hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed text-sm"
                   >
                     {step === 1 && (
