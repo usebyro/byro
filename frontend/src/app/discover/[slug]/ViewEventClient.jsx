@@ -13,6 +13,7 @@ import { Providers } from "@/redux/Providers";
 import CheckoutModal from "@/components/checkout/CheckoutModal";
 import ShareMenu from "@/components/ShareMenu";
 import EventPublishedModal from "@/components/events/EventPublishedModal";
+import EventCard from "@/components/landing/EventCard";
 import { trackViewEvent, trackShareEvent, trackSaveEvent, trackBeginCheckout } from "@/lib/analytics";
 import { calculateTicketFees } from "@/lib/pricing";
 
@@ -55,6 +56,7 @@ export default function ViewEventClient({ slug }) {
   const [showCheckout, setShowCheckout] = useState(false);
   const [saved, setSaved] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
+  const [relatedEvents, setRelatedEvents] = useState([]);
 
   /* Ticket tier selection */
   const [selectedTier, setSelectedTier] = useState("general");
@@ -140,6 +142,19 @@ export default function ViewEventClient({ slug }) {
     doFetch();
   }, [slug, router]);
 
+  /* "Other events you may like" — same category, excluding this one */
+  useEffect(() => {
+    if (!event?.category || !event?.slug) return;
+    let cancelled = false;
+    API.getEvents({ category: event.category })
+      .then((data) => {
+        if (cancelled) return;
+        const raw = Array.isArray(data) ? data : data.events || data.data || [];
+        setRelatedEvents(raw.filter((e) => e.slug !== event.slug).slice(0, 3));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [event?.category, event?.slug]);
 
   /* Transfer */
   const [showTransfer, setShowTransfer] = useState(false);
@@ -543,6 +558,19 @@ export default function ViewEventClient({ slug }) {
             </div>
           </div>
         </div>
+
+        {relatedEvents.length > 0 && (
+          <div className="w-[90%] max-w-6xl mx-auto py-12">
+            <h2 className="text-xl font-bold text-gray-900 mb-6">
+              Other Events You May Like
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              {relatedEvents.map((e) => (
+                <EventCard key={e.id} event={e} />
+              ))}
+            </div>
+          </div>
+        )}
 
         <Footer />
 
