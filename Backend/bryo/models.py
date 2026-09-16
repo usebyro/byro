@@ -293,6 +293,10 @@ class Event(models.Model):
         default=False,
         help_text="If enabled, expose remaining ticket counts to attendees"
     )
+    pass_fee_to_attendee = models.BooleanField(
+        default=True,
+        help_text="If enabled, Byro's service fee is added to the attendee's ticket price. If disabled, the fee is deducted from the organizer's payout instead."
+    )
     event_image = models.ImageField(
         upload_to='event_images/', 
         null=True, 

@@ -30,7 +30,7 @@ from .models import (
     EventCoHost, Payment, UserProfile, EventFormQuestion, EventFormAnswer,
     TicketTier, PayoutRequest, PromoCode,
 )
-from .pricing import calculate_ticket_fees
+from .pricing import calculate_ticket_fees, FEE_RATE
 from django.urls import reverse
 from .serializers import EventSerializer, TicketSerializer, PaymentSerializer, TicketTierSerializer, PromoCodeSerializer
 from .permissions import IsEventOwnerOrCoHost, IsEventOwner, IsAdminSecret
@@ -475,7 +475,7 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
             discount_amount = promo.compute_discount(subtotal)
 
         discounted_subtotal = subtotal - discount_amount
-        fees = calculate_ticket_fees(discounted_subtotal)
+        fees = calculate_ticket_fees(discounted_subtotal, pass_fee_to_attendee=event.pass_fee_to_attendee)
         amount = fees['total']
 
         # For free events/tiers, create ticket(s) directly
@@ -1284,7 +1284,10 @@ class EventViewSet(viewsets.ModelViewSet):
         
         if 'transferable' not in request.data:
             serializer.validated_data['transferable'] = True
-        
+
+        if 'pass_fee_to_attendee' not in request.data:
+            serializer.validated_data['pass_fee_to_attendee'] = True
+
         self.perform_create(serializer)
 
         if apps.posthog_client is not None:
@@ -2098,6 +2101,10 @@ def compute_available_balance(user, event=None):
     since the payment total also includes the service fee that never
     belongs to the organizer.
 
+    For events where the organizer has chosen to absorb Byro's service fee
+    (`pass_fee_to_attendee=False`), that fee is deducted from the ticket
+    price here instead of being added to what the attendee paid.
+
     When `event` is given, the balance is scoped to that single event.
     """
     if event is not None:
@@ -2112,9 +2119,20 @@ def compute_available_balance(user, event=None):
     ticket_price = Coalesce(
         F('tier__price'), F('event__ticket_price'), Decimal('0')
     )
+    net_price = models.Case(
+        models.When(
+            event__pass_fee_to_attendee=False,
+            then=models.ExpressionWrapper(
+                ticket_price * (Decimal('1') - FEE_RATE),
+                output_field=models.DecimalField(max_digits=10, decimal_places=2),
+            ),
+        ),
+        default=ticket_price,
+        output_field=models.DecimalField(max_digits=10, decimal_places=2),
+    )
     earned = (
         Ticket.objects.filter(event_id__in=event_ids, payment_status='paid')
-        .aggregate(total=Coalesce(Sum(ticket_price), Decimal('0')))['total']
+        .aggregate(total=Coalesce(Sum(net_price), Decimal('0')))['total']
     )
 
     payouts = PayoutRequest.objects.filter(
