@@ -36,6 +36,9 @@ interface TicketTier {
   admits_count?: number | null;
 }
 
+// Max tickets a buyer can select per tier in a single checkout.
+const MAX_QTY_PER_TIER = 5;
+
 const categoryGradients: Record<string, string> = {
   entertainment: "from-purple-700 via-purple-500 to-pink-500",
   web3_crypto: "from-amber-600 via-amber-500 to-orange-400",
@@ -93,6 +96,7 @@ const fmt = (price: number) =>
     style: "currency",
     currency: "NGN",
     minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
   }).format(price);
 
 const STEPS = ["Tickets", "Details", "Payment", "Done"];
@@ -501,7 +505,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                     // becomes attendee slots, not extra tickets).
                     const isGroupTier = Number(tier.admits_count) > 1;
                     const currentQty = quantities[String(tier.id)] || 0;
-                    const atCap = isGroupTier && currentQty >= 1;
+                    const atCap = isGroupTier ? currentQty >= 1 : currentQty >= MAX_QTY_PER_TIER;
                     return (
                     <div
                       key={tier.id}
@@ -561,6 +565,8 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                                 const cur = p[String(tier.id)] || 0;
                                 // A group tier is a single ticket — never exceed qty 1.
                                 if (isGroupTier && cur >= 1) return p;
+                                // Otherwise cap purchases at MAX_QTY_PER_TIER per checkout.
+                                if (!isGroupTier && cur >= MAX_QTY_PER_TIER) return p;
                                 // Reset all other tiers to 0 — only one tier can be selected at a time
                                 const reset: Record<string, number> = {};
                                 tiers.forEach((t) => { reset[String(t.id)] = 0; });
