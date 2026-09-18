@@ -59,6 +59,11 @@ const nextConfig: NextConfig = {
         destination: '/home',
         permanent: true,
       },
+      {
+        source: '/ticket-confirmation',
+        destination: '/order-confirmed',
+        permanent: true,
+      },
     ];
   },
 };
