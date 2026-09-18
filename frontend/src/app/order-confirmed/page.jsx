@@ -81,18 +81,18 @@ function TicketConfirmationContent() {
     <div className="min-h-screen bg-[#F8F9FA] flex items-center justify-center px-4 py-10 sm:py-16">
       <div className="w-full max-w-md">
         <div className="rounded-3xl overflow-hidden shadow-xl border border-gray-100 bg-white">
-          {/* Gradient header with success badge */}
-          <div className="relative bg-gradient-to-br from-[#0f0a2e] via-[#4c1d95] to-[#a855f7] px-6 pt-9 pb-8 text-center">
-            <div className="w-16 h-16 rounded-full bg-white/15 backdrop-blur-sm flex items-center justify-center mx-auto mb-4 ring-4 ring-white/10">
-              <div className="w-11 h-11 rounded-full bg-emerald-400 flex items-center justify-center">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3">
+          {/* Header with success badge */}
+          <div className="px-6 pt-9 pb-8 text-center border-b border-gray-100">
+            <div className="w-14 h-14 rounded-full bg-emerald-50 flex items-center justify-center mx-auto mb-4">
+              <div className="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3">
                   <polyline points="20 6 9 17 4 12" />
                 </svg>
               </div>
             </div>
-            <h1 className="text-white text-xl sm:text-2xl font-bold">You&apos;re going!</h1>
-            <p className="text-white/70 text-sm mt-1.5">
-              Your spot for <span className="text-white font-semibold">{ticketData.eventName}</span> is confirmed.
+            <h1 className="text-gray-900 text-xl sm:text-2xl font-bold">You&apos;re going!</h1>
+            <p className="text-gray-500 text-sm mt-1.5">
+              Your spot for <span className="text-gray-900 font-semibold">{ticketData.eventName}</span> is confirmed.
             </p>
           </div>
 
