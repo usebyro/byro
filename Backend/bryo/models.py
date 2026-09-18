@@ -133,6 +133,10 @@ class UserProfile(models.Model):
     # Flag used by frontend to redirect new users to profile setup
     is_complete = models.BooleanField(default=False)
 
+    # Whether this organiser's community/profile is publicly listed
+    # (shown on /u/<handle> and any public directory). Asked at onboarding.
+    is_public = models.BooleanField(default=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

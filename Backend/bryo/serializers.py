@@ -50,7 +50,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
             'cover_image', 'cover_image_url',
             'location', 'website',
             'twitter', 'instagram', 'linkedin', 'telegram',
-            'is_complete',
+            'is_complete', 'is_public',
             'created_at', 'updated_at',
         ]
         read_only_fields = ['email', 'auth_provider', 'avatar_url', 'cover_image_url', 'created_at', 'updated_at']

@@ -57,6 +57,7 @@ function ProfilePageContent() {
     instagram:    "",
     linkedin:     "",
     telegram:     "",
+    is_public:    true,
   });
 
   // ── Load profile ──
@@ -80,6 +81,7 @@ function ProfilePageContent() {
           instagram:    data.instagram    || "",
           linkedin:     data.linkedin     || "",
           telegram:     data.telegram     || "",
+          is_public:    data.is_public !== false,
         });
       })
       .catch(() => {
@@ -161,6 +163,7 @@ function ProfilePageContent() {
         instagram:    updated.instagram    || "",
         linkedin:     updated.linkedin     || "",
         telegram:     updated.telegram     || "",
+        is_public:    updated.is_public !== false,
       });
 
       // 3. Sync Redux
@@ -300,6 +303,33 @@ function ProfilePageContent() {
               <SocialField prefix="linkedin.com/in/" label="LinkedIn"   value={form.linkedin}  onChange={(v) => field("linkedin",  v)} placeholder="username" />
               <SocialField prefix="t.me/"            label="Telegram"   value={form.telegram}  onChange={(v) => field("telegram",  v)} placeholder="handle" />
             </div>
+          </div>
+
+          {/* Visibility */}
+          <div className="md:col-span-2 pt-4 border-t border-gray-50">
+            <label className="flex items-start justify-between gap-4 cursor-pointer">
+              <span>
+                <span className="block text-sm font-semibold text-gray-900">List Community publicly</span>
+                <span className="block text-xs text-gray-500 mt-0.5">
+                  Anyone can find your profile and events at usebyro.com/u/{form.handle || "your-handle"}.
+                </span>
+              </span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={form.is_public}
+                onClick={() => field("is_public", !form.is_public)}
+                className={`shrink-0 w-11 h-6 rounded-full transition-colors relative ${
+                  form.is_public ? "bg-blue-600" : "bg-gray-200"
+                }`}
+              >
+                <span
+                  className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform ${
+                    form.is_public ? "translate-x-5" : "translate-x-0"
+                  }`}
+                />
+              </button>
+            </label>
           </div>
 
           {/* Preferences */}

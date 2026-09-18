@@ -49,6 +49,10 @@ const ORGANIZER_STEPS = [
       { key: "social", label: "Social media", type: "social" },
     ],
   },
+  {
+    title: "Visibility",
+    fields: [{ key: "isPublic", type: "toggle" }],
+  },
 ];
 
 const SLIDES = [
@@ -72,8 +76,11 @@ export default function OnboardingScreen() {
     instagram: "",
     linkedin: "",
     telegram: "",
+    isPublic: true,
   });
+  const [avatarFile, setAvatarFile] = useState(null);
   const [avatarPreview, setAvatarPreview] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     document.title = "Welcome | Byro";
@@ -91,7 +98,28 @@ export default function OnboardingScreen() {
   const handleAvatarChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setAvatarFile(file);
     setAvatarPreview(URL.createObjectURL(file));
+  };
+
+  const saveOrganizerProfile = async () => {
+    setIsSaving(true);
+    try {
+      if (avatarFile) {
+        await API.uploadAvatar(avatarFile);
+      }
+      const { isPublic, displayName, ...rest } = hostForm;
+      await API.updateProfile({
+        ...rest,
+        display_name: displayName,
+        is_public: isPublic,
+        is_complete: true,
+      });
+    } catch (err) {
+      console.error("Could not save onboarding profile:", err);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleSelectRole = (id) => {
@@ -115,9 +143,10 @@ export default function OnboardingScreen() {
     return !hostForm[field.key]?.trim();
   });
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (isNextDisabled) return;
     if (isLastWizardStep) {
+      await saveOrganizerProfile();
       router.push("/dashboard");
     } else {
       setWizardStep((s) => s + 1);
@@ -132,8 +161,9 @@ export default function OnboardingScreen() {
     }
   };
 
-  const handleSkip = () => {
+  const handleSkip = async () => {
     if (isNextDisabled) return;
+    await saveOrganizerProfile();
     router.push("/dashboard");
   };
 
@@ -231,6 +261,30 @@ export default function OnboardingScreen() {
                           </label>
                         </div>
                       </div>
+                    ) : field.type === "toggle" ? (
+                      <label key={field.key} className="flex items-start justify-between gap-4 border border-gray-200 rounded-2xl p-4 cursor-pointer">
+                        <span>
+                          <span className="block text-sm font-semibold text-gray-900">List Community publicly</span>
+                          <span className="block text-xs text-gray-500 mt-0.5">
+                            Anyone can find your profile and events at usebyro.com/u/{hostForm.handle || "your-handle"}.
+                          </span>
+                        </span>
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={hostForm.isPublic}
+                          onClick={() => hostField("isPublic", !hostForm.isPublic)}
+                          className={`shrink-0 w-11 h-6 rounded-full transition-colors relative ${
+                            hostForm.isPublic ? "bg-blue-600" : "bg-gray-200"
+                          }`}
+                        >
+                          <span
+                            className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform ${
+                              hostForm.isPublic ? "translate-x-5" : "translate-x-0"
+                            }`}
+                          />
+                        </button>
+                      </label>
                     ) : field.type === "social" ? (
                       <div key="social">
                         <p className="text-xs font-semibold text-gray-700 mb-2">Social media</p>
@@ -267,7 +321,7 @@ export default function OnboardingScreen() {
                     <button
                       type="button"
                       onClick={handleSkip}
-                      disabled={isNextDisabled}
+                      disabled={isNextDisabled || isSaving}
                       title={isNextDisabled ? "Fill in the required field before skipping" : undefined}
                       className="text-sm font-medium text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-gray-400"
                     >
@@ -276,10 +330,10 @@ export default function OnboardingScreen() {
                     <button
                       type="button"
                       onClick={handleNext}
-                      disabled={isNextDisabled}
+                      disabled={isNextDisabled || isSaving}
                       className="bg-blue-600 text-white font-semibold py-2.5 px-6 rounded-full hover:bg-blue-700 transition-colors text-sm disabled:opacity-40 disabled:cursor-not-allowed"
                     >
-                      {isLastWizardStep ? "Finish" : "Next"}
+                      {isSaving ? "Saving…" : isLastWizardStep ? "Finish" : "Next"}
                     </button>
                   </div>
                 </div>

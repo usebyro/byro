@@ -917,6 +917,8 @@ class ProfileViewSet(viewsets.GenericViewSet):
             profile = UserProfile.objects.select_related('user').get(handle=handle)
         except UserProfile.DoesNotExist:
             return Response({'error': 'Profile not found'}, status=status.HTTP_404_NOT_FOUND)
+        if not profile.is_public and (not request.user.is_authenticated or request.user != profile.user):
+            return Response({'error': 'Profile not found'}, status=status.HTTP_404_NOT_FOUND)
         serializer = self.get_serializer(profile, context={'request': request})
         # Public view: strip private fields
         data = serializer.data
