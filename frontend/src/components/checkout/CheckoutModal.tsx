@@ -905,11 +905,6 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                     </div>
                   )}
                 </div>
-
-                {/* Bot check — required before the ticket/payment request is sent */}
-                <div className="mt-5 flex justify-center">
-                  <div ref={turnstileRef} />
-                </div>
               </div>
             )}
 
@@ -1396,6 +1391,13 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                         .
                       </span>
                     </label>
+                  )}
+
+                  {/* Bot check — below the Terms, required before the ticket/payment request is sent */}
+                  {step === 2 && (
+                    <div className="mt-3 flex justify-center">
+                      <div ref={turnstileRef} />
+                    </div>
                   )}
                 </div>
               </div>
