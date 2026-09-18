@@ -82,7 +82,7 @@ function TicketConfirmationContent() {
       <div className="w-full max-w-md">
         <div className="rounded-3xl overflow-hidden shadow-xl border border-gray-100 bg-white">
           {/* Gradient header with success badge */}
-          <div className="relative bg-gradient-to-br from-[#0f0a2e] via-[#4c1d95] to-[#a855f7] px-6 pt-9 pb-14 text-center">
+          <div className="relative bg-gradient-to-br from-[#0f0a2e] via-[#4c1d95] to-[#a855f7] px-6 pt-9 pb-8 text-center">
             <div className="w-16 h-16 rounded-full bg-white/15 backdrop-blur-sm flex items-center justify-center mx-auto mb-4 ring-4 ring-white/10">
               <div className="w-11 h-11 rounded-full bg-emerald-400 flex items-center justify-center">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3">
@@ -96,9 +96,9 @@ function TicketConfirmationContent() {
             </p>
           </div>
 
-          {/* Event summary card, overlapping the header */}
+          {/* Event summary card */}
           <div className="px-6">
-            <div className="-mt-8 bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+            <div className="mt-5 bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
               <div className="grid grid-cols-2 gap-y-4">
                 <div>
                   <p className="text-[10px] font-bold tracking-widest text-gray-400 uppercase mb-1">Date</p>
