@@ -8,6 +8,7 @@ interface AdminUser {
   display_name: string;
   handle: string | null;
   role: "attendee" | "organizer" | "";
+  auth_provider?: string;
   events_created: number;
   date_joined: string;
   is_active: boolean;
@@ -58,6 +59,17 @@ function RoleBadge({ role }: { role: AdminUser["role"] }) {
   return (
     <span className="inline-flex items-center text-xs px-2 py-0.5 rounded-full font-medium bg-gray-500/10 text-gray-400">
       Unspecified
+    </span>
+  );
+}
+
+function GuestBadge() {
+  return (
+    <span
+      title="Created from a guest checkout — no login account, linked automatically if they later sign in with the same email"
+      className="inline-flex items-center text-xs px-2 py-0.5 rounded-full font-medium bg-amber-500/10 text-amber-400 ml-1.5"
+    >
+      Guest
     </span>
   );
 }
@@ -279,6 +291,7 @@ export default function AdminUsersPage() {
                     </td>
                     <td className="py-3 pr-6">
                       <RoleBadge role={u.role} />
+                      {u.auth_provider === "guest" && <GuestBadge />}
                     </td>
                     <td className="py-3 pr-6 text-gray-300 tabular-nums">{u.events_created}</td>
                     <td className="py-3 pr-6 text-gray-400 whitespace-nowrap">{formatDate(u.date_joined)}</td>

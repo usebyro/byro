@@ -294,6 +294,38 @@ def _normalize_attendees(attendees_raw, seats, buyer_name, buyer_email):
     return result
 
 
+def _get_or_create_guest_user(email, name):
+    """Find or create a lightweight account for a guest (non-authenticated)
+    ticket purchaser, keyed by email, so their purchase surfaces in the
+    admin dashboard's user list/stats like any other account.
+
+    No usable password is set, so this alone never grants login access. If
+    the same email later signs in through WorkOS, upsert_user() links that
+    login to this same row (by email) and flips auth_provider to 'workos' —
+    the guest account transparently becomes their real account.
+    """
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+    email = (email or '').strip().lower()
+    if not email:
+        return None
+
+    user = User.objects.filter(email__iexact=email).first()
+    if user is not None:
+        return user
+
+    user = User.objects.create_user(
+        email=email,
+        auth_provider='guest',
+    )
+    # create_user's post_save signal already made a blank UserProfile —
+    # just fill in the name we have from checkout.
+    name = (name or '').strip()[:100]
+    if name:
+        UserProfile.objects.filter(user=user).update(display_name=name)
+    return user
+
+
 def _create_tickets(event, tier, attendees, *, payment_status, payment=None, user=None):
     """Create one Ticket row per attendee (each its own QR)."""
     tickets = []
@@ -490,7 +522,10 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
         amount = fees['total']
 
         # For free events/tiers, create ticket(s) directly
-        linked_user = request.user if request.user.is_authenticated else None
+        linked_user = (
+            request.user if request.user.is_authenticated
+            else _get_or_create_guest_user(customer_email, customer_name)
+        )
         if amount == 0:
             with transaction.atomic():
                 # Re-check capacity under lock right before creating tickets,
@@ -2422,6 +2457,7 @@ class AdminUsersListView(APIView):
                 'display_name': p.display_name,
                 'handle': p.handle,
                 'role': p.role,
+                'auth_provider': p.user.auth_provider,
                 'events_created': p.events_created,
                 'date_joined': p.user.date_joined,
             }

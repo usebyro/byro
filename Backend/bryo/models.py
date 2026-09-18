@@ -54,6 +54,7 @@ class CustomUser(AbstractUser):
         ("workos", "WorkOS"),
         ("privy", "Privy"),
         ("web3auth", "Web3Auth"),
+        ("guest", "Guest (ticket checkout, no login)"),
     ]
     auth_provider = models.CharField(
         max_length=50,
