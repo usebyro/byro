@@ -116,8 +116,6 @@ def ticket_confirmation_email(name, event_name, date, time, location, ticket_id,
     <table cellpadding="0" cellspacing="0" style="width:100%;">
       <tr>
         <td>
-          <p style="color:{MUTED};font-size:11px;font-weight:700;margin:0 0 6px;">Scan at entry</p>
-          <p style="color:{INK};font-size:15px;font-weight:700;font-family:'Courier New',Courier,monospace;margin:0 0 4px;letter-spacing:0.04em;">{ticket_id}</p>
           <p style="color:{MUTED};font-size:12px;margin:0;">Your ticket is attached to this email. Present it at the gate for entry</p>
         </td>
       </tr>
@@ -209,8 +207,6 @@ def ticket_confirmation_email(name, event_name, date, time, location, ticket_id,
         plain_text += f"Doors: {time}\n"
     if location:
         plain_text += f"Venue: {location}\n"
-    if ticket_id:
-        plain_text += f"Ticket ID: {ticket_id}\n"
     if form_rows_text:
         plain_text += f"\nRegistration Details:\n{form_rows_text}"
     plain_text += (
