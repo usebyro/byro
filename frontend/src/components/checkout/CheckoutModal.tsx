@@ -369,7 +369,8 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
           quantity: totalQty,
           isFree: true,
         });
-        setStep(4);
+        onClose();
+        router.push("/ticket-confirmation");
         return;
       }
 
