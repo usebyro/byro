@@ -39,6 +39,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(source='user.email', read_only=True)
     auth_provider = serializers.CharField(source='user.auth_provider', read_only=True)
     avatar_url = serializers.SerializerMethodField()
+    cover_image_url = serializers.SerializerMethodField()
 
     class Meta:
         model = UserProfile
@@ -46,19 +47,30 @@ class UserProfileSerializer(serializers.ModelSerializer):
             'email', 'auth_provider', 'role',
             'display_name', 'handle', 'bio',
             'avatar', 'avatar_url',
+            'cover_image', 'cover_image_url',
             'location', 'website',
             'twitter', 'instagram', 'linkedin', 'telegram',
-            'is_complete',
+            'is_complete', 'is_public',
             'created_at', 'updated_at',
         ]
-        read_only_fields = ['email', 'auth_provider', 'avatar_url', 'created_at', 'updated_at']
-        extra_kwargs = {'avatar': {'write_only': True, 'required': False}}
+        read_only_fields = ['email', 'auth_provider', 'avatar_url', 'cover_image_url', 'created_at', 'updated_at']
+        extra_kwargs = {
+            'avatar': {'write_only': True, 'required': False},
+            'cover_image': {'write_only': True, 'required': False},
+        }
 
     def get_avatar_url(self, obj):
         if obj.avatar:
             request = self.context.get('request')
             if request:
                 return request.build_absolute_uri(obj.avatar.url)
+        return None
+
+    def get_cover_image_url(self, obj):
+        if obj.cover_image:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.cover_image.url)
         return None
 
     def validate_handle(self, value):

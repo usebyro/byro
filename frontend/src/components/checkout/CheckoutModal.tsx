@@ -211,7 +211,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
   const passFeeToAttendee = event.pass_fee_to_attendee !== false;
   const fees = calculateTicketFees(discountedSubtotal, passFeeToAttendee);
   // Buyer-facing "service fee" = everything added on top of the subtotal
-  // (Byro's 6.5% + the simulated Paystack cut), so the shown total equals what
+  // (Byro's 5% + the simulated Paystack cut), so the shown total equals what
   // Paystack will actually charge and no fee jumps at checkout. When the
   // organizer absorbs the fee, this is just the simulated Paystack cut.
   const serviceFee = fees.displayTotal - fees.subtotal;
@@ -369,7 +369,8 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
           quantity: totalQty,
           isFree: true,
         });
-        setStep(4);
+        onClose();
+        router.push("/ticket-confirmation");
         return;
       }
 
@@ -905,11 +906,6 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                     </div>
                   )}
                 </div>
-
-                {/* Bot check — required before the ticket/payment request is sent */}
-                <div className="mt-5 flex justify-center">
-                  <div ref={turnstileRef} />
-                </div>
               </div>
             )}
 
@@ -1396,6 +1392,13 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                         .
                       </span>
                     </label>
+                  )}
+
+                  {/* Bot check — below the Terms, required before the ticket/payment request is sent */}
+                  {step === 2 && (
+                    <div className="mt-3 flex justify-center">
+                      <div ref={turnstileRef} />
+                    </div>
                   )}
                 </div>
               </div>

@@ -59,6 +59,7 @@ export default function PublicProfileClient({ username }) {
   const [isFollowing, setIsFollowing] = useState(false);
   const [activeTab, setActiveTab] = useState("upcoming");
   const [avatarError, setAvatarError] = useState(false);
+  const [coverImageError, setCoverImageError] = useState(false);
 
   useEffect(() => {
     if (!username) return;
@@ -167,9 +168,23 @@ export default function PublicProfileClient({ username }) {
 
       {/* ── Banner Section ── */}
       <div className="relative w-full h-[220px] md:h-[280px] bg-gradient-to-r from-[#310E3D] via-[#651A67] to-[#DF3C82] overflow-hidden">
-        {/* Decorative elements for background depth */}
-        <div className="absolute top-[-50px] right-[-50px] w-[300px] h-[300px] bg-white/5 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute bottom-[-100px] left-[10%] w-[400px] h-[400px] bg-purple-500/10 rounded-full blur-3xl pointer-events-none" />
+        {profile.cover_image_url && !coverImageError ? (
+          <Image
+            src={profile.cover_image_url}
+            alt={`${profile.display_name}'s cover image`}
+            fill
+            sizes="100vw"
+            className="object-cover"
+            priority
+            onError={() => setCoverImageError(true)}
+          />
+        ) : (
+          <>
+            {/* Decorative elements for background depth */}
+            <div className="absolute top-[-50px] right-[-50px] w-[300px] h-[300px] bg-white/5 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute bottom-[-100px] left-[10%] w-[400px] h-[400px] bg-purple-500/10 rounded-full blur-3xl pointer-events-none" />
+          </>
+        )}
       </div>
 
       {/* ── Profile Header Container ── */}

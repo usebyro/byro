@@ -148,6 +148,7 @@ def send_ticket_confirmation_email(ticket, customer_name, customer_email, event)
         attendee_name=customer_name,
         ticket_id=str(ticket.ticket_id),
         qr_data=str(ticket.qr_token),
+        tier_name=ticket.tier.name if ticket.tier else None,
     )
     start = datetime.combine(event.day, event.time_from)
     end = (
@@ -291,6 +292,38 @@ def _normalize_attendees(attendees_raw, seats, buyer_name, buyer_email):
             'email': email or buyer_email,
         })
     return result
+
+
+def _get_or_create_guest_user(email, name):
+    """Find or create a lightweight account for a guest (non-authenticated)
+    ticket purchaser, keyed by email, so their purchase surfaces in the
+    admin dashboard's user list/stats like any other account.
+
+    No usable password is set, so this alone never grants login access. If
+    the same email later signs in through WorkOS, upsert_user() links that
+    login to this same row (by email) and flips auth_provider to 'workos' —
+    the guest account transparently becomes their real account.
+    """
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+    email = (email or '').strip().lower()
+    if not email:
+        return None
+
+    user = User.objects.filter(email__iexact=email).first()
+    if user is not None:
+        return user
+
+    user = User.objects.create_user(
+        email=email,
+        auth_provider='guest',
+    )
+    # create_user's post_save signal already made a blank UserProfile —
+    # just fill in the name we have from checkout.
+    name = (name or '').strip()[:100]
+    if name:
+        UserProfile.objects.filter(user=user).update(display_name=name)
+    return user
 
 
 def _create_tickets(event, tier, attendees, *, payment_status, payment=None, user=None):
@@ -489,7 +522,10 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
         amount = fees['total']
 
         # For free events/tiers, create ticket(s) directly
-        linked_user = request.user if request.user.is_authenticated else None
+        linked_user = (
+            request.user if request.user.is_authenticated
+            else _get_or_create_guest_user(customer_email, customer_name)
+        )
         if amount == 0:
             with transaction.atomic():
                 # Re-check capacity under lock right before creating tickets,
@@ -899,11 +935,24 @@ class ProfileViewSet(viewsets.GenericViewSet):
         serializer = self.get_serializer(profile, context={'request': request})
         return Response({'avatar_url': serializer.data['avatar_url']})
 
+    @action(detail=False, methods=['POST'], url_path='me/cover-image',
+            parser_classes=[MultiPartParser, FormParser])
+    def upload_cover_image(self, request):
+        profile = self._get_or_create_profile(request.user)
+        if 'cover_image' not in request.FILES:
+            return Response({'error': 'No cover image file provided'}, status=status.HTTP_400_BAD_REQUEST)
+        profile.cover_image = request.FILES['cover_image']
+        profile.save(update_fields=['cover_image'])
+        serializer = self.get_serializer(profile, context={'request': request})
+        return Response({'cover_image_url': serializer.data['cover_image_url']})
+
     @action(detail=False, methods=['GET'], url_path=r'(?P<handle>[^/.]+)')
     def public(self, request, handle=None):
         try:
             profile = UserProfile.objects.select_related('user').get(handle=handle)
         except UserProfile.DoesNotExist:
+            return Response({'error': 'Profile not found'}, status=status.HTTP_404_NOT_FOUND)
+        if not profile.is_public and (not request.user.is_authenticated or request.user != profile.user):
             return Response({'error': 'Profile not found'}, status=status.HTTP_404_NOT_FOUND)
         serializer = self.get_serializer(profile, context={'request': request})
         # Public view: strip private fields
@@ -2408,6 +2457,7 @@ class AdminUsersListView(APIView):
                 'display_name': p.display_name,
                 'handle': p.handle,
                 'role': p.role,
+                'auth_provider': p.user.auth_provider,
                 'events_created': p.events_created,
                 'date_joined': p.user.date_joined,
             }

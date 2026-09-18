@@ -39,6 +39,8 @@ function ProfilePageContent() {
   const [isSaving,    setIsSaving]    = useState(false);
   const [avatarFile,  setAvatarFile]  = useState(null);
   const [avatarPreview, setAvatarPreview] = useState("");
+  const [coverImageFile, setCoverImageFile] = useState(null);
+  const [coverImagePreview, setCoverImagePreview] = useState("");
   const [preferences, setPreferences] = useState([]);
 
   useEffect(() => {
@@ -55,6 +57,7 @@ function ProfilePageContent() {
     instagram:    "",
     linkedin:     "",
     telegram:     "",
+    is_public:    true,
   });
 
   // ── Load profile ──
@@ -67,6 +70,7 @@ function ProfilePageContent() {
       .then((data) => {
         setProfile(data);
         setAvatarPreview(data.avatar_url || "");
+        setCoverImagePreview(data.cover_image_url || "");
         setForm({
           display_name: data.display_name || "",
           handle:       data.handle       || "",
@@ -77,6 +81,7 @@ function ProfilePageContent() {
           instagram:    data.instagram    || "",
           linkedin:     data.linkedin     || "",
           telegram:     data.telegram     || "",
+          is_public:    data.is_public !== false,
         });
       })
       .catch(() => {
@@ -117,6 +122,13 @@ function ProfilePageContent() {
     setAvatarPreview(URL.createObjectURL(file));
   };
 
+  const handleCoverImageChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setCoverImageFile(file);
+    setCoverImagePreview(URL.createObjectURL(file));
+  };
+
   const handleSave = async () => {
     if (!form.display_name.trim()) {
       toast.error("Display name is required.");
@@ -129,6 +141,13 @@ function ProfilePageContent() {
         const res = await API.uploadAvatar(avatarFile);
         setAvatarPreview(res.avatar_url);
         setAvatarFile(null);
+      }
+
+      // 1b. Upload cover image if changed
+      if (coverImageFile) {
+        const res = await API.uploadCoverImage(coverImageFile);
+        setCoverImagePreview(res.cover_image_url);
+        setCoverImageFile(null);
       }
 
       // 2. Save profile fields
@@ -144,6 +163,7 @@ function ProfilePageContent() {
         instagram:    updated.instagram    || "",
         linkedin:     updated.linkedin     || "",
         telegram:     updated.telegram     || "",
+        is_public:    updated.is_public !== false,
       });
 
       // 3. Sync Redux
@@ -172,6 +192,7 @@ function ProfilePageContent() {
   const displayName = profile?.display_name || user?.displayName || user?.name || "You";
   const initials    = displayName.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) || "?";
   const avatarUrl   = profile?.avatar_url || user?.avatar_url || null;
+  const coverImageUrl = profile?.cover_image_url || null;
 
   return (
     <div className="p-4 sm:p-6 max-w-3xl mx-auto space-y-5">
@@ -204,6 +225,21 @@ function ProfilePageContent() {
             <HugeiconsIcon icon={Tick02Icon} size={13} />
             {isSaving ? "Saving…" : "Save changes"}
           </button>
+        </div>
+
+        {/* Cover image upload */}
+        <div className="pb-6 mb-6 border-b border-gray-50">
+          <div className="relative w-full h-36 rounded-2xl bg-gradient-to-br from-slate-100 to-slate-200 overflow-hidden">
+            {coverImagePreview || coverImageUrl ? (
+              <img src={coverImagePreview || coverImageUrl} alt="Cover" className="w-full h-full object-cover" />
+            ) : null}
+            <label className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 text-xs font-semibold bg-white/90 backdrop-blur border border-gray-200 rounded-lg px-3 py-2 hover:bg-white transition-colors text-gray-700 cursor-pointer shadow-sm">
+              <HugeiconsIcon icon={Camera01Icon} size={12} />
+              {coverImagePreview || coverImageUrl ? "Change cover" : "Upload cover"}
+              <input type="file" accept="image/*" className="hidden" onChange={handleCoverImageChange} />
+            </label>
+          </div>
+          <p className="text-xs text-gray-400 mt-2">Shown at the top of your public profile. 1200×400px recommended.</p>
         </div>
 
         {/* Avatar upload */}
@@ -267,6 +303,33 @@ function ProfilePageContent() {
               <SocialField prefix="linkedin.com/in/" label="LinkedIn"   value={form.linkedin}  onChange={(v) => field("linkedin",  v)} placeholder="username" />
               <SocialField prefix="t.me/"            label="Telegram"   value={form.telegram}  onChange={(v) => field("telegram",  v)} placeholder="handle" />
             </div>
+          </div>
+
+          {/* Visibility */}
+          <div className="md:col-span-2 pt-4 border-t border-gray-50">
+            <label className="flex items-start justify-between gap-4 cursor-pointer">
+              <span>
+                <span className="block text-sm font-semibold text-gray-900">List Community publicly</span>
+                <span className="block text-xs text-gray-500 mt-0.5">
+                  Anyone can find your profile and events at usebyro.com/u/{form.handle || "your-handle"}.
+                </span>
+              </span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={form.is_public}
+                onClick={() => field("is_public", !form.is_public)}
+                className={`shrink-0 w-11 h-6 rounded-full transition-colors relative ${
+                  form.is_public ? "bg-blue-600" : "bg-gray-200"
+                }`}
+              >
+                <span
+                  className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform ${
+                    form.is_public ? "translate-x-5" : "translate-x-0"
+                  }`}
+                />
+              </button>
+            </label>
           </div>
 
           {/* Preferences */}

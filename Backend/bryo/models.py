@@ -54,6 +54,7 @@ class CustomUser(AbstractUser):
         ("workos", "WorkOS"),
         ("privy", "Privy"),
         ("web3auth", "Web3Auth"),
+        ("guest", "Guest (ticket checkout, no login)"),
     ]
     auth_provider = models.CharField(
         max_length=50,
@@ -115,6 +116,7 @@ class UserProfile(models.Model):
     handle = models.SlugField(max_length=50, unique=True, null=True, blank=True)
     bio = models.TextField(max_length=500, blank=True)
     avatar = models.ImageField(upload_to='avatars/', null=True, blank=True)
+    cover_image = models.ImageField(upload_to='covers/', null=True, blank=True)
     location = models.CharField(max_length=100, blank=True)
     website = models.URLField(blank=True)
 
@@ -131,6 +133,10 @@ class UserProfile(models.Model):
 
     # Flag used by frontend to redirect new users to profile setup
     is_complete = models.BooleanField(default=False)
+
+    # Whether this organiser's community/profile is publicly listed
+    # (shown on /u/<handle> and any public directory). Asked at onboarding.
+    is_public = models.BooleanField(default=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

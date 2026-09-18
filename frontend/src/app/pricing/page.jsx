@@ -75,7 +75,7 @@ const faqs = [
   },
 ];
 
-const FEE_RATE = 0.065;
+const FEE_RATE = 0.05;
 
 function formatNaira(amount) {
   return `₦${amount.toLocaleString("en-NG", {
@@ -182,7 +182,7 @@ function PayoutCalculator() {
         </div>
         <div className="flex justify-between items-center pb-4 border-b border-slate-800">
           <span className="text-xs text-slate-300">
-            Platform fee (6.5% per ticket)
+            Platform fee (5% per ticket)
           </span>
           <span className="text-sm font-bold text-[#4F6EF7]">
             −{formatNaira(totalFee)}
@@ -267,7 +267,7 @@ export default function PricingPage() {
                   <span className="text-5xl sm:text-6xl font-black text-white">Free</span>
                 </div>
                 <p className="text-slate-400 text-xs mt-1 mb-6">
-                  6.5% per paid ticket sold
+                  5% per paid ticket sold
                 </p>
               </div>
 
