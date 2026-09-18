@@ -129,7 +129,7 @@ function TicketConfirmationContent() {
           <div className="px-6 pt-5">
             <p className="text-xs text-gray-500 text-center leading-relaxed">
               We&apos;ve emailed your ticket to <span className="font-medium text-gray-700">{ticketData.attendeeEmail}</span>.
-              Check your inbox — it&apos;s attached and ready to present at the gate.
+              Check your inbox. It&apos;s attached and ready to present at the gate.
             </p>
           </div>
 
