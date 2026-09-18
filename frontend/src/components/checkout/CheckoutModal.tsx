@@ -1012,6 +1012,43 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                   </svg>
                   Secured by Paystack · 256-bit encryption
                 </p>
+
+                <label className="flex items-start gap-2.5 mt-4 cursor-pointer">
+                  <div
+                    onClick={() => setAgreed(!agreed)}
+                    className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors cursor-pointer ${
+                      agreed ? "bg-blue-600" : "border-2 border-gray-300"
+                    }`}
+                  >
+                    {agreed && (
+                      <svg
+                        width="11"
+                        height="11"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="white"
+                        strokeWidth="3"
+                      >
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    )}
+                  </div>
+                  <span className="text-xs text-gray-500 leading-relaxed">
+                    I agree to Byro&apos;s{" "}
+                    <a href="/terms" target="_blank" className="text-blue-600 hover:underline">
+                      Terms
+                    </a>{" "}
+                    and{" "}
+                    <a
+                      href="/refund-policy"
+                      target="_blank"
+                      className="text-blue-600 hover:underline"
+                    >
+                      Refund policy
+                    </a>
+                    .
+                  </span>
+                </label>
               </div>
             )}
 
@@ -1198,6 +1235,13 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                     </div>
                   )}
 
+                  {/* Bot check — required before the ticket/payment request is sent */}
+                  {step === 2 && (
+                    <div className="mt-4 flex justify-center">
+                      <div ref={turnstileRef} />
+                    </div>
+                  )}
+
                   {/* CTA */}
                   <button
                     onClick={() => {
@@ -1224,7 +1268,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                         setStep((s) => Math.min(s + 1, 4));
                       }
                     }}
-                    disabled={(step === 1 && totalQty === 0) || (step === 2 && !agreed) || (step === 2 && !turnstileToken) || (step === 2 && isProcessing) || (step === 3 && isProcessing)}
+                    disabled={(step === 1 && totalQty === 0) || (step === 2 && total === 0 && !agreed) || (step === 2 && !turnstileToken) || (step === 2 && isProcessing) || (step === 3 && !agreed) || (step === 3 && isProcessing)}
                     className="mt-4 w-full bg-blue-600 text-white font-semibold py-3 rounded-full hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed text-sm"
                   >
                     {step === 1 && (
@@ -1354,8 +1398,10 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                     )}
                   </button>
 
-                  {/* Terms — directly under the Get tickets / Continue CTA */}
-                  {step === 2 && (
+                  {/* Terms — free tickets finish right here (no separate payment
+                      page), so they must agree before the "Get tickets" CTA.
+                      Paid tickets agree on the payment page instead. */}
+                  {step === 2 && total === 0 && (
                     <label className="flex items-start gap-2.5 mt-3 cursor-pointer">
                       <div
                         onClick={() => setAgreed(!agreed)}
@@ -1392,13 +1438,6 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                         .
                       </span>
                     </label>
-                  )}
-
-                  {/* Bot check — below the Terms, required before the ticket/payment request is sent */}
-                  {step === 2 && (
-                    <div className="mt-3 flex justify-center">
-                      <div ref={turnstileRef} />
-                    </div>
                   )}
                 </div>
               </div>
