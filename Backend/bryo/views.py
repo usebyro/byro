@@ -148,6 +148,7 @@ def send_ticket_confirmation_email(ticket, customer_name, customer_email, event)
         attendee_name=customer_name,
         ticket_id=str(ticket.ticket_id),
         qr_data=str(ticket.qr_token),
+        tier_name=ticket.tier.name if ticket.tier else None,
     )
     start = datetime.combine(event.day, event.time_from)
     end = (
