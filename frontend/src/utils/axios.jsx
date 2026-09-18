@@ -46,6 +46,11 @@ axiosInstance.interceptors.request.use(
       delete config.headers["content-type"];
     }
 
+    // Guest retry (see retryAsGuest below) — never re-attach a token here.
+    if (config._retriedAsGuest) {
+      return config;
+    }
+
     // Check if Authorization header is already set (from api.js setAuthToken)
     if (config.headers.Authorization || axiosInstance.defaults.headers.common["Authorization"]) {
       // Header already set, just ensure Content-Type (but don't override FormData)
@@ -101,6 +106,13 @@ axiosInstance.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
+// Endpoints meant to work for anonymous/guest users too. A stale token left
+// over from an earlier session still gets attached to these by the request
+// interceptor above, so a 401 here just means "ignore the token, proceed as
+// guest" — not "the whole session is dead, leave the page".
+const GUEST_SAFE_ROUTES = ["my_ticket", "validate-promo", "payments/"];
+const isGuestSafeRoute = (config) => GUEST_SAFE_ROUTES.some((route) => (config?.url || "").includes(route));
+
 const forceSignOut = (config) => {
   localStorage.removeItem("accessToken");
   localStorage.removeItem("authToken");
@@ -114,10 +126,19 @@ const forceSignOut = (config) => {
     });
     // Only redirect if this was not already a login/auth request
     const url = config?.url || "";
-    if (!url.includes("auth/") && !url.includes("token/") && !url.includes("my_ticket")) {
+    if (!url.includes("auth/") && !url.includes("token/") && !isGuestSafeRoute(config)) {
       window.location.href = "/";
     }
   }
+};
+
+// Retry a guest-safe request once with no Authorization header at all, so a
+// stale/invalid token doesn't block an action that never needed auth.
+const retryAsGuest = (config) => {
+  config._retriedAsGuest = true;
+  config.headers = { ...config.headers };
+  delete config.headers.Authorization;
+  return axiosInstance(config);
 };
 
 // Shared across concurrent 401s so only one refresh call is ever in flight.
@@ -180,12 +201,18 @@ axiosInstance.interceptors.response.use(
         config.headers["Authorization"] = `Bearer ${accessToken}`;
         return axiosInstance(config);
       } catch {
+        if (isGuestSafeRoute(config) && !config._retriedAsGuest) {
+          return retryAsGuest(config);
+        }
         forceSignOut(config);
         return Promise.reject(error);
       }
     }
 
     if (response?.status === 401) {
+      if (isGuestSafeRoute(config) && !config._retriedAsGuest) {
+        return retryAsGuest(config);
+      }
       forceSignOut(config);
     }
     return Promise.reject(error);
