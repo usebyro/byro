@@ -240,7 +240,7 @@ export default function ViewEventClient({ slug }) {
   const tierFees = calculateTicketFees(activeTier.price * effectiveQty, passFeeToAttendee);
   const tierSubtotal = tierFees.subtotal;
   // Buyer-facing "service fee" = everything added on top of the subtotal
-  // (Byro's 6.5% + the simulated Paystack cut), so the breakdown reconciles
+  // (Byro's 5% + the simulated Paystack cut), so the breakdown reconciles
   // and the shown total equals what Paystack will actually charge.
   const serviceFee = tierFees.displayTotal - tierFees.subtotal;
   const tierTotal = tierFees.displayTotal;

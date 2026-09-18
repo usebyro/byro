@@ -2,7 +2,7 @@
  * Single source of truth for Byro's ticket pricing on the frontend.
  * Mirrors Backend/bryo/pricing.py exactly.
  *
- * - Byro service fee = 6.5% of the ticket subtotal (Byro's revenue).
+ * - Byro service fee = 5% of the ticket subtotal (Byro's revenue).
  * - The amount SENT to Paystack is `subtotal + serviceFee` (the `total` field).
  *   Paystack adds its own charge on top of that at checkout (fees borne by the
  *   customer), so the buyer pays a little more than `total`.
@@ -18,7 +18,7 @@
  * The backend recomputes everything itself, so these values are for display.
  */
 
-const FEE_RATE = 0.065;
+const FEE_RATE = 0.05;
 
 // Paystack local-transaction fee parameters (for simulation only).
 const PAYSTACK_RATE = 0.015;

@@ -1,7 +1,7 @@
 """Single source of truth for Byro's ticket pricing.
 
 Rules:
-- Byro service fee = 6.5% of the ticket subtotal. This is Byro's revenue and
+- Byro service fee = 5% of the ticket subtotal. This is Byro's revenue and
   the only fee Byro itself charges.
 - The amount SENT to Paystack is `subtotal + service_fee` (the ``total`` field
   below). Paystack is configured so its own charge is added on top of this
@@ -24,7 +24,7 @@ This module is mirrored by frontend/src/lib/pricing.ts - keep them in sync.
 from decimal import Decimal, ROUND_HALF_UP
 
 # Byro's service fee.
-FEE_RATE = Decimal('0.065')
+FEE_RATE = Decimal('0.05')
 
 # Paystack local-transaction fee parameters (for simulation only).
 PAYSTACK_RATE = Decimal('0.015')

@@ -211,7 +211,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
   const passFeeToAttendee = event.pass_fee_to_attendee !== false;
   const fees = calculateTicketFees(discountedSubtotal, passFeeToAttendee);
   // Buyer-facing "service fee" = everything added on top of the subtotal
-  // (Byro's 6.5% + the simulated Paystack cut), so the shown total equals what
+  // (Byro's 5% + the simulated Paystack cut), so the shown total equals what
   // Paystack will actually charge and no fee jumps at checkout. When the
   // organizer absorbs the fee, this is just the simulated Paystack cut.
   const serviceFee = fees.displayTotal - fees.subtotal;
