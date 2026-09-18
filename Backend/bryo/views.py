@@ -1090,7 +1090,7 @@ class EventViewSet(viewsets.ModelViewSet):
         - Create: Authenticated users only
         - Update, delete: Owner/co-host only (both can edit)
         """
-        if self.action in ['list', 'retrieve', 'register', 'categories', 'locations', 'tiers', 'tier_detail']:
+        if self.action in ['list', 'retrieve', 'register', 'categories', 'locations', 'tiers', 'tier_detail', 'validate_promo']:
             permission_classes = [AllowAny]
         elif self.action in ['create']:
             permission_classes = [IsAuthenticated]
