@@ -470,6 +470,21 @@ const API = {
     }
   },
 
+  uploadCoverImage: async (file) => {
+    try {
+      const body = new FormData();
+      body.append("cover_image", file);
+      const response = await axiosInstance.post("profile/me/cover-image/", body, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
   getPublicProfile: async (handle) => {
     try {
       const response = await axiosInstance.get(`profile/${handle}/`);

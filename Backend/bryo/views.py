@@ -900,6 +900,17 @@ class ProfileViewSet(viewsets.GenericViewSet):
         serializer = self.get_serializer(profile, context={'request': request})
         return Response({'avatar_url': serializer.data['avatar_url']})
 
+    @action(detail=False, methods=['POST'], url_path='me/cover-image',
+            parser_classes=[MultiPartParser, FormParser])
+    def upload_cover_image(self, request):
+        profile = self._get_or_create_profile(request.user)
+        if 'cover_image' not in request.FILES:
+            return Response({'error': 'No cover image file provided'}, status=status.HTTP_400_BAD_REQUEST)
+        profile.cover_image = request.FILES['cover_image']
+        profile.save(update_fields=['cover_image'])
+        serializer = self.get_serializer(profile, context={'request': request})
+        return Response({'cover_image_url': serializer.data['cover_image_url']})
+
     @action(detail=False, methods=['GET'], url_path=r'(?P<handle>[^/.]+)')
     def public(self, request, handle=None):
         try:

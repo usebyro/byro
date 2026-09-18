@@ -115,6 +115,7 @@ class UserProfile(models.Model):
     handle = models.SlugField(max_length=50, unique=True, null=True, blank=True)
     bio = models.TextField(max_length=500, blank=True)
     avatar = models.ImageField(upload_to='avatars/', null=True, blank=True)
+    cover_image = models.ImageField(upload_to='covers/', null=True, blank=True)
     location = models.CharField(max_length=100, blank=True)
     website = models.URLField(blank=True)
 
