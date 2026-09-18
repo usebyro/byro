@@ -129,6 +129,8 @@ export default function StudioEventPage() {
   const [savingDiscount, setSavingDiscount] = useState(false);
   const [showDiscountModal, setShowDiscountModal] = useState(false);
   const [discountMenuOpen, setDiscountMenuOpen] = useState(null);
+  const [discountToDelete, setDiscountToDelete] = useState(null);
+  const [deletingDiscount, setDeletingDiscount] = useState(false);
   const [discountForm, setDiscountForm] = useState({
     code: "",
     type: "percent", // percent | fixed
@@ -353,13 +355,18 @@ export default function StudioEventPage() {
     }
   };
 
-  const deleteDiscount = async (id) => {
-    setDiscountMenuOpen(null);
+  const deleteDiscount = async () => {
+    if (!discountToDelete) return;
+    const { id } = discountToDelete;
+    setDeletingDiscount(true);
     try {
       await API.deletePromoCode(slug, id);
       setDiscountCodes((prev) => prev.filter((d) => d.id !== id));
+      setDiscountToDelete(null);
     } catch (err) {
       toast.error(err?.message || "Failed to delete discount code.");
+    } finally {
+      setDeletingDiscount(false);
     }
   };
 
@@ -732,7 +739,7 @@ export default function StudioEventPage() {
                                 {d.active ? "Deactivate" : "Activate"}
                               </button>
                               <button
-                                onClick={() => deleteDiscount(d.id)}
+                                onClick={() => { setDiscountMenuOpen(null); setDiscountToDelete({ id: d.id, code: d.code }); }}
                                 className="w-full text-left px-3 py-1.5 text-xs text-red-500 hover:bg-red-50"
                               >
                                 Delete
@@ -955,6 +962,34 @@ export default function StudioEventPage() {
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* Delete discount code modal */}
+      {discountToDelete && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
+          <div className="bg-white rounded-xl shadow-xl p-5 w-full max-w-sm border border-gray-100">
+            <h3 className="text-sm font-bold text-gray-900 mb-1.5">Delete discount code?</h3>
+            <p className="text-xs text-gray-400 leading-relaxed mb-4">
+              This will permanently delete <span className="font-bold text-gray-800">{discountToDelete.code}</span>. Anyone using it will no longer get the discount. This action cannot be undone.
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setDiscountToDelete(null)}
+                disabled={deletingDiscount}
+                className="flex-1 py-2 rounded-lg border border-gray-200 text-xs font-semibold text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={deleteDiscount}
+                disabled={deletingDiscount}
+                className="flex-1 py-2 rounded-lg bg-red-500 text-white text-xs font-bold hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {deletingDiscount ? "Deleting..." : "Delete code"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
