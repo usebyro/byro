@@ -64,8 +64,8 @@ function StudioShell({ children }) {
                 height={20}
                 className="h-[18px] w-auto"
               />
-              <span className="text-[11px] font-bold text-[#4F6EF7] bg-[#EEF2FF] px-2 py-0.5 rounded tracking-widest uppercase">
-                Studio
+              <span className="text-[11px] font-bold text-[#4F6EF7] bg-[#EEF2FF] px-2 py-0.5 rounded">
+                Dashboard
               </span>
             </div>
           )}
