@@ -250,22 +250,22 @@ export default function StudioPayouts() {
   const canWithdraw = availableAmount !== null && availableAmount > 0;
 
   return (
-    <div className="p-4 sm:p-6 max-w-4xl mx-auto space-y-4">
+    <div className="p-4 sm:p-6 max-w-5xl mx-auto space-y-4">
       <div className="pb-2 border-b border-gray-100/50">
         <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Payouts</h1>
-        <p className="text-xs text-gray-450 mt-0.5">Track earnings and withdraw to your bank.</p>
+        <p className="text-xs text-gray-500 mt-0.5">Track earnings and withdraw to your bank.</p>
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
         {/* Available */}
-        <div className="sm:col-span-1 bg-gradient-to-br from-[#4F6EF7] to-[#6366f1] rounded-xl p-4 text-white shadow-sm flex flex-col justify-between">
+        <div className="col-span-2 md:col-span-1 bg-gradient-to-br from-[#4F6EF7] to-[#6366f1] rounded-xl p-4 text-white shadow-sm flex flex-col justify-between">
           <div>
             <p className="text-[11px] font-bold text-white/80 uppercase tracking-wider mb-2">Available to withdraw</p>
             <p className="text-2xl font-black tracking-tight mb-0.5">
               {balance ? fmt(balance.available) : "—"}
             </p>
-            <p className="text-[10px] text-white/60 mb-4">Pending clearance after events</p>
+            <p className="text-xs text-white/60 mb-4">Pending clearance after events</p>
           </div>
           <div className="flex items-center gap-1.5">
             <button
@@ -298,7 +298,7 @@ export default function StudioPayouts() {
             <p className="text-xl font-extrabold text-gray-800 tracking-tight">
               {fmt(payouts.filter((p) => p.status === "processed").reduce((sum, p) => sum + Number(p.amount), 0))}
             </p>
-            <p className="text-[10px] text-gray-400 mt-1">Processed payouts</p>
+            <p className="text-xs text-gray-400 mt-1">Processed payouts</p>
           </div>
         </div>
 
@@ -314,7 +314,7 @@ export default function StudioPayouts() {
             <p className="text-xl font-extrabold text-gray-800 tracking-tight">
               {fmt(payouts.filter((p) => p.status === "pending").reduce((sum, p) => sum + Number(p.amount), 0))}
             </p>
-            <p className="text-[10px] text-gray-400 mt-1">Awaiting approval</p>
+            <p className="text-xs text-gray-400 mt-1">Awaiting approval</p>
           </div>
         </div>
       </div>
@@ -328,7 +328,10 @@ export default function StudioPayouts() {
         {loadingPayouts ? (
           <p className="text-xs text-gray-400 py-6 text-center">Loading payout history…</p>
         ) : payouts.length === 0 ? (
-          <p className="text-xs text-gray-400 py-6 text-center">No payout requests yet.</p>
+          <div className="py-6 text-center">
+            <p className="text-sm font-semibold text-gray-700">No payout requests yet</p>
+            <p className="text-xs text-gray-500 mt-0.5">Once your tickets sell, request a withdrawal to your bank here.</p>
+          </div>
         ) : (
           <div className="divide-y divide-gray-50">
             {payouts.map((p) => (
@@ -340,9 +343,9 @@ export default function StudioPayouts() {
                   <p className="text-xs font-semibold text-gray-800 truncate">
                     {p.method === "bank" ? `Payout to ${p.bank_name}` : "Payout to wallet"}
                   </p>
-                  <p className="text-[10px] text-gray-400 mt-0.5">{fmtDate(p.requested_at)}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">{fmtDate(p.requested_at)}</p>
                 </div>
-                <span className={`inline-flex items-center justify-center text-[9px] font-bold px-2 py-0.5 rounded-md shrink-0 w-16 text-center ${
+                <span className={`inline-flex items-center justify-center text-[11px] font-bold px-2 py-0.5 rounded-md shrink-0 w-20 text-center ${
                   STATUS_STYLE[p.status] || "bg-gray-100 text-gray-500 border border-gray-100"
                 }`}>
                   {p.status?.toUpperCase()}
@@ -359,7 +362,7 @@ export default function StudioPayouts() {
         <Modal title="Bank Details" onClose={() => setBankModalOpen(false)}>
           <form onSubmit={saveBankDetails} className="space-y-3.5">
             <div>
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Bank Name</label>
+              <label className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">Bank Name</label>
               <input
                 type="text"
                 list="bank-options"
@@ -386,7 +389,7 @@ export default function StudioPayouts() {
               </datalist>
             </div>
             <div>
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Account Number</label>
+              <label className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">Account Number</label>
               <input
                 type="text"
                 inputMode="numeric"
@@ -398,8 +401,8 @@ export default function StudioPayouts() {
                 maxLength={10}
                 className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-xs text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#4F6EF7]/20 transition-all"
               />
-              <p className="text-[10px] mt-1 min-h-[1rem]">
-                {resolving && <span className="text-gray-450">Verifying account…</span>}
+              <p className="text-xs mt-1 min-h-[1rem]">
+                {resolving && <span className="text-gray-500">Verifying account…</span>}
                 {!resolving && resolvedName && (
                   <span className="text-green-600 font-medium inline-flex items-center gap-1">
                     <svg
@@ -439,7 +442,7 @@ export default function StudioPayouts() {
         <Modal title="Request Withdrawal" onClose={() => setWithdrawModalOpen(false)}>
           <form onSubmit={submitWithdrawal} className="space-y-3.5">
             <div>
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Amount</label>
+              <label className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">Amount</label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">₦</span>
                 <input
@@ -454,7 +457,7 @@ export default function StudioPayouts() {
                 />
               </div>
             </div>
-            <p className="text-[10px] text-gray-450 leading-relaxed">
+            <p className="text-xs text-gray-500 leading-relaxed">
               {hasBankDetails
                 ? `Sent to ${bankDetails.bankName} ···· ${bankDetails.accountNumber.slice(-4)}`
                 : "You'll be asked to add bank details before this can be sent."}

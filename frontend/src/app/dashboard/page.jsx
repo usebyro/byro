@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import EventImageFallback from "@/components/ui/EventImageFallback";
 import {
   BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, Cell,
 } from "recharts";
@@ -19,21 +20,18 @@ import { useSelector } from "react-redux";
 
 const BASE_URL = (process.env.NEXT_PUBLIC_API_URL || "https://byro.onrender.com").replace(/\/api\/?$/, "");
 
-const CHART_DATA = ["J","F","M","A","M","J","J","A","S","O","N","D"].map((m, i) => ({
-  month: m,
-  value: [60,90,75,110,95,130,110,160,130,145,260,180][i] * 1000,
-  current: i === new Date().getMonth(),
-}));
+const fmtNaira = (n) =>
+  new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN", maximumFractionDigits: 0 }).format(n || 0);
 
-const CATEGORY_GRADIENT = {
-  entertainment: "from-purple-600 to-pink-500",
-  fitness:       "from-orange-500 to-amber-400",
-  art_culture:   "from-pink-600 to-rose-400",
-  conference:    "from-teal-600 to-emerald-400",
-  technology:    "from-blue-600 to-violet-500",
-  web3_crypto:   "from-amber-600 to-orange-400",
-  other:         "from-gray-500 to-slate-400",
-};
+// "+12%" / "-8%" against the previous period; null when there is nothing to compare with.
+function pctChange(current, previous) {
+  if (!previous) return null;
+  const pct = Math.round(((current - previous) / previous) * 100);
+  return `${pct >= 0 ? "+" : "-"}${Math.abs(pct)}%`;
+}
+
+const MONTH_LABEL = (ym) =>
+  new Date(`${ym}-01T00:00:00`).toLocaleDateString("en-US", { month: "short" });
 
 function getImageUrl(event) {
   return (
@@ -60,7 +58,7 @@ function formatTime(t) {
 function getStatus(event) {
   const now  = new Date();
   const day  = new Date(event.day);
-  if (event.is_active === false) return { label: "DRAFT", dot: "bg-gray-400",  pill: "bg-gray-100 text-gray-500" };
+  if (event.is_draft || event.is_active === false) return { label: "DRAFT", dot: "bg-gray-400",  pill: "bg-gray-100 text-gray-500" };
   const diff = Math.ceil((day - now) / 864e5);
   if (diff < 0)  return { label: "PAST",  dot: "bg-gray-300",  pill: "bg-gray-100 text-gray-400" };
   if (diff <= 14) return { label: "SOON",  dot: "bg-amber-400", pill: "bg-amber-50 text-amber-600" };
@@ -68,17 +66,17 @@ function getStatus(event) {
 }
 
 function TrendBadge({ value, note, isPending }) {
-  if (!value) return <p className={`text-[10px] mt-0.5 truncate ${isPending ? "text-gray-300 font-normal" : "text-gray-400 font-medium"}`}>{note || ""}</p>;
+  if (!value) return <p className={`text-xs mt-0.5 truncate ${isPending ? "text-gray-500 font-normal" : "text-gray-500 font-medium"}`}>{note || ""}</p>;
   const isUp = !value.startsWith("-");
   return (
-    <p className={`text-[10px] font-semibold mt-0.5 flex items-center gap-0.5 ${isUp ? "text-green-500" : "text-red-400"}`}>
+    <p className={`text-xs font-semibold mt-0.5 flex items-center gap-0.5 ${isUp ? "text-green-500" : "text-red-400"}`}>
       <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
         {isUp
           ? <><path d="M22 7l-8.5 8.5-5-5L1 18"/><path d="M16 7h6v6"/></>
           : <><path d="M22 17l-8.5-8.5-5 5L1 6"/><path d="M16 17h6v-6"/></>
         }
       </svg>
-      {value} vs last month
+      {value} vs prior 30 days
     </p>
   );
 }
@@ -90,7 +88,7 @@ function StatCard({ icon, label, value, trend, note, iconBg, iconColor }) {
       isPending ? "border-gray-100/80 opacity-95" : "border-gray-100 shadow-sm hover:shadow-md"
     }`}>
       <div className="flex items-center justify-between gap-2 mb-2">
-        <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider truncate">{label}</p>
+        <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider leading-tight">{label}</p>
         <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${iconBg} ${iconColor}`}>
           <HugeiconsIcon icon={icon} size={14} color="currentColor" />
         </div>
@@ -105,6 +103,7 @@ function StatCard({ icon, label, value, trend, note, iconBg, iconColor }) {
 
 export default function StudioDashboard() {
   const [dashboard, setDashboard] = useState(null);
+  const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading]     = useState(true);
   const user = useSelector((s) => s.auth?.user);
   const firstName = (user?.display_name || user?.displayName || user?.name || "").split(" ")[0] || "there";
@@ -117,19 +116,33 @@ export default function StudioDashboard() {
   }, []);
 
   useEffect(() => {
-    API.getDashboard()
-      .then(setDashboard)
-      .catch(() => setDashboard(null))
+    Promise.allSettled([API.getDashboard(), API.getDashboardAnalytics()])
+      .then(([d, a]) => {
+        setDashboard(d.status === "fulfilled" ? d.value : null);
+        setAnalytics(a.status === "fulfilled" ? a.value : null);
+      })
       .finally(() => setLoading(false));
   }, []);
 
-  const upcoming = dashboard?.hosting?.upcoming || [];
+  const upcoming = (dashboard?.hosting?.upcoming || []).filter((e) => !e.is_draft);
   const past     = dashboard?.hosting?.past     || [];
-  const all      = [...upcoming, ...past];
-  const topEvents = all.slice(0, 3);
+  const all      = [...(dashboard?.hosting?.upcoming || []), ...past];
+
+  const last30 = analytics?.last_30d;
+  const prev30 = analytics?.previous_30d;
+  const chartData = (analytics?.monthly_revenue || []).map((m, i, arr) => ({
+    month: MONTH_LABEL(m.month),
+    value: Number(m.revenue),
+    current: i === arr.length - 1,
+  }));
+  const hasRevenue = chartData.some((m) => m.value > 0);
+  const eventsBySlug = Object.fromEntries(all.map((e) => [e.slug, e]));
+  const topEvents = (analytics?.top_events || [])
+    .map((t) => ({ ...t, event: eventsBySlug[t.slug] }))
+    .filter((t) => t.event);
 
   return (
-    <div className="p-4 sm:p-6 max-w-6xl mx-auto space-y-5">
+    <div className="p-4 sm:p-6 max-w-5xl mx-auto space-y-5">
 
       {/* ── Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-gray-100/50">
@@ -150,10 +163,10 @@ export default function StudioDashboard() {
 
       {/* ── Stat cards ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <StatCard icon={Money01Icon}        label="Revenue (30d)"  value="—"                              trend={null}   note="Pending integration" iconBg="bg-teal-50"   iconColor="text-teal-600" />
-        <StatCard icon={Ticket01Icon}       label="Tickets sold"   value="—"                              trend="+24%"   note={null}               iconBg="bg-blue-50"   iconColor="text-blue-600" />
-        <StatCard icon={Calendar01Icon}     label="Active events"  value={loading ? "—" : upcoming.length} trend={upcoming.length > 0 ? `+${upcoming.length}` : null} note={null} iconBg="bg-violet-50" iconColor="text-violet-600" />
-        <StatCard icon={UserMultiple02Icon} label="Avg. fill rate"  value="—"                              trend={null}   note="Pending integration" iconBg="bg-amber-50"  iconColor="text-amber-600" />
+        <StatCard icon={Money01Icon}        label="Revenue"           value={loading || !last30 ? "—" : fmtNaira(Number(last30.revenue))} trend={last30 ? pctChange(Number(last30.revenue), Number(prev30?.revenue)) : null} note={last30 && Number(last30.revenue) === 0 ? "No sales yet" : "Last 30 days"} iconBg="bg-teal-50"   iconColor="text-teal-600" />
+        <StatCard icon={Ticket01Icon}       label="Tickets sold"      value={loading || !last30 ? "—" : last30.tickets}                   trend={last30 ? pctChange(last30.tickets, prev30?.tickets) : null}                     note={last30 && last30.tickets === 0 ? "No sales yet" : "Last 30 days"}                    iconBg="bg-blue-50"   iconColor="text-blue-600" />
+        <StatCard icon={Calendar01Icon}     label="Active events"     value={loading ? "—" : upcoming.length}                             trend={null}                                                                          note="Upcoming and live"                                                                   iconBg="bg-violet-50" iconColor="text-violet-600" />
+        <StatCard icon={UserMultiple02Icon} label="Avg. fill rate"    value={loading || analytics?.avg_fill_rate == null ? "—" : `${analytics.avg_fill_rate}%`} trend={null} note={analytics && analytics.avg_fill_rate == null ? "Set a capacity to track" : "Tickets sold vs capacity"} iconBg="bg-amber-50"  iconColor="text-amber-600" />
       </div>
 
       {/* ── Revenue chart + Top by sales ── */}
@@ -166,32 +179,43 @@ export default function StudioDashboard() {
               <p className="text-sm font-bold text-gray-800">Revenue</p>
               <p className="text-[11px] text-gray-400">Last 12 months</p>
             </div>
-            <button className="text-[11px] text-gray-500 border border-gray-200 rounded-lg px-2.5 py-1 flex items-center gap-1 hover:bg-gray-50 transition-colors">
-              {new Date().getFullYear()}
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 9l6 6 6-6"/></svg>
-            </button>
           </div>
           <div className="w-full">
-            <ResponsiveContainer width="100%" height={150}>
-              <BarChart data={CHART_DATA} barSize={16} barCategoryGap="25%">
-                <XAxis
-                  dataKey="month"
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fontSize: 10, fill: "#9ca3af" }}
-                />
-                <Tooltip
-                  formatter={(v) => [`₦${(v / 1e6).toFixed(1)}M`, "Revenue"]}
-                  contentStyle={{ borderRadius: 8, border: "1px solid #f1f5f9", fontSize: 11, boxShadow: "0 4px 12px rgba(0,0,0,0.04)" }}
-                  cursor={{ fill: "#f8fafc" }}
-                />
-                <Bar dataKey="value" radius={[3, 3, 0, 0]}>
-                  {CHART_DATA.map((entry, i) => (
-                    <Cell key={i} fill={entry.current ? "#4F6EF7" : "#DBEAFE"} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            {loading ? (
+              <div className="h-[150px] rounded-lg bg-gray-50 animate-pulse" />
+            ) : !hasRevenue ? (
+              <div className="h-[150px] flex flex-col items-center justify-center text-center">
+                <p className="text-sm font-semibold text-gray-700">No revenue yet</p>
+                <p className="text-xs text-gray-500 mt-0.5">Paid ticket sales will show up here month by month.</p>
+                <Link
+                  href={upcoming[0] ? `/dashboard/events/${upcoming[0].slug}` : "/events/create"}
+                  className="mt-3 text-xs font-semibold text-[#4F6EF7] hover:text-blue-700 transition-colors"
+                >
+                  {upcoming[0] ? "Share your event" : "Create your first event"}
+                </Link>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={150}>
+                <BarChart data={chartData} barSize={16} barCategoryGap="25%">
+                  <XAxis
+                    dataKey="month"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fontSize: 11, fill: "#6b7280" }}
+                  />
+                  <Tooltip
+                    formatter={(v) => [fmtNaira(v), "Revenue"]}
+                    contentStyle={{ borderRadius: 8, border: "1px solid #f1f5f9", fontSize: 12, boxShadow: "0 4px 12px rgba(0,0,0,0.04)" }}
+                    cursor={{ fill: "#f8fafc" }}
+                  />
+                  <Bar dataKey="value" radius={[3, 3, 0, 0]}>
+                    {chartData.map((entry, i) => (
+                      <Cell key={i} fill={entry.current ? "#4F6EF7" : "#DBEAFE"} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
 
@@ -215,28 +239,29 @@ export default function StudioDashboard() {
             </div>
           ) : topEvents.length === 0 ? (
             <div className="flex items-center justify-center flex-1 py-6">
-              <p className="text-xs text-gray-400 text-center">No events yet</p>
+              <p className="text-xs text-gray-500 text-center">No sales this month yet</p>
             </div>
           ) : (
             <div className="space-y-3 flex-1">
-              {topEvents.map((e) => {
+              {topEvents.map(({ event: e, sold, revenue }) => {
                 const img  = getImageUrl(e);
-                const grad = CATEGORY_GRADIENT[e.category] || CATEGORY_GRADIENT.other;
                 return (
-                  <div key={e.slug} className="flex items-center gap-2.5">
+                  <Link key={e.slug} href={`/dashboard/events/${e.slug}`} className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
                     <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0 relative">
                       {img ? (
                         <Image src={img} alt={e.name} fill className="object-cover" />
                       ) : (
-                        <div className={`w-full h-full bg-gradient-to-br ${grad}`} />
+                        <EventImageFallback category={e.category} />
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-semibold text-gray-800 truncate">{e.name}</p>
-                      <p className="text-[10px] text-gray-400">— sold</p>
+                      <p className="text-xs text-gray-500">{sold} sold</p>
                     </div>
-                    <p className="text-xs font-bold text-gray-800 shrink-0">—</p>
-                  </div>
+                    {!analytics?.events?.[e.slug]?.is_free && (
+                      <p className="text-xs font-bold text-gray-800 shrink-0">{fmtNaira(Number(revenue))}</p>
+                    )}
+                  </Link>
                 );
               })}
             </div>
@@ -283,9 +308,10 @@ export default function StudioDashboard() {
           <div className="divide-y divide-gray-50">
             {all.slice(0, 6).map((event) => {
               const img    = getImageUrl(event);
-              const grad   = CATEGORY_GRADIENT[event.category] || CATEGORY_GRADIENT.other;
               const status = getStatus(event);
               const capacity = event.capacity || 0;
+              const stats    = analytics?.events?.[event.slug];
+              const fillPct  = capacity > 0 && stats ? Math.min(100, Math.round((stats.sold / capacity) * 100)) : 0;
 
               return (
                 <Link
@@ -298,7 +324,7 @@ export default function StudioDashboard() {
                     {img ? (
                       <Image src={img} alt={event.name} fill className="object-cover" />
                     ) : (
-                      <div className={`w-full h-full bg-gradient-to-br ${grad}`} />
+                      <EventImageFallback category={event.category} />
                     )}
                   </div>
 
@@ -307,31 +333,33 @@ export default function StudioDashboard() {
                     <p className="text-xs font-semibold text-gray-800 truncate group-hover:text-[#4F6EF7] transition-colors">
                       {event.name}
                     </p>
-                    <p className="text-[10px] text-gray-400 mt-0.5">
+                    <p className="text-xs text-gray-400 mt-0.5">
                       {formatDate(event.day)}
                       {event.time_from && ` · ${formatTime(event.time_from)}`}
                     </p>
                   </div>
 
                   {/* Progress bar */}
-                  <div className="hidden sm:flex items-center gap-2 w-32 shrink-0">
+                  <div className="hidden md:flex items-center gap-2 w-32 shrink-0">
                     {capacity > 0 ? (
                       <>
                         <div className="flex-1 h-1 bg-gray-100 rounded-full overflow-hidden">
-                          <div className="h-full rounded-full bg-[#4F6EF7]" style={{ width: "0%" }} />
+                          <div className="h-full rounded-full bg-[#4F6EF7]" style={{ width: `${fillPct}%` }} />
                         </div>
-                        <span className="text-[10px] text-gray-400 w-6 text-right">0%</span>
+                        <span className="text-xs text-gray-500 w-9 text-right">{fillPct}%</span>
                       </>
                     ) : (
-                      <span className="text-[10px] text-gray-300 w-6 text-right">—</span>
+                      <span className="text-xs text-gray-400 text-right" title="No capacity set">No cap</span>
                     )}
                   </div>
 
-                  {/* Revenue placeholder */}
-                  <p className="text-xs font-bold text-gray-800 w-10 text-right shrink-0">—</p>
+                  {/* Revenue */}
+                  <p className={`text-xs md:w-24 text-right shrink-0 ${stats?.is_free ? "text-gray-500" : "font-bold text-gray-800"}`}>
+                    {stats?.is_free ? "Free" : stats ? fmtNaira(Number(stats.revenue)) : "—"}
+                  </p>
 
                   {/* Status badge */}
-                  <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md ${status.pill} shrink-0 w-14 justify-center`}>
+                  <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md ${status.pill} shrink-0 w-16 justify-center`}>
                     <span className={`w-1 h-1 rounded-full ${status.dot}`} />
                     {status.label}
                   </span>
