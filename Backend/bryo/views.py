@@ -38,7 +38,8 @@ from .permissions import IsEventOwnerOrCoHost, IsEventOwner, IsAdminSecret
 from django.db import transaction, IntegrityError
 from django.db import models
 from django.db.models import Q, Min, OuterRef, Subquery, Sum, Count, F
-from django.db.models.functions import TruncDate, TruncMonth
+from django.db.models.functions import TruncDate, TruncMonth, Cast, Greatest
+from django.db.models.fields.json import KeyTextTransform
 from django.db.models.functions import Coalesce
 from django.http import JsonResponse
 from django.conf import settings
@@ -1080,7 +1081,8 @@ class DashboardAnalyticsView(APIView):
       - monthly_revenue         : the last 12 calendar months, oldest first
       - avg_fill_rate           : mean sold/capacity over events with a capacity (0-100)
       - top_events              : best sellers this calendar month
-      - events                  : lifetime sold + revenue + is_free per event slug
+      - events                  : lifetime sold + revenue + is_free + is_owner per event slug
+    Revenue is counted for events you own only (co-hosts don't receive it).
     """
     permission_classes = [IsAuthenticated]
 
@@ -1097,11 +1099,14 @@ class DashboardAnalyticsView(APIView):
             is_draft=False,
         ).distinct()
         event_ids = list(events.values_list('pk', flat=True))
+        owned_ids = set(events.filter(owner=user).values_list('pk', flat=True))
 
         net_price = ticket_net_price_expr()
         zero = Decimal('0')
+        # Sales are counted for every event you help run; revenue only for the
+        # events you own, matching what you can actually withdraw.
         sold = Ticket.objects.filter(event_id__in=event_ids, payment_status__in=['paid', 'free'])
-        paid = Ticket.objects.filter(event_id__in=event_ids, payment_status='paid')
+        paid = Ticket.objects.filter(event_id__in=owned_ids, payment_status='paid')
 
         def window(start, end=None):
             s_qs, p_qs = sold.filter(created_at__gte=start), paid.filter(created_at__gte=start)
@@ -1155,6 +1160,7 @@ class DashboardAnalyticsView(APIView):
                 'sold': sold_by_event.get(slug, 0),
                 'revenue': str(revenue_by_event.get(slug, zero)),
                 'is_free': base_price == 0 and event_id not in paid_tier_events,
+                'is_owner': event_id in owned_ids,
             }
             for event_id, slug, base_price in events.values_list('pk', 'slug', 'ticket_price')
         }
@@ -2289,24 +2295,60 @@ class TicketTransferViewSet(viewsets.ModelViewSet):
 
 def ticket_net_price_expr():
     """
-    What the organizer keeps from one sold ticket: the tier price (or the
-    event's flat ticket_price for tier-less events), minus Byro's service fee
-    when the organizer chose to absorb it (`pass_fee_to_attendee=False`).
+    What the organizer earns from one paid ticket.
+
+    Starts from the tier price (or the event's flat ticket_price), then takes
+    off this ticket's share of any promo-code discount. Checkout records the
+    discount for a whole purchase on Payment.metadata['discount_amount'], and a
+    purchase can produce several tickets, so each ticket carries an equal share.
+    If the organizer absorbs Byro's service fee (`pass_fee_to_attendee=False`),
+    that fee is 5% of the DISCOUNTED price and is deducted here.
+
     Shared by the payout balance and the dashboard analytics so both agree.
     """
+    money = models.DecimalField(max_digits=12, decimal_places=2)
+    whole = models.IntegerField()
     ticket_price = Coalesce(
-        F('tier__price'), F('event__ticket_price'), Decimal('0')
+        F('tier__price'), F('event__ticket_price'), Decimal('0'), output_field=money
+    )
+    # Discounts are whole naira. Split them in whole naira, rounding each
+    # ticket's share UP, so an uneven split can only ever under-credit the
+    # organizer by a few naira, never over-credit. Plain integer arithmetic
+    # keeps this identical on SQLite and Postgres.
+    discount = Coalesce(
+        Cast(Cast(KeyTextTransform('discount_amount', 'payment__metadata'), money), whole),
+        0,
+        output_field=whole,
+    )
+    tickets_in_payment = Coalesce(
+        Subquery(
+            Ticket.objects.filter(payment=OuterRef('payment'))
+            .order_by()
+            .values('payment')
+            .annotate(n=Count('pk'))
+            .values('n')[:1],
+            output_field=whole,
+        ),
+        1,
+        output_field=whole,
+    )
+    discount_share = models.ExpressionWrapper(
+        (discount + tickets_in_payment - 1) / tickets_in_payment, output_field=whole
+    )
+    after_discount = Greatest(
+        models.ExpressionWrapper(ticket_price - discount_share, output_field=money),
+        Decimal('0'),
+        output_field=money,
     )
     return models.Case(
         models.When(
             event__pass_fee_to_attendee=False,
             then=models.ExpressionWrapper(
-                ticket_price * (Decimal('1') - FEE_RATE),
-                output_field=models.DecimalField(max_digits=10, decimal_places=2),
+                after_discount * (Decimal('1') - FEE_RATE), output_field=money
             ),
         ),
-        default=ticket_price,
-        output_field=models.DecimalField(max_digits=10, decimal_places=2),
+        default=after_discount,
+        output_field=money,
     )
 
 
@@ -2314,9 +2356,11 @@ def compute_available_balance(user, event=None):
     """
     Funds an organizer can currently withdraw.
 
-    = ticket revenue on events they own or co-host
+    = ticket revenue on events they OWN. Co-hosts help run an event but the
+      money belongs to its owner, so co-hosting earns nothing here.
       (price of every sold/paid ticket — tier price, or the event's flat
-      ticket_price for tier-less events; free tickets contribute nothing)
+      ticket_price for tier-less events, less any promo-code discount;
+      free tickets contribute nothing)
     − sum of payout requests that are still pending or already processed
       (rejected requests don't hold funds).
 
@@ -2331,13 +2375,11 @@ def compute_available_balance(user, event=None):
     When `event` is given, the balance is scoped to that single event.
     """
     if event is not None:
+        if event.owner_id != user.id:
+            return Decimal('0')
         event_ids = [event.pk]
     else:
-        event_ids = list(
-            Event.objects.filter(
-                Q(owner=user) | Q(cohosts__user=user)
-            ).values_list('pk', flat=True).distinct()
-        )
+        event_ids = list(Event.objects.filter(owner=user).values_list('pk', flat=True))
 
     net_price = ticket_net_price_expr()
     earned = (
@@ -2372,9 +2414,9 @@ class PayoutRequestView(APIView):
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         event = serializer.validated_data.get('event')
-        if event is not None and not event.is_owner_or_cohost(request.user):
+        if event is not None and event.owner_id != request.user.id:
             return Response(
-                {'error': 'You can only request a payout for an event you own or co-host'},
+                {'error': 'Only the event owner can request a payout for an event'},
                 status=status.HTTP_403_FORBIDDEN,
             )
 
@@ -2439,7 +2481,9 @@ class PayoutBalanceView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        available = compute_available_balance(request.user)
+        # Never negative: a past co-host who withdrew before only the owner could
+        # earn now has payouts but no earnings.
+        available = max(compute_available_balance(request.user), Decimal('0'))
         payouts = PayoutRequest.objects.filter(user=request.user)
         paid_out = sum(
             (p.amount for p in payouts if p.status == 'processed'), Decimal('0')
