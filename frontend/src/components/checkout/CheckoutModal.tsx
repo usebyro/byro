@@ -46,6 +46,7 @@ interface Event {
   is_active: boolean;
   show_remaining_count?: boolean;
   pass_fee_to_attendee?: boolean;
+  max_tickets_per_person?: number;
 }
 
 interface TicketTier {
@@ -55,11 +56,12 @@ interface TicketTier {
   capacity?: number | null;
   remaining?: number | null;
   sold?: number | null;
+  max_tickets_per_person?: number | null;
   admits_count?: number | null;
 }
 
-// Max tickets a buyer can select per tier in a single checkout.
-const MAX_QTY_PER_TIER = 5;
+// Fallback when an event doesn't report its own limit (older data).
+const DEFAULT_MAX_TICKETS_PER_ORDER = 5;
 
 const categoryLabels: Record<string, string> = {
   entertainment: "CONCERTS & MUSIC",
@@ -120,6 +122,14 @@ interface Props {
 }
 
 export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Props) {
+  // How many tickets one order may contain: chosen by the organiser (1 to 10).
+  const maxPerOrder = Math.min(10, Math.max(1, Number(event.max_tickets_per_person) || DEFAULT_MAX_TICKETS_PER_ORDER));
+  // A tier's own per-order limit. null means the organiser set no limit for it, so only
+  // what is left (or a sane ceiling) applies; undefined (older data) uses the event's.
+  const limitFor = (tier: TicketTier): number =>
+    tier.max_tickets_per_person === null
+      ? Math.max(1, tier.remaining ?? 100)
+      : Math.min(10, Math.max(1, Number(tier.max_tickets_per_person ?? maxPerOrder)));
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -576,7 +586,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                     // becomes attendee slots, not extra tickets).
                     const isGroupTier = Number(tier.admits_count) > 1;
                     const currentQty = quantities[String(tier.id)] || 0;
-                    const atCap = isGroupTier ? currentQty >= 1 : currentQty >= MAX_QTY_PER_TIER;
+                    const atCap = isGroupTier ? currentQty >= 1 : currentQty >= limitFor(tier);
                     return (
                     <div
                       key={tier.id}
@@ -601,6 +611,13 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                             <span>{tier.capacity} capacity</span>
                           )}
                         </p>
+                        {Number(tier.admits_count) <= 1 && tier.remaining !== 0 && (
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            {tier.max_tickets_per_person === null
+                              ? "No limit per person"
+                              : `Up to ${limitFor(tier)} per person`}
+                          </p>
+                        )}
                       </div>
                       <div className="flex items-center gap-3 flex-shrink-0">
                         <span className="font-semibold text-gray-900 text-sm">
@@ -636,8 +653,8 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                                 const cur = p[String(tier.id)] || 0;
                                 // A group tier is a single ticket — never exceed qty 1.
                                 if (isGroupTier && cur >= 1) return p;
-                                // Otherwise cap purchases at MAX_QTY_PER_TIER per checkout.
-                                if (!isGroupTier && cur >= MAX_QTY_PER_TIER) return p;
+                                // Otherwise cap purchases at this tier's per-order limit.
+                                if (!isGroupTier && cur >= limitFor(tier)) return p;
                                 // Reset all other tiers to 0 — only one tier can be selected at a time
                                 const reset: Record<string, number> = {};
                                 tiers.forEach((t) => { reset[String(t.id)] = 0; });
