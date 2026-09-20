@@ -459,15 +459,18 @@ export default function StudioEventPage() {
       </div>
 
       {/* Event hero */}
-      <div className="relative rounded-xl overflow-hidden shadow-sm bg-gray-950" style={{ minHeight: 130 }}>
-        {img ? (
-          <Image src={img} alt={event?.name || "Event Banner"} fill className="object-cover opacity-85" />
-        ) : (
-          <div className="absolute inset-0">
-            <EventImageFallback category={event?.category} tone="solid" />
-          </div>
-        )}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-black/10" />
+      {/* The banner itself must not clip (the Share menu opens below it): only the image layer is clipped. */}
+      <div className="relative rounded-xl shadow-sm bg-gray-950" style={{ minHeight: 130 }}>
+        <div className="absolute inset-0 overflow-hidden rounded-xl">
+          {img ? (
+            <Image src={img} alt={event?.name || "Event Banner"} fill className="object-cover opacity-85" />
+          ) : (
+            <div className="absolute inset-0">
+              <EventImageFallback category={event?.category} tone="solid" />
+            </div>
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-black/10" />
+        </div>
         <div className="relative z-10 p-5 md:p-6 flex flex-col md:flex-row md:items-end justify-between gap-4 h-full min-h-[130px]">
           <div className="flex-1 min-w-0">
             {isDraft && (
