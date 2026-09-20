@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { ArrowRight01Icon, Camera01Icon, Tick02Icon } from "@hugeicons/core-free-icons";
+import { ArrowRight01Icon, Camera01Icon } from "@hugeicons/core-free-icons";
 import { FaGlobe, FaXTwitter, FaInstagram, FaLinkedinIn, FaTelegram } from "react-icons/fa6";
 import { authSuccess } from "@/redux/auth/authSlice";
 import API from "@/services/api";
@@ -145,10 +145,11 @@ function ProfilePageContent() {
     setCoverImagePreview(URL.createObjectURL(file));
   };
 
-  const dirty =
-    Boolean(avatarFile) ||
-    Boolean(coverImageFile) ||
-    Object.keys(EMPTY_FORM).some((k) => form[k] !== savedForm[k]);
+  const changeCount =
+    Object.keys(EMPTY_FORM).filter((k) => form[k] !== savedForm[k]).length +
+    (avatarFile ? 1 : 0) +
+    (coverImageFile ? 1 : 0);
+  const dirty = changeCount > 0;
 
   const handleDiscard = () => {
     setForm(savedForm);
@@ -204,6 +205,31 @@ function ProfilePageContent() {
       setIsSaving(false);
     }
   };
+
+  // Ctrl/Cmd+S saves, and the browser asks before you close the tab with unsaved changes.
+  const saveRef = useRef(null);
+  useEffect(() => {
+    saveRef.current = handleSave;
+  });
+  useEffect(() => {
+    if (!dirty) return;
+    const onKeyDown = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        if (!isSaving) saveRef.current?.();
+      }
+    };
+    const onBeforeUnload = (e) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("beforeunload", onBeforeUnload);
+    };
+  }, [dirty, isSaving]);
 
   // ── Loading ──
   if (loading) {
@@ -368,32 +394,36 @@ function ProfilePageContent() {
         </div>
       </div>
 
-      {/* ── Save bar: only when there is something to save ── */}
+      {/* ── Unsaved changes: a small pill, only when there is something to save ── */}
       {dirty && (
-        <div
-          role="region"
-          aria-label="Unsaved changes"
-          className="sticky bottom-3 md:bottom-4 z-20 mt-8 md:mt-10 flex items-center justify-between gap-3 rounded-xl bg-gray-900 text-white pl-4 pr-2 py-2 shadow-lg"
-        >
-          <p className="text-sm font-medium">Unsaved changes</p>
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={handleDiscard}
-              disabled={isSaving}
-              className="min-h-[44px] px-3 rounded-lg text-sm font-semibold text-gray-200 hover:bg-white/10 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
-            >
-              Discard
-            </button>
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={isSaving}
-              className="inline-flex items-center gap-1.5 min-h-[44px] px-4 rounded-lg bg-[#4F6EF7] text-sm font-semibold text-white hover:bg-[#3F5EE7] disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
-            >
-              <HugeiconsIcon icon={Tick02Icon} size={14} />
-              {isSaving ? "Saving…" : "Save changes"}
-            </button>
+        <div className="sticky bottom-3 md:bottom-5 z-20 mt-8 flex justify-center pointer-events-none">
+          <div
+            role="region"
+            aria-label="Unsaved changes"
+            className="pointer-events-auto w-full md:w-auto inline-flex items-center justify-between gap-4 rounded-full bg-gray-900 text-white pl-5 pr-1.5 py-1.5 shadow-lg"
+          >
+            <p className="text-sm" aria-live="polite">
+              {changeCount} unsaved change{changeCount === 1 ? "" : "s"}
+            </p>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={handleDiscard}
+                disabled={isSaving}
+                className="h-10 md:h-9 px-3.5 rounded-full text-sm font-medium text-gray-300 hover:text-white hover:bg-white/10 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+              >
+                Discard
+              </button>
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={isSaving}
+                title="Save changes (Ctrl or Cmd + S)"
+                className="inline-flex items-center gap-1.5 h-10 md:h-9 px-4 rounded-full bg-[#4F6EF7] text-sm font-semibold text-white hover:bg-[#3F5EE7] disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+              >
+                {isSaving ? "Saving…" : "Save"}
+              </button>
+            </div>
           </div>
         </div>
       )}
