@@ -2,35 +2,12 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Alert02Icon, MoreVerticalIcon } from "@hugeicons/core-free-icons";
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-} from "@/components/ui/dropdown-menu";
+import { MailAdd01Icon, Delete02Icon, Alert02Icon } from "@hugeicons/core-free-icons";
 
 interface AdminTeamMember {
   id: number;
   email: string;
   added_at: string;
-}
-
-const VISIBLE_AT_FIRST = 5;
-
-// Soft dark tints for the initial circles, picked from the address so each person keeps their colour.
-const TINTS = [
-  "bg-blue-500/20 text-blue-300",
-  "bg-emerald-500/20 text-emerald-300",
-  "bg-amber-500/20 text-amber-300",
-  "bg-rose-500/20 text-rose-300",
-  "bg-violet-500/20 text-violet-300",
-  "bg-teal-500/20 text-teal-300",
-];
-function tintFor(email: string) {
-  let h = 0;
-  for (let i = 0; i < email.length; i++) h = (h * 31 + email.charCodeAt(i)) | 0;
-  return TINTS[Math.abs(h) % TINTS.length];
 }
 
 function formatDate(dateStr: string) {
@@ -46,13 +23,10 @@ function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
-const divider = "border-t border-dashed border-white/10";
-
 export default function AdminTeamPage() {
   const [members, setMembers] = useState<AdminTeamMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [showAll, setShowAll] = useState(false);
 
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviting, setInviting] = useState(false);
@@ -130,172 +104,110 @@ export default function AdminTeamPage() {
     }
   };
 
-  const shown = showAll ? members : members.slice(0, VISIBLE_AT_FIRST);
-  const hidden = members.length - shown.length;
-
   return (
     <div className="p-5 md:p-8">
-      <div className="mx-auto w-full max-w-xl rounded-2xl border border-white/10 bg-[#1a1d27] shadow-2xl">
-        {/* Title */}
-        <div className="px-6 pt-6 pb-5">
-          <h1 className="text-[15px] font-semibold text-white">Admin team</h1>
-          <p className="mt-0.5 text-[13px] text-gray-400">Manage who has access to this admin panel.</p>
-        </div>
-
-        {/* Invite */}
-        <section className={`px-6 py-5 ${divider}`}>
-          <h2 className="text-[13px] font-semibold text-white">Invite an admin</h2>
-          <p className="mt-0.5 text-[13px] text-gray-400">Add people by email.</p>
-
-          <form onSubmit={handleInvite} className="mt-3 flex items-center gap-2">
-            <label htmlFor="admin-invite-email" className="sr-only">Email address</label>
-            <input
-              id="admin-invite-email"
-              type="email"
-              inputMode="email"
-              autoCapitalize="none"
-              value={inviteEmail}
-              onChange={(e) => setInviteEmail(e.target.value)}
-              placeholder="name@usebyro.com"
-              aria-invalid={Boolean(inviteError)}
-              className="min-w-0 flex-1 rounded-lg border border-white/10 bg-white/5 px-3 h-10 md:h-9 text-base md:text-[13px] text-white placeholder:text-gray-500 focus:border-blue-500/60 focus:outline-none focus:ring-2 focus:ring-blue-500/25"
-            />
-            <button
-              type="submit"
-              disabled={inviting || !inviteEmail.trim()}
-              className="shrink-0 h-10 md:h-9 rounded-lg border border-white/10 bg-white/5 px-3.5 text-[13px] font-semibold text-white hover:bg-white/10 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60"
-            >
-              {inviting ? "Sending…" : "Send invite"}
-            </button>
-          </form>
-          {inviteError && (
-            <p className="mt-2 text-xs text-red-400" role="alert">{inviteError}</p>
-          )}
-        </section>
-
-        {/* Admins */}
-        <section className={`px-6 py-5 ${divider}`}>
-          <div className="flex items-center gap-2">
-            <h2 className="text-[13px] font-semibold text-white">Admins</h2>
-            <span className="rounded-full bg-white/5 px-2 py-0.5 text-xs text-gray-400">
-              {loading ? "—" : members.length}
-            </span>
-          </div>
-
-          {removeError && <p className="mt-3 text-xs text-red-400" role="alert">{removeError}</p>}
-
-          {loading ? (
-            <ul className="mt-3 space-y-1.5" aria-label="Loading admins">
-              {[0, 1, 2].map((i) => (
-                <li key={i} className="h-10 animate-pulse rounded-lg bg-white/[0.04]" />
-              ))}
-            </ul>
-          ) : error ? (
-            <div className="flex flex-col items-center gap-3 py-6 text-center">
-              <HugeiconsIcon icon={Alert02Icon} size={20} color="#f87171" />
-              <p className="text-[13px] text-gray-400">{error}</p>
-              <button
-                onClick={loadMembers}
-                className="rounded-lg border border-white/10 bg-white/5 px-3 h-8 text-[13px] font-semibold text-gray-200 hover:bg-white/10"
-              >
-                Try again
-              </button>
-            </div>
-          ) : members.length === 0 ? (
-            <p className="mt-3 text-[13px] text-gray-500">No admins yet. Invite someone above.</p>
-          ) : (
-            <>
-              <ul className="mt-3 space-y-1.5">
-                {shown.map((m) => (
-                  <li key={m.id} className="flex items-center gap-3 rounded-lg bg-white/[0.04] px-3 py-1.5 min-h-[40px]">
-                    <span
-                      aria-hidden="true"
-                      className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold uppercase ${tintFor(m.email)}`}
-                    >
-                      {m.email.charAt(0)}
-                    </span>
-                    <span className="min-w-0 flex-1 truncate text-[13px] text-gray-100">{m.email}</span>
-                    <span className="hidden shrink-0 rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs text-gray-400 md:inline">
-                      Added {formatDate(m.added_at)}
-                    </span>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <button
-                          type="button"
-                          disabled={removingId === m.id}
-                          aria-label={`Actions for ${m.email}`}
-                          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-gray-400 hover:bg-white/10 hover:text-white disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60"
-                        >
-                          <HugeiconsIcon icon={MoreVerticalIcon} size={16} color="currentColor" />
-                        </button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent
-                        align="end"
-                        className="w-44 border-white/10 bg-[#22252f] text-gray-200"
-                      >
-                        <DropdownMenuItem
-                          inset={false}
-                          variant="destructive"
-                          onSelect={() => setRemoving(m)}
-                          className="text-gray-200 focus:bg-white/10 focus:text-white data-[variant=destructive]:text-red-400 data-[variant=destructive]:focus:bg-red-500/10 data-[variant=destructive]:focus:text-red-300"
-                        >
-                          Remove access
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </li>
-                ))}
-              </ul>
-
-              {(hidden > 0 || (showAll && members.length > VISIBLE_AT_FIRST)) && (
-                <div className="mt-2.5 flex justify-center">
-                  <button
-                    type="button"
-                    onClick={() => setShowAll((v) => !v)}
-                    className="rounded-full border border-white/10 bg-white/5 px-3 h-7 text-xs font-medium text-gray-300 hover:bg-white/10"
-                  >
-                    {showAll ? "Show less" : `View ${hidden} more`}
-                  </button>
-                </div>
-              )}
-            </>
-          )}
-        </section>
-
-        {/* Footer note */}
-        <div className={`px-6 py-4 ${divider}`}>
-          <p className="text-xs text-gray-500">
-            Admins have full access to events, users and payouts.
-          </p>
-        </div>
+      {/* Header */}
+      <div className="mb-8">
+        <h1 className="text-white text-xl font-bold">Team</h1>
+        <p className="text-gray-400 text-sm mt-1">People with access to this admin panel</p>
       </div>
 
-      {/* Remove confirmation */}
+      {/* Invite form */}
+      <div className="bg-[#1a1d27] border border-white/10 rounded-xl p-6 mb-6">
+        <h2 className="text-white font-semibold mb-1">Invite an admin</h2>
+        <p className="text-gray-400 text-xs mb-4">
+          They&apos;ll get full access to this admin panel — events, users, and payouts.
+        </p>
+        <form onSubmit={handleInvite} className="flex flex-col sm:flex-row gap-2">
+          <input
+            type="email"
+            value={inviteEmail}
+            onChange={(e) => setInviteEmail(e.target.value)}
+            placeholder="name@usebyro.com"
+            className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500/50"
+          />
+          <button
+            type="submit"
+            disabled={inviting || !inviteEmail.trim()}
+            className="flex items-center justify-center gap-2 text-xs font-semibold text-blue-400 bg-blue-500/10 hover:bg-blue-500/20 disabled:opacity-50 px-4 py-2.5 rounded-lg transition-colors whitespace-nowrap"
+          >
+            <HugeiconsIcon icon={MailAdd01Icon} size={15} color="currentColor" />
+            {inviting ? "Sending invite…" : "Send invite"}
+          </button>
+        </form>
+        {inviteError && <p className="text-red-400 text-xs mt-2">{inviteError}</p>}
+      </div>
+
+      {/* Members list */}
+      <div className="bg-[#1a1d27] border border-white/10 rounded-xl p-6">
+        <div className="flex items-center gap-2 mb-5">
+          <h2 className="text-white font-semibold">Admins</h2>
+          <span className="text-xs bg-white/5 text-gray-400 px-2 py-0.5 rounded-full">
+            {loading ? "—" : members.length}
+          </span>
+        </div>
+
+        {removeError && <p className="text-red-400 text-xs mb-4">{removeError}</p>}
+
+        {loading ? (
+          <p className="text-gray-500 text-sm py-6 text-center">Loading...</p>
+        ) : error ? (
+          <div className="flex flex-col items-center gap-3 py-8 text-center">
+            <HugeiconsIcon icon={Alert02Icon} size={20} color="#f87171" />
+            <p className="text-gray-400 text-sm">{error}</p>
+            <button
+              onClick={loadMembers}
+              className="text-xs font-semibold text-gray-300 hover:text-white bg-white/5 hover:bg-white/10 px-3 py-1.5 rounded-lg transition-colors"
+            >
+              Try again
+            </button>
+          </div>
+        ) : members.length === 0 ? (
+          <p className="text-gray-500 text-sm py-6 text-center">No admins added yet.</p>
+        ) : (
+          <div className="divide-y divide-white/5">
+            {members.map((m) => (
+              <div key={m.id} className="flex items-center justify-between gap-3 py-3">
+                <div className="min-w-0">
+                  <p className="text-white text-sm font-medium truncate">{m.email}</p>
+                  <p className="text-gray-500 text-xs mt-0.5">Added {formatDate(m.added_at)}</p>
+                </div>
+                <button
+                  onClick={() => setRemoving(m)}
+                  disabled={removingId === m.id}
+                  aria-label={`Remove ${m.email}`}
+                  className="shrink-0 flex items-center gap-1.5 text-xs font-semibold text-red-400 bg-red-500/10 hover:bg-red-500/20 disabled:opacity-50 px-3 py-1.5 rounded-lg transition-colors"
+                >
+                  <HugeiconsIcon icon={Delete02Icon} size={14} color="currentColor" />
+                  Remove
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Remove confirmation modal */}
       {removing && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/70" onClick={() => setRemoving(null)} aria-hidden="true" />
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="remove-admin-title"
-            className="relative w-full max-w-sm rounded-2xl border border-white/10 bg-[#1a1d27] p-6 shadow-2xl"
-          >
-            <h3 id="remove-admin-title" className="mb-2 text-[15px] font-semibold text-white">Remove admin access?</h3>
-            <p className="mb-5 text-[13px] leading-relaxed text-gray-400">
+          <div className="absolute inset-0 bg-black/70" onClick={() => setRemoving(null)} />
+          <div className="relative w-full max-w-sm bg-[#1a1d27] border border-white/10 rounded-xl p-6 shadow-2xl">
+            <h3 className="text-white font-semibold text-sm mb-2">Remove admin access?</h3>
+            <p className="text-gray-400 text-xs leading-relaxed mb-5">
               {removing.email} will immediately lose access to this admin panel.
             </p>
             <div className="flex items-center justify-end gap-2">
               <button
                 onClick={() => setRemoving(null)}
-                className="rounded-lg border border-white/10 bg-white/5 px-3.5 h-9 text-[13px] font-semibold text-gray-200 hover:bg-white/10"
+                className="text-xs font-semibold text-gray-300 hover:text-white px-3 py-2 rounded-lg hover:bg-white/5 transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={() => handleRemove(removing)}
-                className="rounded-lg bg-red-500/15 px-3.5 h-9 text-[13px] font-semibold text-red-300 hover:bg-red-500/25"
+                className="text-xs font-semibold text-red-400 bg-red-500/10 hover:bg-red-500/20 px-3 py-2 rounded-lg transition-colors"
               >
-                Remove access
+                Confirm remove
               </button>
             </div>
           </div>
