@@ -7,8 +7,6 @@ import { useSelector } from "react-redux";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Camera01Icon,
-  Calendar01Icon,
-  Clock01Icon,
   Location01Icon,
   ArrowLeft01Icon,
   Add01Icon,
@@ -18,7 +16,6 @@ import {
 } from "@hugeicons/core-free-icons";
 import API from "../../services/api";
 import RichTextEditor from "./RichTextEditor";
-import EventPublishedModal from "./EventPublishedModal";
 
 /* ── Category options ── */
 /* Each category keeps its own accent when selected (a chip tints toward its
@@ -150,8 +147,11 @@ const formatDateForServer = (d) => {
 /* ── Default tiers ── */
 const DEFAULT_TIERS = [];
 
-export default function EventCreationForm({ editSlug = null, initialData = null }) {
+export default function EventCreationForm({ editSlug = null, initialData = null, embedded = false }) {
   const router = useRouter();
+  const wasDraft = Boolean(initialData?.is_draft);
+  // A live event can't be turned back into a draft (it may already have sold tickets).
+  const canSaveDraft = !editSlug || wasDraft;
   const { token } = useSelector((state) => state.auth);
   const fileInputRef = useRef(null);
   const venueTimerRef = useRef(null);
@@ -165,6 +165,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
   const [timeFrom, setTimeFrom] = useState("");
   const [venue, setVenue] = useState("");
   const [virtualLink, setVirtualLink] = useState("");
+  const [showVirtual, setShowVirtual] = useState(false);
   const [eventVisibility, setEventVisibility] = useState(true);
   const [showRemainingCount, setShowRemainingCount] = useState(false);
   const [ticketsTransferable, setTicketsTransferable] = useState(false);
@@ -189,8 +190,20 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
 
   /* submission */
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [eventCreated, setEventCreated] = useState(false);
-  const [eventSlug, setEventSlug] = useState(null);
+
+  /* The floating support chat would sit on top of the Publish button on phones */
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia("(max-width: 767px)").matches) return;
+    const tawk = () => window.Tawk_API;
+    tawk()?.hideWidget?.();
+    const previous = tawk()?.onLoad;
+    if (tawk()) tawk().onLoad = () => { previous?.(); tawk()?.hideWidget?.(); };
+    return () => { tawk()?.showWidget?.(); };
+  }, []);
+
+  /* which cards are expanded (Settings starts collapsed: the defaults suit most events) */
+  const [open, setOpen] = useState({ details: true, date: true, tiers: true, cover: true, settings: false });
+  const toggle = (key) => setOpen((o) => ({ ...o, [key]: !o[key] }));
 
   /* pre-fill when editing */
   useEffect(() => {
@@ -295,6 +308,8 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
 
   /* Submit */
   const handleSubmit = async (isDraft = false) => {
+    // Required fields live in these two cards: never validate behind a collapsed one.
+    setOpen((o) => ({ ...o, details: true, date: true }));
     if (!eventName.trim()) { toast.error("Event name is required"); return; }
     if (!date.trim()) { toast.error("Event date is required"); return; }
     if (!timeFrom) { toast.error("Start time is required"); return; }
@@ -327,7 +342,8 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
       transferable: ticketsTransferable.toString(),
       show_remaining_count: showRemainingCount.toString(),
       pass_fee_to_attendee: passFeeToAttendee.toString(),
-      visibility: isDraft ? "private" : (eventVisibility ? "public" : "private"),
+      visibility: eventVisibility ? "public" : "private",
+      is_draft: isDraft.toString(),
       category,
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "GMT+01:00",
     };
@@ -409,12 +425,13 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
 
         toast.success(editSlug ? "Event updated!" : isDraft ? "Draft saved!" : "Event published!");
         if (editSlug) {
-          router.push(`/dashboard/events/${editSlug}`);
+          // Publishing a draft is the moment to show the share modal.
+          const justPublished = wasDraft && !isDraft;
+          router.push(`/dashboard/events/${editSlug}${justPublished ? "?published=1" : ""}`);
         } else if (isDraft) {
-          router.push(`/discover/${response.slug}?preview=true`);
+          router.push(`/dashboard/events/${response.slug}`);
         } else {
-          setEventSlug(response.slug || response.id);
-          setEventCreated(true);
+          router.push(`/dashboard/events/${response.slug || response.id}?published=1`);
         }
       }
     } catch (err) {
@@ -426,50 +443,57 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
   };
 
   return (
-    <div className="min-h-screen bg-[#F5F6FA]">
+    <div className={embedded ? "" : "min-h-screen bg-[#F5F6FA]"}>
       {/* ── Top bar ── */}
-      <div className="bg-white border-b border-gray-100 px-3 sm:px-6 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sticky top-0 z-10">
+      <div className="bg-white border-b border-gray-100 px-4 md:px-6 py-3 flex flex-col md:flex-row md:items-center justify-between gap-3 sticky top-0 z-10">
         <div className="flex items-center gap-2">
           <button onClick={() => router.back()} className="flex items-center justify-center w-7 h-7 rounded-lg text-gray-500 hover:text-gray-800 hover:bg-gray-50 transition-colors shrink-0">
             <HugeiconsIcon icon={ArrowLeft01Icon} size={14} color="#6b7280" />
           </button>
           <span className="text-gray-200 text-sm">/</span>
-          <h1 className="text-base sm:text-lg font-bold text-gray-900 truncate">
+          <h1 className="text-base md:text-lg font-bold text-gray-900 truncate">
             {editSlug ? "Edit event" : "Create event"}
           </h1>
         </div>
-        <div className="grid grid-cols-2 gap-2 w-full sm:flex sm:w-auto sm:items-center sm:gap-2.5">
-          <button
-            onClick={() => handleSubmit(true)}
-            disabled={isSubmitting}
-            className="border border-gray-200 text-gray-700 text-[11px] sm:text-xs font-semibold px-2.5 py-2 rounded-xl hover:bg-gray-50 transition-colors disabled:opacity-40 text-center w-full sm:w-auto"
-          >
-            Save draft
-          </button>
+        <div className="fixed bottom-0 inset-x-0 z-20 grid grid-cols-2 gap-2 bg-white border-t border-gray-200 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:static md:z-auto md:flex md:w-auto md:items-center md:gap-2.5 md:bg-transparent md:border-0 md:p-0">
+          {canSaveDraft && (
+            <button
+              onClick={() => handleSubmit(true)}
+              disabled={isSubmitting}
+              className="border border-gray-200 text-gray-700 text-sm min-h-[44px] md:min-h-0 md:text-xs font-semibold px-3 py-2 rounded-xl hover:bg-gray-50 transition-colors disabled:opacity-40 text-center w-full md:w-auto"
+            >
+              Save draft
+            </button>
+          )}
           <button
             onClick={() => handleSubmit(false)}
             disabled={isSubmitting}
-            className="bg-blue-600 text-white text-[11px] sm:text-xs font-semibold px-2.5 py-2 rounded-xl hover:bg-blue-700 transition-colors flex items-center justify-center gap-1 sm:gap-1.5 disabled:opacity-40 w-full sm:w-auto"
+            className={`bg-blue-600 text-white text-sm min-h-[44px] md:min-h-0 md:text-xs font-semibold px-3 py-2 rounded-xl hover:bg-blue-700 transition-colors flex items-center justify-center gap-1 md:gap-1.5 disabled:opacity-40 w-full md:w-auto ${canSaveDraft ? "" : "col-span-2 md:col-span-1"}`}
           >
             {isSubmitting ? (
               <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25" /><path d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" fill="currentColor" className="opacity-75" /></svg>
             ) : (
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12" /></svg>
             )}
-            {isSubmitting ? "Saving..." : "Publish event"}
+            {isSubmitting ? "Saving..." : editSlug && !wasDraft ? "Save changes" : "Publish event"}
           </button>
         </div>
       </div>
 
       {/* ── Body ── */}
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8 flex flex-col lg:flex-row gap-6 items-start">
+      <div className="max-w-5xl mx-auto px-4 md:px-6 pt-6 pb-28 md:py-8 flex flex-col lg:flex-row gap-6 items-stretch lg:items-start">
 
         {/* Left column */}
-        <div className="flex-1 min-w-0 space-y-5">
+        <div className="w-full lg:flex-1 min-w-0 space-y-5">
 
           {/* Event details card */}
-          <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
-            <h2 className="font-bold text-gray-900 text-base mb-5">Event details</h2>
+          <Collapsible
+            id="sec-details"
+            title="Event details"
+            summary={[categories.find((c) => c.id === category)?.label, eventName.trim()].filter(Boolean).join(", ") || "Name, category and description"}
+            open={open.details}
+            onToggle={() => toggle("details")}
+          >
 
             {/* Name */}
             <div className="mb-5">
@@ -486,7 +510,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
             {/* Category */}
             <div className="mb-5">
               <label className="block text-sm font-medium text-gray-700 mb-3">Category</label>
-              <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-1 px-1 pb-1">
+              <div className="flex flex-wrap gap-2">
                 {categories.map(cat => {
                   const selected = category === cat.id;
                   return (
@@ -537,23 +561,27 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
                 onChange={setDescription}
               />
             </div>
-          </div>
+          </Collapsible>
 
           {/* Date & location card */}
-          <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
-            <h2 className="font-bold text-gray-900 text-base mb-5">Date &amp; location</h2>
+          <Collapsible
+            id="sec-date"
+            title="Date & location"
+            summary={[formatDisplayDate(date)?.main, formatDisplayTime(timeFrom), venue.trim()].filter(Boolean).join(", ") || "When and where it happens"}
+            open={open.date}
+            onToggle={() => toggle("date")}
+          >
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 {/* Date */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">Date</label>
                   <div className="relative">
-                    <HugeiconsIcon icon={Calendar01Icon} size={15} color="#9ca3af" className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                     <input
                       type="date"
                       value={date}
                       onChange={e => setDate(e.target.value)}
-                      className="w-full border border-gray-200 rounded-xl pl-9 pr-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className={`w-full border border-gray-200 rounded-xl px-4 py-3 min-h-[46px] text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${date ? "text-gray-900" : "text-gray-400"}`}
                     />
                   </div>
                 </div>
@@ -561,12 +589,11 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">Start time</label>
                   <div className="relative">
-                    <HugeiconsIcon icon={Clock01Icon} size={15} color="#9ca3af" className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                     <input
                       type="time"
                       value={timeFrom}
                       onChange={e => setTimeFrom(e.target.value)}
-                      className="w-full border border-gray-200 rounded-xl pl-9 pr-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className={`w-full border border-gray-200 rounded-xl px-4 py-3 min-h-[46px] text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${timeFrom ? "text-gray-900" : "text-gray-400"}`}
                     />
                   </div>
                 </div>
@@ -627,35 +654,52 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
                 )}
               </div>
 
-              {/* Virtual link */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Virtual link <span className="text-gray-400 font-normal">(optional)</span>
-                </label>
-                <input
-                  type="url"
-                  value={virtualLink}
-                  onChange={e => setVirtualLink(e.target.value)}
-                  placeholder="https://meet.example.com/..."
-                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-400"
-                />
-              </div>
+              {/* Virtual link: only shown once it is wanted (or already set) */}
+              {showVirtual || virtualLink ? (
+                <div>
+                  <label htmlFor="virtual-link" className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Virtual link
+                  </label>
+                  <input
+                    id="virtual-link"
+                    type="url"
+                    inputMode="url"
+                    value={virtualLink}
+                    onChange={e => setVirtualLink(e.target.value)}
+                    placeholder="https://meet.example.com/..."
+                    className="w-full border border-gray-200 rounded-xl px-4 py-3 min-h-[46px] text-base md:text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setShowVirtual(true)}
+                  className="text-sm font-semibold text-blue-600 hover:text-blue-700 min-h-[44px] md:min-h-0 text-left"
+                >
+                  Add virtual link
+                </button>
+              )}
             </div>
-          </div>
+          </Collapsible>
 
           {/* Ticket tiers card */}
-          <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
-            <div className="flex items-center justify-between mb-5">
-              <h2 className="font-bold text-gray-900 text-base">Ticket tiers</h2>
+          <Collapsible
+            id="sec-tiers"
+            title="Ticket tiers"
+            summary={tiers.length > 0 ? `${tiers.length} ticket tier${tiers.length === 1 ? "" : "s"}` : "No tiers yet. Free event? Skip this."}
+            open={open.tiers}
+            onToggle={() => toggle("tiers")}
+            action={
               <button
                 type="button"
-                onClick={addTier}
-                className="flex items-center gap-1.5 text-blue-600 text-sm font-semibold hover:text-blue-700 transition-colors"
+                onClick={() => { setOpen((o) => ({ ...o, tiers: true })); addTier(); }}
+                className="flex items-center gap-1.5 min-h-[44px] md:min-h-0 px-2 text-blue-600 text-sm font-semibold hover:text-blue-700 transition-colors"
               >
                 <HugeiconsIcon icon={Add01Icon} size={15} color="#2563eb" />
                 Add tier
               </button>
-            </div>
+            }
+          >
 
             <div className="space-y-2">
               {tiers.map((tier, idx) => (
@@ -749,15 +793,21 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
             <p className="text-xs text-gray-400 mt-4">
               Free event? Skip this section. For paid events, add at least one tier with a price, the first tier&apos;s price becomes the event ticket price.
             </p>
-          </div>
+          </Collapsible>
         </div>
 
         {/* Right column */}
         <div className="lg:w-64 xl:w-72 shrink-0 w-full space-y-4">
 
           {/* Cover image */}
-          <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
-            <h3 className="font-bold text-gray-900 text-sm mb-4">Cover image</h3>
+          <Collapsible
+            id="sec-cover"
+            size="sm"
+            title="Cover image"
+            summary={imagePreview ? "Image added" : "No image yet"}
+            open={open.cover}
+            onToggle={() => toggle("cover")}
+          >
             <input type="file" ref={fileInputRef} onChange={handleImageChange} className="hidden" accept="image/*" />
             <div
               onClick={() => fileInputRef.current?.click()}
@@ -767,11 +817,14 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
               {imagePreview ? (
                 <img src={imagePreview} alt="Cover" className="w-full h-full object-cover" />
               ) : (
-                <div className="w-full h-full bg-gradient-to-br from-purple-700 to-pink-500 flex flex-col items-center justify-center gap-2">
+                <div className="w-full h-full bg-gray-100 flex flex-col items-center justify-center gap-2">
                   {isImageLoading ? (
-                    <svg className="animate-spin" width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="white" strokeWidth="4" className="opacity-25" /><path d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" fill="white" className="opacity-75" /></svg>
+                    <svg className="animate-spin" width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="#6b7280" strokeWidth="4" className="opacity-25" /><path d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" fill="#6b7280" className="opacity-75" /></svg>
                   ) : (
-                    <HugeiconsIcon icon={Camera01Icon} size={24} color="white" />
+                    <>
+                      <HugeiconsIcon icon={Camera01Icon} size={24} color="#6b7280" />
+                      <span className="text-sm text-gray-500">Add cover image</span>
+                    </>
                   )}
                 </div>
               )}
@@ -784,12 +837,18 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
                 </div>
               )}
             </div>
-            <p className="text-xs text-gray-400 mt-2.5">1600×900px recommended. JPG or PNG, max 5MB.</p>
-          </div>
+            <p className="mt-2.5 text-sm text-gray-500">1600×900px, up to 5MB</p>
+          </Collapsible>
 
           {/* Settings */}
-          <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
-            <h3 className="font-bold text-gray-900 text-sm mb-4">Settings</h3>
+          <Collapsible
+            id="sec-settings"
+            size="sm"
+            title="Settings"
+            summary={`${eventVisibility ? "Public" : "Private"}, ${passFeeToAttendee ? "fee passed to attendees" : "you cover the fee"}`}
+            open={open.settings}
+            onToggle={() => toggle("settings")}
+          >
             <div className="space-y-4">
               {[
                 { label: "Public event", value: eventVisibility, toggle: () => setEventVisibility(v => !v) },
@@ -814,7 +873,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
                 ? "Byro's platform fee is added at checkout."
                 : "Byro's platform fee will be deducted from your payout."}
             </p>
-          </div>
+          </Collapsible>
 
           {editSlug && (
             <button
@@ -827,13 +886,50 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
           )}
         </div>
       </div>
-
-      {eventCreated && eventSlug && (
-        <EventPublishedModal
-          event={{ slug: eventSlug, name: eventName }}
-          onClose={() => router.push(`/discover/${eventSlug}?preview=true`)}
-        />
-      )}
     </div>
+  );
+}
+
+/* ── Collapsible card: phones only. From tablet up the card is a plain, always-open section. ── */
+function Collapsible({ id, title, summary, open, onToggle, action = null, size = "md", children }) {
+  const pad = size === "sm" ? "px-5" : "px-4 md:px-6";
+  const titleCls = `block font-bold text-gray-900 ${size === "sm" ? "text-sm" : "text-base"}`;
+  return (
+    <section className="bg-white rounded-2xl border border-gray-100 shadow-sm">
+      {/* Phones: tap the header to collapse or expand */}
+      <div className={`md:hidden flex items-center justify-between gap-3 ${pad}`}>
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={open}
+          aria-controls={id}
+          className="flex-1 min-w-0 flex items-center justify-between gap-3 py-4 text-left rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+        >
+          <span className="min-w-0">
+            <span className={titleCls}>{title}</span>
+            {!open && summary && <span className="block text-sm text-gray-500 truncate mt-0.5">{summary}</span>}
+          </span>
+          <svg
+            width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+            strokeLinecap="round" strokeLinejoin="round"
+            className={`shrink-0 text-gray-400 transition-transform motion-reduce:transition-none ${open ? "rotate-180" : ""}`}
+            aria-hidden="true"
+          >
+            <path d="M6 9l6 6 6-6" />
+          </svg>
+        </button>
+        {action}
+      </div>
+
+      {/* Tablet and up: a normal heading, nothing to toggle */}
+      <div className={`hidden md:flex items-center justify-between gap-3 pt-6 pb-3 ${pad}`}>
+        <h2 className={titleCls}>{title}</h2>
+        {action}
+      </div>
+
+      <div id={id} className={`${pad} pb-5 md:pb-6 pt-1 ${open ? "" : "hidden md:block"}`}>
+        {children}
+      </div>
+    </section>
   );
 }

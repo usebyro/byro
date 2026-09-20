@@ -17,7 +17,7 @@ from .serializers import (
     UserProfileSerializer, EventFormQuestionSerializer,
     PayoutRequestSerializer,
 )
-from django.http import JsonResponse, HttpResponse
+from django.http import JsonResponse, HttpResponse, Http404
 from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
@@ -38,7 +38,7 @@ from .permissions import IsEventOwnerOrCoHost, IsEventOwner, IsAdminSecret
 from django.db import transaction, IntegrityError
 from django.db import models
 from django.db.models import Q, Min, OuterRef, Subquery, Sum, Count, F
-from django.db.models.functions import TruncDate
+from django.db.models.functions import TruncDate, TruncMonth
 from django.db.models.functions import Coalesce
 from django.http import JsonResponse
 from django.conf import settings
@@ -490,7 +490,7 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
             )
 
         # Get event
-        event = get_object_or_404(Event, slug=event_slug, is_active=True)
+        event = get_object_or_404(Event, slug=event_slug, is_active=True, is_draft=False)
 
         try:
             with transaction.atomic():
@@ -1033,6 +1033,7 @@ class DashboardView(APIView):
                 'category': event.category,
                 'ticket_price': str(event.ticket_price),
                 'is_active': event.is_active,
+                'is_draft': event.is_draft,
                 'capacity': event.capacity,
                 'is_owner': event.owner_id == user.id,
                 'attendee_count': event.tickets.filter(
@@ -1064,6 +1065,131 @@ class DashboardView(APIView):
                 'upcoming': [ticket_summary(t) for t in attending_upcoming[:10]],
                 'past': [ticket_summary(t) for t in attending_past[:10]],
             },
+        })
+
+
+class DashboardAnalyticsView(APIView):
+    """
+    GET /api/dashboard/analytics/
+
+    Real numbers for the organiser overview, scoped to events the user owns
+    or co-hosts (accepted). Revenue uses the same net-of-fee rule as the
+    payout balance, so the two never disagree. Draft events are ignored.
+
+      - last_30d / previous_30d : tickets sold + revenue, for honest trends
+      - monthly_revenue         : the last 12 calendar months, oldest first
+      - avg_fill_rate           : mean sold/capacity over events with a capacity (0-100)
+      - top_events              : best sellers this calendar month
+      - events                  : lifetime sold + revenue + is_free per event slug
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        now = timezone.now()
+
+        events = Event.objects.filter(
+            Q(owner=user) | Q(
+                cohosts__user=user,
+                cohosts__status=EventCoHost.STATUS_ACCEPTED,
+            ),
+            is_active=True,
+            is_draft=False,
+        ).distinct()
+        event_ids = list(events.values_list('pk', flat=True))
+
+        net_price = ticket_net_price_expr()
+        zero = Decimal('0')
+        sold = Ticket.objects.filter(event_id__in=event_ids, payment_status__in=['paid', 'free'])
+        paid = Ticket.objects.filter(event_id__in=event_ids, payment_status='paid')
+
+        def window(start, end=None):
+            s_qs, p_qs = sold.filter(created_at__gte=start), paid.filter(created_at__gte=start)
+            if end is not None:
+                s_qs, p_qs = s_qs.filter(created_at__lt=end), p_qs.filter(created_at__lt=end)
+            return {
+                'tickets': s_qs.count(),
+                'revenue': str(p_qs.aggregate(t=Coalesce(Sum(net_price), zero))['t']),
+            }
+
+        d30 = now - timedelta(days=30)
+        d60 = now - timedelta(days=60)
+
+        # Last 12 calendar months, oldest first.
+        year, month = now.year, now.month
+        months = []
+        for _ in range(12):
+            months.append((year, month))
+            month -= 1
+            if month == 0:
+                year, month = year - 1, 12
+        months.reverse()
+        first = months[0]
+        start = now.replace(year=first[0], month=first[1], day=1, hour=0, minute=0, second=0, microsecond=0)
+        by_month = {
+            (row['m'].year, row['m'].month): row['t']
+            for row in paid.filter(created_at__gte=start)
+            .annotate(m=TruncMonth('created_at'))
+            .values('m')
+            .annotate(t=Sum(net_price))
+        }
+        monthly_revenue = [
+            {'month': f'{y}-{m:02d}', 'revenue': str(by_month.get((y, m), zero))}
+            for (y, m) in months
+        ]
+
+        # Lifetime sold + revenue per event.
+        sold_by_event = dict(
+            sold.values_list('event__slug').annotate(n=Count('id')).values_list('event__slug', 'n')
+        )
+        revenue_by_event = dict(
+            paid.values_list('event__slug').annotate(t=Sum(net_price)).values_list('event__slug', 't')
+        )
+        # An event is free when its base price is 0 and none of its tiers charge.
+        paid_tier_events = set(
+            TicketTier.objects.filter(event_id__in=event_ids, price__gt=0)
+            .values_list('event_id', flat=True)
+        )
+        per_event = {
+            slug: {
+                'sold': sold_by_event.get(slug, 0),
+                'revenue': str(revenue_by_event.get(slug, zero)),
+                'is_free': base_price == 0 and event_id not in paid_tier_events,
+            }
+            for event_id, slug, base_price in events.values_list('pk', 'slug', 'ticket_price')
+        }
+
+        # Average fill rate across events that have a capacity.
+        fills = []
+        for slug, capacity in events.filter(capacity__gt=0).values_list('slug', 'capacity'):
+            fills.append(min(sold_by_event.get(slug, 0) / capacity, 1))
+        avg_fill_rate = round(sum(fills) / len(fills) * 100) if fills else None
+
+        # Best sellers this calendar month.
+        month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        month_sold = dict(
+            sold.filter(created_at__gte=month_start)
+            .values_list('event__slug').annotate(n=Count('id'))
+            .values_list('event__slug', 'n')
+        )
+        month_revenue = dict(
+            paid.filter(created_at__gte=month_start)
+            .values_list('event__slug').annotate(t=Sum(net_price))
+            .values_list('event__slug', 't')
+        )
+        top_events = [
+            {'slug': slug, 'sold': n, 'revenue': str(month_revenue.get(slug, zero))}
+            for slug, n in sorted(month_sold.items(), key=lambda kv: kv[1], reverse=True)[:3]
+        ]
+
+        return Response({
+            'currency': 'NGN',
+            'last_30d': window(d30),
+            'previous_30d': window(d60, d30),
+            'monthly_revenue': monthly_revenue,
+            'avg_fill_rate': avg_fill_rate,
+            'top_events': top_events,
+            'events': per_event,
         })
 
 
@@ -1201,8 +1327,9 @@ class EventViewSet(viewsets.ModelViewSet):
         user = self.request.user
         is_listing = self.action == 'list'
 
+        # Drafts are visible only to the host and co-hosts (and superusers).
         if not user.is_authenticated:
-            queryset = queryset.filter(is_active=True)
+            queryset = queryset.filter(is_active=True, is_draft=False)
             if is_listing:
                 queryset = queryset.filter(visibility='public')
         elif not user.is_superuser:
@@ -1213,7 +1340,11 @@ class EventViewSet(viewsets.ModelViewSet):
                     cohosts__status=EventCoHost.STATUS_ACCEPTED,
                 )
             )
-            visible = Q(is_active=True, visibility='public') if is_listing else Q(is_active=True)
+            visible = (
+                Q(is_active=True, is_draft=False, visibility='public')
+                if is_listing
+                else Q(is_active=True, is_draft=False)
+            )
             queryset = queryset.filter(visible | own)
         queryset = queryset.distinct()
 
@@ -1249,7 +1380,8 @@ class EventViewSet(viewsets.ModelViewSet):
                 count = Event.objects.filter(
                     category=choice_value, 
                     is_active=True,
-                    visibility='public'
+                    visibility='public',
+                    is_draft=False
                 ).count()
                 
                 categories.append({
@@ -1260,7 +1392,8 @@ class EventViewSet(viewsets.ModelViewSet):
             
             total_events = Event.objects.filter(
                 is_active=True, 
-                visibility='public'
+                visibility='public',
+                is_draft=False
             ).count()
             
             return Response({
@@ -1289,7 +1422,8 @@ class EventViewSet(viewsets.ModelViewSet):
         try:
             base_qs = Event.objects.filter(
                 is_active=True,
-                visibility='public'
+                visibility='public',
+                is_draft=False
             ).exclude(location='').exclude(location__isnull=True)
 
             counts = (
@@ -1565,6 +1699,11 @@ class EventViewSet(viewsets.ModelViewSet):
         """
         try:
             event = self.get_object()
+            if event.is_draft:
+                return Response(
+                    {"error": "This event is not open for registration yet."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
             tier_id = request.data.get('tier_id')
 
             name = request.data.get('name', '').strip()
@@ -1639,6 +1778,8 @@ class EventViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_201_CREATED,
             )
 
+        except Http404:
+            raise
         except Exception as e:
             logger.exception("Error in event registration")
             return Response(
@@ -2146,6 +2287,29 @@ class TicketTransferViewSet(viewsets.ModelViewSet):
 # Payout endpoints
 # ---------------------------------------------------------------------------
 
+def ticket_net_price_expr():
+    """
+    What the organizer keeps from one sold ticket: the tier price (or the
+    event's flat ticket_price for tier-less events), minus Byro's service fee
+    when the organizer chose to absorb it (`pass_fee_to_attendee=False`).
+    Shared by the payout balance and the dashboard analytics so both agree.
+    """
+    ticket_price = Coalesce(
+        F('tier__price'), F('event__ticket_price'), Decimal('0')
+    )
+    return models.Case(
+        models.When(
+            event__pass_fee_to_attendee=False,
+            then=models.ExpressionWrapper(
+                ticket_price * (Decimal('1') - FEE_RATE),
+                output_field=models.DecimalField(max_digits=10, decimal_places=2),
+            ),
+        ),
+        default=ticket_price,
+        output_field=models.DecimalField(max_digits=10, decimal_places=2),
+    )
+
+
 def compute_available_balance(user, event=None):
     """
     Funds an organizer can currently withdraw.
@@ -2175,20 +2339,7 @@ def compute_available_balance(user, event=None):
             ).values_list('pk', flat=True).distinct()
         )
 
-    ticket_price = Coalesce(
-        F('tier__price'), F('event__ticket_price'), Decimal('0')
-    )
-    net_price = models.Case(
-        models.When(
-            event__pass_fee_to_attendee=False,
-            then=models.ExpressionWrapper(
-                ticket_price * (Decimal('1') - FEE_RATE),
-                output_field=models.DecimalField(max_digits=10, decimal_places=2),
-            ),
-        ),
-        default=ticket_price,
-        output_field=models.DecimalField(max_digits=10, decimal_places=2),
-    )
+    net_price = ticket_net_price_expr()
     earned = (
         Ticket.objects.filter(event_id__in=event_ids, payment_status='paid')
         .aggregate(total=Coalesce(Sum(net_price), Decimal('0')))['total']

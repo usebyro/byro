@@ -69,7 +69,7 @@ export default function NotificationBell() {
       >
         <HugeiconsIcon icon={Notification01Icon} size={18} color="currentColor" />
         {unread > 0 && (
-          <span className="absolute top-1 right-1 min-w-[15px] h-[15px] px-1 flex items-center justify-center rounded-full bg-red-500 text-white text-[9px] font-bold leading-none">
+          <span className="absolute top-1 right-1 min-w-[15px] h-[15px] px-1 flex items-center justify-center rounded-full bg-red-500 text-white text-[11px] font-bold leading-none">
             {unread > 9 ? "9+" : unread}
           </span>
         )}
@@ -115,7 +115,7 @@ export default function NotificationBell() {
                         {typeof n.amount === "number" && (
                           <span className="text-[11px] font-semibold text-gray-700">{fmtNaira(n.amount)}</span>
                         )}
-                        <span className="text-[10px] text-gray-400">{timeAgo(n.createdAt)}</span>
+                        <span className="text-xs text-gray-400">{timeAgo(n.createdAt)}</span>
                       </div>
                     </div>
                   </div>

@@ -3,11 +3,11 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import EventImageFallback from "@/components/ui/EventImageFallback";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Calendar01Icon,
   MapPinIcon,
-  Ticket01Icon,
   CompassIcon,
 } from "@hugeicons/core-free-icons";
 import AppLayout from "@/layout/app";
@@ -24,6 +24,12 @@ function formatDate(dateStr) {
   });
 }
 
+function formatTime(t) {
+  if (!t) return "";
+  const [h, m] = t.split(":").map(Number);
+  return `${h % 12 || 12}:${String(m).padStart(2, "0")} ${h >= 12 ? "PM" : "AM"}`;
+}
+
 function getDaysLabel(dateStr) {
   if (!dateStr) return null;
   const today = new Date();
@@ -37,16 +43,6 @@ function getDaysLabel(dateStr) {
   return `IN ${diff} DAYS`;
 }
 
-const CATEGORY_GRADIENT = {
-  entertainment: "from-purple-600 to-pink-500",
-  fitness:       "from-orange-500 to-amber-400",
-  art_culture:   "from-pink-600 to-rose-400",
-  conference:    "from-teal-600 to-emerald-400",
-  technology:    "from-indigo-600 to-violet-500",
-  web3_crypto:   "from-amber-600 to-orange-400",
-  other:         "from-gray-500 to-slate-400",
-};
-
 function getImageUrl(event) {
   return (
     event.event_image_url ||
@@ -58,139 +54,107 @@ function getImageUrl(event) {
   );
 }
 
-// Deterministic QR-like visual from a seed string
-function QRVisual({ seed = "" }) {
-  const s = seed.replace(/-/g, "");
-  const cells = Array.from({ length: 25 }, (_, i) => {
-    const c = s.charCodeAt(i % Math.max(s.length, 1)) || 0;
-    return ((c >> (i % 8)) & 1) === 1;
-  });
-  return (
-    <div className="grid gap-px p-1 bg-white border border-gray-200 rounded" style={{ gridTemplateColumns: "repeat(5, 7px)" }}>
-      {cells.map((on, i) => (
-        <div key={i} style={{ width: 7, height: 7, borderRadius: 1, background: on ? "#0f172a" : "#f1f5f9" }} />
-      ))}
-    </div>
-  );
-}
-
-function shortRef(id) {
-  if (!id) return "";
-  const clean = String(id).toUpperCase().replace(/-/g, "");
-  return `${clean.slice(0, 3)}-${clean.slice(3, 7)}-${clean.slice(7, 11)}`;
-}
-
 function EventRow({ item, isPast }) {
   const { event, role, ticketId, ticketCount } = item;
   const imageUrl = getImageUrl(event);
-  const gradient = CATEGORY_GRADIENT[event.category] || CATEGORY_GRADIENT.other;
   const daysLabel = getDaysLabel(event.day);
+  const daysText = daysLabel ? daysLabel.charAt(0) + daysLabel.slice(1).toLowerCase() : null; // "In 14 days"
+  const when = `${formatDate(event.day)}${event.time_from ? ` at ${formatTime(event.time_from)}` : ""}`;
+
+  // Hosts manage the event; attendees open their ticket (or the event page once it's over).
+  const href =
+    role === "hosting"
+      ? `/dashboard/events/${event.slug}`
+      : !isPast && ticketId
+      ? `/ticket/${ticketId}`
+      : `/discover/${event.slug}`;
+
+  const chips = (
+    <>
+      {!isPast && daysText && (
+        <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-blue-50 text-blue-800 whitespace-nowrap">
+          {daysText}
+        </span>
+      )}
+      {isPast && (
+        <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-gray-100 text-gray-700 whitespace-nowrap">
+          {role === "hosting" ? "Hosted" : "Attended"}
+        </span>
+      )}
+      {role === "hosting" && !isPast && (
+        <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-violet-50 text-violet-800 whitespace-nowrap">
+          Hosting
+        </span>
+      )}
+      {ticketCount != null && (
+        <span className="text-xs text-gray-600 whitespace-nowrap">
+          {ticketCount} ticket{ticketCount !== 1 ? "s" : ""}
+        </span>
+      )}
+    </>
+  );
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 flex overflow-hidden hover:shadow-sm transition-shadow">
+    <Link
+      href={href}
+      className="group flex items-center gap-4 px-4 md:px-5 py-4 hover:bg-gray-50 focus-visible:outline-none focus-visible:bg-gray-50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#4F6EF7] transition-colors"
+    >
       {/* Thumbnail */}
-      <div className="w-24 sm:w-28 shrink-0 relative self-stretch">
+      <div className="w-14 h-14 md:w-16 md:h-16 rounded-xl overflow-hidden shrink-0 relative bg-gray-100">
         {imageUrl ? (
           <Image
             src={imageUrl}
-            alt={event.name}
+            alt=""
             fill
             className="object-cover"
             onError={(e) => { e.currentTarget.style.display = "none"; }}
           />
         ) : (
-          <div className={`w-full h-full bg-gradient-to-br ${gradient}`} />
+          <EventImageFallback category={event.category} />
         )}
       </div>
 
-      {/* Info */}
-      <div className="flex-1 px-4 py-3.5 min-w-0">
-        {/* Badges */}
-        <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-          {!isPast && daysLabel && (
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-100">
-              • {daysLabel}
-            </span>
-          )}
-          {isPast && (
-            <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full border border-teal-200 text-teal-600">
-              ATTENDED
-            </span>
-          )}
-          {role === "hosting" && (
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-violet-50 text-violet-600 border border-violet-100">
-              HOSTING
-            </span>
-          )}
-          {ticketCount != null && (
-            <span className="text-[11px] text-gray-400">
-              {ticketCount} ticket{ticketCount !== 1 ? "s" : ""}
-            </span>
-          )}
-        </div>
-
-        {/* Event name */}
-        <h3 className="font-bold text-gray-900 text-sm leading-snug mb-2 line-clamp-1">
+      {/* Name, when, where */}
+      <div className="flex-1 min-w-0">
+        <h3 className="text-base font-semibold text-gray-900 leading-snug truncate group-hover:text-[#3B57D9] transition-colors">
           {event.name}
         </h3>
-
-        {/* Date + location */}
-        <div className="flex items-center gap-3 text-xs text-gray-400 flex-wrap">
-          <span className="flex items-center gap-1">
-            <HugeiconsIcon icon={Calendar01Icon} size={11} color="#9ca3af" />
-            {formatDate(event.day)}
-          </span>
-          {event.location && (
-            <span className="flex items-center gap-1 min-w-0">
-              <HugeiconsIcon icon={MapPinIcon} size={11} color="#9ca3af" />
-              <span className="truncate">{event.location}</span>
-            </span>
-          )}
-        </div>
+        <p className="mt-0.5 text-sm text-gray-600 truncate">{when}</p>
+        {event.location && (
+          <p className="mt-0.5 flex items-center gap-1 text-sm text-gray-500 min-w-0">
+            <HugeiconsIcon icon={MapPinIcon} size={13} color="currentColor" className="shrink-0" />
+            <span className="truncate">{event.location}</span>
+          </p>
+        )}
+        {/* Phones: chips sit under the text */}
+        <div className="md:hidden mt-2 flex items-center gap-2 flex-wrap">{chips}</div>
       </div>
 
-      {/* Right: QR / status */}
-      <div className="w-24 shrink-0 flex flex-col items-center justify-center border-l-2 border-dashed border-gray-100 py-3 px-2 gap-1.5">
-        {isPast ? (
-          <>
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" strokeWidth="2" strokeLinecap="round">
-              <path d="M20 6L9 17l-5-5" />
-            </svg>
-            <span className="text-[10px] text-gray-400">Used</span>
-          </>
-        ) : ticketId ? (
-          <>
-            <QRVisual seed={ticketId} />
-            <span className="text-[9px] text-gray-400 font-mono text-center leading-tight mt-0.5">
-              {shortRef(ticketId)}
-            </span>
-          </>
-        ) : role === "hosting" ? (
-          <Link
-            href={`/dashboard/events/${event.slug}`}
-            className="flex flex-col items-center gap-1 text-blue-600 hover:text-blue-700 text-center"
-          >
-            <span className="text-[11px] font-extrabold tracking-wide">Manage</span>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M5 12h14M12 5l7 7-7 7" />
-            </svg>
-          </Link>
-        ) : null}
-      </div>
-    </div>
+      {/* Tablet and up: chips on the right */}
+      <div className="hidden md:flex items-center gap-2 shrink-0">{chips}</div>
+
+      <svg
+        width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+        strokeLinecap="round" strokeLinejoin="round"
+        className="shrink-0 text-gray-400 group-hover:text-gray-600 transition-colors"
+        aria-hidden="true"
+      >
+        <path d="M9 18l6-6-6-6" />
+      </svg>
+    </Link>
   );
 }
 
 function SkeletonRow() {
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 flex overflow-hidden animate-pulse" style={{ height: 88 }}>
-      <div className="w-24 sm:w-28 bg-gray-100 shrink-0" />
-      <div className="flex-1 px-4 py-3.5 space-y-2.5">
-        <div className="h-3 bg-gray-100 rounded w-24" />
-        <div className="h-4 bg-gray-100 rounded w-3/4" />
-        <div className="h-3 bg-gray-100 rounded w-1/2" />
+    <div className="flex items-center gap-4 px-4 md:px-5 py-4 animate-pulse">
+      <div className="w-14 h-14 md:w-16 md:h-16 rounded-xl bg-gray-100 shrink-0" />
+      <div className="flex-1 space-y-2">
+        <div className="h-4 bg-gray-100 rounded w-1/2" />
+        <div className="h-3 bg-gray-100 rounded w-1/3" />
+        <div className="h-3 bg-gray-100 rounded w-1/4" />
       </div>
-      <div className="w-24 border-l-2 border-dashed border-gray-100" />
+      <div className="hidden md:block h-6 w-20 bg-gray-100 rounded-full" />
     </div>
   );
 }
@@ -208,12 +172,6 @@ const EMPTY_STATE = {
     subtitle: "Events you've attended will appear here.",
     actions: false,
   },
-  saved: {
-    icon: Ticket01Icon,
-    title: "No saved events",
-    subtitle: "Save events you're interested in to find them easily.",
-    actions: false,
-  },
 };
 
 function EmptyTab({ tab }) {
@@ -229,7 +187,7 @@ function EmptyTab({ tab }) {
       {actions && (
         <div className="flex items-center gap-3 flex-wrap justify-center">
           <Link
-            href="/events/create"
+            href="/dashboard/events/create"
             className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm px-5 py-3 rounded-full transition-colors"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
@@ -305,7 +263,6 @@ export default function HomePage() {
   const tabs = [
     { id: "upcoming", label: "Upcoming", count: upcomingItems.length },
     { id: "past",     label: "Past",     count: pastItems.length },
-    { id: "saved",    label: "Saved",    count: 0 },
   ];
 
   const currentItems = activeTab === "upcoming"
@@ -317,29 +274,31 @@ export default function HomePage() {
   return (
     <AppLayout>
       <div className="min-h-screen bg-white">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
+        <div className="max-w-3xl mx-auto px-4 md:px-6 py-6 md:py-8">
 
           {/* Header */}
-          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
+          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-6">
             <div>
-              <h1 className="text-3xl sm:text-4xl font-extrabold text-gray-900 tracking-tight mb-1">
+              <h1 className="text-3xl md:text-4xl font-bold text-gray-900 tracking-tight mb-1">
                 Your events
               </h1>
-              <p className="text-gray-500 text-sm sm:text-base">
+              <p className="text-gray-600 text-[15px] md:text-base">
                 Events you are attending or hosting, all in one place.
               </p>
             </div>
 
             {/* Tabs */}
-            <div className="inline-flex items-center gap-1 bg-gray-100 rounded-full p-1 self-start">
+            <div className="flex md:inline-flex items-center gap-1 bg-gray-100 rounded-full p-1 md:self-start" role="tablist" aria-label="Your events">
               {tabs.map(tab => (
                 <button
                   key={tab.id}
+                  role="tab"
+                  aria-selected={activeTab === tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors ${
+                  className={`flex-1 md:flex-none px-4 min-h-[44px] md:min-h-0 md:py-2 rounded-full text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4F6EF7] ${
                     activeTab === tab.id
                       ? "bg-white text-gray-900 shadow-sm"
-                      : "text-gray-500 hover:text-gray-700"
+                      : "text-gray-600 hover:text-gray-900"
                   }`}
                 >
                   {tab.label}
@@ -350,7 +309,7 @@ export default function HomePage() {
 
           {/* Content */}
           {loading ? (
-            <div className="space-y-3">
+            <div className="bg-white rounded-2xl border border-gray-200 divide-y divide-gray-100 overflow-hidden">
               <SkeletonRow />
               <SkeletonRow />
               <SkeletonRow />
@@ -358,7 +317,7 @@ export default function HomePage() {
           ) : currentItems.length === 0 ? (
             <EmptyTab tab={activeTab} />
           ) : (
-            <div className="space-y-3">
+            <div className="bg-white rounded-2xl border border-gray-200 divide-y divide-gray-100 overflow-hidden">
               {currentItems.map((item, i) => (
                 <EventRow
                   key={`${item.event?.slug}-${i}`}

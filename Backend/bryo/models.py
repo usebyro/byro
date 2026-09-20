@@ -315,6 +315,10 @@ class Event(models.Model):
     )
     hosted_by = models.CharField(max_length=200, default='Byro africa')
     is_active = models.BooleanField(default=True)
+    # A draft is visible only to its host and co-hosts, and cannot sell tickets.
+    # Distinct from visibility='private', which is unlisted but still purchasable
+    # by anyone holding the link.
+    is_draft = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

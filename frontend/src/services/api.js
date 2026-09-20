@@ -244,6 +244,15 @@ const API = {
     }
   },
 
+  getDashboardAnalytics: async () => {
+    try {
+      const response = await axiosInstance.get("dashboard/analytics/");
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
   // Register for an event
   registerEvent: async (eventSlug, userData) => {
     try {

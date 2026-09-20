@@ -2,7 +2,7 @@ import type {Metadata} from 'next'
 import Link from 'next/link'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
-import {formatShortDate, getBlogPosts, initialsGradient} from './blog-data'
+import {formatShortDate, getBlogPosts} from './blog-data'
 import type {BlogPost} from './blog-data'
 
 export const metadata: Metadata = {
@@ -40,9 +40,7 @@ function Tag({children, tone = 'blue'}: {children: React.ReactNode; tone?: 'blue
 function Avatar({post}: {post: BlogPost}) {
   return (
     <span
-      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br ${initialsGradient(
-        post.authorInitials
-      )} text-[11px] font-black text-white shadow-sm`}
+      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100 text-[11px] font-black text-blue-700"
     >
       {post.authorInitials}
     </span>

@@ -12,6 +12,9 @@ const nextConfig: NextConfig = {
   },
   images: {
     formats: ['image/avif', 'image/webp'],
+    // Next 16 refuses to optimise images served from localhost. Allow it in dev
+    // only, so uploads from the local backend (localhost:8000) show up.
+    dangerouslyAllowLocalIP: process.env.NODE_ENV === 'development',
     remotePatterns: [
       {
         protocol: 'https',
@@ -57,6 +60,11 @@ const nextConfig: NextConfig = {
       {
         source: '/events',
         destination: '/home',
+        permanent: true,
+      },
+      {
+        source: '/ticket-confirmation',
+        destination: '/order-confirmed',
         permanent: true,
       },
     ];

@@ -9,7 +9,6 @@ import {
   Home01Icon,
   QrCodeIcon,
   Money01Icon,
-  Settings01Icon,
   ArrowLeft01Icon,
   Ticket01Icon,
   Menu01Icon,
@@ -28,7 +27,6 @@ const NAV = [
   { label: "Check-in", href: "/dashboard/check-in", icon: QrCodeIcon },
   { label: "Payouts",  href: "/dashboard/payouts",  icon: Money01Icon },
   { label: "Profile",  href: "/dashboard/profile",  icon: UserCircleIcon },
-  { label: "Settings", href: "/dashboard/settings", icon: Settings01Icon },
 ];
 
 function StudioShell({ children }) {
@@ -66,8 +64,8 @@ function StudioShell({ children }) {
                 height={20}
                 className="h-[18px] w-auto"
               />
-              <span className="text-[9px] font-bold text-[#4F6EF7] bg-[#EEF2FF] px-2 py-0.5 rounded tracking-widest uppercase">
-                Studio
+              <span className="text-[11px] font-bold text-[#4F6EF7] bg-[#EEF2FF] px-2 py-0.5 rounded">
+                Dashboard
               </span>
             </div>
           )}

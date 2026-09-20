@@ -18,6 +18,8 @@ import {
 import API from "@/services/api";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import Avatar from "@/components/ui/Avatar";
+import EventImageFallback from "@/components/ui/EventImageFallback";
 import { toast } from "sonner";
 import ShareMenu from "@/components/ShareMenu";
 import { FaXTwitter, FaInstagram, FaLinkedinIn, FaTelegram } from "react-icons/fa6";
@@ -58,7 +60,6 @@ export default function PublicProfileClient({ username }) {
   const [error, setError] = useState("");
   const [isFollowing, setIsFollowing] = useState(false);
   const [activeTab, setActiveTab] = useState("upcoming");
-  const [avatarError, setAvatarError] = useState(false);
   const [coverImageError, setCoverImageError] = useState(false);
 
   useEffect(() => {
@@ -159,7 +160,6 @@ export default function PublicProfileClient({ username }) {
     );
   }
 
-  const initials = `${profile.display_name?.[0] || profile.handle?.[0] || "?"}`.toUpperCase();
   const categoriesList = Array.from(new Set(events.map((e) => e.category))).filter(Boolean);
 
   return (
@@ -167,7 +167,7 @@ export default function PublicProfileClient({ username }) {
       <Navbar />
 
       {/* ── Banner Section ── */}
-      <div className="relative w-full h-[220px] md:h-[280px] bg-gradient-to-r from-[#310E3D] via-[#651A67] to-[#DF3C82] overflow-hidden">
+      <div className="relative w-full h-[220px] md:h-[280px] bg-[#E3E8FF] overflow-hidden">
         {profile.cover_image_url && !coverImageError ? (
           <Image
             src={profile.cover_image_url}
@@ -178,13 +178,7 @@ export default function PublicProfileClient({ username }) {
             priority
             onError={() => setCoverImageError(true)}
           />
-        ) : (
-          <>
-            {/* Decorative elements for background depth */}
-            <div className="absolute top-[-50px] right-[-50px] w-[300px] h-[300px] bg-white/5 rounded-full blur-3xl pointer-events-none" />
-            <div className="absolute bottom-[-100px] left-[10%] w-[400px] h-[400px] bg-purple-500/10 rounded-full blur-3xl pointer-events-none" />
-          </>
-        )}
+        ) : null}
       </div>
 
       {/* ── Profile Header Container ── */}
@@ -194,21 +188,12 @@ export default function PublicProfileClient({ username }) {
             
             {/* Avatar & Info */}
             <div className="flex flex-col md:flex-row items-center md:items-start gap-6 text-center md:text-left">
-              {/* Avatar Box (Squircle box overlapping banner style) */}
-              <div className="w-24 h-24 md:w-28 md:h-28 rounded-2xl md:rounded-3xl bg-gradient-to-br from-blue-500 to-indigo-600 border-4 border-white shadow-md flex items-center justify-center text-white text-3xl md:text-4xl font-extrabold shrink-0 relative overflow-hidden">
-                {profile.avatar_url && !avatarError ? (
-                  <Image
-                    src={profile.avatar_url}
-                    alt={profile.display_name}
-                    fill
-                    sizes="112px"
-                    className="object-cover"
-                    onError={() => setAvatarError(true)}
-                  />
-                ) : (
-                  <span>{initials}</span>
-                )}
-              </div>
+              {/* Avatar overlapping the banner */}
+              <Avatar
+                src={profile.avatar_url}
+                name={profile.display_name || profile.handle}
+                className="w-24 h-24 md:w-28 md:h-28 rounded-2xl md:rounded-3xl border-4 border-white shadow-md text-3xl md:text-4xl"
+              />
 
               {/* Bio details */}
               <div className="mt-2">
@@ -238,7 +223,7 @@ export default function PublicProfileClient({ username }) {
                   )}
                   <span className="text-gray-400">·</span>
                   <span className="font-semibold text-gray-800">
-                    {isFollowing ? "1.2k" : "1.2k"} followers
+                    0 followers
                   </span>
                 </div>
               </div>
@@ -456,8 +441,8 @@ function EventCard({ event }) {
       onClick={() => router.push(`/discover/${event.slug}`)}
       className="group bg-white rounded-3xl overflow-hidden border border-gray-100/80 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col h-[380px] cursor-pointer relative"
     >
-      {/* Event Image / Gradient */}
-      <div className="h-[200px] w-full relative overflow-hidden shrink-0 bg-gradient-to-br from-[#4a148c] via-[#7b1fa2] to-[#ec407a]">
+      {/* Event image */}
+      <div className="h-[200px] w-full relative overflow-hidden shrink-0 bg-gray-100">
         {imageUrl && !imageError ? (
           <Image
             src={imageUrl}
@@ -468,7 +453,7 @@ function EventCard({ event }) {
             onError={() => setImageError(true)}
           />
         ) : (
-          <div className="absolute inset-0 bg-gradient-to-tr from-purple-900/90 via-purple-700/60 to-pink-500/40" />
+          <div className="absolute inset-0"><EventImageFallback category={event.category} tone="solid" /></div>
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
 
