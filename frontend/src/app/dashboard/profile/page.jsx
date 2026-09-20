@@ -249,9 +249,9 @@ function ProfilePageContent() {
           />
         </aside>
 
-        {/* ── Form ── */}
-        <div className="lg:col-start-1 lg:row-start-1 min-w-0 divide-y divide-gray-200">
-          <Section title="About you">
+        {/* ── Form: one card, each section is a title on the left and its fields on the right ── */}
+        <div className="lg:col-start-1 lg:row-start-1 min-w-0 self-start bg-white border border-gray-200 rounded-2xl divide-y divide-gray-200">
+          <Section title="About you" description="Who you are and where you are.">
             <div className="grid gap-5">
               <Field id="display_name" label="Display name" error={errors.display_name}>
                 <input
@@ -271,7 +271,7 @@ function ProfilePageContent() {
                 id="handle"
                 label="Handle"
                 error={errors.handle}
-                hint={form.handle ? `Your profile lives at usebyro.com/u/${form.handle}` : "Letters, numbers, dashes and underscores."}
+                hint={form.handle ? undefined : "Letters, numbers, dashes and underscores."}
               >
                 <PrefixInput
                   id="handle"
@@ -284,7 +284,7 @@ function ProfilePageContent() {
                 />
               </Field>
 
-              <Field id="bio" label="Bio" hint={`${form.bio.length}/${BIO_MAX}`}>
+              <Field id="bio" label="Bio" counter={`${form.bio.length}/${BIO_MAX}`}>
                 <textarea
                   id="bio"
                   value={form.bio}
@@ -311,34 +311,31 @@ function ProfilePageContent() {
             </div>
           </Section>
 
-          <Section title="Links" description="Leave any blank to hide it from your profile.">
-            <div className="grid gap-4 md:grid-cols-2">
+          <Section title="Links" description="Leave any blank to hide it.">
+            <div className="rounded-lg border border-gray-300 bg-white divide-y divide-gray-200 overflow-hidden">
               {SOCIALS.map((s) => (
-                <Field key={s.key} id={s.key} label={s.label} hideLabel>
-                  <PrefixInput
-                    id={s.key}
-                    icon={s.icon}
-                    prefix={s.prefix}
-                    value={form[s.key]}
-                    maxLength={100}
-                    onChange={(v) => field(s.key, v)}
-                    placeholder={s.placeholder}
-                  />
-                </Field>
+                <LinkRow
+                  key={s.key}
+                  id={s.key}
+                  name={s.label}
+                  icon={s.icon}
+                  prefix={s.prefix}
+                  value={form[s.key]}
+                  onChange={(v) => field(s.key, v)}
+                  placeholder={s.placeholder}
+                />
               ))}
-              <div className="md:col-span-2">
-                <Field id="website" label="Website" hideLabel>
-                  <PrefixInput
-                    id="website"
-                    icon={FaGlobe}
-                    type="url"
-                    inputMode="url"
-                    value={form.website}
-                    onChange={(v) => field("website", v)}
-                    placeholder="https://example.com"
-                  />
-                </Field>
-              </div>
+              <LinkRow
+                id="website"
+                name="Website"
+                icon={FaGlobe}
+                prefix="Website"
+                value={form.website}
+                onChange={(v) => field("website", v)}
+                placeholder="https://example.com"
+                type="url"
+                inputMode="url"
+              />
             </div>
           </Section>
 
@@ -508,15 +505,17 @@ function ProfilePreview({ form, avatarSrc, coverSrc, onAvatarChange, onCoverChan
 
 function Section({ title, description, children }) {
   return (
-    <section className="py-7 first:pt-0 last:pb-0">
-      <h2 className="text-base font-semibold text-gray-900">{title}</h2>
-      {description && <p className="text-sm text-gray-600 mt-1 max-w-prose">{description}</p>}
-      <div className="mt-4">{children}</div>
+    <section className="p-4 md:p-6 md:grid md:grid-cols-[150px_minmax(0,1fr)] md:gap-x-8">
+      <div className="mb-4 md:mb-0">
+        <h2 className="text-[15px] font-semibold text-gray-900">{title}</h2>
+        {description && <p className="text-sm text-gray-500 mt-1">{description}</p>}
+      </div>
+      <div className="min-w-0">{children}</div>
     </section>
   );
 }
 
-function Field({ id, label, hint, error, hideLabel = false, children }) {
+function Field({ id, label, hint, error, counter, hideLabel = false, children }) {
   return (
     <div className="min-w-0">
       <label htmlFor={id} className={hideLabel ? "sr-only" : "block text-sm font-semibold text-gray-900 mb-1.5"}>{label}</label>
@@ -526,6 +525,7 @@ function Field({ id, label, hint, error, hideLabel = false, children }) {
       ) : hint ? (
         <p className="mt-1.5 text-sm text-gray-500">{hint}</p>
       ) : null}
+      {counter && <p className="mt-1 text-xs text-gray-500 text-right">{counter}</p>}
     </div>
   );
 }
@@ -557,6 +557,35 @@ function PrefixInput({ id, icon: Icon, prefix, value, onChange, placeholder, max
         autoCorrect="off"
         spellCheck={false}
         className="flex-1 min-w-0 px-3 py-3 md:py-2.5 text-base md:text-[15px] text-gray-900 placeholder:text-gray-400 focus:outline-none"
+        placeholder={placeholder}
+      />
+    </div>
+  );
+}
+
+// One row of the links list: brand icon and prefix in a fixed column, then the field.
+function LinkRow({ id, name, icon: Icon, prefix, value, onChange, placeholder, type = "text", inputMode }) {
+  return (
+    <div className="flex items-stretch focus-within:bg-blue-50/40 focus-within:ring-2 focus-within:ring-inset focus-within:ring-[#4F6EF7]/40">
+      <label
+        htmlFor={id}
+        className="flex items-center gap-2.5 w-[168px] shrink-0 px-3 py-3 md:py-2.5 bg-gray-50 border-r border-gray-200 text-sm text-gray-600 whitespace-nowrap cursor-text"
+      >
+        <Icon className="w-4 h-4 shrink-0 text-gray-700" aria-hidden="true" />
+        <span aria-hidden="true">{prefix}</span>
+        <span className="sr-only">{name}</span>
+      </label>
+      <input
+        id={id}
+        type={type}
+        inputMode={inputMode}
+        value={value}
+        maxLength={100}
+        onChange={(e) => onChange(e.target.value)}
+        autoCapitalize="none"
+        autoCorrect="off"
+        spellCheck={false}
+        className="flex-1 min-w-0 bg-transparent px-3 py-3 md:py-2.5 text-base md:text-[15px] text-gray-900 placeholder:text-gray-400 focus:outline-none"
         placeholder={placeholder}
       />
     </div>
