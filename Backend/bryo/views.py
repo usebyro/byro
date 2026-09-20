@@ -186,9 +186,14 @@ def send_ticket_confirmation_email(ticket, customer_name, customer_email, event)
     )
 
 
-def send_cohost_invite_email(email, event, inviter, is_new_user=False):
+def send_cohost_invite_email(email, event, inviter, is_new_user=False, role='manager'):
     """
     Notify someone that they've been made a co-host.
+
+    For someone with no account the email's button is an "Accept" link to
+    sign-in/sign-up (carrying the invited address and the event to return to),
+    so no separate sign-up email is needed. Existing users just get a link to
+    the event, since their access is already active.
 
     Best-effort: a mail failure must not undo the grant, which is already
     committed by the time this runs. Mirrors send_ticket_confirmation_email's
@@ -198,7 +203,16 @@ def send_cohost_invite_email(email, event, inviter, is_new_user=False):
     from .mailer import send_email
 
     try:
+        from urllib.parse import quote
         frontend_url = (settings.FRONTEND_URL or "https://usebyro.com").rstrip('/')
+        event_path = f"/dashboard/events/{event.slug}"
+        if is_new_user:
+            event_url = (
+                f"{frontend_url}/login?redirect={quote(event_path, safe='')}"
+                f"&email={quote(email, safe='')}"
+            )
+        else:
+            event_url = f"{frontend_url}{event_path}"
         inviter_profile = getattr(inviter, 'profile', None)
         inviter_name = (
             (inviter_profile.display_name if inviter_profile else '')
@@ -208,8 +222,10 @@ def send_cohost_invite_email(email, event, inviter, is_new_user=False):
         email_data = cohost_invite_email(
             event_name=event.name,
             inviter_name=inviter_name,
-            event_url=f"{frontend_url}/dashboard/events/{event.slug}",
+            event_url=event_url,
             is_new_user=is_new_user,
+            role=role,
+            invitee_email=email,
         )
         send_email(
             to=email,
@@ -2018,6 +2034,7 @@ class EventViewSet(viewsets.ModelViewSet):
         The invitee does not need a Byro account. If they have never signed in,
         the grant is stored as pending and claimed automatically the first time
         they sign in with this address (see auth_views.claim_pending_cohost_invites).
+        They get one email whose Accept button leads to sign-in/sign-up.
         A pending grant confers no access.
         """
         event = self.get_object()
@@ -2076,7 +2093,7 @@ class EventViewSet(viewsets.ModelViewSet):
                 accepted_at=timezone.now(),
                 added_by=request.user,
             )
-            send_cohost_invite_email(email, event, request.user, is_new_user=False)
+            send_cohost_invite_email(email, event, request.user, is_new_user=False, role=role)
             if apps.posthog_client is not None:
                 apps.posthog_client.capture(
                     'cohost_invited', properties={'invitee_has_account': True}
@@ -2103,10 +2120,10 @@ class EventViewSet(viewsets.ModelViewSet):
             role=role,
             added_by=request.user,
         )
-        # Best-effort: WorkOS emails its own sign-up invitation, and we send the
-        # event-specific one. Neither failing should undo the pending grant.
-        workos_api.send_invitation(email)
-        send_cohost_invite_email(email, event, request.user, is_new_user=True)
+        # One email only: it carries an Accept link to sign in or sign up, so we
+        # no longer ask WorkOS to send a second, separate sign-up invitation.
+        # A failure here must not undo the pending grant.
+        send_cohost_invite_email(email, event, request.user, is_new_user=True, role=role)
         if apps.posthog_client is not None:
             apps.posthog_client.capture(
                 'cohost_invited', properties={'invitee_has_account': False}

@@ -1,3 +1,4 @@
+import re
 """
 Transactional email templates for Byro.
 Each function returns a dict: { subject, html, text }
@@ -486,40 +487,54 @@ def event_published_email(name, event_name, date, time, location, event_url, sha
     }
 
 
-def cohost_invite_email(event_name, inviter_name, event_url, is_new_user=False):
+COHOST_ROLE_SUMMARY = {
+    'manager': "You can edit the event and its tickets and discounts, see the guest list and check people in.",
+    'checkin': "You can see the guest list and check people in at the door.",
+}
+
+
+def cohost_invite_email(event_name, inviter_name, event_url, is_new_user=False, role='manager', invitee_email=''):
     """
     Co-host invitation email.
 
-    Sent when an organiser adds someone as a co-host. The invitee may not have a
-    Byro account yet — `is_new_user` adds a note that they'll need to sign in
-    with this email address first, since the grant stays pending until they do.
-    The button always points at the event dashboard and always reads "View
-    event"; a new user hitting that link while signed out is sent through
-    sign-in first by the dashboard route itself.
+    Sent when an organiser adds someone as a co-host. `role` says what they may
+    do. When the invitee has no Byro account yet (`is_new_user`), the button is
+    an "Accept invitation" link that leads them to sign in or sign up and then
+    to the event: no separate sign-up email is sent. Their access switches on
+    when they sign in with the invited address. Existing users already have
+    access, so their button simply opens the event.
 
     Args:
         event_name (str): Event they have been invited to co-host.
         inviter_name (str): Display name or email of the organiser who invited them.
-        event_url (str): Link to the event's dashboard.
+        event_url (str): Where the button goes (an accept link for new users,
+            the event dashboard otherwise).
         is_new_user (bool): True when the invitee has no Byro account yet.
+        role (str): 'manager' or 'checkin'.
+        invitee_email (str): The invited address, shown so they sign in with it.
     """
+    permission = COHOST_ROLE_SUMMARY.get(role, COHOST_ROLE_SUMMARY['manager'])
     if is_new_user:
         lead = f"{inviter_name} has invited you to co-host <strong style=\"color:{INK};\">{event_name}</strong> on Byro."
         instruction = (
-            "Sign in with this email address to accept — your co-host access "
-            "activates as soon as you do."
+            f"{permission} Choose Accept to sign in or create your account"
+            + (f", using <strong style=\"color:{INK};\">{invitee_email}</strong>" if invitee_email else "")
+            + ". Your access switches on as soon as you do."
         )
+        cta = "Accept invitation"
+        footer = "If you weren't expecting this, you can safely ignore this email. Nothing changes until you accept."
     else:
         lead = f"{inviter_name} has added you as a co-host of <strong style=\"color:{INK};\">{event_name}</strong> on Byro."
-        instruction = "You can now edit the event, view attendees and check people in at the door."
-    cta = "View event"
+        instruction = permission
+        cta = "View event"
+        footer = "If you weren't expecting this, you can safely ignore this email."
 
     body_html = f"""
         <p style="color:{BODY};font-size:15px;line-height:1.6;margin:0 0 16px;">{lead}</p>
         <p style="color:{BODY};font-size:15px;line-height:1.6;margin:0 0 28px;">{instruction}</p>
         {_button(event_url, cta, NEUTRAL)}
         <p style="color:{MUTED};font-size:12px;line-height:1.6;margin:24px 0 0;border-top:1px solid {BORDER};padding-top:20px;">
-          If you weren't expecting this, you can safely ignore this email. Nothing changes until you sign in.
+          {footer}
         </p>
     """
 
@@ -530,11 +545,13 @@ def cohost_invite_email(event_name, inviter_name, event_url, is_new_user=False):
         "&#169; 2026 Byro Technologies. All rights reserved.",
     )
 
+    plain_instruction = re.sub(r"<[^>]+>", "", instruction)
+    plain_lead = re.sub(r"<[^>]+>", "", lead)
     plain_text = (
-        f"{inviter_name} has invited you to co-host {event_name} on Byro.\n\n"
-        f"{instruction}\n\n"
+        f"{plain_lead}\n\n"
+        f"{plain_instruction}\n\n"
         f"{cta}: {event_url}\n\n"
-        f"If you weren't expecting this, you can safely ignore this email.\n\n"
+        f"{footer}\n\n"
         f"Best regards,\nByro Team\nsupport@usebyro.com"
     )
 
