@@ -29,7 +29,7 @@ export function describeTicketLimits(tier, event) {
   const raw = tier?.max_tickets_per_person;
   const max = raw === null ? null : Number(raw ?? event?.max_tickets_per_person ?? DEFAULT_MAX_TICKETS_PER_ORDER);
   if (max === null) return min > 1 ? `Sold ${min} at a time or more` : "No limit per person";
-  if (min === max) return min === 1 ? "1 per person" : `Exactly ${min} per order`;
+  if (min === max) return min === 1 ? "1 per person" : `${min} tickets per order`;
   if (min > 1) return `${min} to ${max} per order`;
   return `Up to ${max} per person`;
 }

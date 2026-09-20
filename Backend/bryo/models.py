@@ -615,6 +615,8 @@ class TicketTier(models.Model):
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='tiers')
     name = models.CharField(max_length=100)
     price = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    # Short note from the organiser shown to buyers under the tier name.
+    description = models.CharField(max_length=200, blank=True, default='')
     # Total tickets available for this tier. Null = unlimited.
     capacity = models.PositiveIntegerField(null=True, blank=True)
     # People admitted per ticket in this tier (e.g. a "Group of 4" = 4).

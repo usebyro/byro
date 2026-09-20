@@ -137,7 +137,7 @@ class TicketTierSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = TicketTier
-        fields = ['id', 'name', 'price', 'capacity', 'admits_count', 'min_tickets_per_person', 'max_tickets_per_person', 'order', 'remaining', 'sold']
+        fields = ['id', 'name', 'description', 'price', 'capacity', 'admits_count', 'min_tickets_per_person', 'max_tickets_per_person', 'order', 'remaining', 'sold']
         read_only_fields = ['id']
 
     def get_remaining(self, obj):

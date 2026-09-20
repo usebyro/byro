@@ -245,6 +245,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
             admits: t.admits_count != null ? String(t.admits_count) : "1",
             perPerson: t.max_tickets_per_person != null ? String(t.max_tickets_per_person) : "Unlimited",
             minPerPerson: String(t.min_tickets_per_person ?? 1),
+            description: t.description || "",
           }));
           setTiers(mapped);
           // Deep-copy snapshot so we can diff for PATCH/DELETE on save
@@ -269,7 +270,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
   /* Tier editing helpers */
   const startEditTier = (tier) => {
     setEditingTierId(tier.id);
-    setEditTierData({ name: tier.name, available: tier.available, price: tier.price, admits: tier.admits ?? "1", perPerson: tier.perPerson ?? "5", minPerPerson: tier.minPerPerson ?? "1" });
+    setEditTierData({ name: tier.name, available: tier.available, price: tier.price, admits: tier.admits ?? "1", perPerson: tier.perPerson ?? "5", minPerPerson: tier.minPerPerson ?? "1", description: tier.description ?? "" });
   };
 
   const saveEditTier = () => {
@@ -283,9 +284,9 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
 
   const addTier = () => {
     const newId = `tier_${Date.now()}`;
-    setTiers(prev => [...prev, { id: newId, name: "New Tier", available: "Unlimited", price: "", admits: "1", perPerson: "5", minPerPerson: "1" }]);
+    setTiers(prev => [...prev, { id: newId, name: "New Tier", available: "Unlimited", price: "", admits: "1", perPerson: "5", minPerPerson: "1", description: "" }]);
     setEditingTierId(newId);
-    setEditTierData({ name: "New Tier", available: "Unlimited", price: "", admits: "1", perPerson: "5", minPerPerson: "1" });
+    setEditTierData({ name: "New Tier", available: "Unlimited", price: "", admits: "1", perPerson: "5", minPerPerson: "1", description: "" });
   };
 
   const handleVenueChange = useCallback((val) => {
@@ -403,6 +404,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
 
     const tierPayload = (tier, idx) => ({
       name: tier.name,
+      description: (tier.description || "").trim(),
       price: parseFloat(tier.price) || 0,
       capacity: parseCapacity(tier.available),
       admits_count: parseAdmits(tier.admits),
@@ -437,6 +439,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
             const changed =
               !orig ||
               orig.name !== tier.name ||
+              (orig.description ?? "") !== (tier.description ?? "") ||
               orig.price !== tier.price ||
               orig.perPerson !== tier.perPerson ||
               (orig.minPerPerson ?? "1") !== (tier.minPerPerson ?? "1") ||
@@ -811,6 +814,19 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
                         </div>
                       </div>
                       <div>
+                        <label htmlFor={`tier-desc-${tier.id}`} className="text-xs font-medium text-gray-600 mb-1 block">Description <span className="text-gray-400 font-normal">(optional)</span></label>
+                        <textarea
+                          id={`tier-desc-${tier.id}`}
+                          rows={2}
+                          maxLength={200}
+                          value={editTierData.description ?? ""}
+                          onChange={e => setEditTierData(p => ({ ...p, description: e.target.value }))}
+                          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                          placeholder="e.g. Admits two people, includes one drink each"
+                        />
+                        <p className="mt-1 text-xs text-gray-500 text-right">{(editTierData.description ?? "").length}/200</p>
+                      </div>
+                      <div>
                         <div className="grid grid-cols-2 gap-3">
                           <div>
                             <label htmlFor={`min-per-person-${tier.id}`} className="text-xs font-medium text-gray-600 mb-1 block">Minimum per order</label>
@@ -889,6 +905,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
                       </span>
                       <div className="flex-1 min-w-0">
                         <p className="font-semibold text-gray-900 text-sm">{tier.name}</p>
+                        {tier.description && <p className="text-xs text-gray-600 mt-0.5 break-words">{tier.description}</p>}
                         <p className="text-xs text-gray-400 mt-0.5">
                           {!tier.available || tier.available === "Unlimited" ? "Unlimited" : `${tier.available} available`}
                           {`, ${describeTicketLimits({

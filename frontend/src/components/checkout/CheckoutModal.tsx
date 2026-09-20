@@ -52,6 +52,7 @@ interface Event {
 
 interface TicketTier {
   min_tickets_per_person?: number;
+  description?: string;
   id: string | number;
   name: string;
   price: number | string;
@@ -590,6 +591,9 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                         <p className="font-semibold text-gray-900 text-sm">
                           {tier.name}
                         </p>
+                        {tier.description && (
+                          <p className="text-xs text-gray-600 mt-0.5 break-words">{tier.description}</p>
+                        )}
                         <p className="text-xs text-gray-500 mt-0.5">
                           {showRemaining && tier.remaining != null && tier.remaining > 0 && (
                             <span className="text-orange-500">{tier.remaining} left</span>
