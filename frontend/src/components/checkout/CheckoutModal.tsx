@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
+import EventImageFallback from "@/components/ui/EventImageFallback";
 import Script from "next/script";
 import { useRouter } from "next/navigation";
 import API from "@/services/api";
@@ -59,16 +60,6 @@ interface TicketTier {
 
 // Max tickets a buyer can select per tier in a single checkout.
 const MAX_QTY_PER_TIER = 5;
-
-const categoryGradients: Record<string, string> = {
-  entertainment: "from-purple-700 via-purple-500 to-pink-500",
-  web3_crypto: "from-amber-600 via-amber-500 to-orange-400",
-  art_culture: "from-pink-700 via-pink-500 to-rose-400",
-  conference: "from-emerald-700 via-emerald-600 to-teal-500",
-  fitness: "from-orange-600 via-amber-500 to-yellow-400",
-  technology: "from-indigo-700 via-indigo-500 to-violet-400",
-  other: "from-gray-600 via-gray-500 to-slate-400",
-};
 
 const categoryLabels: Record<string, string> = {
   entertainment: "CONCERTS & MUSIC",
@@ -412,8 +403,6 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
     }
   };
 
-  const gradient =
-    categoryGradients[event.category] || categoryGradients.other;
   const dotColor =
     categoryDotColors[event.category] || "bg-gray-300";
   const badgeLabel =
@@ -1098,9 +1087,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                       className="object-cover"
                     />
                   ) : (
-                    <div
-                      className={`w-full h-full bg-gradient-to-br ${gradient}`}
-                    />
+                    <EventImageFallback category={event.category} tone="solid" />
                   )}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
                   <div className="absolute top-2.5 left-3">

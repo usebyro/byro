@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter, useSearchParams, notFound } from "next/navigation";
 import Image from "next/image";
+import EventImageFallback from "@/components/ui/EventImageFallback";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Share01Icon, FavouriteIcon, Calendar01Icon, Location01Icon, UserGroupIcon } from "@hugeicons/core-free-icons";
 import API from "@/services/api";
@@ -23,16 +24,6 @@ const MAX_QTY_PER_TIER = 5;
 
 const fmt = (price) =>
   new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(price);
-
-const categoryGradients = {
-  entertainment: "from-purple-800 via-purple-600 to-pink-500",
-  web3_crypto:   "from-amber-700 via-amber-500 to-orange-400",
-  art_culture:   "from-pink-800 via-pink-600 to-rose-400",
-  conference:    "from-emerald-800 via-emerald-600 to-teal-400",
-  fitness:       "from-orange-700 via-amber-500 to-yellow-400",
-  technology:    "from-indigo-800 via-indigo-600 to-violet-400",
-  other:         "from-gray-700 via-gray-600 to-slate-500",
-};
 
 const categoryLabels = {
   entertainment: "CONCERTS & MUSIC",
@@ -222,7 +213,6 @@ export default function ViewEventClient({ slug }) {
     : rawTicketPrice;
   const isFree = ticketPrice === 0 && realTiers.every(t => parseFloat(String(t.price)) === 0);
   const attendeeCount = event.attendee_count ?? 0;
-  const gradient     = categoryGradients[event.category] || categoryGradients.other;
   const badgeLabel   = categoryLabels[event.category] || event.category?.toUpperCase();
   const imageUrl     = getImageUrl();
 
@@ -255,7 +245,7 @@ export default function ViewEventClient({ slug }) {
           {imageUrl ? (
             <img src={imageUrl} alt={event.name} className="w-full h-full object-cover" />
           ) : (
-            <div className={`w-full h-full bg-gradient-to-br ${gradient}`} />
+            <EventImageFallback category={event.category} tone="solid" />
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-black/10" />
 

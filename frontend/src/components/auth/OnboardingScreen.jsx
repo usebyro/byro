@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { CompassIcon, Megaphone01Icon, Camera01Icon, UserIcon } from "@hugeicons/core-free-icons";
 import API from "@/services/api";
+import { FaXTwitter, FaInstagram, FaLinkedinIn, FaTelegram } from "react-icons/fa6";
 
 const ROLES = [
   {
@@ -242,11 +243,11 @@ export default function OnboardingScreen() {
                   {ORGANIZER_STEPS[wizardStep].fields.map((field) =>
                     field.type === "avatar" ? (
                       <div key="avatar" className="flex items-center gap-5">
-                        <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-violet-500 to-purple-700 flex items-center justify-center text-white shrink-0 overflow-hidden">
+                        <div className="w-20 h-20 rounded-2xl bg-gray-100 flex items-center justify-center text-gray-400 shrink-0 overflow-hidden">
                           {avatarPreview ? (
                             <img src={avatarPreview} alt="Preview" className="w-full h-full object-cover" />
                           ) : (
-                            <HugeiconsIcon icon={UserIcon} size={28} color="white" />
+                            <HugeiconsIcon icon={UserIcon} size={28} color="#9ca3af" />
                           )}
                         </div>
                         <div>
@@ -266,7 +267,7 @@ export default function OnboardingScreen() {
                         <span>
                           <span className="block text-sm font-semibold text-gray-900">List Community publicly</span>
                           <span className="block text-xs text-gray-500 mt-0.5">
-                            Anyone can find your profile and events at usebyro.com/u/{hostForm.handle || "your-handle"}.
+                            Your profile will be publicly listed on the community page
                           </span>
                         </span>
                         <button
@@ -289,10 +290,10 @@ export default function OnboardingScreen() {
                       <div key="social">
                         <p className="text-xs font-semibold text-gray-700 mb-2">Social media</p>
                         <div className="grid grid-cols-2 gap-3">
-                          <SocialInput prefix="x.com/" value={hostForm.twitter} onChange={(v) => hostField("twitter", v)} placeholder="handle" />
-                          <SocialInput prefix="instagram.com/" value={hostForm.instagram} onChange={(v) => hostField("instagram", v)} placeholder="handle" />
-                          <SocialInput prefix="linkedin.com/in/" value={hostForm.linkedin} onChange={(v) => hostField("linkedin", v)} placeholder="username" />
-                          <SocialInput prefix="t.me/" value={hostForm.telegram} onChange={(v) => hostField("telegram", v)} placeholder="handle" />
+                          <SocialInput icon={FaXTwitter} prefix="x.com/" value={hostForm.twitter} onChange={(v) => hostField("twitter", v)} placeholder="handle" />
+                          <SocialInput icon={FaInstagram} prefix="instagram.com/" value={hostForm.instagram} onChange={(v) => hostField("instagram", v)} placeholder="handle" />
+                          <SocialInput icon={FaLinkedinIn} prefix="linkedin.com/in/" value={hostForm.linkedin} onChange={(v) => hostField("linkedin", v)} placeholder="username" />
+                          <SocialInput icon={FaTelegram} prefix="t.me/" value={hostForm.telegram} onChange={(v) => hostField("telegram", v)} placeholder="handle" />
                         </div>
                       </div>
                     ) : (
@@ -398,19 +399,21 @@ function OrganizerField({ field, value, onChange }) {
   );
 }
 
-function SocialInput({ prefix, value, onChange, placeholder }) {
+function SocialInput({ icon: Icon, prefix, value, onChange, placeholder }) {
   return (
     <div className="relative">
-      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 pointer-events-none select-none">
+      <span className="absolute left-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5 text-[11px] text-gray-500 pointer-events-none select-none">
+        <Icon className="w-3.5 h-3.5 text-gray-700" aria-hidden="true" />
         {prefix}
       </span>
       <input
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        style={{ paddingLeft: `${prefix.length * 6.5 + 12}px` }}
+        style={{ paddingLeft: `${prefix.length * 6.8 + 34}px` }}
         className="w-full border border-gray-200 rounded-lg pr-3 py-2 text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
         placeholder={placeholder}
+        aria-label={prefix}
       />
     </div>
   );

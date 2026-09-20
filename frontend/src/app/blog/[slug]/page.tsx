@@ -11,8 +11,7 @@ import {
   formatLongDate,
   getBlogPost,
   getBlogPosts,
-  initialsGradient,
-} from '../blog-data'
+  } from '../blog-data'
 import type {BlogPost} from '../blog-data'
 
 type PageProps = {params: Promise<{slug: string}>}
@@ -29,9 +28,7 @@ function BlogImage({post, className = ''}: {post: BlogPost; className?: string})
 function Avatar({post}: {post: BlogPost}) {
   return (
     <span
-      className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br ${initialsGradient(
-        post.authorInitials
-      )} text-sm font-black text-white shadow-sm`}
+      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-blue-100 text-sm font-black text-blue-700"
     >
       {post.authorInitials}
     </span>

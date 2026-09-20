@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Avatar from "@/components/ui/Avatar";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { UserIcon, Logout01Icon } from "@hugeicons/core-free-icons";
 import {
@@ -13,16 +14,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
-function getInitial(user) {
-  return (
-    user?.display_name?.charAt(0)?.toUpperCase() ||
-    user?.displayName?.charAt(0)?.toUpperCase() ||
-    user?.name?.charAt(0)?.toUpperCase() ||
-    user?.email?.charAt(0)?.toUpperCase() ||
-    "U"
-  );
-}
-
 export default function UserMenu({
   user,
   onLogout,
@@ -31,6 +22,7 @@ export default function UserMenu({
 }) {
   const sizeClasses = size === "sm" ? "w-8 h-8 text-xs" : "w-9 h-9 text-sm";
   const avatarUrl = user?.avatar_url || user?.avatarUrl || null;
+  const accountName = user?.display_name || user?.displayName || user?.name || user?.email || "";
 
   return (
     <DropdownMenu>
@@ -39,19 +31,13 @@ export default function UserMenu({
           type="button"
           aria-label="Account menu"
           className={cn(
-            "rounded-full text-white flex items-center justify-center font-medium shrink-0 select-none overflow-hidden",
-            !avatarUrl && "bg-gradient-to-br from-violet-500 to-purple-700",
+            "rounded-full flex items-center justify-center shrink-0 select-none overflow-hidden",
             "hover:opacity-90 transition-opacity focus:outline-none focus:ring-2 focus:ring-blue-200",
             sizeClasses,
             className
           )}
         >
-          {avatarUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
-          ) : (
-            getInitial(user)
-          )}
+          <Avatar src={avatarUrl} name={accountName} className="w-full h-full rounded-full" />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
