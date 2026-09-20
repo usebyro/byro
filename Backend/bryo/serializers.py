@@ -122,9 +122,22 @@ class TicketTierSerializer(serializers.ModelSerializer):
     remaining = serializers.SerializerMethodField()
     sold = serializers.SerializerMethodField()
 
+    def validate(self, attrs):
+        # The smallest order can't be bigger than the largest one.
+        inst = self.instance
+        minimum = attrs.get('min_tickets_per_person', inst.min_tickets_per_person if inst else 1)
+        maximum = attrs['max_tickets_per_person'] if 'max_tickets_per_person' in attrs else (
+            inst.max_tickets_per_person if inst else 5
+        )
+        if maximum is not None and minimum > maximum:
+            raise serializers.ValidationError({
+                'min_tickets_per_person': "The minimum can't be more than the maximum."
+            })
+        return attrs
+
     class Meta:
         model = TicketTier
-        fields = ['id', 'name', 'price', 'capacity', 'admits_count', 'max_tickets_per_person', 'order', 'remaining', 'sold']
+        fields = ['id', 'name', 'price', 'capacity', 'admits_count', 'min_tickets_per_person', 'max_tickets_per_person', 'order', 'remaining', 'sold']
         read_only_fields = ['id']
 
     def get_remaining(self, obj):

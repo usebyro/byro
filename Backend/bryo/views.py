@@ -524,6 +524,12 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
             return Response({'error': 'Quantity must be at least 1'}, status=status.HTTP_400_BAD_REQUEST)
         limit_tier = TicketTier.objects.filter(pk=tier_id, event=event).first() if tier_id else None
         limit = limit_tier.max_tickets_per_person if limit_tier is not None else event.max_tickets_per_person
+        minimum = limit_tier.min_tickets_per_person if limit_tier is not None else 1
+        if quantity < minimum:
+            return Response(
+                {'error': f"{limit_tier.name} tickets are sold {minimum} at a time or more. Choose at least {minimum}."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         if limit is not None and quantity > limit:
             return Response(
                 {'error': f"You can buy up to {limit} {limit_tier.name if limit_tier else ''} ticket{'s' if limit != 1 else ''} per order.".replace('  ', ' ')},
@@ -1778,6 +1784,13 @@ class EventViewSet(viewsets.ModelViewSet):
             if missing:
                 return Response(
                     {"error": "Missing answers for required questions", "question_ids": list(missing)},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            reg_tier = TicketTier.objects.filter(pk=tier_id, event=event).first() if tier_id else None
+            if reg_tier is not None and reg_tier.min_tickets_per_person > 1:
+                return Response(
+                    {"error": f"{reg_tier.name} tickets are sold {reg_tier.min_tickets_per_person} at a time or more."},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 

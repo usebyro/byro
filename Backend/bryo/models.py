@@ -620,6 +620,11 @@ class TicketTier(models.Model):
     # People admitted per ticket in this tier (e.g. a "Group of 4" = 4).
     # Each admitted person still becomes a separate Ticket row (own QR).
     admits_count = models.PositiveIntegerField(default=1)
+    # Fewest tickets one buyer must take of THIS tier in one order. 2 with a
+    # maximum of 2 makes a couples ticket that can only be bought as a pair.
+    min_tickets_per_person = models.PositiveSmallIntegerField(
+        default=1, validators=[MinValueValidator(1), MaxValueValidator(10)],
+    )
     # Most tickets one buyer can get of THIS tier in a single order (1 to 10).
     # Empty means no per-order limit for the tier (its capacity still applies).
     # Defaults to 5 so existing tiers keep the cap the checkout used to enforce.
