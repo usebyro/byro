@@ -17,11 +17,9 @@ import EventPublishedModal from "@/components/events/EventPublishedModal";
 import EventCard from "@/components/landing/EventCard";
 import { trackViewEvent, trackShareEvent, trackSaveEvent, trackBeginCheckout } from "@/lib/analytics";
 import { calculateTicketFees } from "@/lib/pricing";
+import { ticketLimits, describeTicketLimits } from "@/lib/ticketLimits";
 
 /* ── helpers ── */
-// Max tickets a buyer can select per tier in a single checkout.
-const MAX_QTY_PER_TIER = 5;
-
 const fmt = (price) =>
   new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(price);
 
@@ -225,7 +223,9 @@ export default function ViewEventClient({ slug }) {
   // people, so its quantity is locked at 1 (the admits count becomes attendee
   // slots at checkout, not extra tickets).
   const isGroupTier = Number(activeTier?.admits_count) > 1;
-  const effectiveQty = isGroupTier ? 1 : qty;
+  const { min: minQty, max: maxQty } = ticketLimits(activeTier, event);
+  // Tickets are sold in the tier's bundle: never below its minimum, never above its maximum.
+  const effectiveQty = Math.min(maxQty, Math.max(minQty, qty));
   const passFeeToAttendee = event.pass_fee_to_attendee !== false;
   const tierFees = calculateTicketFees(activeTier.price * effectiveQty, passFeeToAttendee);
   const tierSubtotal = tierFees.subtotal;
@@ -427,8 +427,8 @@ export default function ViewEventClient({ slug }) {
                         key={tier.id}
                         onClick={() => {
                           setSelectedTier(String(tier.id));
-                          // Group tiers are one ticket — reset qty to 1.
-                          if (Number(tier.admits_count) > 1) setQty(1);
+                          // Start each tier at its own minimum (e.g. 2 for a couples ticket).
+                          setQty(ticketLimits(tier, event).min);
                         }}
                         className={`w-full flex items-center justify-between p-3.5 rounded-xl border transition-colors text-left ${
                           String(selectedTier) === String(tier.id) ? "border-blue-400 bg-blue-50" : "border-gray-100 hover:border-gray-200"
@@ -457,15 +457,16 @@ export default function ViewEventClient({ slug }) {
                     <span className="text-sm font-medium text-gray-700">Quantity</span>
                     <div className="flex items-center gap-3">
                       <button
-                        onClick={() => setQty(q => Math.max(1, q - 1))}
-                        className="w-8 h-8 rounded-full border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-50 transition-colors"
+                        onClick={() => setQty(q => Math.max(minQty, Math.min(maxQty, q) - 1))}
+                        disabled={effectiveQty <= minQty}
+                        className="w-8 h-8 rounded-full border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="5" y1="12" x2="19" y2="12" /></svg>
                       </button>
                       <span className="w-5 text-center font-bold text-gray-900 text-sm">{effectiveQty}</span>
                       <button
-                        onClick={() => { if (!isGroupTier) setQty(q => Math.min(MAX_QTY_PER_TIER, q + 1)); }}
-                        disabled={isGroupTier || qty >= MAX_QTY_PER_TIER}
+                        onClick={() => setQty(Math.min(maxQty, effectiveQty + 1))}
+                        disabled={effectiveQty >= maxQty}
                         className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white hover:bg-blue-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -475,6 +476,8 @@ export default function ViewEventClient({ slug }) {
                       </button>
                     </div>
                   </div>
+
+                  <p className="-mt-3 mb-5 text-xs text-gray-500 text-right">{describeTicketLimits(activeTier, event)}</p>
 
                   {/* Price breakdown */}
                   <div className="space-y-2 pb-4 mb-4 border-b border-gray-100 text-sm">

@@ -14,6 +14,7 @@ import {
   Edit01Icon,
   DragDropVerticalIcon,
 } from "@hugeicons/core-free-icons";
+import { describeTicketLimits } from "@/lib/ticketLimits";
 import API from "../../services/api";
 import RichTextEditor from "./RichTextEditor";
 
@@ -170,7 +171,8 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
   const [showRemainingCount, setShowRemainingCount] = useState(false);
   const [ticketsTransferable, setTicketsTransferable] = useState(false);
   const [passFeeToAttendee, setPassFeeToAttendee] = useState(true);
-  const [capacity, setCapacity] = useState("Unlimited");
+  const [capacity, setCapacity] = useState(""); // overall seats for the event; empty = unlimited
+  const [maxPerPerson, setMaxPerPerson] = useState("5"); // most tickets one buyer can get in one order
 
   /* venue autocomplete */
   const [venueCoords, setVenueCoords] = useState(null);
@@ -220,6 +222,8 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
     setPassFeeToAttendee(d.pass_fee_to_attendee !== undefined ? d.pass_fee_to_attendee : true);
     setCategory(d.category || "entertainment");
     setEventVisibility(d.visibility === "public");
+    setCapacity(d.capacity != null ? String(d.capacity) : "");
+    setMaxPerPerson(String(d.max_tickets_per_person ?? 5));
     if (d.event_image_url || d.event_image) {
       const base = (process.env.NEXT_PUBLIC_API_URL || "https://byro.onrender.com").replace(/\/api\/?$/, "");
       const imgUrl = d.event_image_url || (d.event_image?.startsWith("http") ? d.event_image : `${base}${d.event_image}`);
@@ -236,9 +240,12 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
           const mapped = data.map((t) => ({
             id: t.id, // real numeric backend ID — won't match "tier_" filter, so won't be re-POSTed
             name: t.name,
-            price: t.price != null ? String(t.price) : "",
+            price: t.price != null && t.price !== "" ? String(parseFloat(t.price)) : "",
             available: t.capacity != null ? String(t.capacity) : "Unlimited",
             admits: t.admits_count != null ? String(t.admits_count) : "1",
+            perPerson: t.max_tickets_per_person != null ? String(t.max_tickets_per_person) : "Unlimited",
+            minPerPerson: String(t.min_tickets_per_person ?? 1),
+            description: t.description || "",
           }));
           setTiers(mapped);
           // Deep-copy snapshot so we can diff for PATCH/DELETE on save
@@ -263,7 +270,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
   /* Tier editing helpers */
   const startEditTier = (tier) => {
     setEditingTierId(tier.id);
-    setEditTierData({ name: tier.name, available: tier.available, price: tier.price, admits: tier.admits ?? "1" });
+    setEditTierData({ name: tier.name, available: tier.available, price: tier.price, admits: tier.admits ?? "1", perPerson: tier.perPerson ?? "5", minPerPerson: tier.minPerPerson ?? "1", description: tier.description ?? "" });
   };
 
   const saveEditTier = () => {
@@ -277,9 +284,9 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
 
   const addTier = () => {
     const newId = `tier_${Date.now()}`;
-    setTiers(prev => [...prev, { id: newId, name: "New Tier", available: "100", price: "", admits: "1" }]);
+    setTiers(prev => [...prev, { id: newId, name: "New Tier", available: "Unlimited", price: "", admits: "1", perPerson: "5", minPerPerson: "1", description: "" }]);
     setEditingTierId(newId);
-    setEditTierData({ name: "New Tier", available: "100", price: "", admits: "1" });
+    setEditTierData({ name: "New Tier", available: "Unlimited", price: "", admits: "1", perPerson: "5", minPerPerson: "1", description: "" });
   };
 
   const handleVenueChange = useCallback((val) => {
@@ -307,7 +314,21 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
   }, []);
 
   /* Submit */
+  // Tiers that add up to more than the total can't all be sold: say so.
+  const tierCapNumbers = tiers.map((t) => parseInt(String(t.available).replace(/,/g, ""), 10));
+  const tierAllocationTotal = tierCapNumbers.every((n) => !Number.isNaN(n)) ? tierCapNumbers.reduce((a, b) => a + b, 0) : null;
+  const totalCapacityNumber = capacity.trim() ? parseInt(capacity, 10) : null;
+  const tierAllocationWarning =
+    tiers.length > 0 && totalCapacityNumber && tierAllocationTotal !== null && tierAllocationTotal > totalCapacityNumber
+      ? `Your tiers add up to ${tierAllocationTotal} tickets, but total capacity is ${totalCapacityNumber}. Sales stop at ${totalCapacityNumber}.`
+      : "";
+
   const handleSubmit = async (isDraft = false) => {
+    if (capacity.trim() && !/^[1-9]\d*$/.test(capacity.trim())) {
+      toast.error("Total capacity must be a whole number of 1 or more, or empty for no limit.");
+      setOpen((o) => ({ ...o, tiers: true }));
+      return;
+    }
     // Required fields live in these two cards: never validate behind a collapsed one.
     setOpen((o) => ({ ...o, details: true, date: true }));
     if (!eventName.trim()) { toast.error("Event name is required"); return; }
@@ -350,7 +371,8 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
     if (venue) fields.location = venue;
     if (virtualLink) fields.virtual_link = virtualLink;
     if (description) fields.description = description;
-    if (capacity !== "Unlimited") fields.capacity = capacity;
+    fields.capacity = capacity.trim(); // empty clears the limit
+    fields.max_tickets_per_person = maxPerPerson;
 
     Object.entries(fields).forEach(([k, v]) => formData.append(k, v));
     if (eventImage instanceof File) formData.append("event_image", eventImage);
@@ -361,6 +383,20 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
       return isNaN(n) ? null : n;
     };
 
+    // "Unlimited" (or empty) means no per-order limit for the tier.
+    const parsePerPerson = (val) => {
+      const n = parseInt(String(val ?? ""), 10);
+      return isNaN(n) ? null : Math.min(10, Math.max(1, n));
+    };
+
+    // The minimum can never be above the maximum (or below 1).
+    const parseMin = (val, max) => {
+      const n = parseInt(String(val ?? "1"), 10);
+      const min = isNaN(n) ? 1 : Math.min(10, Math.max(1, n));
+      const cap = parsePerPerson(max);
+      return cap === null ? min : Math.min(min, cap);
+    };
+
     const parseAdmits = (val) => {
       const n = parseInt(String(val ?? "1"), 10);
       return isNaN(n) || n < 1 ? 1 : n;
@@ -368,9 +404,12 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
 
     const tierPayload = (tier, idx) => ({
       name: tier.name,
+      description: (tier.description || "").trim(),
       price: parseFloat(tier.price) || 0,
       capacity: parseCapacity(tier.available),
       admits_count: parseAdmits(tier.admits),
+      max_tickets_per_person: parsePerPerson(tier.perPerson),
+      min_tickets_per_person: parseMin(tier.minPerPerson, tier.perPerson),
       order: idx,
     });
 
@@ -400,7 +439,10 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
             const changed =
               !orig ||
               orig.name !== tier.name ||
+              (orig.description ?? "") !== (tier.description ?? "") ||
               orig.price !== tier.price ||
+              orig.perPerson !== tier.perPerson ||
+              (orig.minPerPerson ?? "1") !== (tier.minPerPerson ?? "1") ||
               orig.available !== tier.available ||
               (orig.admits ?? "1") !== (tier.admits ?? "1");
             if (changed) ops.push(API.updateTier(slug, tier.id, tierPayload(tier, idx)));
@@ -686,7 +728,13 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
           <Collapsible
             id="sec-tiers"
             title="Ticket tiers"
-            summary={tiers.length > 0 ? `${tiers.length} ticket tier${tiers.length === 1 ? "" : "s"}` : "No tiers yet. Free event? Skip this."}
+            summary={
+              [
+                capacity.trim() ? `${capacity} seats` : "Unlimited seats",
+                tiers.length > 0 ? `${tiers.length} tier${tiers.length === 1 ? "" : "s"}` : null,
+                tiers.length === 0 ? `up to ${maxPerPerson} per person` : null,
+              ].filter(Boolean).join(", ")
+            }
             open={open.tiers}
             onToggle={() => toggle("tiers")}
             action={
@@ -700,6 +748,38 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
               </button>
             }
           >
+            <div className="grid gap-4 md:grid-cols-2 mb-5">
+              <div>
+                <label htmlFor="total-capacity" className="block text-sm font-medium text-gray-700 mb-1.5">Total capacity</label>
+                <input
+                  id="total-capacity"
+                  type="text"
+                  inputMode="numeric"
+                  value={capacity}
+                  onChange={(e) => setCapacity(e.target.value.replace(/[^\d]/g, ""))}
+                  placeholder="Unlimited"
+                  className="w-full border border-gray-200 rounded-xl px-4 py-3 min-h-[46px] text-base md:text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                <p className="mt-1.5 text-xs text-gray-500">Sales stop when this many seats are taken. Leave empty for no limit.</p>
+              </div>
+              {tiers.length === 0 && <div>
+                <label htmlFor="max-per-person" className="block text-sm font-medium text-gray-700 mb-1.5">Tickets per person</label>
+                <select
+                  id="max-per-person"
+                  value={maxPerPerson}
+                  onChange={(e) => setMaxPerPerson(e.target.value)}
+                  className="w-full border border-gray-200 rounded-xl bg-white px-4 py-3 min-h-[46px] text-base md:text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
+                    <option key={n} value={String(n)}>{n}</option>
+                  ))}
+                </select>
+                <p className="mt-1.5 text-xs text-gray-500">The most tickets one buyer can get in a single order. With tiers, each tier sets its own.</p>
+              </div>}
+            </div>
+            {tierAllocationWarning && (
+              <p className="mb-4 rounded-lg bg-amber-50 border border-amber-100 px-3 py-2 text-sm text-amber-800">{tierAllocationWarning}</p>
+            )}
 
             <div className="space-y-2">
               {tiers.map((tier, idx) => (
@@ -718,15 +798,87 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
                           />
                         </div>
                         <div>
-                          <label className="text-xs font-medium text-gray-600 mb-1 block">Available</label>
+                          <label className="text-xs font-medium text-gray-600 mb-1 block">Tickets available</label>
                           <input
                             type="text"
                             value={editTierData.available}
                             onChange={e => setEditTierData(p => ({ ...p, available: e.target.value }))}
                             className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            placeholder="100"
+                            placeholder="Unlimited"
                           />
+                          {parseInt(editTierData.admits, 10) > 1 && parseInt(editTierData.available, 10) > 0 && (
+                            <p className="text-xs text-gray-500 mt-1">
+                              Counted in people: {parseInt(editTierData.available, 10)} people is {Math.floor(parseInt(editTierData.available, 10) / parseInt(editTierData.admits, 10))} groups of {parseInt(editTierData.admits, 10)}.
+                            </p>
+                          )}
                         </div>
+                      </div>
+                      <div>
+                        <label htmlFor={`tier-desc-${tier.id}`} className="text-xs font-medium text-gray-600 mb-1 block">Description <span className="text-gray-400 font-normal">(optional)</span></label>
+                        <textarea
+                          id={`tier-desc-${tier.id}`}
+                          rows={2}
+                          maxLength={200}
+                          value={editTierData.description ?? ""}
+                          onChange={e => setEditTierData(p => ({ ...p, description: e.target.value }))}
+                          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                          placeholder="e.g. Admits two people, includes one drink each"
+                        />
+                        <p className="mt-1 text-xs text-gray-500 text-right">{(editTierData.description ?? "").length}/200</p>
+                      </div>
+                      <div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label htmlFor={`min-per-person-${tier.id}`} className="text-xs font-medium text-gray-600 mb-1 block">Minimum per order</label>
+                            <select
+                              id={`min-per-person-${tier.id}`}
+                              value={editTierData.minPerPerson ?? "1"}
+                              disabled={parseInt(editTierData.admits, 10) > 1}
+                              onChange={e => setEditTierData(p => {
+                                const min = parseInt(e.target.value, 10);
+                                const max = parseInt(p.perPerson, 10);
+                                // Raising the minimum past the maximum lifts the maximum with it.
+                                return { ...p, minPerPerson: e.target.value, perPerson: !isNaN(max) && max < min ? e.target.value : p.perPerson };
+                              })}
+                              className="w-full border border-gray-200 rounded-lg bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-400"
+                            >
+                              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
+                                <option key={n} value={String(n)}>{n}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label htmlFor={`per-person-${tier.id}`} className="text-xs font-medium text-gray-600 mb-1 block">Maximum per order</label>
+                            <select
+                              id={`per-person-${tier.id}`}
+                              value={editTierData.perPerson ?? "5"}
+                              disabled={parseInt(editTierData.admits, 10) > 1}
+                              onChange={e => setEditTierData(p => {
+                                const max = parseInt(e.target.value, 10);
+                                const min = parseInt(p.minPerPerson, 10);
+                                // Lowering the maximum below the minimum pulls the minimum down.
+                                return { ...p, perPerson: e.target.value, minPerPerson: !isNaN(max) && min > max ? e.target.value : p.minPerPerson };
+                              })}
+                              className="w-full border border-gray-200 rounded-lg bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-400"
+                            >
+                              <option value="Unlimited">No limit</option>
+                              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
+                                <option key={n} value={String(n)}>{n}</option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                        <p className="mt-1 text-xs text-gray-500">
+                          {parseInt(editTierData.admits, 10) > 1
+                            ? `A group ticket that admits ${parseInt(editTierData.admits, 10)} people. It is always bought one at a time.`
+                            : (() => {
+                                const min = parseInt(editTierData.minPerPerson, 10) || 1;
+                                const max = parseInt(editTierData.perPerson, 10);
+                                if (!isNaN(max) && min === max && min > 1) return `Sold only in sets of ${min}, like a couples ticket. Buyers can't get fewer.`;
+                                if (min > 1) return `Buyers must take at least ${min}, so the counter starts at ${min}.`;
+                                return "The fewest and the most one buyer can get of this ticket in one order.";
+                              })()}
+                        </p>
                       </div>
                       <div>
                         <label className="text-xs font-medium text-gray-600 mb-1 block">Price (₦) — leave blank for free</label>
@@ -739,21 +891,6 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
                           className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                           placeholder="e.g. 8500"
                         />
-                      </div>
-                      <div>
-                        <label className="text-xs font-medium text-gray-600 mb-1 block">People per ticket</label>
-                        <input
-                          type="number"
-                          min="1"
-                          step="1"
-                          value={editTierData.admits ?? "1"}
-                          onChange={e => setEditTierData(p => ({ ...p, admits: e.target.value }))}
-                          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          placeholder="1"
-                        />
-                        <p className="text-[11px] text-gray-400 mt-1">
-                          For group tickets (e.g. &quot;Group of 4&quot; → 4). This is one ticket that admits that many people; the buyer fills in each guest&apos;s details at checkout.
-                        </p>
                       </div>
                       <div className="flex gap-2">
                         <button type="button" onClick={saveEditTier} className="bg-blue-600 text-white text-xs font-semibold px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">Save</button>
@@ -768,14 +905,26 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
                       </span>
                       <div className="flex-1 min-w-0">
                         <p className="font-semibold text-gray-900 text-sm">{tier.name}</p>
+                        {tier.description && <p className="text-xs text-gray-600 mt-0.5 break-words">{tier.description}</p>}
                         <p className="text-xs text-gray-400 mt-0.5">
-                          {tier.available} available
-                          {parseInt(tier.admits, 10) > 1 ? ` · admits ${tier.admits} per ticket` : ""}
+                          {!tier.available || tier.available === "Unlimited" ? "Unlimited" : `${tier.available} available`}
+                          {`, ${describeTicketLimits({
+                            admits_count: parseInt(tier.admits, 10),
+                            min_tickets_per_person: parseInt(tier.minPerPerson, 10) || 1,
+                            max_tickets_per_person: tier.perPerson && tier.perPerson !== "Unlimited" ? parseInt(tier.perPerson, 10) : null,
+                          }).toLowerCase()}`}
                         </p>
                       </div>
-                      <span className="font-bold text-gray-900 text-sm mr-2">
-                        {tier.price ? fmt(parseFloat(tier.price)) : "Free"}
-                      </span>
+                      <div className="mr-2 text-right">
+                        <p className="font-bold text-gray-900 text-sm">
+                          {tier.price ? fmt(parseFloat(tier.price)) : "Free"}
+                        </p>
+                        {parseInt(tier.admits, 10) > 1 ? (
+                          <p className="text-xs text-gray-500">for {tier.admits} people</p>
+                        ) : parseInt(tier.minPerPerson, 10) > 1 ? (
+                          <p className="text-xs text-gray-500">per ticket</p>
+                        ) : null}
+                      </div>
                       <button type="button" onClick={() => startEditTier(tier)} className="text-gray-400 hover:text-gray-700 transition-colors p-1">
                         <HugeiconsIcon icon={Edit01Icon} size={15} color="currentColor" />
                       </button>

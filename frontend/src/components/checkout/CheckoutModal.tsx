@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
+import { ticketLimits, stepUp, stepDown, describeTicketLimits } from "@/lib/ticketLimits";
 import EventImageFallback from "@/components/ui/EventImageFallback";
 import Script from "next/script";
 import { useRouter } from "next/navigation";
@@ -46,20 +47,21 @@ interface Event {
   is_active: boolean;
   show_remaining_count?: boolean;
   pass_fee_to_attendee?: boolean;
+  max_tickets_per_person?: number;
 }
 
 interface TicketTier {
+  min_tickets_per_person?: number;
+  description?: string;
   id: string | number;
   name: string;
   price: number | string;
   capacity?: number | null;
   remaining?: number | null;
   sold?: number | null;
+  max_tickets_per_person?: number | null;
   admits_count?: number | null;
 }
-
-// Max tickets a buyer can select per tier in a single checkout.
-const MAX_QTY_PER_TIER = 5;
 
 const categoryLabels: Record<string, string> = {
   entertainment: "CONCERTS & MUSIC",
@@ -120,6 +122,7 @@ interface Props {
 }
 
 export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Props) {
+  const limitsFor = (tier: TicketTier) => ticketLimits(tier, event);
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -571,12 +574,10 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
 
                 <div className="space-y-3">
                   {tiers.map((tier) => {
-                    // A group tier (admits_count > 1) is ONE ticket that admits
-                    // several people — quantity is locked at 1 (the admits count
-                    // becomes attendee slots, not extra tickets).
-                    const isGroupTier = Number(tier.admits_count) > 1;
                     const currentQty = quantities[String(tier.id)] || 0;
-                    const atCap = isGroupTier ? currentQty >= 1 : currentQty >= MAX_QTY_PER_TIER;
+                    const { min, max } = limitsFor(tier);
+                    const cap = tier.remaining != null ? Math.min(max, tier.remaining) : max;
+                    const atCap = currentQty >= cap || (currentQty === 0 && tier.remaining != null && tier.remaining < min);
                     return (
                     <div
                       key={tier.id}
@@ -590,6 +591,9 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                         <p className="font-semibold text-gray-900 text-sm">
                           {tier.name}
                         </p>
+                        {tier.description && (
+                          <p className="text-xs text-gray-600 mt-0.5 break-words">{tier.description}</p>
+                        )}
                         <p className="text-xs text-gray-500 mt-0.5">
                           {showRemaining && tier.remaining != null && tier.remaining > 0 && (
                             <span className="text-orange-500">{tier.remaining} left</span>
@@ -601,6 +605,9 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                             <span>{tier.capacity} capacity</span>
                           )}
                         </p>
+                        {tier.remaining !== 0 && (
+                          <p className="text-xs text-gray-500 mt-0.5">{describeTicketLimits(tier, event)}</p>
+                        )}
                       </div>
                       <div className="flex items-center gap-3 flex-shrink-0">
                         <span className="font-semibold text-gray-900 text-sm">
@@ -611,7 +618,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                             onClick={() =>
                               setQuantities((p) => ({
                                 ...p,
-                                [String(tier.id)]: Math.max(0, (p[String(tier.id)] || 0) - 1),
+                                [String(tier.id)]: stepDown(p[String(tier.id)] || 0, min),
                               }))
                             }
                             className="w-8 h-8 rounded-full border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-50 transition-colors"
@@ -634,14 +641,13 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                             onClick={() =>
                               setQuantities((p) => {
                                 const cur = p[String(tier.id)] || 0;
-                                // A group tier is a single ticket — never exceed qty 1.
-                                if (isGroupTier && cur >= 1) return p;
-                                // Otherwise cap purchases at MAX_QTY_PER_TIER per checkout.
-                                if (!isGroupTier && cur >= MAX_QTY_PER_TIER) return p;
+                                // Bundled: the first press jumps to the tier's minimum, then one at a time up to its cap.
+                                const next = stepUp(cur, min, cap);
+                                if (next === cur) return p;
                                 // Reset all other tiers to 0 — only one tier can be selected at a time
                                 const reset: Record<string, number> = {};
                                 tiers.forEach((t) => { reset[String(t.id)] = 0; });
-                                return { ...reset, [String(tier.id)]: cur + 1 };
+                                return { ...reset, [String(tier.id)]: next };
                               })
                             }
                             disabled={tier.remaining === 0 || atCap}

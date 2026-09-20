@@ -122,9 +122,22 @@ class TicketTierSerializer(serializers.ModelSerializer):
     remaining = serializers.SerializerMethodField()
     sold = serializers.SerializerMethodField()
 
+    def validate(self, attrs):
+        # The smallest order can't be bigger than the largest one.
+        inst = self.instance
+        minimum = attrs.get('min_tickets_per_person', inst.min_tickets_per_person if inst else 1)
+        maximum = attrs['max_tickets_per_person'] if 'max_tickets_per_person' in attrs else (
+            inst.max_tickets_per_person if inst else 5
+        )
+        if maximum is not None and minimum > maximum:
+            raise serializers.ValidationError({
+                'min_tickets_per_person': "The minimum can't be more than the maximum."
+            })
+        return attrs
+
     class Meta:
         model = TicketTier
-        fields = ['id', 'name', 'price', 'capacity', 'admits_count', 'order', 'remaining', 'sold']
+        fields = ['id', 'name', 'description', 'price', 'capacity', 'admits_count', 'min_tickets_per_person', 'max_tickets_per_person', 'order', 'remaining', 'sold']
         read_only_fields = ['id']
 
     def get_remaining(self, obj):
@@ -214,6 +227,7 @@ class EventCoHostSerializer(serializers.ModelSerializer):
 class EventSerializer(serializers.ModelSerializer):
     owner_email = serializers.EmailField(source='owner.email', read_only=True)
     owner_handle = serializers.SerializerMethodField()
+    is_sold_out = serializers.SerializerMethodField()
     owner_events_count = serializers.SerializerMethodField()
     cohosts = EventCoHostSerializer(many=True, read_only=True)
 
@@ -241,12 +255,28 @@ class EventSerializer(serializers.ModelSerializer):
             'category', 'category_display',
             'day', 'time_from', 'time_to', 'location', 'description',
             'virtual_link', 'ticket_price', 'capacity', 'transferable',
-            'show_remaining_count', 'pass_fee_to_attendee',
+            'show_remaining_count', 'pass_fee_to_attendee', 'max_tickets_per_person', 'is_sold_out',
             'event_image', 'event_image_url', 'visibility', 'timezone', 'hosted_by',
             'is_active', 'is_draft', 'created_at', 'updated_at',
             'cohosts', 'role', 'tiers',
         ]
-        read_only_fields = ['id', 'slug', 'owner', 'is_active', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'slug', 'owner', 'is_active', 'is_sold_out', 'created_at', 'updated_at']
+
+    def get_is_sold_out(self, obj):
+        return obj.is_sold_out()
+
+    def validate_capacity(self, value):
+        if value is None:
+            return value
+        if value < 1:
+            raise serializers.ValidationError("Capacity must be at least 1, or leave it empty for unlimited.")
+        if self.instance is not None:
+            sold = self.instance.sold_seats()
+            if value < sold:
+                raise serializers.ValidationError(
+                    f"{sold} ticket{'s' if sold != 1 else ''} already sold, so capacity can't be lower than {sold}."
+                )
+        return value
 
     def get_owner_handle(self, obj):
         """Public handle for the owner's profile (/u/<handle>), if they have one."""

@@ -7,6 +7,7 @@ from django.dispatch import receiver
 from django.conf import settings
 from django.utils import timezone
 from django.utils.crypto import get_random_string
+from django.core.validators import MinValueValidator, MaxValueValidator
 import uuid
 
 
@@ -293,7 +294,14 @@ class Event(models.Model):
         decimal_places=2, 
         default=0.00
     )
+    # Overall limit on seats for the event (its venue). Empty means unlimited.
+    # Tiers can have their own limits inside this one; a purchase must fit both.
     capacity = models.IntegerField(blank=False, null=True)
+    # Most tickets one buyer can get in a single order, for an event with NO tiers.
+    # When an event has tiers, each tier sets its own limit (TicketTier.max_tickets_per_person).
+    max_tickets_per_person = models.PositiveSmallIntegerField(
+        default=5, validators=[MinValueValidator(1), MaxValueValidator(10)]
+    )
     transferable = models.BooleanField(default=False)
     show_remaining_count = models.BooleanField(
         default=False,
@@ -386,6 +394,32 @@ class Event(models.Model):
     def can_check_in(self, user):
         """Owner or any accepted co-host: see the guest list and check people in."""
         return self.is_owner_or_cohost(user)
+
+    def sold_seats(self):
+        """Seats taken: one ticket row per attendee, paid or free."""
+        return self.tickets.filter(payment_status__in=['paid', 'free']).count()
+
+    def effective_capacity(self):
+        """
+        The number of seats that can be sold, or None when unlimited.
+        The event's own limit wins; otherwise, when tiers exist and every one of
+        them has a limit, the total of those limits. Any unlimited tier (or no
+        limits at all) means unlimited.
+        """
+        if self.capacity:
+            return self.capacity
+        caps = list(self.tiers.values_list('capacity', flat=True))
+        if caps and all(c is not None for c in caps):
+            return sum(caps)
+        return None
+
+    def is_sold_out(self):
+        """True once no more tickets can be bought: the event is full, or every tier is."""
+        cap = self.effective_capacity()
+        if cap is not None and self.sold_seats() >= cap:
+            return True
+        tiers = list(self.tiers.all())
+        return bool(tiers) and all(t.capacity is not None and t.remaining() == 0 for t in tiers)
 
     def is_owner_or_cohost(self, user):
         """Check if user is owner or co-host of this event"""
@@ -581,11 +615,25 @@ class TicketTier(models.Model):
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='tiers')
     name = models.CharField(max_length=100)
     price = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    # Short note from the organiser shown to buyers under the tier name.
+    description = models.CharField(max_length=200, blank=True, default='')
     # Total tickets available for this tier. Null = unlimited.
     capacity = models.PositiveIntegerField(null=True, blank=True)
     # People admitted per ticket in this tier (e.g. a "Group of 4" = 4).
     # Each admitted person still becomes a separate Ticket row (own QR).
     admits_count = models.PositiveIntegerField(default=1)
+    # Fewest tickets one buyer must take of THIS tier in one order. 2 with a
+    # maximum of 2 makes a couples ticket that can only be bought as a pair.
+    min_tickets_per_person = models.PositiveSmallIntegerField(
+        default=1, validators=[MinValueValidator(1), MaxValueValidator(10)],
+    )
+    # Most tickets one buyer can get of THIS tier in a single order (1 to 10).
+    # Empty means no per-order limit for the tier (its capacity still applies).
+    # Defaults to 5 so existing tiers keep the cap the checkout used to enforce.
+    max_tickets_per_person = models.PositiveSmallIntegerField(
+        null=True, blank=True, default=5,
+        validators=[MinValueValidator(1), MaxValueValidator(10)],
+    )
     order = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

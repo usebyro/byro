@@ -85,34 +85,39 @@ def _pending_reservation_count(payments_qs):
 
 def lock_and_check_capacity(event, tier_id, quantity):
     """
-    Must be called inside transaction.atomic(). Locks the relevant row
-    (tier or event) so concurrent requests are serialized, preventing
-    overselling. Returns the resolved TicketTier instance, or None if the
-    event has no tiers (legacy flat capacity).
+    Must be called inside transaction.atomic(). Locks the event row and then the
+    tier row (always in that order, so two buyers can't deadlock) so concurrent
+    requests are serialized and the last seat can't be sold twice.
+
+    A purchase must fit BOTH the event's overall capacity and the chosen tier's
+    own capacity. Each attendee is one ticket row, so counting rows counts seats.
+    Returns the resolved TicketTier, or None if the event has no tiers.
     Raises InsufficientCapacityError if there isn't enough room.
     """
+    locked_event = Event.objects.select_for_update().get(pk=event.pk)
+
+    tier = None
     if tier_id:
         try:
             tier = TicketTier.objects.select_for_update().get(pk=tier_id, event=event)
         except TicketTier.DoesNotExist:
             raise InsufficientCapacityError("Ticket tier not found for this event")
-        if tier.capacity is not None:
-            sold = tier.tickets.filter(payment_status__in=['paid', 'free']).count()
-            reserved = _pending_reservation_count(tier.payments.all())
-            if sold + reserved + _seats_for(tier, quantity) > tier.capacity:
-                raise InsufficientCapacityError("Not enough tickets available in this tier")
-        return tier
 
-    # No tier specified — fall back to legacy event-level capacity, locked.
-    locked_event = Event.objects.select_for_update().get(pk=event.pk)
+    seats = _seats_for(tier, quantity)
+
     if locked_event.capacity:
-        registered_count = locked_event.tickets.filter(
-            payment_status__in=['paid', 'free']
-        ).count()
+        sold = locked_event.tickets.filter(payment_status__in=['paid', 'free']).count()
         reserved = _pending_reservation_count(locked_event.payments.all())
-        if registered_count + reserved + quantity > locked_event.capacity:
+        if sold + reserved + seats > locked_event.capacity:
             raise InsufficientCapacityError("Not enough tickets available")
-    return None
+
+    if tier is not None and tier.capacity is not None:
+        sold = tier.tickets.filter(payment_status__in=['paid', 'free']).count()
+        reserved = _pending_reservation_count(tier.payments.all())
+        if sold + reserved + seats > tier.capacity:
+            raise InsufficientCapacityError("Not enough tickets available in this tier")
+
+    return tier
 
 
 def send_ticket_confirmation_email(ticket, customer_name, customer_email, event):
@@ -486,7 +491,10 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
         event_slug = request.data.get('event_slug')
         customer_email = request.data.get('customer_email')
         customer_name = request.data.get('customer_name')
-        quantity = int(request.data.get('quantity', 1))
+        try:
+            quantity = int(request.data.get('quantity', 1))
+        except (TypeError, ValueError):
+            return Response({'error': 'Quantity must be a whole number'}, status=status.HTTP_400_BAD_REQUEST)
         tier_id = request.data.get('tier_id')
         attendees_raw = request.data.get('attendees')
         promo_code_str = (request.data.get('promo_code') or '').strip().upper()
@@ -508,6 +516,25 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
 
         # Get event
         event = get_object_or_404(Event, slug=event_slug, is_active=True, is_draft=False)
+
+        # The organiser decides how many tickets one order may contain. Each tier
+        # sets its own limit (empty = no limit); an event without tiers uses the
+        # event's limit.
+        if quantity < 1:
+            return Response({'error': 'Quantity must be at least 1'}, status=status.HTTP_400_BAD_REQUEST)
+        limit_tier = TicketTier.objects.filter(pk=tier_id, event=event).first() if tier_id else None
+        limit = limit_tier.max_tickets_per_person if limit_tier is not None else event.max_tickets_per_person
+        minimum = limit_tier.min_tickets_per_person if limit_tier is not None else 1
+        if quantity < minimum:
+            return Response(
+                {'error': f"{limit_tier.name} tickets are sold {minimum} at a time or more. Choose at least {minimum}."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if limit is not None and quantity > limit:
+            return Response(
+                {'error': f"You can buy up to {limit} {limit_tier.name if limit_tier else ''} ticket{'s' if limit != 1 else ''} per order.".replace('  ', ' ')},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         try:
             with transaction.atomic():
@@ -1095,7 +1122,8 @@ class DashboardAnalyticsView(APIView):
 
       - last_30d / previous_30d : tickets sold + revenue, for honest trends
       - monthly_revenue         : the last 12 calendar months, oldest first
-      - avg_fill_rate           : mean sold/capacity over events with a capacity (0-100)
+      - avg_fill_rate           : mean sold/capacity over events with a limit (the event's, or the sum of
+                                  its tier limits when every tier has one) (0-100)
       - top_events              : best sellers this calendar month
       - events                  : lifetime sold + revenue + is_free + is_owner per event slug
     Revenue is counted for events you own only (co-hosts don't receive it).
@@ -1183,8 +1211,10 @@ class DashboardAnalyticsView(APIView):
 
         # Average fill rate across events that have a capacity.
         fills = []
-        for slug, capacity in events.filter(capacity__gt=0).values_list('slug', 'capacity'):
-            fills.append(min(sold_by_event.get(slug, 0) / capacity, 1))
+        for ev in events.prefetch_related('tiers'):
+            capacity = ev.effective_capacity()
+            if capacity:
+                fills.append(min(sold_by_event.get(ev.slug, 0) / capacity, 1))
         avg_fill_rate = round(sum(fills) / len(fills) * 100) if fills else None
 
         # Best sellers this calendar month.
@@ -1754,6 +1784,13 @@ class EventViewSet(viewsets.ModelViewSet):
             if missing:
                 return Response(
                     {"error": "Missing answers for required questions", "question_ids": list(missing)},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            reg_tier = TicketTier.objects.filter(pk=tier_id, event=event).first() if tier_id else None
+            if reg_tier is not None and reg_tier.min_tickets_per_person > 1:
+                return Response(
+                    {"error": f"{reg_tier.name} tickets are sold {reg_tier.min_tickets_per_person} at a time or more."},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
