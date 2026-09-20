@@ -14,6 +14,7 @@ import {
   Edit01Icon,
   DragDropVerticalIcon,
 } from "@hugeicons/core-free-icons";
+import { describeTicketLimits } from "@/lib/ticketLimits";
 import API from "../../services/api";
 import RichTextEditor from "./RichTextEditor";
 
@@ -243,6 +244,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
             available: t.capacity != null ? String(t.capacity) : "Unlimited",
             admits: t.admits_count != null ? String(t.admits_count) : "1",
             perPerson: t.max_tickets_per_person != null ? String(t.max_tickets_per_person) : "Unlimited",
+            minPerPerson: String(t.min_tickets_per_person ?? 1),
           }));
           setTiers(mapped);
           // Deep-copy snapshot so we can diff for PATCH/DELETE on save
@@ -267,7 +269,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
   /* Tier editing helpers */
   const startEditTier = (tier) => {
     setEditingTierId(tier.id);
-    setEditTierData({ name: tier.name, available: tier.available, price: tier.price, admits: tier.admits ?? "1", perPerson: tier.perPerson ?? "5" });
+    setEditTierData({ name: tier.name, available: tier.available, price: tier.price, admits: tier.admits ?? "1", perPerson: tier.perPerson ?? "5", minPerPerson: tier.minPerPerson ?? "1" });
   };
 
   const saveEditTier = () => {
@@ -281,9 +283,9 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
 
   const addTier = () => {
     const newId = `tier_${Date.now()}`;
-    setTiers(prev => [...prev, { id: newId, name: "New Tier", available: "Unlimited", price: "", admits: "1", perPerson: "5" }]);
+    setTiers(prev => [...prev, { id: newId, name: "New Tier", available: "Unlimited", price: "", admits: "1", perPerson: "5", minPerPerson: "1" }]);
     setEditingTierId(newId);
-    setEditTierData({ name: "New Tier", available: "Unlimited", price: "", admits: "1", perPerson: "5" });
+    setEditTierData({ name: "New Tier", available: "Unlimited", price: "", admits: "1", perPerson: "5", minPerPerson: "1" });
   };
 
   const handleVenueChange = useCallback((val) => {
@@ -386,6 +388,14 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
       return isNaN(n) ? null : Math.min(10, Math.max(1, n));
     };
 
+    // The minimum can never be above the maximum (or below 1).
+    const parseMin = (val, max) => {
+      const n = parseInt(String(val ?? "1"), 10);
+      const min = isNaN(n) ? 1 : Math.min(10, Math.max(1, n));
+      const cap = parsePerPerson(max);
+      return cap === null ? min : Math.min(min, cap);
+    };
+
     const parseAdmits = (val) => {
       const n = parseInt(String(val ?? "1"), 10);
       return isNaN(n) || n < 1 ? 1 : n;
@@ -397,6 +407,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
       capacity: parseCapacity(tier.available),
       admits_count: parseAdmits(tier.admits),
       max_tickets_per_person: parsePerPerson(tier.perPerson),
+      min_tickets_per_person: parseMin(tier.minPerPerson, tier.perPerson),
       order: idx,
     });
 
@@ -428,6 +439,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
               orig.name !== tier.name ||
               orig.price !== tier.price ||
               orig.perPerson !== tier.perPerson ||
+              (orig.minPerPerson ?? "1") !== (tier.minPerPerson ?? "1") ||
               orig.available !== tier.available ||
               (orig.admits ?? "1") !== (tier.admits ?? "1");
             if (changed) ops.push(API.updateTier(slug, tier.id, tierPayload(tier, idx)));
@@ -799,23 +811,57 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
                         </div>
                       </div>
                       <div>
-                        <label htmlFor={`per-person-${tier.id}`} className="text-xs font-medium text-gray-600 mb-1 block">Tickets per person</label>
-                        <select
-                          id={`per-person-${tier.id}`}
-                          value={editTierData.perPerson ?? "5"}
-                          disabled={parseInt(editTierData.admits, 10) > 1}
-                          onChange={e => setEditTierData(p => ({ ...p, perPerson: e.target.value }))}
-                          className="w-full border border-gray-200 rounded-lg bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-400"
-                        >
-                          <option value="Unlimited">No limit</option>
-                          {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
-                            <option key={n} value={String(n)}>{n}</option>
-                          ))}
-                        </select>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label htmlFor={`min-per-person-${tier.id}`} className="text-xs font-medium text-gray-600 mb-1 block">Minimum per order</label>
+                            <select
+                              id={`min-per-person-${tier.id}`}
+                              value={editTierData.minPerPerson ?? "1"}
+                              disabled={parseInt(editTierData.admits, 10) > 1}
+                              onChange={e => setEditTierData(p => {
+                                const min = parseInt(e.target.value, 10);
+                                const max = parseInt(p.perPerson, 10);
+                                // Raising the minimum past the maximum lifts the maximum with it.
+                                return { ...p, minPerPerson: e.target.value, perPerson: !isNaN(max) && max < min ? e.target.value : p.perPerson };
+                              })}
+                              className="w-full border border-gray-200 rounded-lg bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-400"
+                            >
+                              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
+                                <option key={n} value={String(n)}>{n}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label htmlFor={`per-person-${tier.id}`} className="text-xs font-medium text-gray-600 mb-1 block">Maximum per order</label>
+                            <select
+                              id={`per-person-${tier.id}`}
+                              value={editTierData.perPerson ?? "5"}
+                              disabled={parseInt(editTierData.admits, 10) > 1}
+                              onChange={e => setEditTierData(p => {
+                                const max = parseInt(e.target.value, 10);
+                                const min = parseInt(p.minPerPerson, 10);
+                                // Lowering the maximum below the minimum pulls the minimum down.
+                                return { ...p, perPerson: e.target.value, minPerPerson: !isNaN(max) && min > max ? e.target.value : p.minPerPerson };
+                              })}
+                              className="w-full border border-gray-200 rounded-lg bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-400"
+                            >
+                              <option value="Unlimited">No limit</option>
+                              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
+                                <option key={n} value={String(n)}>{n}</option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
                         <p className="mt-1 text-xs text-gray-500">
                           {parseInt(editTierData.admits, 10) > 1
-                            ? "A group ticket is always bought one at a time."
-                            : "The most one buyer can get of this ticket in one order."}
+                            ? `A group ticket that admits ${parseInt(editTierData.admits, 10)} people. It is always bought one at a time.`
+                            : (() => {
+                                const min = parseInt(editTierData.minPerPerson, 10) || 1;
+                                const max = parseInt(editTierData.perPerson, 10);
+                                if (!isNaN(max) && min === max && min > 1) return `Sold only in sets of ${min}, like a couples ticket. Buyers can't get fewer.`;
+                                if (min > 1) return `Buyers must take at least ${min}, so the counter starts at ${min}.`;
+                                return "The fewest and the most one buyer can get of this ticket in one order.";
+                              })()}
                         </p>
                       </div>
                       <div>
@@ -829,31 +875,6 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
                           className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                           placeholder="e.g. 8500"
                         />
-                      </div>
-                      <div>
-                        <label htmlFor={`admits-${tier.id}`} className="text-xs font-medium text-gray-600 mb-1 block">People admitted per ticket</label>
-                        <input
-                          id={`admits-${tier.id}`}
-                          type="number"
-                          min="1"
-                          step="1"
-                          value={editTierData.admits ?? "1"}
-                          onChange={e => setEditTierData(p => ({ ...p, admits: e.target.value }))}
-                          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          placeholder="1"
-                        />
-                        {parseInt(editTierData.admits, 10) > 1 ? (
-                          <p className="text-xs text-gray-600 mt-1">
-                            {parseFloat(editTierData.price) > 0
-                              ? `Buyers pay ${fmt(parseFloat(editTierData.price))} for ${parseInt(editTierData.admits, 10)} people, ${fmt(parseFloat(editTierData.price) / parseInt(editTierData.admits, 10))} each. `
-                              : ""}
-                            Each person gets their own ticket and QR code, and the buyer enters everyone&apos;s details at checkout.
-                          </p>
-                        ) : (
-                          <p className="text-xs text-gray-500 mt-1">
-                            Keep 1 for a normal ticket. Use 2 or more for a group ticket (a couple, a table of 4): one purchase admits that many people, and the price above is for the whole group.
-                          </p>
-                        )}
                       </div>
                       <div className="flex gap-2">
                         <button type="button" onClick={saveEditTier} className="bg-blue-600 text-white text-xs font-semibold px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">Save</button>
@@ -870,18 +891,22 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
                         <p className="font-semibold text-gray-900 text-sm">{tier.name}</p>
                         <p className="text-xs text-gray-400 mt-0.5">
                           {!tier.available || tier.available === "Unlimited" ? "Unlimited" : `${tier.available} available`}
-                          {parseInt(tier.admits, 10) > 1
-                            ? `, admits ${tier.admits} people`
-                            : `, ${tier.perPerson && tier.perPerson !== "Unlimited" ? `${tier.perPerson} per person` : "no per-person limit"}`}
+                          {`, ${describeTicketLimits({
+                            admits_count: parseInt(tier.admits, 10),
+                            min_tickets_per_person: parseInt(tier.minPerPerson, 10) || 1,
+                            max_tickets_per_person: tier.perPerson && tier.perPerson !== "Unlimited" ? parseInt(tier.perPerson, 10) : null,
+                          }).toLowerCase()}`}
                         </p>
                       </div>
                       <div className="mr-2 text-right">
                         <p className="font-bold text-gray-900 text-sm">
                           {tier.price ? fmt(parseFloat(tier.price)) : "Free"}
                         </p>
-                        {parseInt(tier.admits, 10) > 1 && (
+                        {parseInt(tier.admits, 10) > 1 ? (
                           <p className="text-xs text-gray-500">for {tier.admits} people</p>
-                        )}
+                        ) : parseInt(tier.minPerPerson, 10) > 1 ? (
+                          <p className="text-xs text-gray-500">per ticket</p>
+                        ) : null}
                       </div>
                       <button type="button" onClick={() => startEditTier(tier)} className="text-gray-400 hover:text-gray-700 transition-colors p-1">
                         <HugeiconsIcon icon={Edit01Icon} size={15} color="currentColor" />
