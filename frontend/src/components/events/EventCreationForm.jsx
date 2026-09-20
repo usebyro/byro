@@ -7,8 +7,6 @@ import { useSelector } from "react-redux";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Camera01Icon,
-  Calendar01Icon,
-  Clock01Icon,
   Location01Icon,
   ArrowLeft01Icon,
   Add01Icon,
@@ -149,7 +147,7 @@ const formatDateForServer = (d) => {
 /* ── Default tiers ── */
 const DEFAULT_TIERS = [];
 
-export default function EventCreationForm({ editSlug = null, initialData = null }) {
+export default function EventCreationForm({ editSlug = null, initialData = null, embedded = false }) {
   const router = useRouter();
   const wasDraft = Boolean(initialData?.is_draft);
   // A live event can't be turned back into a draft (it may already have sold tickets).
@@ -167,6 +165,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
   const [timeFrom, setTimeFrom] = useState("");
   const [venue, setVenue] = useState("");
   const [virtualLink, setVirtualLink] = useState("");
+  const [showVirtual, setShowVirtual] = useState(false);
   const [eventVisibility, setEventVisibility] = useState(true);
   const [showRemainingCount, setShowRemainingCount] = useState(false);
   const [ticketsTransferable, setTicketsTransferable] = useState(false);
@@ -444,7 +443,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
   };
 
   return (
-    <div className="min-h-screen bg-[#F5F6FA]">
+    <div className={embedded ? "" : "min-h-screen bg-[#F5F6FA]"}>
       {/* ── Top bar ── */}
       <div className="bg-white border-b border-gray-100 px-4 md:px-6 py-3 flex flex-col md:flex-row md:items-center justify-between gap-3 sticky top-0 z-10">
         <div className="flex items-center gap-2">
@@ -511,7 +510,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
             {/* Category */}
             <div className="mb-5">
               <label className="block text-sm font-medium text-gray-700 mb-3">Category</label>
-              <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-1 px-1 pb-1">
+              <div className="flex flex-wrap gap-2">
                 {categories.map(cat => {
                   const selected = category === cat.id;
                   return (
@@ -578,12 +577,11 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">Date</label>
                   <div className="relative">
-                    <HugeiconsIcon icon={Calendar01Icon} size={15} color="#9ca3af" className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                     <input
                       type="date"
                       value={date}
                       onChange={e => setDate(e.target.value)}
-                      className="w-full border border-gray-200 rounded-xl pl-9 pr-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className={`w-full border border-gray-200 rounded-xl px-4 py-3 min-h-[46px] text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${date ? "text-gray-900" : "text-gray-400"}`}
                     />
                   </div>
                 </div>
@@ -591,12 +589,11 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">Start time</label>
                   <div className="relative">
-                    <HugeiconsIcon icon={Clock01Icon} size={15} color="#9ca3af" className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                     <input
                       type="time"
                       value={timeFrom}
                       onChange={e => setTimeFrom(e.target.value)}
-                      className="w-full border border-gray-200 rounded-xl pl-9 pr-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className={`w-full border border-gray-200 rounded-xl px-4 py-3 min-h-[46px] text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${timeFrom ? "text-gray-900" : "text-gray-400"}`}
                     />
                   </div>
                 </div>
@@ -657,19 +654,31 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
                 )}
               </div>
 
-              {/* Virtual link */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Virtual link <span className="text-gray-400 font-normal">(optional)</span>
-                </label>
-                <input
-                  type="url"
-                  value={virtualLink}
-                  onChange={e => setVirtualLink(e.target.value)}
-                  placeholder="https://meet.example.com/..."
-                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-400"
-                />
-              </div>
+              {/* Virtual link: only shown once it is wanted (or already set) */}
+              {showVirtual || virtualLink ? (
+                <div>
+                  <label htmlFor="virtual-link" className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Virtual link
+                  </label>
+                  <input
+                    id="virtual-link"
+                    type="url"
+                    inputMode="url"
+                    value={virtualLink}
+                    onChange={e => setVirtualLink(e.target.value)}
+                    placeholder="https://meet.example.com/..."
+                    className="w-full border border-gray-200 rounded-xl px-4 py-3 min-h-[46px] text-base md:text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setShowVirtual(true)}
+                  className="text-sm font-semibold text-blue-600 hover:text-blue-700 min-h-[44px] md:min-h-0 text-left"
+                >
+                  Add virtual link
+                </button>
+              )}
             </div>
           </Collapsible>
 
