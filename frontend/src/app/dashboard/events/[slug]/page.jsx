@@ -526,7 +526,7 @@ export default function StudioEventPage() {
               </button>
             )}
             {canEdit && <Link
-              href={`/discover/${slug}/edit`}
+              href={`/dashboard/events/${slug}/edit`}
               className={`flex-1 md:flex-initial flex items-center justify-center gap-1 min-h-[40px] md:min-h-0 text-white text-xs font-semibold px-3 py-2 rounded-lg transition-colors ${
                 isDraft
                   ? "bg-[#4F6EF7] hover:bg-blue-700 shadow-sm shadow-[#4F6EF7]/10"
@@ -732,7 +732,7 @@ export default function StudioEventPage() {
                     <>
                       <p className="text-xs text-gray-500 mt-0.5">This event is a draft. Publish it to start selling tickets.</p>
                       <Link
-                        href={`/discover/${slug}/edit`}
+                        href={`/dashboard/events/${slug}/edit`}
                         className="inline-block mt-4 bg-[#4F6EF7] text-white text-xs font-semibold px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
                       >
                         Continue editing
@@ -813,7 +813,7 @@ export default function StudioEventPage() {
             <div className="p-8 text-center">
               <p className="text-sm font-semibold text-gray-700">No ticket tiers</p>
               <p className="text-sm text-gray-500 mt-1">This event sells tickets at one flat price.</p>
-              <Link href={`/discover/${slug}/edit`} className="inline-block mt-4 text-sm font-semibold text-[#3B57D9] hover:underline">
+              <Link href={`/dashboard/events/${slug}/edit`} className="inline-block mt-4 text-sm font-semibold text-[#3B57D9] hover:underline">
                 Add a tier
               </Link>
             </div>
