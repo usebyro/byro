@@ -47,7 +47,8 @@ export default function AuthScreen() {
   const dispatch = useDispatch();
   const [currentSlide, setCurrentSlide] = useState(0);
   const [step, setStep] = useState("email");
-  const [email, setEmail] = useState("");
+  // A co-host invitation links here with ?email= so they sign in with the invited address.
+  const [email, setEmail] = useState(() => searchParams.get("email") || "");
   const [otp, setOtp] = useState(Array(OTP_LENGTH).fill(""));
   const [resendCooldown, setResendCooldown] = useState(0);
   const [isSubmittingEmail, setIsSubmittingEmail] = useState(false);
@@ -63,7 +64,9 @@ export default function AuthScreen() {
     API.setAuthToken(data.tokens.access);
     dispatch(authSuccess({ user: data.user, token: data.tokens }));
     if (!data.user.is_profile_complete) {
-      router.push("/onboarding-preview");
+      router.push(
+        redirectTo ? `/onboarding-preview?redirect=${encodeURIComponent(redirectTo)}` : "/onboarding-preview"
+      );
     } else {
       router.push(redirectTo || "/home");
     }

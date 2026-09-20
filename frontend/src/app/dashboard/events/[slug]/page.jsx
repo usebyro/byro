@@ -30,6 +30,7 @@ import jsQR from "jsqr";
 import API from "@/services/api";
 import ShareMenu from "@/components/ShareMenu";
 import EventPublishedModal from "@/components/events/EventPublishedModal";
+import CohostsDialog from "@/components/events/CohostsDialog";
 import SharedAvatar from "@/components/ui/Avatar";
 import EventImageFallback from "@/components/ui/EventImageFallback";
 
@@ -121,6 +122,7 @@ export default function StudioEventPage() {
   const [checkInValue, setCheckInValue] = useState("");
   const [checkingIn, setCheckingIn] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
+  const [showCohosts, setShowCohosts] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [checkInMode, setCheckInMode] = useState("scan"); // scan | manual
@@ -408,6 +410,14 @@ export default function StudioEventPage() {
 
   const img = event ? getImageUrl(event) : null;
   const isDraft = Boolean(event?.is_draft);
+  // What this person may do here: owners run everything, co-hosts depend on their permission.
+  const role = event?.role || {};
+  const isOwner = Boolean(role.is_owner);
+  const canEdit = Boolean(role.can_edit);
+  const canDelete = Boolean(role.can_delete);
+  const TAB_LABELS = { attendees: "Attendees", tiers: "Tiers", discounts: "Discounts" };
+  const visibleTabs = ["attendees", ...(canEdit ? ["tiers", "discounts"] : [])];
+  const currentTab = visibleTabs.includes(activeTab) ? activeTab : "attendees";
   const isLive = event?.is_active && !isDraft && new Date(event.day) >= new Date();
 
   const tierCounts = attendees.reduce((m, a) => {
@@ -502,8 +512,21 @@ export default function StudioEventPage() {
               <HugeiconsIcon icon={Share01Icon} size={13} color="white" />
               Share
             </ShareMenu>}
-            <Link
-              href={`/discover/${slug}/edit`}
+            {isOwner && (
+              <button
+                type="button"
+                onClick={() => setShowCohosts(true)}
+                className="flex-1 md:flex-initial flex items-center justify-center gap-1.5 min-h-[40px] md:min-h-0 text-white text-xs font-semibold px-3 py-2 rounded-lg transition-colors bg-white/10 backdrop-blur-sm border border-white/15 hover:bg-white/20"
+              >
+                <HugeiconsIcon icon={UserMultiple02Icon} size={13} color="white" />
+                Co-hosts
+                {(event?.cohosts?.length || 0) > 0 && (
+                  <span className="rounded-full bg-white/20 px-1.5 text-[11px] leading-5">{event.cohosts.length}</span>
+                )}
+              </button>
+            )}
+            {canEdit && <Link
+              href={`/dashboard/events/${slug}/edit`}
               className={`flex-1 md:flex-initial flex items-center justify-center gap-1 min-h-[40px] md:min-h-0 text-white text-xs font-semibold px-3 py-2 rounded-lg transition-colors ${
                 isDraft
                   ? "bg-[#4F6EF7] hover:bg-blue-700 shadow-sm shadow-[#4F6EF7]/10"
@@ -512,7 +535,7 @@ export default function StudioEventPage() {
             >
               <HugeiconsIcon icon={Edit03Icon} size={13} color="white" />
               {isDraft ? "Continue editing" : "Edit"}
-            </Link>
+            </Link>}
           </div>
         </div>
       </div>
@@ -553,22 +576,22 @@ export default function StudioEventPage() {
 
       {/* Tabs */}
       <div className="flex gap-4 border-b border-gray-100 pb-0.5">
-        {["attendees", "tiers", "discounts"].map((tab) => (
+        {visibleTabs.map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`pb-2 text-xs md:text-sm font-bold capitalize border-b-2 -mb-px transition-colors ${
-              activeTab === tab
+            className={`pb-2 text-xs md:text-sm font-bold border-b-2 -mb-px transition-colors ${
+              currentTab === tab
                 ? "border-[#4F6EF7] text-gray-900"
                 : "border-transparent text-gray-400 hover:text-gray-600"
             }`}
           >
-            {tab}
+            {TAB_LABELS[tab]}
           </button>
         ))}
       </div>
 
-      {activeTab === "attendees" && (
+      {currentTab === "attendees" && (
         <div className="bg-white rounded-xl border border-gray-100/80 shadow-sm overflow-hidden">
           {/* Table header */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 px-4 py-3 border-b border-gray-100 bg-white">
@@ -709,7 +732,7 @@ export default function StudioEventPage() {
                     <>
                       <p className="text-xs text-gray-500 mt-0.5">This event is a draft. Publish it to start selling tickets.</p>
                       <Link
-                        href={`/discover/${slug}/edit`}
+                        href={`/dashboard/events/${slug}/edit`}
                         className="inline-block mt-4 bg-[#4F6EF7] text-white text-xs font-semibold px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
                       >
                         Continue editing
@@ -784,13 +807,13 @@ export default function StudioEventPage() {
         </div>
       )}
 
-      {activeTab === "tiers" && (
+      {currentTab === "tiers" && (
         <div className="bg-white rounded-xl border border-gray-100/80 shadow-sm">
           {tiers.length === 0 ? (
             <div className="p-8 text-center">
               <p className="text-sm font-semibold text-gray-700">No ticket tiers</p>
               <p className="text-sm text-gray-500 mt-1">This event sells tickets at one flat price.</p>
-              <Link href={`/discover/${slug}/edit`} className="inline-block mt-4 text-sm font-semibold text-[#3B57D9] hover:underline">
+              <Link href={`/dashboard/events/${slug}/edit`} className="inline-block mt-4 text-sm font-semibold text-[#3B57D9] hover:underline">
                 Add a tier
               </Link>
             </div>
@@ -822,7 +845,7 @@ export default function StudioEventPage() {
         </div>
       )}
 
-      {activeTab === "discounts" && (
+      {currentTab === "discounts" && (
         <div className="bg-white rounded-xl border border-gray-100/80 shadow-sm overflow-visible">
           {/* Header */}
           <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-gray-100 bg-white">
@@ -930,8 +953,8 @@ export default function StudioEventPage() {
         </div>
       )}
 
-      {/* Delete button */}
-      <div className="mt-4 flex justify-end">
+      {/* Delete button (owner only) */}
+      {canDelete && <div className="mt-4 flex justify-end">
         <button
           onClick={() => setShowDelete(true)}
           className="flex items-center gap-1.5 text-red-400 hover:text-red-650 text-xs font-bold transition-colors"
@@ -939,7 +962,18 @@ export default function StudioEventPage() {
           <HugeiconsIcon icon={Delete02Icon} size={13} color="currentColor" />
           Delete event
         </button>
-      </div>
+      </div>}
+
+      {isOwner && (
+        <CohostsDialog
+          open={showCohosts}
+          onClose={() => setShowCohosts(false)}
+          slug={slug}
+          ownerEmail={event?.owner_email}
+          cohosts={event?.cohosts || []}
+          onChanged={() => API.getEvent(slug).then(setEvent).catch(() => {})}
+        />
+      )}
 
       {/* Check-in modal */}
       {checkInModal && (

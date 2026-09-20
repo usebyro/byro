@@ -62,6 +62,14 @@ const SLIDES = [
   { src: "/images/techevent.jpeg", alt: "Tech event" },
 ];
 
+// Where to go when onboarding finishes: the page they were sent here from, if it is a
+// same-site path (a co-host invitation returns them to the event). Read at click time.
+const returnPath = (fallback) => {
+  if (typeof window === "undefined") return fallback;
+  const target = new URLSearchParams(window.location.search).get("redirect");
+  return target && target.startsWith("/") && !target.startsWith("//") ? target : fallback;
+};
+
 export default function OnboardingScreen() {
   const router = useRouter();
   const [currentSlide, setCurrentSlide] = useState(0);
@@ -133,7 +141,7 @@ export default function OnboardingScreen() {
       setWizardStep(0);
       setStage("organizer-details");
     } else {
-      router.push("/home");
+      router.push(returnPath("/home"));
     }
   };
 
@@ -148,7 +156,7 @@ export default function OnboardingScreen() {
     if (isNextDisabled) return;
     if (isLastWizardStep) {
       await saveOrganizerProfile();
-      router.push("/dashboard");
+      router.push(returnPath("/dashboard"));
     } else {
       setWizardStep((s) => s + 1);
     }
@@ -165,7 +173,7 @@ export default function OnboardingScreen() {
   const handleSkip = async () => {
     if (isNextDisabled) return;
     await saveOrganizerProfile();
-    router.push("/dashboard");
+    router.push(returnPath("/dashboard"));
   };
 
   return (

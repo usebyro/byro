@@ -368,6 +368,25 @@ class Event(models.Model):
             user=user, status=EventCoHost.STATUS_ACCEPTED
         ).exists()
 
+    def cohost_role(self, user):
+        """The accepted co-host's role ('manager' or 'checkin'), else None."""
+        if user is None or not user.is_authenticated:
+            return None
+        grant = self.cohosts.filter(
+            user=user, status=EventCoHost.STATUS_ACCEPTED
+        ).only('role').first()
+        return grant.role if grant else None
+
+    def can_manage(self, user):
+        """Owner, or a co-host with the manager role: edit the event, tickets, discounts."""
+        if user is None or not user.is_authenticated:
+            return False
+        return self.owner == user or self.cohost_role(user) == EventCoHost.ROLE_MANAGER
+
+    def can_check_in(self, user):
+        """Owner or any accepted co-host: see the guest list and check people in."""
+        return self.is_owner_or_cohost(user)
+
     def is_owner_or_cohost(self, user):
         """Check if user is owner or co-host of this event"""
         if not user.is_authenticated:
@@ -397,6 +416,7 @@ class Event(models.Model):
                 'can_edit': False,
                 'can_delete': False,
                 'can_manage_cohosts': False,
+                'can_check_in': False,
                 'can_register': True,
             }
         
@@ -409,18 +429,22 @@ class Event(models.Model):
                 'can_edit': True,
                 'can_delete': True,
                 'can_manage_cohosts': True,
+                'can_check_in': True,
                 'can_register': True,
             }
         
         # Check if user is a co-host
-        if self.is_cohost(user):
+        cohost_role = self.cohost_role(user)
+        if cohost_role:
             return {
                 'role': 'cohost',
+                'cohost_role': cohost_role,
                 'is_owner': False,
                 'is_cohost': True,
-                'can_edit': True,
+                'can_edit': cohost_role == EventCoHost.ROLE_MANAGER,
                 'can_delete': False,
                 'can_manage_cohosts': False,
+                'can_check_in': True,
                 'can_register': True,
             }
         
@@ -431,6 +455,7 @@ class Event(models.Model):
             'can_edit': False,
             'can_delete': False,
             'can_manage_cohosts': False,
+            'can_check_in': False,
             'can_register': True,
         }
     class Meta:
@@ -463,6 +488,17 @@ class EventCoHost(models.Model):
         (STATUS_ACCEPTED, 'Accepted'),
     ]
 
+    # What an accepted co-host may do. Managers can run the event (edit it,
+    # tickets, discounts, guest list, check-in). Check-in staff can only see
+    # the guest list and check people in. Only the owner can delete the event,
+    # manage co-hosts, or receive revenue.
+    ROLE_MANAGER = 'manager'
+    ROLE_CHECKIN = 'checkin'
+    ROLE_CHOICES = [
+        (ROLE_MANAGER, 'Manager'),
+        (ROLE_CHECKIN, 'Check-in only'),
+    ]
+
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='cohosts')
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -477,6 +513,7 @@ class EventCoHost(models.Model):
     status = models.CharField(
         max_length=20, choices=STATUS_CHOICES, default=STATUS_ACCEPTED, db_index=True
     )
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default=ROLE_MANAGER)
     added_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,

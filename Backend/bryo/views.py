@@ -186,9 +186,14 @@ def send_ticket_confirmation_email(ticket, customer_name, customer_email, event)
     )
 
 
-def send_cohost_invite_email(email, event, inviter, is_new_user=False):
+def send_cohost_invite_email(email, event, inviter, is_new_user=False, role='manager'):
     """
     Notify someone that they've been made a co-host.
+
+    For someone with no account the email's button is an "Accept" link to
+    sign-in/sign-up (carrying the invited address and the event to return to),
+    so no separate sign-up email is needed. Existing users just get a link to
+    the event, since their access is already active.
 
     Best-effort: a mail failure must not undo the grant, which is already
     committed by the time this runs. Mirrors send_ticket_confirmation_email's
@@ -198,7 +203,16 @@ def send_cohost_invite_email(email, event, inviter, is_new_user=False):
     from .mailer import send_email
 
     try:
+        from urllib.parse import quote
         frontend_url = (settings.FRONTEND_URL or "https://usebyro.com").rstrip('/')
+        event_path = f"/dashboard/events/{event.slug}"
+        if is_new_user:
+            event_url = (
+                f"{frontend_url}/login?redirect={quote(event_path, safe='')}"
+                f"&email={quote(email, safe='')}"
+            )
+        else:
+            event_url = f"{frontend_url}{event_path}"
         inviter_profile = getattr(inviter, 'profile', None)
         inviter_name = (
             (inviter_profile.display_name if inviter_profile else '')
@@ -208,8 +222,10 @@ def send_cohost_invite_email(email, event, inviter, is_new_user=False):
         email_data = cohost_invite_email(
             event_name=event.name,
             inviter_name=inviter_name,
-            event_url=f"{frontend_url}/dashboard/events/{event.slug}",
+            event_url=event_url,
             is_new_user=is_new_user,
+            role=role,
+            invitee_email=email,
         )
         send_email(
             to=email,
@@ -1226,9 +1242,9 @@ class EventViewSet(viewsets.ModelViewSet):
             permission_classes = [AllowAny]
         elif self.action in ['create']:
             permission_classes = [IsAuthenticated]
-        elif self.action in ['update', 'partial_update', 'destroy']:
+        elif self.action in ['update', 'partial_update']:
             permission_classes = [IsAuthenticated, IsEventOwnerOrCoHost]
-        elif self.action in ['add_cohost', 'remove_cohost']:
+        elif self.action in ['destroy', 'add_cohost', 'update_cohost', 'remove_cohost']:
             permission_classes = [IsAuthenticated, IsEventOwner]
         else:
             permission_classes = [IsAuthenticated]
@@ -1568,7 +1584,7 @@ class EventViewSet(viewsets.ModelViewSet):
             serializer = TicketTierSerializer(queryset, many=True, context={'request': request})
             return Response(serializer.data)
 
-        if not request.user.is_authenticated or not event.is_owner_or_cohost(request.user):
+        if not request.user.is_authenticated or not event.can_manage(request.user):
             return Response(
                 {"error": "You don't have permission to manage tiers for this event"},
                 status=status.HTTP_403_FORBIDDEN,
@@ -1592,7 +1608,7 @@ class EventViewSet(viewsets.ModelViewSet):
         """
         event = self.get_object()
 
-        if not request.user.is_authenticated or not event.is_owner_or_cohost(request.user):
+        if not request.user.is_authenticated or not event.can_manage(request.user):
             return Response(
                 {"error": "You don't have permission to manage tiers for this event"},
                 status=status.HTTP_403_FORBIDDEN,
@@ -1622,7 +1638,7 @@ class EventViewSet(viewsets.ModelViewSet):
         POST /api/events/{slug}/promo-codes/  — create a code (owner/co-host only)
         """
         event = self.get_object()
-        if not event.is_owner_or_cohost(request.user):
+        if not event.can_manage(request.user):
             return Response(
                 {"error": "You don't have permission to manage promo codes for this event"},
                 status=status.HTTP_403_FORBIDDEN,
@@ -1654,7 +1670,7 @@ class EventViewSet(viewsets.ModelViewSet):
         DELETE /api/events/{slug}/promo-codes/{promo_id}/ — delete a code (owner/co-host only)
         """
         event = self.get_object()
-        if not event.is_owner_or_cohost(request.user):
+        if not event.can_manage(request.user):
             return Response(
                 {"error": "You don't have permission to manage promo codes for this event"},
                 status=status.HTTP_403_FORBIDDEN,
@@ -1852,7 +1868,7 @@ class EventViewSet(viewsets.ModelViewSet):
         """
         event = self.get_object()
         role = event.get_user_role(request.user)
-        if not (role['is_owner'] or role['is_cohost']):
+        if not role['can_check_in']:
             return Response(
                 {'error': 'Only the event owner or co-hosts can view attendees'},
                 status=status.HTTP_403_FORBIDDEN,
@@ -1892,7 +1908,7 @@ class EventViewSet(viewsets.ModelViewSet):
         """
         event = self.get_object()
         role = event.get_user_role(request.user)
-        if not (role['is_owner'] or role['is_cohost']):
+        if not role['can_check_in']:
             return Response(
                 {'error': 'Only the event owner or co-hosts can check in attendees'},
                 status=status.HTTP_403_FORBIDDEN,
@@ -1950,7 +1966,7 @@ class EventViewSet(viewsets.ModelViewSet):
         """
         event = self.get_object()
         role = event.get_user_role(request.user)
-        if not (role['is_owner'] or role['is_cohost']):
+        if not role['can_check_in']:
             return Response(
                 {'error': 'Only the event owner or co-hosts can view stats'},
                 status=status.HTTP_403_FORBIDDEN,
@@ -1995,7 +2011,7 @@ class EventViewSet(viewsets.ModelViewSet):
 
         # POST — only owner/cohost can add questions
         role = event.get_user_role(request.user)
-        if not (role['is_owner'] or role['is_cohost']):
+        if not event.can_manage(request.user):
             return Response(
                 {'error': 'Only the event owner or co-hosts can manage form questions'},
                 status=status.HTTP_403_FORBIDDEN,
@@ -2011,19 +2027,28 @@ class EventViewSet(viewsets.ModelViewSet):
         """
         Add co-host to event - only event owner can add co-hosts
         POST /api/events/{slug}/add_cohost/
-        Body: {"email": "cohost@example.com"}
+        Body: {"email": "cohost@example.com", "role": "manager" | "checkin"}
+        role is optional and defaults to "manager". "checkin" can only see the
+        guest list and check people in.
 
         The invitee does not need a Byro account. If they have never signed in,
         the grant is stored as pending and claimed automatically the first time
         they sign in with this address (see auth_views.claim_pending_cohost_invites).
+        They get one email whose Accept button leads to sign-in/sign-up.
         A pending grant confers no access.
         """
         event = self.get_object()
         email = (request.data.get('email') or '').strip().lower()
+        role = (request.data.get('role') or EventCoHost.ROLE_MANAGER).strip().lower()
 
         if not email:
             return Response(
                 {"error": "Email is required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        if role not in dict(EventCoHost.ROLE_CHOICES):
+            return Response(
+                {"error": "Role must be 'manager' or 'checkin'"},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -2064,10 +2089,11 @@ class EventViewSet(viewsets.ModelViewSet):
                 user=cohost_user,
                 invited_email=email,
                 status=EventCoHost.STATUS_ACCEPTED,
+                role=role,
                 accepted_at=timezone.now(),
                 added_by=request.user,
             )
-            send_cohost_invite_email(email, event, request.user, is_new_user=False)
+            send_cohost_invite_email(email, event, request.user, is_new_user=False, role=role)
             if apps.posthog_client is not None:
                 apps.posthog_client.capture(
                     'cohost_invited', properties={'invitee_has_account': True}
@@ -2080,6 +2106,7 @@ class EventViewSet(viewsets.ModelViewSet):
                     "id": cohost.id,
                     "email": cohost_user.email,
                     "name": cohost_user.get_full_name() or cohost_user.email,
+                    "role": cohost.role,
                     "added_at": cohost.added_at,
                 }
             }, status=status.HTTP_201_CREATED)
@@ -2090,12 +2117,13 @@ class EventViewSet(viewsets.ModelViewSet):
             user=None,
             invited_email=email,
             status=EventCoHost.STATUS_PENDING,
+            role=role,
             added_by=request.user,
         )
-        # Best-effort: WorkOS emails its own sign-up invitation, and we send the
-        # event-specific one. Neither failing should undo the pending grant.
-        workos_api.send_invitation(email)
-        send_cohost_invite_email(email, event, request.user, is_new_user=True)
+        # One email only: it carries an Accept link to sign in or sign up, so we
+        # no longer ask WorkOS to send a second, separate sign-up invitation.
+        # A failure here must not undo the pending grant.
+        send_cohost_invite_email(email, event, request.user, is_new_user=True, role=role)
         if apps.posthog_client is not None:
             apps.posthog_client.capture(
                 'cohost_invited', properties={'invitee_has_account': False}
@@ -2109,10 +2137,38 @@ class EventViewSet(viewsets.ModelViewSet):
                 "id": cohost.id,
                 "email": email,
                 "name": email,
+                "role": cohost.role,
                 "added_at": cohost.added_at,
             }
         }, status=status.HTTP_201_CREATED)
     
+    @action(detail=True, methods=['PATCH'], permission_classes=[IsAuthenticated, IsEventOwner])
+    def update_cohost(self, request, slug=None):
+        """
+        Change what a co-host (or a pending invite) may do - only the event owner.
+        PATCH /api/events/{slug}/update_cohost/
+        Body: {"cohost_id": 123, "role": "manager" | "checkin"}
+        """
+        event = self.get_object()
+        cohost_id = request.data.get('cohost_id')
+        role = (request.data.get('role') or '').strip().lower()
+
+        if not cohost_id:
+            return Response({"error": "cohost_id is required"}, status=status.HTTP_400_BAD_REQUEST)
+        if role not in dict(EventCoHost.ROLE_CHOICES):
+            return Response(
+                {"error": "Role must be 'manager' or 'checkin'"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        try:
+            cohost = EventCoHost.objects.get(id=cohost_id, event=event)
+        except EventCoHost.DoesNotExist:
+            return Response({"error": "Co-host not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        cohost.role = role
+        cohost.save(update_fields=['role'])
+        return Response({"message": "Permissions updated", "cohost_id": cohost.id, "role": cohost.role})
+
     @action(detail=True, methods=['DELETE'], permission_classes=[IsAuthenticated, IsEventOwner])
     def remove_cohost(self, request, slug=None):
         """

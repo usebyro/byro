@@ -305,9 +305,22 @@ const API = {
     }
   },
 
-  addCohost: async (slug, email) => {
+  // role: "manager" (run the event) or "checkin" (guest list and check-in only)
+  addCohost: async (slug, email, role = "manager") => {
     try {
-      const response = await axiosInstance.post(`events/${slug}/add_cohost/`, { email });
+      const response = await axiosInstance.post(`events/${slug}/add_cohost/`, { email, role });
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  updateCohost: async (slug, cohostId, role) => {
+    try {
+      const response = await axiosInstance.patch(`events/${slug}/update_cohost/`, {
+        cohost_id: cohostId,
+        role,
+      });
       return response.data;
     } catch (error) {
       throw handleApiError(error);

@@ -297,7 +297,7 @@ export default function StudioPayouts() {
             >
               {hasBankDetails ? (
                 // One line, fixed size: a long bank name is trimmed, the masked number always shows.
-                <span className="flex w-full min-w-0 items-center gap-1.5 text-xs">
+                <span className="flex w-full min-w-0 items-center justify-center gap-1.5 text-xs">
                   <span className="min-w-0 truncate font-semibold">{bankDetails.bankName}</span>
                   <span className="shrink-0 text-white/75">{maskAccount(bankDetails.accountNumber)}</span>
                 </span>
