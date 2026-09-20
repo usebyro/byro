@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
   FaWhatsapp,
@@ -21,6 +21,21 @@ import { withShareUtm } from "@/lib/analytics";
  */
 export default function EventPublishedModal({ event, onClose }) {
   const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    let cancelled = false;
+    import("canvas-confetti").then(({ default: confetti }) => {
+      if (cancelled) return;
+      const shoot = (x, angle) =>
+        confetti({ particleCount: 70, spread: 65, angle, origin: { x, y: 0.7 }, zIndex: 100 });
+      shoot(0.1, 60);
+      shoot(0.9, 120);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://usebyro.com").replace(/\/+$/, "");
   const url = `${SITE_URL}/discover/${event.slug}`;
@@ -99,7 +114,7 @@ export default function EventPublishedModal({ event, onClose }) {
 
         <h2 className="text-xl font-bold text-gray-900 mb-1.5">You&apos;re live! Time to fill the room.</h2>
         <p className="text-sm text-gray-500 mb-6">
-          Share your link now — early shares get your first ticket sales.
+          Share your link now, early shares get your first ticket sales.
         </p>
 
         <div className="flex items-center justify-center gap-3 mb-5">
