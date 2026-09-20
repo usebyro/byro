@@ -114,6 +114,9 @@ export default function StudioEventPage() {
   const [activeTab, setActiveTab] = useState("attendees");
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all"); // all | checkedin | vip
+  const [sort, setSort] = useState("newest");
+  const [tierFilter, setTierFilter] = useState(null);
+  const [tiers, setTiers] = useState([]);
   const [checkInModal, setCheckInModal] = useState(false);
   const [checkInValue, setCheckInValue] = useState("");
   const [checkingIn, setCheckingIn] = useState(false);
@@ -193,6 +196,8 @@ export default function StudioEventPage() {
           checkedIn: t.checked_in,
           paymentStatus: t.payment_status,
           ref: String(t.ticket_id || "").replace(/-/g, "").toUpperCase().slice(0, 12),
+          tier: t.tier_name || "General admission",
+          registeredAt: t.created_at || "",
         }));
         setAttendees(mapped);
         setCheckedInCount(res.checked_in_count || 0);
@@ -202,6 +207,13 @@ export default function StudioEventPage() {
   };
 
   useEffect(() => { loadAttendees(); }, [slug]);
+
+  useEffect(() => {
+    if (!slug) return;
+    API.getEventTiers(slug)
+      .then((d) => setTiers(Array.isArray(d) ? d : d?.tiers || []))
+      .catch(() => {});
+  }, [slug]);
 
   useEffect(() => {
     if (!slug) return;
@@ -394,19 +406,36 @@ export default function StudioEventPage() {
   const isDraft = Boolean(event?.is_draft);
   const isLive = event?.is_active && !isDraft && new Date(event.day) >= new Date();
 
-  const filteredAttendees = attendees.filter((a) => {
-    const matchSearch = !search ||
-      a.name.toLowerCase().includes(search.toLowerCase()) ||
-      a.email.toLowerCase().includes(search.toLowerCase()) ||
-      a.ref.toLowerCase().includes(search.toLowerCase());
-    const matchFilter =
-      filter === "all" ||
-      (filter === "checkedin" && a.checkedIn);
-    return matchSearch && matchFilter;
-  });
+  const tierCounts = attendees.reduce((m, a) => {
+    m[a.tier] = (m[a.tier] || 0) + 1;
+    return m;
+  }, {});
+
+  const SORTERS = {
+    newest:     (a, b) => (b.registeredAt || "").localeCompare(a.registeredAt || ""),
+    oldest:     (a, b) => (a.registeredAt || "").localeCompare(b.registeredAt || ""),
+    name:       (a, b) => a.name.localeCompare(b.name),
+    notarrived: (a, b) => Number(a.checkedIn) - Number(b.checkedIn) || a.name.localeCompare(b.name),
+    arrived:    (a, b) => Number(b.checkedIn) - Number(a.checkedIn) || a.name.localeCompare(b.name),
+    tier:       (a, b) => a.tier.localeCompare(b.tier) || a.name.localeCompare(b.name),
+  };
+
+  const filteredAttendees = attendees
+    .filter((a) => {
+      const matchSearch = !search ||
+        a.name.toLowerCase().includes(search.toLowerCase()) ||
+        a.email.toLowerCase().includes(search.toLowerCase()) ||
+        a.ref.toLowerCase().includes(search.toLowerCase());
+      const matchFilter =
+        filter === "all" ||
+        (filter === "checkedin" && a.checkedIn);
+      const matchTier = !tierFilter || a.tier === tierFilter;
+      return matchSearch && matchFilter && matchTier;
+    })
+    .sort(SORTERS[sort] || SORTERS.newest);
 
   return (
-    <div className="p-4 sm:p-6 max-w-5xl mx-auto space-y-5">
+    <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-5">
       {/* Back */}
       <div>
         <Link href="/dashboard/events" className="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-700 transition-colors">
@@ -425,7 +454,7 @@ export default function StudioEventPage() {
           </div>
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-black/10" />
-        <div className="relative z-10 p-5 sm:p-6 flex flex-col sm:flex-row sm:items-end justify-between gap-4 h-full min-h-[130px]">
+        <div className="relative z-10 p-5 md:p-6 flex flex-col md:flex-row md:items-end justify-between gap-4 h-full min-h-[130px]">
           <div className="flex-1 min-w-0">
             {isDraft && (
               <span className="inline-flex items-center gap-1 text-[11px] font-extrabold bg-white/15 backdrop-blur-sm text-white px-2 py-0.5 rounded uppercase tracking-wider mb-2">
@@ -442,26 +471,40 @@ export default function StudioEventPage() {
             {loadingEvent ? (
               <div className="h-6 bg-white/20 rounded w-60 animate-pulse" />
             ) : (
-              <h1 className="text-xl sm:text-2xl font-black text-white leading-tight mb-1">{event?.name}</h1>
+              <h1 className="text-xl md:text-2xl font-black text-white leading-tight mb-1">{event?.name}</h1>
             )}
-            <p className="text-white/70 text-xs sm:text-sm">
+            <p className="text-white/70 text-xs md:text-sm">
               {event && `${formatDate(event.day)}${event.time_from ? ` · ${formatTime(event.time_from)}` : ""}${event.location ? ` · ${event.location}` : ""}`}
             </p>
           </div>
-          <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto">
+          <div className="flex items-center gap-2 shrink-0 w-full md:w-auto">
+            {!isDraft && (
+              <button
+                type="button"
+                onClick={() => { setCheckInMode("scan"); setCheckInModal(true); }}
+                className="flex-1 md:flex-initial flex items-center justify-center gap-1.5 min-h-[40px] md:min-h-0 bg-white text-gray-900 text-xs font-semibold px-3.5 py-2 rounded-lg hover:bg-white/90 transition-colors"
+              >
+                <HugeiconsIcon icon={QrCodeIcon} size={13} color="currentColor" />
+                Check in
+              </button>
+            )}
             {!isDraft && <ShareMenu
               url={typeof window !== "undefined" ? `${window.location.origin}/discover/${slug}` : ""}
               title={event?.name || ""}
               campaign="event_share"
               content={slug}
-              className="flex-1 sm:flex-initial flex items-center justify-center gap-1 bg-white/10 backdrop-blur-sm text-white text-xs font-semibold px-3 py-2 rounded-lg hover:bg-white/20 transition-colors border border-white/15"
+              className="flex-1 md:flex-initial flex items-center justify-center gap-1 bg-white/10 backdrop-blur-sm text-white text-xs font-semibold px-3 py-2 rounded-lg hover:bg-white/20 transition-colors border border-white/15"
             >
               <HugeiconsIcon icon={Share01Icon} size={13} color="white" />
               Share
             </ShareMenu>}
             <Link
               href={`/discover/${slug}/edit`}
-              className="flex-1 sm:flex-initial flex items-center justify-center gap-1 bg-[#4F6EF7] text-white text-xs font-semibold px-3 py-2 rounded-lg hover:bg-blue-700 transition-colors shadow-sm shadow-[#4F6EF7]/10"
+              className={`flex-1 md:flex-initial flex items-center justify-center gap-1 min-h-[40px] md:min-h-0 text-white text-xs font-semibold px-3 py-2 rounded-lg transition-colors ${
+                isDraft
+                  ? "bg-[#4F6EF7] hover:bg-blue-700 shadow-sm shadow-[#4F6EF7]/10"
+                  : "bg-white/10 backdrop-blur-sm border border-white/15 hover:bg-white/20"
+              }`}
             >
               <HugeiconsIcon icon={Edit03Icon} size={13} color="white" />
               {isDraft ? "Continue editing" : "Edit"}
@@ -471,7 +514,7 @@ export default function StudioEventPage() {
       </div>
 
       {/* Stat cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
         {[
           { label: "Revenue", value: eventRevenue === null ? "—" : fmtNaira(eventRevenue), icon: Money01Icon, iconBg: "bg-teal-50 text-teal-600", trend: null, note: "From paid tickets" },
           { label: "Tickets sold", value: loadingAttendees ? "—" : attendees.length, icon: Ticket01Icon, iconBg: "bg-blue-50 text-blue-600", trend: null },
@@ -510,7 +553,7 @@ export default function StudioEventPage() {
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`pb-2 text-xs sm:text-sm font-bold capitalize border-b-2 -mb-px transition-colors ${
+            className={`pb-2 text-xs md:text-sm font-bold capitalize border-b-2 -mb-px transition-colors ${
               activeTab === tab
                 ? "border-[#4F6EF7] text-gray-900"
                 : "border-transparent text-gray-400 hover:text-gray-600"
@@ -524,12 +567,12 @@ export default function StudioEventPage() {
       {activeTab === "attendees" && (
         <div className="bg-white rounded-xl border border-gray-100/80 shadow-sm overflow-hidden">
           {/* Table header */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-3 border-b border-gray-100 bg-white">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 px-4 py-3 border-b border-gray-100 bg-white">
             <div className="flex items-center gap-1.5">
               <p className="font-bold text-gray-800 text-sm">Guest list</p>
               <span className="text-gray-400 text-xs">({attendees.length})</span>
             </div>
-            <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap w-full sm:w-auto justify-between sm:justify-end">
+            <div className="flex items-center gap-2 flex-wrap md:flex-nowrap w-full md:w-auto justify-between md:justify-end">
               {/* Filter pills */}
               <div className="flex gap-0.5 bg-gray-50 p-0.5 rounded-lg border border-gray-100/50">
                 {["all", "checkedin"].map((f) => (
@@ -546,8 +589,25 @@ export default function StudioEventPage() {
                   </button>
                 ))}
               </div>
+              {/* Sort */}
+              <div>
+                <label htmlFor="guest-sort" className="sr-only">Sort guests</label>
+                <select
+                  id="guest-sort"
+                  value={sort}
+                  onChange={(e) => setSort(e.target.value)}
+                  className="py-1.5 pl-2.5 pr-7 bg-gray-50 border border-gray-100 rounded-lg text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#4F6EF7]/30"
+                >
+                  <option value="newest">Newest first</option>
+                  <option value="oldest">Oldest first</option>
+                  <option value="name">Name A to Z</option>
+                  <option value="notarrived">Not arrived first</option>
+                  <option value="arrived">Checked in first</option>
+                  <option value="tier">By tier</option>
+                </select>
+              </div>
               {/* Search */}
-              <div className="relative flex-1 sm:flex-initial">
+              <div className="relative flex-1 md:flex-initial">
                 <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
                 </svg>
@@ -556,14 +616,14 @@ export default function StudioEventPage() {
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Search..."
-                  className="pl-7 pr-3 py-1.5 bg-gray-50 border border-gray-100 rounded-lg text-xs text-gray-900 placeholder-gray-400 w-full sm:w-28 focus:outline-none focus:ring-2 focus:ring-[#4F6EF7]/20 transition-all"
+                  className="pl-7 pr-3 py-1.5 bg-gray-50 border border-gray-100 rounded-lg text-xs text-gray-900 placeholder-gray-400 w-full md:w-28 focus:outline-none focus:ring-2 focus:ring-[#4F6EF7]/20 transition-all"
                 />
               </div>
-              <div className="flex items-center gap-1.5 w-full sm:w-auto">
+              <div className="flex items-center gap-1.5 w-full md:w-auto">
                 {/* Check in */}
                 <button
                   onClick={() => { setCheckInMode("scan"); setCheckInModal(true); }}
-                  className="flex-1 sm:flex-initial flex items-center justify-center gap-1 bg-[#4F6EF7] text-white text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-blue-700 transition-colors shadow-sm shadow-[#4F6EF7]/10"
+                  className="flex-1 md:flex-initial flex items-center justify-center gap-1 bg-[#4F6EF7] text-white text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-blue-700 transition-colors shadow-sm shadow-[#4F6EF7]/10"
                 >
                   <HugeiconsIcon icon={QrCodeIcon} size={11} color="white" />
                   Check in
@@ -571,7 +631,7 @@ export default function StudioEventPage() {
                 {/* Export */}
                 <button
                   onClick={handlePrint}
-                  className="flex-1 sm:flex-initial flex items-center justify-center gap-1 bg-white border border-gray-200 text-gray-600 text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-gray-50 transition-colors"
+                  className="flex-1 md:flex-initial flex items-center justify-center gap-1 bg-white border border-gray-200 text-gray-600 text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-gray-50 transition-colors"
                 >
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                   Export
@@ -579,6 +639,34 @@ export default function StudioEventPage() {
               </div>
             </div>
           </div>
+
+          {/* Tickets by tier: tap one to filter the list */}
+          {Object.keys(tierCounts).length > 0 && (
+            <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-b border-gray-100">
+              <span className="text-sm text-gray-600 mr-1">By tier</span>
+              {Object.entries(tierCounts).sort((x, y) => y[1] - x[1]).map(([name, count]) => (
+                <button
+                  key={name}
+                  type="button"
+                  aria-pressed={tierFilter === name}
+                  onClick={() => setTierFilter(tierFilter === name ? null : name)}
+                  className={`inline-flex items-center gap-1.5 px-3 min-h-[36px] md:min-h-0 md:py-1 rounded-full text-sm border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4F6EF7] ${
+                    tierFilter === name
+                      ? "bg-[#4F6EF7] border-[#4F6EF7] text-white"
+                      : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50"
+                  }`}
+                >
+                  {name}
+                  <span className={`font-semibold ${tierFilter === name ? "text-white" : "text-gray-900"}`}>{count}</span>
+                </button>
+              ))}
+              {tierFilter && (
+                <button type="button" onClick={() => setTierFilter(null)} className="text-sm font-semibold text-[#3B57D9] hover:underline">
+                  Clear
+                </button>
+              )}
+            </div>
+          )}
 
           {/* Column headers */}
           <div className="grid grid-cols-12 px-4 py-2 border-b border-gray-100 bg-gray-50/50">
@@ -657,8 +745,8 @@ export default function StudioEventPage() {
                   </div>
                   {/* Tier */}
                   <div className="hidden md:block md:col-span-3">
-                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-gray-100 text-gray-500">
-                      General Admission
+                    <span className="text-xs font-medium px-2 py-0.5 rounded-md bg-gray-100 text-gray-700">
+                      {a.tier}
                     </span>
                   </div>
                   {/* Ref */}
@@ -693,8 +781,40 @@ export default function StudioEventPage() {
       )}
 
       {activeTab === "tiers" && (
-        <div className="bg-white rounded-xl border border-gray-100/80 shadow-sm p-8 text-center">
-          <p className="text-xs text-gray-400">Ticket tiers will appear here once backend integration is ready.</p>
+        <div className="bg-white rounded-xl border border-gray-100/80 shadow-sm">
+          {tiers.length === 0 ? (
+            <div className="p-8 text-center">
+              <p className="text-sm font-semibold text-gray-700">No ticket tiers</p>
+              <p className="text-sm text-gray-500 mt-1">This event sells tickets at one flat price.</p>
+              <Link href={`/discover/${slug}/edit`} className="inline-block mt-4 text-sm font-semibold text-[#3B57D9] hover:underline">
+                Add a tier
+              </Link>
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-100">
+              {tiers.map((t) => {
+                const sold = tierCounts[t.name] || 0;
+                const cap = Number(t.capacity) || 0;
+                const pct = cap > 0 ? Math.min(100, Math.round((sold / cap) * 100)) : null;
+                return (
+                  <div key={t.id ?? t.name} className="flex items-center justify-between gap-4 px-4 md:px-5 py-4">
+                    <div className="min-w-0">
+                      <p className="text-[15px] font-semibold text-gray-900 truncate">{t.name}</p>
+                      <p className="text-sm text-gray-600 mt-0.5">{Number(t.price) === 0 ? "Free" : fmtNaira(Number(t.price))}</p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-sm font-medium text-gray-900">{cap > 0 ? `${sold} of ${cap} sold` : `${sold} sold`}</p>
+                      {pct !== null && (
+                        <div className="mt-1.5 h-1 w-28 ml-auto rounded-full bg-gray-100 overflow-hidden" role="presentation">
+                          <div className="h-full rounded-full bg-[#4F6EF7]" style={{ width: `${pct}%` }} />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
