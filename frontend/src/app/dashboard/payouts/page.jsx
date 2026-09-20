@@ -19,6 +19,12 @@ const STATUS_STYLE = {
 
 const BANK_DETAILS_STORAGE_KEY = "byro_payout_bank_details";
 
+// "0123456789" -> "••••6789": enough to recognise the account without showing it in full.
+const maskAccount = (n) => {
+  const digits = String(n || "");
+  return digits.length > 4 ? `••••${digits.slice(-4)}` : digits;
+};
+
 const EMPTY_BANK_DETAILS = { bankCode: "", bankName: "", accountNumber: "", accountName: "" };
 
 function fmt(n) {
@@ -262,12 +268,11 @@ export default function StudioPayouts() {
         <div className="col-span-2 md:col-span-1 bg-gradient-to-br from-[#4F6EF7] to-[#6366f1] rounded-xl p-4 text-white shadow-sm flex flex-col justify-between">
           <div>
             <p className="text-[11px] font-bold text-white/80 uppercase tracking-wider mb-2">Available to withdraw</p>
-            <p className="text-2xl font-black tracking-tight mb-0.5">
+            <p className="text-2xl font-black tracking-tight mb-4">
               {balance ? fmt(balance.available) : "—"}
             </p>
-            <p className="text-xs text-white/60 mb-4">Pending clearance after events</p>
           </div>
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-stretch gap-1.5">
             <button
               onClick={() => setWithdrawModalOpen(true)}
               disabled={!canWithdraw}
@@ -278,10 +283,27 @@ export default function StudioPayouts() {
             </button>
             <button
               onClick={openBankModal}
-              className="flex-1 flex items-center justify-center gap-0.5 bg-white/10 text-white text-xs font-semibold px-2 py-1.5 rounded-lg hover:bg-white/15 transition-colors border border-white/10"
+              title={
+                hasBankDetails
+                  ? `${bankDetails.bankName}, ${maskAccount(bankDetails.accountNumber)}, ${bankDetails.accountName}. Click to edit`
+                  : undefined
+              }
+              aria-label={
+                hasBankDetails
+                  ? `Bank details: ${bankDetails.accountName}, ${bankDetails.bankName}, account ending ${String(bankDetails.accountNumber).slice(-4)}. Edit`
+                  : "Add bank details"
+              }
+              className="flex-1 min-w-0 overflow-hidden flex items-center justify-center bg-white/10 text-white px-2.5 py-1.5 rounded-lg hover:bg-white/15 transition-colors border border-white/10"
             >
-              {hasBankDetails ? "Bank Details" : "Add Bank"}
-              <span className="text-white/60 ml-0.5">↓</span>
+              {hasBankDetails ? (
+                // One line, fixed size: a long bank name is trimmed, the masked number always shows.
+                <span className="flex w-full min-w-0 items-center gap-1.5 text-xs">
+                  <span className="min-w-0 truncate font-semibold">{bankDetails.bankName}</span>
+                  <span className="shrink-0 text-white/75">{maskAccount(bankDetails.accountNumber)}</span>
+                </span>
+              ) : (
+                <span className="text-xs font-semibold">Add Bank</span>
+              )}
             </button>
           </div>
         </div>

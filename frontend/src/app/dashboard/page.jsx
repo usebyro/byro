@@ -258,7 +258,7 @@ export default function StudioDashboard() {
                       <p className="text-xs font-semibold text-gray-800 truncate">{e.name}</p>
                       <p className="text-xs text-gray-500">{sold} sold</p>
                     </div>
-                    {!analytics?.events?.[e.slug]?.is_free && (
+                    {!analytics?.events?.[e.slug]?.is_free && analytics?.events?.[e.slug]?.is_owner !== false && (
                       <p className="text-xs font-bold text-gray-800 shrink-0">{fmtNaira(Number(revenue))}</p>
                     )}
                   </Link>
@@ -355,7 +355,7 @@ export default function StudioDashboard() {
 
                   {/* Revenue */}
                   <p className={`text-xs md:w-24 text-right shrink-0 ${stats?.is_free ? "text-gray-500" : "font-bold text-gray-800"}`}>
-                    {stats?.is_free ? "Free" : stats ? fmtNaira(Number(stats.revenue)) : "—"}
+                    {stats?.is_free ? "Free" : stats && stats.is_owner !== false ? fmtNaira(Number(stats.revenue)) : "—"}
                   </p>
 
                   {/* Status badge */}

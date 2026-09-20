@@ -180,7 +180,11 @@ export default function StudioEventPage() {
   useEffect(() => {
     if (!slug) return;
     API.getDashboardAnalytics()
-      .then((a) => setEventRevenue(Number(a?.events?.[slug]?.revenue ?? 0)))
+      .then((a) => {
+        const stats = a?.events?.[slug];
+        // Co-hosts see sales but not the revenue: that belongs to the owner.
+        setEventRevenue(stats && stats.is_owner === false ? null : Number(stats?.revenue ?? 0));
+      })
       .catch(() => setEventRevenue(null));
   }, [slug]);
 
