@@ -223,7 +223,7 @@ export default function PublicProfileClient({ username }) {
                   )}
                   <span className="text-gray-400">·</span>
                   <span className="font-semibold text-gray-800">
-                    {isFollowing ? "1.2k" : "1.2k"} followers
+                    0 followers
                   </span>
                 </div>
               </div>
