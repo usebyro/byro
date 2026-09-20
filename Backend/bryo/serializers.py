@@ -243,7 +243,7 @@ class EventSerializer(serializers.ModelSerializer):
             'virtual_link', 'ticket_price', 'capacity', 'transferable',
             'show_remaining_count', 'pass_fee_to_attendee',
             'event_image', 'event_image_url', 'visibility', 'timezone', 'hosted_by',
-            'is_active', 'created_at', 'updated_at',
+            'is_active', 'is_draft', 'created_at', 'updated_at',
             'cohosts', 'role', 'tiers',
         ]
         read_only_fields = ['id', 'slug', 'owner', 'is_active', 'created_at', 'updated_at']
@@ -259,7 +259,7 @@ class EventSerializer(serializers.ModelSerializer):
         """Number of active events this owner has hosted, for the public 'Organised by' card."""
         if not obj.owner:
             return 0
-        return Event.objects.filter(owner=obj.owner, is_active=True).count()
+        return Event.objects.filter(owner=obj.owner, is_active=True, is_draft=False).count()
 
     def get_role(self, obj):
         """
