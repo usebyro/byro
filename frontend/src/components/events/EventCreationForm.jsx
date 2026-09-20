@@ -791,6 +791,11 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
                             className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                             placeholder="Unlimited"
                           />
+                          {parseInt(editTierData.admits, 10) > 1 && parseInt(editTierData.available, 10) > 0 && (
+                            <p className="text-xs text-gray-500 mt-1">
+                              Counted in people: {parseInt(editTierData.available, 10)} people is {Math.floor(parseInt(editTierData.available, 10) / parseInt(editTierData.admits, 10))} groups of {parseInt(editTierData.admits, 10)}.
+                            </p>
+                          )}
                         </div>
                       </div>
                       <div>
@@ -798,15 +803,20 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
                         <select
                           id={`per-person-${tier.id}`}
                           value={editTierData.perPerson ?? "5"}
+                          disabled={parseInt(editTierData.admits, 10) > 1}
                           onChange={e => setEditTierData(p => ({ ...p, perPerson: e.target.value }))}
-                          className="w-full border border-gray-200 rounded-lg bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full border border-gray-200 rounded-lg bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-400"
                         >
                           <option value="Unlimited">No limit</option>
                           {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
                             <option key={n} value={String(n)}>{n}</option>
                           ))}
                         </select>
-                        <p className="mt-1 text-xs text-gray-500">The most one buyer can get of this ticket in one order.</p>
+                        <p className="mt-1 text-xs text-gray-500">
+                          {parseInt(editTierData.admits, 10) > 1
+                            ? "A group ticket is always bought one at a time."
+                            : "The most one buyer can get of this ticket in one order."}
+                        </p>
                       </div>
                       <div>
                         <label className="text-xs font-medium text-gray-600 mb-1 block">Price (₦) — leave blank for free</label>
@@ -821,8 +831,9 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
                         />
                       </div>
                       <div>
-                        <label className="text-xs font-medium text-gray-600 mb-1 block">People per ticket</label>
+                        <label htmlFor={`admits-${tier.id}`} className="text-xs font-medium text-gray-600 mb-1 block">People admitted per ticket</label>
                         <input
+                          id={`admits-${tier.id}`}
                           type="number"
                           min="1"
                           step="1"
@@ -831,9 +842,18 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
                           className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                           placeholder="1"
                         />
-                        <p className="text-[11px] text-gray-400 mt-1">
-                          For group tickets (e.g. &quot;Group of 4&quot; → 4). This is one ticket that admits that many people; the buyer fills in each guest&apos;s details at checkout.
-                        </p>
+                        {parseInt(editTierData.admits, 10) > 1 ? (
+                          <p className="text-xs text-gray-600 mt-1">
+                            {parseFloat(editTierData.price) > 0
+                              ? `Buyers pay ${fmt(parseFloat(editTierData.price))} for ${parseInt(editTierData.admits, 10)} people, ${fmt(parseFloat(editTierData.price) / parseInt(editTierData.admits, 10))} each. `
+                              : ""}
+                            Each person gets their own ticket and QR code, and the buyer enters everyone&apos;s details at checkout.
+                          </p>
+                        ) : (
+                          <p className="text-xs text-gray-500 mt-1">
+                            Keep 1 for a normal ticket. Use 2 or more for a group ticket (a couple, a table of 4): one purchase admits that many people, and the price above is for the whole group.
+                          </p>
+                        )}
                       </div>
                       <div className="flex gap-2">
                         <button type="button" onClick={saveEditTier} className="bg-blue-600 text-white text-xs font-semibold px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">Save</button>
@@ -850,13 +870,19 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
                         <p className="font-semibold text-gray-900 text-sm">{tier.name}</p>
                         <p className="text-xs text-gray-400 mt-0.5">
                           {!tier.available || tier.available === "Unlimited" ? "Unlimited" : `${tier.available} available`}
-                          {`, ${tier.perPerson && tier.perPerson !== "Unlimited" ? `${tier.perPerson} per person` : "no per-person limit"}`}
-                          {parseInt(tier.admits, 10) > 1 ? ` · admits ${tier.admits} per ticket` : ""}
+                          {parseInt(tier.admits, 10) > 1
+                            ? `, admits ${tier.admits} people`
+                            : `, ${tier.perPerson && tier.perPerson !== "Unlimited" ? `${tier.perPerson} per person` : "no per-person limit"}`}
                         </p>
                       </div>
-                      <span className="font-bold text-gray-900 text-sm mr-2">
-                        {tier.price ? fmt(parseFloat(tier.price)) : "Free"}
-                      </span>
+                      <div className="mr-2 text-right">
+                        <p className="font-bold text-gray-900 text-sm">
+                          {tier.price ? fmt(parseFloat(tier.price)) : "Free"}
+                        </p>
+                        {parseInt(tier.admits, 10) > 1 && (
+                          <p className="text-xs text-gray-500">for {tier.admits} people</p>
+                        )}
+                      </div>
                       <button type="button" onClick={() => startEditTier(tier)} className="text-gray-400 hover:text-gray-700 transition-colors p-1">
                         <HugeiconsIcon icon={Edit01Icon} size={15} color="currentColor" />
                       </button>
