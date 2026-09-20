@@ -197,8 +197,8 @@ class EventCoHostSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = EventCoHost
-        fields = ['id', 'email', 'name', 'status', 'added_at', 'accepted_at']
-        read_only_fields = ['id', 'status', 'added_at', 'accepted_at']
+        fields = ['id', 'email', 'name', 'status', 'role', 'added_at', 'accepted_at']
+        read_only_fields = ['id', 'status', 'role', 'added_at', 'accepted_at']
 
     def get_email(self, obj):
         return obj.user.email if obj.user else obj.invited_email

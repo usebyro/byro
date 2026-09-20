@@ -25,7 +25,7 @@ class IsEventOwner(BasePermission):
 class IsEventOwnerOrCoHost(BasePermission):
     """
     Permission to check if user is either the owner or a co-host of the event.
-    Both owners and co-hosts can edit/update/delete events.
+    Owners and manager co-hosts can edit events (only owners can delete).
     """
     
     def has_object_permission(self, request, view, obj):
@@ -35,7 +35,7 @@ class IsEventOwnerOrCoHost(BasePermission):
         if obj.owner == request.user:
             return True
         
-        return obj.is_cohost(request.user)
+        return obj.can_manage(request.user)
 
 
 class IsEventOwnerOrCoHostOrReadOnly(BasePermission):
@@ -60,4 +60,4 @@ class IsEventOwnerOrCoHostOrReadOnly(BasePermission):
         if obj.owner == request.user:
             return True
         
-        return obj.is_cohost(request.user)
+        return obj.can_manage(request.user)
