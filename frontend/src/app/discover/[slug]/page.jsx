@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import ViewEventClient from "./ViewEventClient";
+import { fetchShareEvent, shareImageUrl, shareDescription } from "@/lib/eventShare";
 
 /* ── API helpers (server-side only) ── */
 const API_BASE = (() => {
@@ -129,36 +130,42 @@ function buildEventJsonLd(event, pageUrl) {
 /* ── Open Graph / Twitter metadata ── */
 export async function generateMetadata({ params }) {
   const { slug } = await params;
-  const event = await fetchEventData(slug);
+  const event = await fetchShareEvent(slug);
 
+  // Drafts and unknown events are not public: nothing to preview, and keep them out of search.
   if (!event) {
-    return { title: "Event not found" };
+    return { title: "Event not found", robots: { index: false, follow: false } };
   }
 
   const title       = event.name || "Event";
-  const plain       = toPlainText(event.description);
-  const description = plain ? plain.slice(0, 160) : `Join us for ${title} on Byro`;
-  const imageUrl    = resolveImageUrl(event);
+  const description = shareDescription(event);
   const pageUrl     = `${SITE_URL}/discover/${slug}`;
+
+  // The organiser's image when there is one, otherwise a generated card with the
+  // event's name, date, place and price so the preview is never a bare link.
+  const uploaded = shareImageUrl(event);
+  const images = uploaded
+    ? [{ url: uploaded, alt: title }]
+    : [{ url: `${pageUrl}/og`, width: 1200, height: 630, alt: title }];
 
   return {
     title,
     description,
     alternates: { canonical: pageUrl },
     openGraph: {
-      type:        "website",
-      url:         pageUrl,
+      type:     "website",
+      siteName: "Byro",
+      locale:   "en_NG",
+      url:      pageUrl,
       title,
       description,
-      ...(imageUrl && {
-        images: [{ url: imageUrl, width: 1200, height: 630, alt: title }],
-      }),
+      images,
     },
     twitter: {
-      card:        imageUrl ? "summary_large_image" : "summary",
+      card: "summary_large_image",
       title,
       description,
-      ...(imageUrl && { images: [imageUrl] }),
+      images: images.map((i) => i.url),
     },
   };
 }
