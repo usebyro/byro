@@ -210,7 +210,7 @@ export default function StudioEvents() {
       <div className="flex items-center justify-between gap-3">
         <h1 className="text-2xl font-bold tracking-tight text-gray-900">Events</h1>
         <Link
-          href="/events/create"
+          href="/dashboard/events/create"
           className="inline-flex items-center justify-center gap-1.5 bg-[#4F6EF7] text-white text-sm font-semibold px-4 min-h-[44px] md:min-h-0 md:py-2 rounded-lg hover:bg-blue-700 transition-colors shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#4F6EF7]"
         >
           <HugeiconsIcon icon={Add01Icon} size={15} color="white" />
@@ -279,7 +279,7 @@ export default function StudioEvents() {
               <>
                 <p className="text-sm text-gray-500 mt-1">Create an event to start selling tickets.</p>
                 <Link
-                  href="/events/create"
+                  href="/dashboard/events/create"
                   className="inline-block mt-4 bg-[#4F6EF7] text-white text-sm font-semibold py-2.5 px-5 rounded-lg hover:bg-blue-700 transition-colors"
                 >
                   Create your first event

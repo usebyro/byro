@@ -57,7 +57,7 @@ export default function StudioCheckIn() {
           <p className="text-xs text-gray-600 font-bold mb-0.5">No upcoming events</p>
           <p className="text-xs text-gray-500">Create an event to start checking in attendees.</p>
           <Link
-            href="/events/create"
+            href="/dashboard/events/create"
             className="inline-block mt-4 bg-[#4F6EF7] text-white text-xs font-semibold px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
           >
             Create event

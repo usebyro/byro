@@ -187,7 +187,7 @@ function EmptyTab({ tab }) {
       {actions && (
         <div className="flex items-center gap-3 flex-wrap justify-center">
           <Link
-            href="/events/create"
+            href="/dashboard/events/create"
             className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm px-5 py-3 rounded-full transition-colors"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">

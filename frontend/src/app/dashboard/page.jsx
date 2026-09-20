@@ -153,7 +153,7 @@ export default function StudioDashboard() {
           <p className="text-xs text-gray-400 mt-0.5">Here is how your events are performing.</p>
         </div>
         <Link
-          href="/events/create"
+          href="/dashboard/events/create"
           className="flex items-center justify-center gap-1.5 bg-[#4F6EF7] text-white text-xs font-semibold px-3.5 py-2 rounded-lg hover:bg-blue-700 transition-colors w-full sm:w-auto shrink-0 shadow-sm shadow-[#4F6EF7]/10"
         >
           <HugeiconsIcon icon={Add01Icon} size={13} color="white" />
@@ -188,7 +188,7 @@ export default function StudioDashboard() {
                 <p className="text-sm font-semibold text-gray-700">No revenue yet</p>
                 <p className="text-xs text-gray-500 mt-0.5">Paid ticket sales will show up here month by month.</p>
                 <Link
-                  href={upcoming[0] ? `/dashboard/events/${upcoming[0].slug}` : "/events/create"}
+                  href={upcoming[0] ? `/dashboard/events/${upcoming[0].slug}` : "/dashboard/events/create"}
                   className="mt-3 text-xs font-semibold text-[#4F6EF7] hover:text-blue-700 transition-colors"
                 >
                   {upcoming[0] ? "Share your event" : "Create your first event"}
@@ -298,7 +298,7 @@ export default function StudioDashboard() {
             <HugeiconsIcon icon={Calendar01Icon} size={24} color="currentColor" className="mx-auto mb-2 text-gray-300" />
             <p className="text-xs text-gray-400 mb-2">No events created yet</p>
             <Link
-              href="/events/create"
+              href="/dashboard/events/create"
               className="inline-block bg-[#4F6EF7] text-white text-xs font-bold py-2 px-4 rounded-full hover:bg-blue-700 transition-colors"
             >
               Create your first event
