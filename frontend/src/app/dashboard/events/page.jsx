@@ -89,7 +89,8 @@ function EventRow({ event, stats }) {
   const status = getEventStatus(event);
   const sold = stats ? stats.sold : null;
   const isFree = Boolean(stats?.is_free);
-  const revenue = stats ? fmtNaira(Number(stats.revenue)) : "—";
+  const notOwner = stats?.is_owner === false; // co-hosts do not receive the revenue
+  const revenue = stats && !notOwner ? fmtNaira(Number(stats.revenue)) : "—";
   const when = `${formatDate(event.day)}${event.time_from ? ` at ${formatTime(event.time_from)}` : ""}`;
 
   return (
