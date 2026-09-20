@@ -19,8 +19,17 @@ import { trackViewEvent, trackShareEvent, trackSaveEvent, trackBeginCheckout } f
 import { calculateTicketFees } from "@/lib/pricing";
 
 /* ── helpers ── */
-// Max tickets a buyer can select per tier in a single checkout.
-const MAX_QTY_PER_TIER = 5;
+// Fallback when neither the tier nor the event reports a per-order limit (older data).
+const DEFAULT_MAX_TICKETS_PER_ORDER = 5;
+
+// How many tickets one buyer can pick for a tier in one order: the organiser's limit for
+// that tier. null means the organiser set none, so only what is left (or a ceiling) applies.
+function maxTicketsFor(tier, event) {
+  const own = tier?.max_tickets_per_person;
+  if (own === null) return Math.max(1, tier?.remaining ?? 100);
+  const limit = own ?? event?.max_tickets_per_person ?? DEFAULT_MAX_TICKETS_PER_ORDER;
+  return Math.min(10, Math.max(1, Number(limit)));
+}
 
 const fmt = (price) =>
   new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(price);
@@ -225,7 +234,8 @@ export default function ViewEventClient({ slug }) {
   // people, so its quantity is locked at 1 (the admits count becomes attendee
   // slots at checkout, not extra tickets).
   const isGroupTier = Number(activeTier?.admits_count) > 1;
-  const effectiveQty = isGroupTier ? 1 : qty;
+  const maxQty = maxTicketsFor(activeTier, event);
+  const effectiveQty = isGroupTier ? 1 : Math.min(qty, maxQty);
   const passFeeToAttendee = event.pass_fee_to_attendee !== false;
   const tierFees = calculateTicketFees(activeTier.price * effectiveQty, passFeeToAttendee);
   const tierSubtotal = tierFees.subtotal;
@@ -427,8 +437,10 @@ export default function ViewEventClient({ slug }) {
                         key={tier.id}
                         onClick={() => {
                           setSelectedTier(String(tier.id));
-                          // Group tiers are one ticket — reset qty to 1.
+                          // Group tiers are one ticket: reset qty to 1. Otherwise keep the
+                          // quantity within this tier's own per-person limit.
                           if (Number(tier.admits_count) > 1) setQty(1);
+                          else setQty((q) => Math.min(q, maxTicketsFor(tier, event)));
                         }}
                         className={`w-full flex items-center justify-between p-3.5 rounded-xl border transition-colors text-left ${
                           String(selectedTier) === String(tier.id) ? "border-blue-400 bg-blue-50" : "border-gray-100 hover:border-gray-200"
@@ -464,8 +476,8 @@ export default function ViewEventClient({ slug }) {
                       </button>
                       <span className="w-5 text-center font-bold text-gray-900 text-sm">{effectiveQty}</span>
                       <button
-                        onClick={() => { if (!isGroupTier) setQty(q => Math.min(MAX_QTY_PER_TIER, q + 1)); }}
-                        disabled={isGroupTier || qty >= MAX_QTY_PER_TIER}
+                        onClick={() => { if (!isGroupTier) setQty(q => Math.min(maxQty, q + 1)); }}
+                        disabled={isGroupTier || effectiveQty >= maxQty}
                         className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white hover:bg-blue-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -475,6 +487,14 @@ export default function ViewEventClient({ slug }) {
                       </button>
                     </div>
                   </div>
+
+                  {!isGroupTier && (
+                    <p className="-mt-3 mb-5 text-xs text-gray-500 text-right">
+                      {activeTier?.max_tickets_per_person === null
+                        ? "No limit per person"
+                        : `Up to ${maxQty} per person`}
+                    </p>
+                  )}
 
                   {/* Price breakdown */}
                   <div className="space-y-2 pb-4 mb-4 border-b border-gray-100 text-sm">
