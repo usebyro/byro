@@ -408,6 +408,14 @@ export default function StudioEventPage() {
 
   const img = event ? getImageUrl(event) : null;
   const isDraft = Boolean(event?.is_draft);
+  // What this person may do here: owners run everything, co-hosts depend on their permission.
+  const role = event?.role || {};
+  const isOwner = Boolean(role.is_owner);
+  const canEdit = Boolean(role.can_edit);
+  const canDelete = Boolean(role.can_delete);
+  const TAB_LABELS = { attendees: "Attendees", tiers: "Tiers", discounts: "Discounts", cohosts: "Co-hosts" };
+  const visibleTabs = ["attendees", ...(canEdit ? ["tiers", "discounts"] : []), ...(isOwner ? ["cohosts"] : [])];
+  const currentTab = visibleTabs.includes(activeTab) ? activeTab : "attendees";
   const isLive = event?.is_active && !isDraft && new Date(event.day) >= new Date();
 
   const tierCounts = attendees.reduce((m, a) => {
@@ -502,7 +510,7 @@ export default function StudioEventPage() {
               <HugeiconsIcon icon={Share01Icon} size={13} color="white" />
               Share
             </ShareMenu>}
-            <Link
+            {canEdit && <Link
               href={`/discover/${slug}/edit`}
               className={`flex-1 md:flex-initial flex items-center justify-center gap-1 min-h-[40px] md:min-h-0 text-white text-xs font-semibold px-3 py-2 rounded-lg transition-colors ${
                 isDraft
@@ -512,7 +520,7 @@ export default function StudioEventPage() {
             >
               <HugeiconsIcon icon={Edit03Icon} size={13} color="white" />
               {isDraft ? "Continue editing" : "Edit"}
-            </Link>
+            </Link>}
           </div>
         </div>
       </div>
@@ -553,22 +561,22 @@ export default function StudioEventPage() {
 
       {/* Tabs */}
       <div className="flex gap-4 border-b border-gray-100 pb-0.5">
-        {["attendees", "tiers", "discounts"].map((tab) => (
+        {visibleTabs.map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`pb-2 text-xs md:text-sm font-bold capitalize border-b-2 -mb-px transition-colors ${
-              activeTab === tab
+            className={`pb-2 text-xs md:text-sm font-bold border-b-2 -mb-px transition-colors ${
+              currentTab === tab
                 ? "border-[#4F6EF7] text-gray-900"
                 : "border-transparent text-gray-400 hover:text-gray-600"
             }`}
           >
-            {tab}
+            {TAB_LABELS[tab]}
           </button>
         ))}
       </div>
 
-      {activeTab === "attendees" && (
+      {currentTab === "attendees" && (
         <div className="bg-white rounded-xl border border-gray-100/80 shadow-sm overflow-hidden">
           {/* Table header */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 px-4 py-3 border-b border-gray-100 bg-white">
@@ -784,7 +792,7 @@ export default function StudioEventPage() {
         </div>
       )}
 
-      {activeTab === "tiers" && (
+      {currentTab === "tiers" && (
         <div className="bg-white rounded-xl border border-gray-100/80 shadow-sm">
           {tiers.length === 0 ? (
             <div className="p-8 text-center">
@@ -822,7 +830,11 @@ export default function StudioEventPage() {
         </div>
       )}
 
-      {activeTab === "discounts" && (
+      {currentTab === "cohosts" && isOwner && (
+        <CohostsPanel slug={slug} cohosts={event?.cohosts || []} onChanged={() => API.getEvent(slug).then(setEvent).catch(() => {})} />
+      )}
+
+      {currentTab === "discounts" && (
         <div className="bg-white rounded-xl border border-gray-100/80 shadow-sm overflow-visible">
           {/* Header */}
           <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-gray-100 bg-white">
@@ -930,8 +942,8 @@ export default function StudioEventPage() {
         </div>
       )}
 
-      {/* Delete button */}
-      <div className="mt-4 flex justify-end">
+      {/* Delete button (owner only) */}
+      {canDelete && <div className="mt-4 flex justify-end">
         <button
           onClick={() => setShowDelete(true)}
           className="flex items-center gap-1.5 text-red-400 hover:text-red-650 text-xs font-bold transition-colors"
@@ -939,7 +951,7 @@ export default function StudioEventPage() {
           <HugeiconsIcon icon={Delete02Icon} size={13} color="currentColor" />
           Delete event
         </button>
-      </div>
+      </div>}
 
       {/* Check-in modal */}
       {checkInModal && (
@@ -1213,6 +1225,187 @@ export default function StudioEventPage() {
 
       {showPublished && (
         <EventPublishedModal event={{ slug, name: event?.name }} onClose={closePublished} />
+      )}
+    </div>
+  );
+}
+
+/* ── Co-hosts: invite people to help run the event, and choose what each may do ── */
+const COHOST_ROLES = [
+  { value: "manager", label: "Manager", hint: "Can edit the event, tickets and discounts, see the guest list and check people in." },
+  { value: "checkin", label: "Check-in only", hint: "Can see the guest list and check people in. Nothing else." },
+];
+
+function CohostsPanel({ slug, cohosts, onChanged }) {
+  const [email, setEmail] = useState("");
+  const [role, setRole] = useState("manager");
+  const [inviting, setInviting] = useState(false);
+  const [busyId, setBusyId] = useState(null);
+  const [confirmId, setConfirmId] = useState(null);
+
+  const invite = async (e) => {
+    e.preventDefault();
+    if (!email.trim() || inviting) return;
+    setInviting(true);
+    try {
+      const res = await API.addCohost(slug, email.trim(), role);
+      toast.success(res?.message || "Co-host added");
+      setEmail("");
+      onChanged();
+    } catch (err) {
+      toast.error(err?.message || "Couldn't add that co-host.");
+    } finally {
+      setInviting(false);
+    }
+  };
+
+  const changeRole = async (cohost, next) => {
+    setBusyId(cohost.id);
+    try {
+      await API.updateCohost(slug, cohost.id, next);
+      toast.success("Permissions updated");
+      onChanged();
+    } catch (err) {
+      toast.error(err?.message || "Couldn't update permissions.");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const remove = async (cohost) => {
+    setBusyId(cohost.id);
+    try {
+      await API.removeCohost(slug, cohost.id);
+      toast.success("Co-host removed");
+      setConfirmId(null);
+      onChanged();
+    } catch (err) {
+      toast.error(err?.message || "Couldn't remove that co-host.");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const selectedHint = COHOST_ROLES.find((r) => r.value === role)?.hint;
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-100/80 shadow-sm">
+      <div className="p-4 md:p-5 border-b border-gray-100">
+        <h3 className="text-[15px] font-semibold text-gray-900">Co-hosts</h3>
+        <p className="text-sm text-gray-600 mt-0.5">
+          Invite people to help run this event. Co-hosts never receive revenue and can&apos;t delete the event.
+        </p>
+
+        <form onSubmit={invite} className="mt-4 flex flex-col md:flex-row gap-2.5">
+          <div className="flex-1 min-w-0">
+            <label htmlFor="cohost-email" className="sr-only">Co-host email</label>
+            <input
+              id="cohost-email"
+              type="email"
+              inputMode="email"
+              autoCapitalize="none"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="name@example.com"
+              className="w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-base md:text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-[#4F6EF7] focus:ring-2 focus:ring-[#4F6EF7]/25"
+            />
+          </div>
+          <div>
+            <label htmlFor="cohost-role" className="sr-only">Permission</label>
+            <select
+              id="cohost-role"
+              value={role}
+              onChange={(e) => setRole(e.target.value)}
+              className="w-full md:w-auto rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-base md:text-sm text-gray-900 focus:outline-none focus:border-[#4F6EF7] focus:ring-2 focus:ring-[#4F6EF7]/25"
+            >
+              {COHOST_ROLES.map((r) => (
+                <option key={r.value} value={r.value}>{r.label}</option>
+              ))}
+            </select>
+          </div>
+          <button
+            type="submit"
+            disabled={inviting || !email.trim()}
+            className="rounded-lg bg-[#4F6EF7] px-4 py-2.5 min-h-[44px] md:min-h-0 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#4F6EF7]"
+          >
+            {inviting ? "Inviting…" : "Invite"}
+          </button>
+        </form>
+        <p className="mt-2 text-sm text-gray-500">{selectedHint}</p>
+      </div>
+
+      {cohosts.length === 0 ? (
+        <div className="p-8 text-center">
+          <p className="text-sm font-semibold text-gray-700">No co-hosts yet</p>
+          <p className="text-sm text-gray-500 mt-1">Invite someone above. They don&apos;t need a Byro account yet.</p>
+        </div>
+      ) : (
+        <ul className="divide-y divide-gray-100">
+          {cohosts.map((c) => {
+            const pending = c.status === "pending";
+            return (
+              <li key={c.id} className="flex flex-col md:flex-row md:items-center gap-3 px-4 md:px-5 py-4">
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <SharedAvatar name={c.name} className="w-10 h-10 rounded-full text-sm" />
+                  <div className="min-w-0">
+                    <p className="text-[15px] font-semibold text-gray-900 truncate">{c.name}</p>
+                    <p className="text-sm text-gray-500 truncate">{c.email}</p>
+                  </div>
+                  <span
+                    className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${
+                      pending ? "bg-amber-50 text-amber-800" : "bg-green-50 text-green-800"
+                    }`}
+                  >
+                    {pending ? "Invited" : "Active"}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2 md:shrink-0">
+                  <label htmlFor={`role-${c.id}`} className="sr-only">Permission for {c.name}</label>
+                  <select
+                    id={`role-${c.id}`}
+                    value={c.role || "manager"}
+                    disabled={busyId === c.id}
+                    onChange={(e) => changeRole(c, e.target.value)}
+                    className="flex-1 md:flex-none rounded-lg border border-gray-300 bg-white px-3 py-2 text-base md:text-sm text-gray-900 disabled:opacity-60 focus:outline-none focus:border-[#4F6EF7] focus:ring-2 focus:ring-[#4F6EF7]/25"
+                  >
+                    {COHOST_ROLES.map((r) => (
+                      <option key={r.value} value={r.value}>{r.label}</option>
+                    ))}
+                  </select>
+
+                  {confirmId === c.id ? (
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => remove(c)}
+                        disabled={busyId === c.id}
+                        className="rounded-lg bg-red-600 px-3 py-2 min-h-[44px] md:min-h-0 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-60"
+                      >
+                        {pending ? "Cancel invite" : "Remove"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmId(null)}
+                        className="rounded-lg px-3 py-2 min-h-[44px] md:min-h-0 text-sm font-medium text-gray-600 hover:bg-gray-100"
+                      >
+                        Keep
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setConfirmId(c.id)}
+                      className="rounded-lg px-3 py-2 min-h-[44px] md:min-h-0 text-sm font-medium text-red-600 hover:bg-red-50"
+                    >
+                      {pending ? "Cancel invite" : "Remove"}
+                    </button>
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
       )}
     </div>
   );
