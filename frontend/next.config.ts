@@ -58,9 +58,14 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [
       {
+        // Only on the main site. next.config redirects run before
+        // middleware.ts, so without this guard the admin subdomain's
+        // "/events" (meant to be rewritten to "/admin/events") gets
+        // hijacked by this rule and sent to the public /home page instead.
         source: '/events',
         destination: '/home',
         permanent: true,
+        missing: [{ type: 'host', value: 'admin.usebyro.com' }],
       },
       {
         source: '/ticket-confirmation',
