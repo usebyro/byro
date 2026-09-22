@@ -163,6 +163,38 @@ function EventTable({
   );
 }
 
+function csvEscape(value: string) {
+  if (/[",\n]/.test(value)) {
+    return `"${value.replace(/"/g, '""')}"`;
+  }
+  return value;
+}
+
+function downloadAttendeesCsv(event: Event | null, attendees: Attendee[]) {
+  const header = ["Name", "Email", "Ticket tier", "Payment status", "Checked in"];
+  const rows = attendees.map((a) => [
+    a.current_owner_name || "",
+    a.current_owner_email || "",
+    a.tier_name || "",
+    a.payment_status || "",
+    a.checked_in ? "Yes" : "No",
+  ]);
+  const csv = [header, ...rows]
+    .map((row) => row.map((cell) => csvEscape(String(cell))).join(","))
+    .join("\n");
+
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  const slug = event?.slug || "event";
+  link.href = url;
+  link.download = `${slug}-attendees.csv`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
 export default function AdminEventsPage() {
   const [events, setEvents] = useState<Event[]>([]);
   const [ticketCounts, setTicketCounts] = useState<Record<number, number | null>>({});
@@ -463,9 +495,19 @@ export default function AdminEventsPage() {
               </div>
 
               <div>
-                <h4 className="text-white text-sm font-semibold mb-3">
-                  Attendees{attendees ? ` (${attendees.length})` : ""}
-                </h4>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-white text-sm font-semibold">
+                    Attendees{attendees ? ` (${attendees.length})` : ""}
+                  </h4>
+                  {attendees && attendees.length > 0 && (
+                    <button
+                      onClick={() => downloadAttendeesCsv(selected, attendees)}
+                      className="text-xs font-semibold text-blue-400 bg-blue-500/10 hover:bg-blue-500/20 px-3 py-1.5 rounded-lg transition-colors"
+                    >
+                      Export CSV
+                    </button>
+                  )}
+                </div>
                 {attendeesLoading ? (
                   <p className="text-gray-500 text-sm">Loading…</p>
                 ) : attendeesError ? (
