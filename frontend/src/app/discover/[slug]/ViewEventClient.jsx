@@ -325,34 +325,6 @@ export default function ViewEventClient({ slug }) {
             </section>
 
 
-            {/* Organizer */}
-            <section className="mb-10">
-              <div className="flex items-center justify-between p-5 border border-gray-100 rounded-2xl">
-                <button
-                  type="button"
-                  onClick={() => event.owner_handle && router.push(`/u/${event.owner_handle}`)}
-                  disabled={!event.owner_handle}
-                  className={`flex items-center gap-4 text-left ${event.owner_handle ? "cursor-pointer" : "cursor-default"}`}
-                >
-                  <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-sm shrink-0">
-                    {(event.owner_handle || event.owner_email || "EL")[0].toUpperCase()}
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-400 uppercase tracking-wide font-medium mb-0.5">Organised by</p>
-                    <p className="font-semibold text-gray-900 text-sm">
-                      {event.owner_handle ? `@${event.owner_handle}` : event.owner_email || "Byro Africa"}
-                    </p>
-                    <p className="text-xs text-gray-400">
-                      {event.owner_events_count ?? 0} event{event.owner_events_count === 1 ? "" : "s"} · 0 Followers
-                    </p>
-                  </div>
-                </button>
-                <button className="border border-gray-200 text-gray-700 text-xs font-semibold px-4 py-2 rounded-full hover:bg-gray-50 transition-colors">
-                  Follow
-                </button>
-              </div>
-            </section>
-
             {/* Location */}
             <section className="mb-10">
               <h2 className="text-xl font-bold text-gray-900 mb-4">Location</h2>
@@ -380,6 +352,34 @@ export default function ViewEventClient({ slug }) {
                   <p className="text-xs text-gray-400">No location set</p>
                 </div>
               )}
+            </section>
+
+            {/* Organizer */}
+            <section className="mb-10">
+              <div className="flex items-center justify-between p-5 border border-gray-100 rounded-2xl">
+                <button
+                  type="button"
+                  onClick={() => event.owner_handle && router.push(`/u/${event.owner_handle}`)}
+                  disabled={!event.owner_handle}
+                  className={`flex items-center gap-4 text-left ${event.owner_handle ? "cursor-pointer" : "cursor-default"}`}
+                >
+                  <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-sm shrink-0">
+                    {(event.owner_handle || event.owner_email || "EL")[0].toUpperCase()}
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-400 uppercase tracking-wide font-medium mb-0.5">Organised by</p>
+                    <p className="font-semibold text-gray-900 text-sm">
+                      {event.owner_handle ? `@${event.owner_handle}` : event.owner_email || "Byro Africa"}
+                    </p>
+                    <p className="text-xs text-gray-400">
+                      {event.owner_events_count ?? 0} event{event.owner_events_count === 1 ? "" : "s"} · 0 Followers
+                    </p>
+                  </div>
+                </button>
+                <button className="border border-gray-200 text-gray-700 text-xs font-semibold px-4 py-2 rounded-full hover:bg-gray-50 transition-colors">
+                  Follow
+                </button>
+              </div>
             </section>
 
             {/* Transfer (if registered + transferable) */}
