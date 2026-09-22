@@ -113,7 +113,19 @@ axiosInstance.interceptors.request.use(
 const GUEST_SAFE_ROUTES = ["my_ticket", "validate-promo", "payments/"];
 const isGuestSafeRoute = (config) => GUEST_SAFE_ROUTES.some((route) => (config?.url || "").includes(route));
 
+// The admin panel authenticates with its own `admin_token` cookie, not a
+// user JWT, so it never has an access/refresh token to begin with. Any
+// 401 there (e.g. an /attendees/ call for an event the admin doesn't also
+// own) is expected, not a dead session — signing out and bouncing to "/"
+// would just kick the admin back to their own dashboard root a few seconds
+// after load, for no real reason.
+const isAdminContext = () =>
+  typeof window !== "undefined" &&
+  (window.location.hostname.startsWith("admin.") || window.location.pathname.startsWith("/admin"));
+
 const forceSignOut = (config) => {
+  if (isAdminContext()) return;
+
   localStorage.removeItem("accessToken");
   localStorage.removeItem("authToken");
   localStorage.removeItem("token");
@@ -192,6 +204,11 @@ axiosInstance.interceptors.response.use(
       "auth/refresh/",
     ];
     const isAuthRoute = NO_REFRESH_ROUTES.some((route) => (config?.url || "").includes(route));
+
+    // The admin panel has no user JWT to refresh in the first place.
+    if (response?.status === 401 && isAdminContext()) {
+      return Promise.reject(error);
+    }
 
     if (response?.status === 401 && config && !config._retry && !isAuthRoute) {
       config._retry = true;
