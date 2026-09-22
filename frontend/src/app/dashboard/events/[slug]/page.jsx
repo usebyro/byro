@@ -116,7 +116,6 @@ export default function StudioEventPage() {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all"); // all | checkedin | vip
   const [sort, setSort] = useState("newest");
-  const [tierFilter, setTierFilter] = useState([]); // selected tier names; empty = all
   const [tiers, setTiers] = useState([]);
   const [checkInModal, setCheckInModal] = useState(false);
   const [checkInValue, setCheckInValue] = useState("");
@@ -443,8 +442,7 @@ export default function StudioEventPage() {
       const matchFilter =
         filter === "all" ||
         (filter === "checkedin" && a.checkedIn);
-      const matchTier = tierFilter.length === 0 || tierFilter.includes(a.tier);
-      return matchSearch && matchFilter && matchTier;
+      return matchSearch && matchFilter;
     })
     .sort(SORTERS[sort] || SORTERS.newest);
 
@@ -670,51 +668,8 @@ export default function StudioEventPage() {
             </div>
           </div>
 
-          {/* Tickets by tier: tap to toggle, several at once */}
-          {Object.keys(tierCounts).length > 0 && (
-            <div className="flex items-center gap-2 px-4 py-2.5 border-b border-gray-100 bg-gray-50/40">
-              <span className="shrink-0 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">
-                Tier
-              </span>
-              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
-                {Object.entries(tierCounts).sort((x, y) => y[1] - x[1]).map(([name, count]) => {
-                  const active = tierFilter.includes(name);
-                  return (
-                    <button
-                      key={name}
-                      type="button"
-                      aria-pressed={active}
-                      onClick={() =>
-                        setTierFilter((prev) =>
-                          prev.includes(name) ? prev.filter((t) => t !== name) : [...prev, name]
-                        )
-                      }
-                      className={`shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4F6EF7] ${
-                        active
-                          ? "bg-[#4F6EF7] border-[#4F6EF7] text-white"
-                          : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
-                      }`}
-                    >
-                      {name}
-                      <span className={active ? "text-white/80" : "text-gray-400"}>{count}</span>
-                    </button>
-                  );
-                })}
-              </div>
-              {tierFilter.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setTierFilter([])}
-                  className="shrink-0 ml-auto text-[11px] font-semibold text-[#3B57D9] hover:underline"
-                >
-                  Clear
-                </button>
-              )}
-            </div>
-          )}
-
           {/* Active filter summary */}
-          {(search || filter !== "all" || tierFilter.length > 0) && (
+          {(search || filter !== "all") && (
             <div className="flex items-center gap-2 px-4 py-2 border-b border-gray-100 bg-blue-50/40 text-xs text-gray-600">
               <span>
                 Showing <span className="font-semibold text-gray-900">{filteredAttendees.length}</span> of{" "}
@@ -722,7 +677,7 @@ export default function StudioEventPage() {
               </span>
               <button
                 type="button"
-                onClick={() => { setSearch(""); setFilter("all"); setTierFilter([]); }}
+                onClick={() => { setSearch(""); setFilter("all"); }}
                 className="ml-auto font-semibold text-[#3B57D9] hover:underline"
               >
                 Clear all filters
