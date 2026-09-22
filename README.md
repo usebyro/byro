@@ -23,7 +23,7 @@ Tagline: Where events become communities.
 
 - **Frontend**: Next.js (App Router), React, TypeScript, Tailwind CSS, Redux Toolkit, React Query. Deployed on Vercel.
 - **Backend**: Django, Django REST Framework. Celery and Redis for async work. Deployed on Render.
-- **Authentication**: Web3Auth (email passwordless).
+- **Authentication**: WorkOS AuthKit.
 - **Payments**: Paystack.
 - **Email**: Resend (primary), Brevo SMTP (fallback).
 - **Database**: SQLite (development).

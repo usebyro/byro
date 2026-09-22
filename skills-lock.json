@@ -12,12 +12,6 @@
       "sourceType": "github",
       "skillPath": "skills/sanity-best-practices/SKILL.md",
       "computedHash": "0d771d6e44b0812c28c9d8beeb9ab19bd6da15a0913df4e611ccea1baa23b6a8"
-    },
-    "web3auth": {
-      "source": "web3auth/skill",
-      "sourceType": "github",
-      "skillPath": "SKILL.md",
-      "computedHash": "9e90dfcb587f04d9dd11f51ba6b63b29046c6e016cb9a9f3c740d2a786f86602"
     }
   }
 }
