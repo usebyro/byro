@@ -29,11 +29,11 @@ from django.contrib.auth import get_user_model
 from .models import (
     WaitList, Event, Ticket, TicketTransfer,
     EventCoHost, Payment, UserProfile, EventFormQuestion, EventFormAnswer,
-    TicketTier, PayoutRequest, PromoCode,
+    TicketTier, PayoutRequest, PromoCode, MerchItem,
 )
 from .pricing import calculate_ticket_fees, FEE_RATE
 from django.urls import reverse
-from .serializers import EventSerializer, TicketSerializer, PaymentSerializer, TicketTierSerializer, PromoCodeSerializer
+from .serializers import EventSerializer, TicketSerializer, PaymentSerializer, TicketTierSerializer, PromoCodeSerializer, MerchItemSerializer
 from .permissions import IsEventOwnerOrCoHost, IsEventOwner, IsAdminSecret
 from django.db import transaction, IntegrityError
 from django.db import models
@@ -929,6 +929,30 @@ class WaitListViewSet(viewsets.ModelViewSet):
 
 
 # ---------------------------------------------------------------------------
+# Merch
+# ---------------------------------------------------------------------------
+
+class MerchViewSet(viewsets.ModelViewSet):
+    """
+    /api/merch/          — GET (list mine), POST (create)
+    /api/merch/<id>/     — GET, PATCH, DELETE (mine only)
+
+    Public display lives on the profile endpoint (ProfileViewSet.public),
+    which lists a user's active items — this viewset is the organiser-facing
+    CRUD side, always scoped to request.user.
+    """
+    serializer_class = MerchItemSerializer
+    permission_classes = [IsAuthenticated]
+    parser_classes = (JSONParser, MultiPartParser, FormParser)
+
+    def get_queryset(self):
+        return MerchItem.objects.filter(owner=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(owner=self.request.user)
+
+
+# ---------------------------------------------------------------------------
 # Profile
 # ---------------------------------------------------------------------------
 
@@ -1002,6 +1026,10 @@ class ProfileViewSet(viewsets.GenericViewSet):
         # Public view: strip private fields
         data = serializer.data
         data.pop('auth_provider', None)
+
+        merch = MerchItem.objects.filter(owner=profile.user, is_active=True)
+        data['merch_items'] = MerchItemSerializer(merch, many=True, context={'request': request}).data
+
         return Response(data)
 
 

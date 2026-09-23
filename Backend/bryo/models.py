@@ -707,6 +707,33 @@ class PromoCode(models.Model):
         return f"{self.code} ({self.event.slug})"
 
 
+class MerchItem(models.Model):
+    """
+    A merch item an organiser lists on their public community page
+    (/u/<handle>). Byro doesn't take payment for these yet — `purchase_link`
+    points buyers to wherever the organiser actually sells it (a form, DM,
+    external store, etc).
+    """
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='merch_items',
+    )
+    name = models.CharField(max_length=120)
+    description = models.TextField(blank=True)
+    price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    image = models.ImageField(upload_to='merch/', null=True, blank=True)
+    purchase_link = models.URLField(blank=True, help_text="Where buyers go to purchase this item")
+    stock = models.PositiveIntegerField(null=True, blank=True, help_text="Blank = unlimited")
+    is_active = models.BooleanField(default=True, help_text="Shown on the public profile when on")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.name} ({self.owner_id})"
+
+
 class Ticket(models.Model):
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='tickets')
     ticket_id = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)

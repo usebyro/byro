@@ -8,6 +8,7 @@ from .views import (
     TicketTransferViewSet,
     PaystackPaymentViewSet,
     ProfileViewSet,
+    MerchViewSet,
     DashboardView,
     DashboardAnalyticsView,
     PayoutRequestView,
@@ -37,6 +38,7 @@ router.register(r'tickets', TicketViewSet)
 router.register(r'transfers', TicketTransferViewSet, basename='transfer')
 router.register(r'payments', PaystackPaymentViewSet, basename='payment')
 router.register(r'profile', ProfileViewSet, basename='profile')
+router.register(r'merch', MerchViewSet, basename='merch')
 
 
 urlpatterns = [
