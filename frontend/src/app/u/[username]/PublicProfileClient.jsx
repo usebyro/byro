@@ -14,6 +14,9 @@ import {
   Mic01Icon,
   HappyIcon,
   FireworksIcon,
+  UserGroupIcon,
+  UserIcon,
+  ShoppingBag01Icon,
 } from "@hugeicons/core-free-icons";
 import API from "@/services/api";
 import Navbar from "@/components/Navbar";
@@ -59,7 +62,8 @@ export default function PublicProfileClient({ username }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [isFollowing, setIsFollowing] = useState(false);
-  const [activeTab, setActiveTab] = useState("upcoming");
+  const [activeTab, setActiveTab] = useState("events");
+  const [eventsView, setEventsView] = useState("upcoming"); // upcoming | past
   const [coverImageError, setCoverImageError] = useState(false);
 
   useEffect(() => {
@@ -161,6 +165,7 @@ export default function PublicProfileClient({ username }) {
   }
 
   const categoriesList = Array.from(new Set(events.map((e) => e.category))).filter(Boolean);
+  const merchItems = profile.merch_items || [];
 
   return (
     <div className="flex flex-col min-h-screen bg-[#F8F9FA]">
@@ -208,49 +213,49 @@ export default function PublicProfileClient({ username }) {
                   </span>
                 </div>
 
-                <div className="flex flex-wrap items-center justify-center md:justify-start gap-x-4 gap-y-2 mt-3 text-xs md:text-sm text-gray-500 font-medium">
-                  {categoriesList.length > 0 && (
-                    <span className="flex items-center gap-1">
-                      <HugeiconsIcon icon={MusicNote01Icon} size={14} className="text-gray-400" />
-                      {categoriesList.map(c => CATEGORY_LABELS[c] || c).join(" · ")}
-                    </span>
-                  )}
+                <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 mt-3 text-xs md:text-sm text-gray-500 font-medium">
                   {profile.location && (
-                    <span className="flex items-center gap-1">
-                      <HugeiconsIcon icon={Location01Icon} size={14} className="text-gray-400" />
+                    <span className="inline-flex items-center gap-1.5 bg-gray-50 border border-gray-100 rounded-full px-3 py-1">
+                      <HugeiconsIcon icon={Location01Icon} size={13} className="text-gray-400" />
                       {profile.location}
                     </span>
                   )}
-                  <span className="text-gray-400">·</span>
-                  <span className="font-semibold text-gray-800">
+                  <span className="inline-flex items-center gap-1.5 bg-gray-50 border border-gray-100 rounded-full px-3 py-1">
+                    <HugeiconsIcon icon={UserGroupIcon} size={13} className="text-gray-400" />
                     0 followers
                   </span>
+                  {categoriesList.length > 0 && (
+                    <span className="inline-flex items-center gap-1.5 bg-gray-50 border border-gray-100 rounded-full px-3 py-1">
+                      <HugeiconsIcon icon={MusicNote01Icon} size={13} className="text-gray-400" />
+                      {categoriesList.map(c => CATEGORY_LABELS[c] || c).join(" · ")}
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
 
             {/* Action Buttons */}
-            <div className="flex items-center justify-center gap-3 w-full md:w-auto mt-4 md:mt-2">
-              <button
-                onClick={handleFollowToggle}
-                className={`flex-1 md:flex-none px-6 py-2.5 rounded-full font-bold text-sm shadow-sm transition-all duration-200 ${
-                  isFollowing
-                    ? "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                    : "bg-blue-600 text-white hover:bg-blue-700 hover:shadow"
-                }`}
-              >
-                {isFollowing ? "Following" : "Follow"}
-              </button>
+            <div className="flex items-center justify-center gap-2 w-full md:w-auto mt-4 md:mt-2">
               <ShareMenu
                 url={typeof window !== "undefined" ? window.location.href : ""}
                 title={profile?.display_name || username}
                 campaign="profile_share"
                 content={username}
-                className="px-4 py-2.5 border border-gray-200 rounded-full hover:bg-gray-50 text-gray-600 transition-colors shadow-sm"
+                className="w-9 h-9 flex items-center justify-center border border-gray-200 rounded-full hover:bg-gray-50 text-gray-600 transition-colors"
                 aria-label="Share Profile"
               >
-                <HugeiconsIcon icon={Share01Icon} size={16} />
+                <HugeiconsIcon icon={Share01Icon} size={15} />
               </ShareMenu>
+              <button
+                onClick={handleFollowToggle}
+                className={`flex-1 md:flex-none px-6 py-2 rounded-full font-bold text-sm transition-colors duration-200 ${
+                  isFollowing
+                    ? "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    : "bg-blue-50 text-blue-700 hover:bg-blue-100"
+                }`}
+              >
+                {isFollowing ? "Following" : "Follow"}
+              </button>
             </div>
 
           </div>
@@ -270,33 +275,38 @@ export default function PublicProfileClient({ username }) {
         {/* Navigation Tabs */}
         <div className="flex items-center border-b border-gray-200 gap-8 mb-8">
           <button
-            onClick={() => setActiveTab("upcoming")}
-            className={`pb-4 text-sm font-semibold relative transition-colors ${
-              activeTab === "upcoming" ? "text-blue-600" : "text-gray-500 hover:text-gray-800"
+            onClick={() => setActiveTab("events")}
+            className={`flex items-center gap-1.5 pb-4 text-sm font-semibold relative transition-colors ${
+              activeTab === "events" ? "text-blue-600" : "text-gray-500 hover:text-gray-800"
             }`}
           >
-            Upcoming · {upcomingEvents.length}
-            {activeTab === "upcoming" && (
+            <HugeiconsIcon icon={Calendar01Icon} size={15} />
+            Events
+            {activeTab === "events" && (
               <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 rounded-full" />
             )}
           </button>
-          <button
-            onClick={() => setActiveTab("past")}
-            className={`pb-4 text-sm font-semibold relative transition-colors ${
-              activeTab === "past" ? "text-blue-600" : "text-gray-500 hover:text-gray-800"
-            }`}
-          >
-            Past · {pastEvents.length}
-            {activeTab === "past" && (
-              <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 rounded-full" />
-            )}
-          </button>
+          {merchItems.length > 0 && (
+            <button
+              onClick={() => setActiveTab("merch")}
+              className={`flex items-center gap-1.5 pb-4 text-sm font-semibold relative transition-colors ${
+                activeTab === "merch" ? "text-blue-600" : "text-gray-500 hover:text-gray-800"
+              }`}
+            >
+              <HugeiconsIcon icon={ShoppingBag01Icon} size={15} />
+              Merch
+              {activeTab === "merch" && (
+                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 rounded-full" />
+              )}
+            </button>
+          )}
           <button
             onClick={() => setActiveTab("about")}
-            className={`pb-4 text-sm font-semibold relative transition-colors ${
+            className={`flex items-center gap-1.5 pb-4 text-sm font-semibold relative transition-colors ${
               activeTab === "about" ? "text-blue-600" : "text-gray-500 hover:text-gray-800"
             }`}
           >
+            <HugeiconsIcon icon={UserIcon} size={15} />
             About
             {activeTab === "about" && (
               <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 rounded-full" />
@@ -305,28 +315,50 @@ export default function PublicProfileClient({ username }) {
         </div>
 
         {/* Tab Contents */}
-        {activeTab === "upcoming" && (
-          upcomingEvents.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {upcomingEvents.map((evt) => (
-                <EventCard key={evt.slug} event={evt} />
-              ))}
+        {activeTab === "events" && (
+          <div>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-gray-900">Events</h2>
+              <div className="inline-flex bg-gray-100 rounded-full p-1 text-xs font-semibold">
+                <button
+                  onClick={() => setEventsView("upcoming")}
+                  className={`px-3.5 py-1.5 rounded-full transition-colors ${
+                    eventsView === "upcoming" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  Upcoming · {upcomingEvents.length}
+                </button>
+                <button
+                  onClick={() => setEventsView("past")}
+                  className={`px-3.5 py-1.5 rounded-full transition-colors ${
+                    eventsView === "past" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  Past · {pastEvents.length}
+                </button>
+              </div>
             </div>
-          ) : (
-            <EmptyState message="No upcoming events scheduled." />
-          )
-        )}
 
-        {activeTab === "past" && (
-          pastEvents.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {pastEvents.map((evt) => (
-                <EventCard key={evt.slug} event={evt} />
-              ))}
-            </div>
-          ) : (
-            <EmptyState message="No past events found." />
-          )
+            {eventsView === "upcoming" ? (
+              upcomingEvents.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {upcomingEvents.map((evt) => (
+                    <EventCard key={evt.slug} event={evt} />
+                  ))}
+                </div>
+              ) : (
+                <EmptyState message="No upcoming events scheduled." />
+              )
+            ) : pastEvents.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {pastEvents.map((evt) => (
+                  <EventCard key={evt.slug} event={evt} />
+                ))}
+              </div>
+            ) : (
+              <EmptyState message="No past events found." />
+            )}
+          </div>
         )}
 
         {activeTab === "about" && (
@@ -394,9 +426,74 @@ export default function PublicProfileClient({ username }) {
           </div>
         )}
 
+        {activeTab === "merch" && (
+          <div>
+            <h2 className="text-xl font-bold text-gray-900">Merch</h2>
+            <p className="text-sm text-gray-500 mt-1 mb-6">
+              Physical goods from {profile.display_name || profile.handle}.
+            </p>
+            {merchItems.length > 0 ? (
+              <div className="space-y-3">
+                {merchItems.map((item) => (
+                  <MerchCard key={item.id} item={item} />
+                ))}
+              </div>
+            ) : (
+              <EmptyState message="No merch listed yet." />
+            )}
+          </div>
+        )}
+
       </div>
 
       <Footer />
+    </div>
+  );
+}
+
+// ── Row card for a merch item on the public profile ──
+function MerchCard({ item }) {
+  const outOfStock = item.stock !== null && item.stock !== undefined && item.stock <= 0;
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex items-center gap-4">
+      <div className="w-16 h-16 rounded-xl bg-gray-50 border border-gray-100 shrink-0 overflow-hidden flex items-center justify-center">
+        {item.image_url ? (
+          <img src={item.image_url} alt={item.name} className="w-full h-full object-cover" />
+        ) : (
+          <HugeiconsIcon icon={ShoppingBag01Icon} size={20} className="text-gray-300" />
+        )}
+      </div>
+
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <p className="font-bold text-gray-900 text-sm truncate">{item.name}</p>
+          {item.stock !== null && item.stock !== undefined && (
+            <span className="shrink-0 text-[11px] font-semibold text-gray-500 bg-gray-100 rounded-full px-2 py-0.5">
+              {outOfStock ? "Sold out" : `${item.stock} left`}
+            </span>
+          )}
+        </div>
+        {item.description && (
+          <p className="text-gray-500 text-xs leading-relaxed line-clamp-1 mt-0.5">{item.description}</p>
+        )}
+      </div>
+
+      <div className="flex items-center gap-3 shrink-0">
+        <span className="font-semibold text-gray-900 text-sm whitespace-nowrap">
+          {item.price ? `₦${Number(item.price).toLocaleString()}` : "Price on request"}
+        </span>
+        {item.purchase_link && !outOfStock && (
+          <a
+            href={item.purchase_link}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 transition-colors rounded-full px-4 py-2"
+          >
+            Buy
+          </a>
+        )}
+      </div>
     </div>
   );
 }

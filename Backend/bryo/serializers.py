@@ -4,7 +4,7 @@ from django.utils.text import slugify
 from .models import (
     Payment, WaitList, Ticket, Event, EventCoHost,
     TicketTransfer, Payment, UserProfile, EventFormQuestion, EventFormAnswer,
-    TicketTier, PayoutRequest, PromoCode,
+    TicketTier, PayoutRequest, PromoCode, MerchItem,
 )
 from django.core.mail import send_mail
 from django.contrib.auth import get_user_model
@@ -196,6 +196,35 @@ class PromoCodeSerializer(serializers.ModelSerializer):
         if discount_type == PromoCode.DISCOUNT_PERCENTAGE and amount is not None and amount > 100:
             raise serializers.ValidationError({'amount': 'A percentage discount cannot exceed 100.'})
         return data
+
+
+class MerchItemSerializer(serializers.ModelSerializer):
+    image_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = MerchItem
+        fields = [
+            'id', 'name', 'description', 'price', 'image', 'image_url',
+            'purchase_link', 'stock', 'is_active', 'created_at', 'updated_at',
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+        extra_kwargs = {'image': {'write_only': True}}
+
+    def get_image_url(self, obj):
+        if obj.image:
+            request = self.context.get('request')
+            return request.build_absolute_uri(obj.image.url) if request else obj.image.url
+        return None
+
+    def validate_price(self, value):
+        if value is not None and value < 0:
+            raise serializers.ValidationError("Price can't be negative.")
+        return value
+
+    def validate_stock(self, value):
+        if value is not None and value < 0:
+            raise serializers.ValidationError("Stock can't be negative.")
+        return value
 
 
 class EventCoHostSerializer(serializers.ModelSerializer):
