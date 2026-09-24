@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
@@ -34,6 +34,7 @@ function StudioShell({ children }) {
   const router   = useRouter();
   const dispatch = useDispatch();
   const user     = useSelector((s) => s.auth?.user);
+  const token    = useSelector((s) => s.auth?.token);
 
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -45,10 +46,27 @@ function StudioShell({ children }) {
     setMobileOpen(false);
   }
 
+  // The dashboard is organiser-only. A visitor with no session — e.g. hitting
+  // usebyro.com/dashboard directly — gets bounced to login, and back to
+  // whatever dashboard page they wanted once they sign in.
+  useEffect(() => {
+    if (!token) {
+      router.replace(`/login?redirect=${encodeURIComponent(pathname)}`);
+    }
+  }, [token, pathname, router]);
+
   const handleLogout = () => {
     dispatch(signOut());
     router.push("/");
   };
+
+  if (!token) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#F5F7FB]">
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-600" />
+      </div>
+    );
+  }
 
   const renderSidebarContent = (collapsed, closeMobile = null) => {
     return (
