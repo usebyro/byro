@@ -14,6 +14,8 @@ from .views import (
     PayoutRequestView,
     PayoutBalanceView,
     AdminPayoutView,
+    AdminEventDetailView,
+    AdminEventAttendeesView,
     PaystackBankListView,
     PaystackResolveAccountView,
     AdminAnalyticsSummaryView,
@@ -82,6 +84,8 @@ urlpatterns = [
     # Admin — payouts
     path('api/admin/payouts/', AdminPayoutView.as_view(), name='admin-payout-list'),
     path('api/admin/payouts/<int:pk>/', AdminPayoutView.as_view(), name='admin-payout-detail'),
+    path('api/admin/events/<int:pk>/', AdminEventDetailView.as_view(), name='admin-event-detail'),
+    path('api/admin/events/<slug:slug>/attendees/', AdminEventAttendeesView.as_view(), name='admin-event-attendees'),
 
     # Paystack — bank verification
     path('api/paystack/banks/', PaystackBankListView.as_view(), name='paystack-banks'),

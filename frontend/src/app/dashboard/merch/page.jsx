@@ -301,10 +301,16 @@ export default function MerchPage() {
               <div>
                 <label className="block text-xs font-semibold text-gray-600 mb-1">Price (₦)</label>
                 <input
-                  type="number"
-                  min="0"
+                  type="text"
+                  inputMode="decimal"
                   value={form.price}
-                  onChange={(e) => setForm((f) => ({ ...f, price: e.target.value }))}
+                  onChange={(e) => {
+                    // A number input reports "" the moment a comma sneaks in
+                    // (e.g. "5,000"), which reads as no price. Strip anything
+                    // but digits and a single decimal point instead.
+                    const cleaned = e.target.value.replace(/[^0-9.]/g, "");
+                    setForm((f) => ({ ...f, price: cleaned }));
+                  }}
                   placeholder="Optional"
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 bg-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#4F6EF7]/30"
                 />

@@ -218,16 +218,13 @@ export default function AdminEventsPage() {
     setAttendees(null);
     setAttendeesError("");
     setAttendeesLoading(true);
-    axiosInstance
-      .get(`events/${event.slug}/attendees/`)
-      .then((r) => setAttendees(r.data.attendees ?? []))
-      .catch((err) => {
-        setAttendeesError(
-          err?.response?.status === 403
-            ? "You can only see the attendee list for events you own or co-host."
-            : "Couldn't load attendees for this event."
-        );
+    fetch(`/api/admin/events/${event.slug}/attendees`)
+      .then(async (res) => {
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data?.error || "Couldn't load attendees for this event.");
+        setAttendees(data.attendees ?? []);
       })
+      .catch(() => setAttendeesError("Couldn't load attendees for this event."))
       .finally(() => setAttendeesLoading(false));
   };
 
@@ -243,18 +240,17 @@ export default function AdminEventsPage() {
         if (cancelled) return;
         setEvents(data);
 
-        // Per-event attendee counts are only visible to that event's owner/co-hosts,
-        // so this call 403s (and shows "—") for any event the admin doesn't also own.
-        // It's a nice-to-have per-row detail, not the source of truth for the total below.
+        // Per-event attendee counts, via the admin-secret-authenticated proxy
+        // so this works for every event, not just ones the admin also owns.
         const counts: Record<number, number | null> = {};
         data.forEach((e) => { counts[e.id] = null; });
 
         await Promise.allSettled(
           data.map((event) =>
-            axiosInstance
-              .get(`events/${event.slug}/attendees/`)
+            fetch(`/api/admin/events/${event.slug}/attendees`)
+              .then((res) => (res.ok ? res.json() : null))
               .then((r) => {
-                counts[event.id] = r.data.count ?? 0;
+                counts[event.id] = r?.count ?? null;
               })
               .catch(() => {
                 counts[event.id] = null;
