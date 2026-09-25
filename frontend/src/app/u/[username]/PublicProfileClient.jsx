@@ -10,6 +10,7 @@ import {
   Calendar01Icon,
   MusicNote01Icon,
   Moon02Icon,
+  PaintBoardIcon,
   FootballIcon,
   Mic01Icon,
   HappyIcon,
@@ -29,7 +30,8 @@ import { FaXTwitter, FaInstagram, FaLinkedinIn, FaTelegram } from "react-icons/f
 
 const CATEGORY_ICONS = {
   entertainment: MusicNote01Icon,
-  art_culture: Moon02Icon,
+  art_culture: PaintBoardIcon,
+  nightlife: Moon02Icon,
   fitness: FootballIcon,
   conference: Mic01Icon,
   comedy: HappyIcon,
@@ -39,7 +41,8 @@ const CATEGORY_ICONS = {
 const CATEGORY_LABELS = {
   entertainment: "CONCERTS & MUSIC",
   web3_crypto: "WEB3 & CRYPTO",
-  art_culture: "NIGHTLIFE & PARTIES",
+  art_culture: "ART & CULTURE",
+  nightlife: "NIGHTLIFE & PARTIES",
   conference: "CONFERENCES",
   fitness: "SPORTS",
   technology: "TECHNOLOGY",

@@ -258,6 +258,7 @@ class Event(models.Model):
         ('entertainment', 'Entertainment'),
         ('fitness', 'Fitness'),
         ('art_culture', 'Art & Culture'),
+        ('nightlife', 'Nightlife'),
         ('conference', 'Conference'),
         ('web3_crypto', 'Web3 & Crypto'),
         ('technology', 'Technology'),

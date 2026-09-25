@@ -66,7 +66,8 @@ interface TicketTier {
 const categoryLabels: Record<string, string> = {
   entertainment: "CONCERTS & MUSIC",
   web3_crypto: "WEB3 & CRYPTO",
-  art_culture: "NIGHTLIFE & PARTIES",
+  art_culture: "ART & CULTURE",
+  nightlife: "NIGHTLIFE & PARTIES",
   conference: "CONFERENCES",
   fitness: "SPORTS",
   technology: "TECHNOLOGY",
@@ -76,7 +77,8 @@ const categoryLabels: Record<string, string> = {
 const categoryDotColors: Record<string, string> = {
   entertainment: "bg-purple-300",
   web3_crypto: "bg-amber-300",
-  art_culture: "bg-pink-300",
+  art_culture: "bg-violet-300",
+  nightlife: "bg-pink-300",
   conference: "bg-emerald-300",
   fitness: "bg-orange-300",
   technology: "bg-indigo-300",
@@ -462,23 +464,25 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
 
       {showExitConfirm && (
         <div className="fixed inset-0 z-[60] bg-black/40 flex items-center justify-center px-4">
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-8 text-center">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto p-6 sm:p-8 text-center">
             <h2 className="text-xl font-bold text-gray-900 mb-3">
               Release tickets
             </h2>
             <p className="text-sm text-gray-500 mb-8 leading-relaxed">
               Cancel this order and release your tickets?
             </p>
-            <div className="flex items-center gap-4">
+            {/* Stacked on mobile: a long "Release ticket" label squeezed into
+                half a narrow screen was left clipping against its own pill. */}
+            <div className="flex flex-col-reverse sm:flex-row items-center gap-3 sm:gap-4">
               <button
                 onClick={() => setShowExitConfirm(false)}
-                className="flex-1 border border-gray-200 text-gray-700 font-semibold py-3 rounded-full hover:bg-gray-50 transition-colors"
+                className="w-full sm:flex-1 border border-gray-200 text-gray-700 font-semibold py-3 rounded-full hover:bg-gray-50 transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={onClose}
-                className="flex-1 bg-blue-600 text-white font-semibold py-3 rounded-full hover:bg-blue-700 transition-colors"
+                className="w-full sm:flex-1 bg-blue-600 text-white font-semibold py-3 rounded-full hover:bg-blue-700 transition-colors"
               >
                 Release ticket
               </button>
@@ -581,90 +585,95 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                     return (
                     <div
                       key={tier.id}
-                      className={`rounded-xl border p-4 flex items-center justify-between transition-colors ${
+                      className={`rounded-xl border p-4 transition-colors ${
                         (quantities[String(tier.id)] || 0) > 0
                           ? "border-blue-300 bg-blue-50/50"
                           : "border-gray-100"
                       }`}
                     >
-                      <div>
-                        <p className="font-semibold text-gray-900 text-sm">
-                          {tier.name}
-                        </p>
-                        {tier.description && (
-                          <p className="text-xs text-gray-600 mt-0.5 break-words">{tier.description}</p>
-                        )}
-                        <p className="text-xs text-gray-500 mt-0.5">
-                          {showRemaining && tier.remaining != null && tier.remaining > 0 && (
-                            <span className="text-orange-500">{tier.remaining} left</span>
+                      {/* Stacks on mobile so the description gets the full card
+                          width instead of being squeezed into a narrow column
+                          next to the price/stepper. */}
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="font-semibold text-gray-900 text-sm">
+                            {tier.name}
+                          </p>
+                          {tier.description && (
+                            <p className="text-xs text-gray-600 mt-0.5 break-words">{tier.description}</p>
                           )}
-                          {tier.remaining === 0 && (
-                            <span className="text-red-500">Sold out</span>
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            {showRemaining && tier.remaining != null && tier.remaining > 0 && (
+                              <span className="text-orange-500">{tier.remaining} left</span>
+                            )}
+                            {tier.remaining === 0 && (
+                              <span className="text-red-500">Sold out</span>
+                            )}
+                            {showRemaining && tier.remaining == null && tier.capacity != null && (
+                              <span>{tier.capacity} capacity</span>
+                            )}
+                          </p>
+                          {tier.remaining !== 0 && (
+                            <p className="text-xs text-gray-500 mt-0.5">{describeTicketLimits(tier, event)}</p>
                           )}
-                          {showRemaining && tier.remaining == null && tier.capacity != null && (
-                            <span>{tier.capacity} capacity</span>
-                          )}
-                        </p>
-                        {tier.remaining !== 0 && (
-                          <p className="text-xs text-gray-500 mt-0.5">{describeTicketLimits(tier, event)}</p>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-3 flex-shrink-0">
-                        <span className="font-semibold text-gray-900 text-sm">
-                          {parseFloat(String(tier.price)) === 0 ? "Free" : fmt(parseFloat(String(tier.price)))}
-                        </span>
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() =>
-                              setQuantities((p) => ({
-                                ...p,
-                                [String(tier.id)]: stepDown(p[String(tier.id)] || 0, min),
-                              }))
-                            }
-                            className="w-8 h-8 rounded-full border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-50 transition-colors"
-                          >
-                            <svg
-                              width="13"
-                              height="13"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2.5"
-                            >
-                              <line x1="5" y1="12" x2="19" y2="12" />
-                            </svg>
-                          </button>
-                          <span className="w-5 text-center font-semibold text-gray-900 text-sm">
-                            {quantities[String(tier.id)]}
+                        </div>
+                        <div className="flex items-center justify-between sm:justify-end gap-3 flex-shrink-0">
+                          <span className="font-semibold text-gray-900 text-sm">
+                            {parseFloat(String(tier.price)) === 0 ? "Free" : fmt(parseFloat(String(tier.price)))}
                           </span>
-                          <button
-                            onClick={() =>
-                              setQuantities((p) => {
-                                const cur = p[String(tier.id)] || 0;
-                                // Bundled: the first press jumps to the tier's minimum, then one at a time up to its cap.
-                                const next = stepUp(cur, min, cap);
-                                if (next === cur) return p;
-                                // Reset all other tiers to 0 — only one tier can be selected at a time
-                                const reset: Record<string, number> = {};
-                                tiers.forEach((t) => { reset[String(t.id)] = 0; });
-                                return { ...reset, [String(tier.id)]: next };
-                              })
-                            }
-                            disabled={tier.remaining === 0 || atCap}
-                            className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white hover:bg-blue-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                          >
-                            <svg
-                              width="13"
-                              height="13"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2.5"
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() =>
+                                setQuantities((p) => ({
+                                  ...p,
+                                  [String(tier.id)]: stepDown(p[String(tier.id)] || 0, min),
+                                }))
+                              }
+                              className="w-8 h-8 rounded-full border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-50 transition-colors"
                             >
-                              <line x1="12" y1="5" x2="12" y2="19" />
-                              <line x1="5" y1="12" x2="19" y2="12" />
-                            </svg>
-                          </button>
+                              <svg
+                                width="13"
+                                height="13"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2.5"
+                              >
+                                <line x1="5" y1="12" x2="19" y2="12" />
+                              </svg>
+                            </button>
+                            <span className="w-5 text-center font-semibold text-gray-900 text-sm">
+                              {quantities[String(tier.id)]}
+                            </span>
+                            <button
+                              onClick={() =>
+                                setQuantities((p) => {
+                                  const cur = p[String(tier.id)] || 0;
+                                  // Bundled: the first press jumps to the tier's minimum, then one at a time up to its cap.
+                                  const next = stepUp(cur, min, cap);
+                                  if (next === cur) return p;
+                                  // Reset all other tiers to 0 — only one tier can be selected at a time
+                                  const reset: Record<string, number> = {};
+                                  tiers.forEach((t) => { reset[String(t.id)] = 0; });
+                                  return { ...reset, [String(tier.id)]: next };
+                                })
+                              }
+                              disabled={tier.remaining === 0 || atCap}
+                              className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white hover:bg-blue-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                            >
+                              <svg
+                                width="13"
+                                height="13"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2.5"
+                              >
+                                <line x1="12" y1="5" x2="12" y2="19" />
+                                <line x1="5" y1="12" x2="19" y2="12" />
+                              </svg>
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -674,7 +683,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
 
                 {/* Promo code */}
                 <div className="mt-4 flex items-center border border-gray-200 rounded-xl overflow-hidden">
-                  <div className="flex items-center gap-3 flex-1 px-4 py-3">
+                  <div className="flex items-center gap-2 flex-1 min-w-0 px-4 py-3">
                     <svg
                       width="15"
                       height="15"
@@ -696,13 +705,13 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                         if (promoError) setPromoError("");
                       }}
                       placeholder="Have a promo code?"
-                      className="flex-1 text-sm text-gray-700 placeholder-gray-400 focus:outline-none bg-transparent"
+                      className="w-full min-w-0 text-sm text-gray-700 placeholder-gray-400 focus:outline-none bg-transparent"
                     />
                   </div>
                   <button
                     onClick={applyPromo}
                     disabled={!promoCode.trim() || isApplyingPromo}
-                    className="px-5 py-3 text-sm font-semibold text-gray-700 border-l border-gray-200 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="shrink-0 whitespace-nowrap px-4 sm:px-5 py-3 text-sm font-semibold text-gray-700 border-l border-gray-200 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isApplyingPromo ? "Checking..." : "Apply"}
                   </button>

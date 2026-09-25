@@ -492,12 +492,12 @@ export default function StudioEventPage() {
               {event && `${formatDate(event.day)}${event.time_from ? ` · ${formatTime(event.time_from)}` : ""}${event.location ? ` · ${event.location}` : ""}`}
             </p>
           </div>
-          <div className="flex items-center gap-2 shrink-0 w-full md:w-auto">
+          <div className="flex flex-wrap items-center gap-2 shrink-0 w-full md:w-auto md:flex-nowrap">
             {!isDraft && (
               <button
                 type="button"
                 onClick={() => { setCheckInMode("scan"); setCheckInModal(true); }}
-                className="flex-1 md:flex-initial flex items-center justify-center gap-1.5 min-h-[40px] md:min-h-0 bg-white text-gray-900 text-xs font-semibold px-3.5 py-2 rounded-lg hover:bg-white/90 transition-colors"
+                className="flex-1 basis-[calc(50%-4px)] md:basis-auto md:flex-initial flex items-center justify-center gap-1.5 min-h-[40px] md:min-h-0 bg-white text-gray-900 text-xs font-semibold px-3.5 py-2 rounded-lg hover:bg-white/90 transition-colors whitespace-nowrap"
               >
                 <HugeiconsIcon icon={QrCodeIcon} size={13} color="currentColor" />
                 Check in
@@ -508,7 +508,7 @@ export default function StudioEventPage() {
               title={event?.name || ""}
               campaign="event_share"
               content={slug}
-              className="flex-1 md:flex-initial flex items-center justify-center gap-1 bg-white/10 backdrop-blur-sm text-white text-xs font-semibold px-3 py-2 rounded-lg hover:bg-white/20 transition-colors border border-white/15"
+              className="flex-1 basis-[calc(50%-4px)] md:basis-auto md:flex-initial flex items-center justify-center gap-1 bg-white/10 backdrop-blur-sm text-white text-xs font-semibold px-3 py-2 rounded-lg hover:bg-white/20 transition-colors border border-white/15 whitespace-nowrap"
             >
               <HugeiconsIcon icon={Share01Icon} size={13} color="white" />
               Share
@@ -517,7 +517,7 @@ export default function StudioEventPage() {
               <button
                 type="button"
                 onClick={() => setShowCohosts(true)}
-                className="flex-1 md:flex-initial flex items-center justify-center gap-1.5 min-h-[40px] md:min-h-0 text-white text-xs font-semibold px-3 py-2 rounded-lg transition-colors bg-white/10 backdrop-blur-sm border border-white/15 hover:bg-white/20"
+                className="flex-1 basis-[calc(50%-4px)] md:basis-auto md:flex-initial flex items-center justify-center gap-1.5 min-h-[40px] md:min-h-0 text-white text-xs font-semibold px-3 py-2 rounded-lg transition-colors bg-white/10 backdrop-blur-sm border border-white/15 hover:bg-white/20 whitespace-nowrap"
               >
                 <HugeiconsIcon icon={UserMultiple02Icon} size={13} color="white" />
                 Co-hosts
@@ -528,7 +528,7 @@ export default function StudioEventPage() {
             )}
             {canEdit && <Link
               href={`/dashboard/events/${slug}/edit`}
-              className={`flex-1 md:flex-initial flex items-center justify-center gap-1 min-h-[40px] md:min-h-0 text-white text-xs font-semibold px-3 py-2 rounded-lg transition-colors ${
+              className={`flex-1 basis-[calc(50%-4px)] md:basis-auto md:flex-initial flex items-center justify-center gap-1 min-h-[40px] md:min-h-0 text-white text-xs font-semibold px-3 py-2 rounded-lg transition-colors whitespace-nowrap ${
                 isDraft
                   ? "bg-[#4F6EF7] hover:bg-blue-700 shadow-sm shadow-[#4F6EF7]/10"
                   : "bg-white/10 backdrop-blur-sm border border-white/15 hover:bg-white/20"
@@ -553,11 +553,11 @@ export default function StudioEventPage() {
         ].map((card) => {
           const isPending = card.value === "—";
           return (
-            <div key={card.label} className={`bg-white rounded-xl border p-4 transition-all duration-200 ${
+            <div key={card.label} className={`bg-white rounded-xl border p-3 sm:p-4 transition-all duration-200 ${
               isPending ? "border-gray-100/80 opacity-95" : "border-gray-100 shadow-sm hover:shadow-md"
             }`}>
-              <div className="flex items-center justify-between gap-2 mb-2">
-                <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider truncate">{card.label}</p>
+              <div className="flex items-start justify-between gap-2 mb-2">
+                <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide leading-tight">{card.label}</p>
                 <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${card.iconBg}`}>
                   <HugeiconsIcon icon={card.icon} size={14} color="currentColor" />
                 </div>
