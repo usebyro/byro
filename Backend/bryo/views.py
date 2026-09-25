@@ -2746,6 +2746,79 @@ class AdminAnalyticsSummaryView(APIView):
         })
 
 
+class AdminEventDetailView(APIView):
+    """
+    PATCH  /api/admin/events/<pk>/  — { is_active: bool }
+    DELETE /api/admin/events/<pk>/
+
+    Not the owner-facing EventViewSet: no ownership check, gated only by the
+    admin secret. The admin panel's suspend/reactivate/delete buttons need
+    this for events the platform admin doesn't personally own.
+    """
+    permission_classes = [IsAdminSecret]
+
+    def _get_event(self, pk):
+        try:
+            return Event.objects.get(pk=pk)
+        except Event.DoesNotExist:
+            return None
+
+    def patch(self, request, pk):
+        event = self._get_event(pk)
+        if event is None:
+            return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+        is_active = request.data.get('is_active')
+        if is_active is not None:
+            event.is_active = bool(is_active)
+            event.save(update_fields=['is_active'])
+        return Response(EventSerializer(event, context={'request': request}).data)
+
+    def delete(self, request, pk):
+        event = self._get_event(pk)
+        if event is None:
+            return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+        event.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class AdminEventAttendeesView(APIView):
+    """
+    GET /api/admin/events/<slug>/attendees/
+
+    Same shape as EventViewSet.attendees, but gated on the admin secret
+    instead of event ownership — the admin panel needs to see attendees for
+    any event, not just ones the platform admin happens to own or co-host.
+    """
+    permission_classes = [IsAdminSecret]
+
+    def get(self, request, slug):
+        try:
+            event = Event.objects.get(slug=slug)
+        except Event.DoesNotExist:
+            return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        tickets = event.tickets.select_related('user').prefetch_related('form_answers__question')
+
+        checked_in_filter = request.query_params.get('checked_in')
+        if checked_in_filter == 'true':
+            tickets = tickets.filter(checked_in=True)
+        elif checked_in_filter == 'false':
+            tickets = tickets.filter(checked_in=False)
+
+        status_filter = request.query_params.get('payment_status', 'confirmed')
+        if status_filter == 'confirmed':
+            tickets = tickets.filter(payment_status__in=['paid', 'free'])
+        elif status_filter != 'all':
+            tickets = tickets.filter(payment_status=status_filter)
+
+        serializer = TicketSerializer(tickets, many=True, context={'request': request})
+        return Response({
+            'count': tickets.count(),
+            'checked_in_count': tickets.filter(checked_in=True).count(),
+            'attendees': serializer.data,
+        })
+
+
 class AdminUsersListView(APIView):
     """
     GET /api/admin/users/?role=organizer

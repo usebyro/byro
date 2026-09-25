@@ -883,11 +883,17 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
                       <div>
                         <label className="text-xs font-medium text-gray-600 mb-1 block">Price (₦) — leave blank for free</label>
                         <input
-                          type="number"
-                          min="0"
-                          step="100"
+                          type="text"
+                          inputMode="decimal"
                           value={editTierData.price}
-                          onChange={e => setEditTierData(p => ({ ...p, price: e.target.value }))}
+                          onChange={e => {
+                            // A number input silently reports "" the moment a comma
+                            // sneaks in (e.g. "5,000"), which downstream treated as
+                            // "no price" and made the tier free. Strip anything but
+                            // digits and a single decimal point instead.
+                            const cleaned = e.target.value.replace(/[^0-9.]/g, "");
+                            setEditTierData(p => ({ ...p, price: cleaned }));
+                          }}
                           className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                           placeholder="e.g. 8500"
                         />
