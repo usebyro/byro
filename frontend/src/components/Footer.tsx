@@ -9,7 +9,7 @@ const footerLinks = {
   discover: [
     { label: "Concerts & Music", href: "/discover?category=entertainment" },
     { label: "Sports", href: "/discover?category=fitness" },
-    { label: "Nightlife", href: "/discover?category=art_culture" },
+    { label: "Nightlife", href: "/discover?category=nightlife" },
     { label: "Conferences", href: "/discover?category=conference" },
     { label: "Hackathon", href: "/discover?category=hackathon" },
   ],

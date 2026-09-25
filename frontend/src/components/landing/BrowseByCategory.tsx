@@ -13,7 +13,8 @@ interface Category {
 const categoryGradients: Record<string, string> = {
   entertainment: "from-purple-700 via-purple-500 to-pink-400",
   web3_crypto: "from-amber-600 via-amber-500 to-orange-400",
-  art_culture: "from-pink-600 via-pink-500 to-rose-400",
+  art_culture: "from-violet-700 via-violet-500 to-fuchsia-400",
+  nightlife: "from-pink-600 via-pink-500 to-rose-400",
   conference: "from-emerald-700 via-emerald-600 to-teal-500",
   fitness: "from-orange-600 via-amber-500 to-yellow-400",
   technology: "from-indigo-700 via-indigo-500 to-violet-400",
@@ -24,7 +25,8 @@ const categoryGradients: Record<string, string> = {
 const categoryDisplayNames: Record<string, string> = {
   entertainment: "Concerts &\nLive Music",
   fitness: "Sports &\nMatches",
-  art_culture: "Nightlife\n& Parties",
+  art_culture: "Art &\nCulture",
+  nightlife: "Nightlife\n& Parties",
   conference: "Talks &\nConferences",
   web3_crypto: "Web3 &\nCrypto",
   technology: "Tech &\nInnovation",
@@ -56,8 +58,16 @@ const CategoryIcon = ({ category }: { category: string }) => {
     case "art_culture":
       return (
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="12" cy="12" r="10" />
-          <polyline points="12 6 12 12 16 14" />
+          <path d="M12 2a10 10 0 1 0 0 20c1.1 0 2-.9 2-2 0-.5-.2-1-.5-1.3-.3-.4-.5-.8-.5-1.3 0-1.1.9-2 2-2h2.4c2 0 3.6-1.6 3.6-3.6C21 6.6 17 2 12 2Z" />
+          <circle cx="7.5" cy="11.5" r="1" fill="currentColor" stroke="none" />
+          <circle cx="10.5" cy="7.5" r="1" fill="currentColor" stroke="none" />
+          <circle cx="15" cy="8" r="1" fill="currentColor" stroke="none" />
+        </svg>
+      );
+    case "nightlife":
+      return (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z" />
         </svg>
       );
     case "conference":
@@ -130,7 +140,7 @@ const BrowseByCategory = () => {
       : [
           { value: "entertainment", label: "Entertainment", count: 0 },
           { value: "fitness", label: "Sports", count: 0 },
-          { value: "art_culture", label: "Art & Culture", count: 0 },
+          { value: "nightlife", label: "Nightlife", count: 0 },
           { value: "conference", label: "Conference", count: 0 },
         ];
 

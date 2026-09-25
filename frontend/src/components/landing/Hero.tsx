@@ -8,7 +8,7 @@ import { MusicNote01Icon, FootballIcon, Moon02Icon, Mic01Icon, Calendar03Icon } 
 const categories = [
   { label: "Concerts", icon: MusicNote01Icon, value: "entertainment" },
   { label: "Sports", icon: FootballIcon, value: "fitness" },
-  { label: "Nightlife", icon: Moon02Icon, value: "art_culture" },
+  { label: "Nightlife", icon: Moon02Icon, value: "nightlife" },
   { label: "Conferences", icon: Mic01Icon, value: "conference" },
   { label: "This weekend", icon: Calendar03Icon, value: "weekend" },
 ];
@@ -90,7 +90,7 @@ const Hero = () => {
                   <option value="All genres">All genres</option>
                   <option value="entertainment">Concerts</option>
                   <option value="fitness">Sports</option>
-                  <option value="art_culture">Nightlife</option>
+                  <option value="nightlife">Nightlife</option>
                   <option value="conference">Conferences</option>
                 </select>
                 <svg

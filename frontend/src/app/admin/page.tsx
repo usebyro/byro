@@ -106,7 +106,8 @@ function fmtNairaCompact(n: number) {
 const CATEGORY_LABELS: Record<string, string> = {
   entertainment: "Entertainment",
   web3_crypto: "Web3 & Crypto",
-  art_culture: "Nightlife & Parties",
+  art_culture: "Art & Culture",
+  nightlife: "Nightlife & Parties",
   conference: "Conferences",
   fitness: "Sports",
   technology: "Technology",

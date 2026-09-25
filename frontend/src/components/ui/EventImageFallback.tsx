@@ -3,6 +3,7 @@ import {
   FaMusic,
   FaFutbol,
   FaMoon,
+  FaPalette,
   FaMicrophoneLines,
   FaMicrochip,
   FaCubes,
@@ -16,7 +17,8 @@ type Icon = ComponentType<SVGProps<SVGSVGElement>>;
 const CATEGORIES: Record<string, { icon: Icon; soft: string; solid: string }> = {
   entertainment: { icon: FaMusic,            soft: "bg-purple-100 text-purple-400", solid: "bg-purple-800" },
   fitness:       { icon: FaFutbol,           soft: "bg-orange-100 text-orange-400", solid: "bg-orange-800" },
-  art_culture:   { icon: FaMoon,             soft: "bg-rose-100 text-rose-400",     solid: "bg-rose-800" },
+  art_culture:   { icon: FaPalette,          soft: "bg-pink-100 text-pink-400",     solid: "bg-pink-800" },
+  nightlife:     { icon: FaMoon,             soft: "bg-rose-100 text-rose-400",     solid: "bg-rose-800" },
   conference:    { icon: FaMicrophoneLines,  soft: "bg-teal-100 text-teal-500",     solid: "bg-teal-800" },
   technology:    { icon: FaMicrochip,        soft: "bg-indigo-100 text-indigo-400", solid: "bg-indigo-800" },
   web3_crypto:   { icon: FaCubes,            soft: "bg-amber-100 text-amber-500",   solid: "bg-amber-800" },

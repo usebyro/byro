@@ -36,7 +36,8 @@ interface Event {
 const categoryDotColors: Record<string, string> = {
   entertainment: "bg-purple-300",
   web3_crypto: "bg-amber-300",
-  art_culture: "bg-pink-300",
+  art_culture: "bg-violet-300",
+  nightlife: "bg-pink-300",
   conference: "bg-emerald-300",
   fitness: "bg-orange-300",
   technology: "bg-indigo-300",
@@ -46,7 +47,8 @@ const categoryDotColors: Record<string, string> = {
 const categoryLabels: Record<string, string> = {
   entertainment: "CONCERTS & MUSIC",
   web3_crypto: "WEB3 & CRYPTO",
-  art_culture: "NIGHTLIFE & PARTIES",
+  art_culture: "ART & CULTURE",
+  nightlife: "NIGHTLIFE & PARTIES",
   conference: "CONFERENCES",
   fitness: "SPORTS",
   technology: "TECHNOLOGY",

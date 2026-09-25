@@ -48,12 +48,26 @@ const CATEGORIES = [
     ),
   },
   {
-    id: "art_culture",
+    id: "nightlife",
     label: "Nightlife",
     accent: "#e11d48",
     tint: "#fdecef",
     icon: (
       <path d="M20 9.5A7.5 7.5 0 0 1 12.5 17a7.5 7.5 0 0 1-3.5-.85L4 18l1.85-5A7.5 7.5 0 0 1 5 9.5 7.5 7.5 0 0 1 12.5 2h.4A7.6 7.6 0 0 1 20 9.5z" />
+    ),
+  },
+  {
+    id: "art_culture",
+    label: "Art & Culture",
+    accent: "#a21caf",
+    tint: "#fbeafe",
+    icon: (
+      <>
+        <path d="M12 2a10 10 0 1 0 0 20c1.1 0 2-.9 2-2 0-.5-.2-1-.5-1.3-.3-.4-.5-.8-.5-1.3 0-1.1.9-2 2-2h2.4c2 0 3.6-1.6 3.6-3.6C21 6.6 17 2 12 2Z" />
+        <circle cx="7.5" cy="11.5" r="1" fill="currentColor" stroke="none" />
+        <circle cx="10.5" cy="7.5" r="1" fill="currentColor" stroke="none" />
+        <circle cx="15" cy="8" r="1" fill="currentColor" stroke="none" />
+      </>
     ),
   },
   {

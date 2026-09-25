@@ -26,7 +26,8 @@ const fmt = (price) =>
 const categoryLabels = {
   entertainment: "CONCERTS & MUSIC",
   web3_crypto:   "WEB3 & CRYPTO",
-  art_culture:   "NIGHTLIFE & PARTIES",
+  art_culture:   "ART & CULTURE",
+  nightlife:     "NIGHTLIFE & PARTIES",
   conference:    "CONFERENCES",
   fitness:       "SPORTS",
   technology:    "TECHNOLOGY",
