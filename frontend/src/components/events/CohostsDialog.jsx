@@ -179,7 +179,7 @@ export default function CohostsDialog({ open, onClose, slug, ownerEmail, cohosts
             <button
               type="submit"
               disabled={inviting || !email.trim()}
-              className="shrink-0 h-10 md:h-9 px-3.5 rounded-lg border border-gray-300 bg-white text-[13px] font-semibold text-gray-800 hover:bg-gray-50 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4F6EF7]"
+              className="shrink-0 h-10 md:h-9 px-3.5 rounded-lg bg-[#4F6EF7] text-[13px] font-semibold text-white hover:bg-blue-700 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#4F6EF7]"
             >
               {inviting ? "Sending…" : "Send invite"}
             </button>

@@ -107,6 +107,11 @@ export default function AdminPayoutsPage() {
   const processed = payouts.filter((p) => p.status === "processed");
   const rejected = payouts.filter((p) => p.status === "rejected");
 
+  const sumOf = (list: PayoutRequest[]) => list.reduce((s, p) => s + Number(p.amount || 0), 0);
+  const outstandingAmount = sumOf(pending);
+  const paidOutAmount = sumOf(processed);
+  const totalVolume = sumOf(payouts); // pending + processed + rejected, lifetime
+
   return (
     <div className="p-5 md:p-8">
       {/* Header */}
@@ -122,18 +127,26 @@ export default function AdminPayoutsPage() {
       )}
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <div className="bg-[#1a1d27] border border-white/10 rounded-xl px-5 py-4 border-l-2 border-l-yellow-500/50">
-          <p className="text-gray-400 text-xs mb-1.5">Pending</p>
-          <p className="text-white text-2xl font-semibold tabular-nums">{pending.length}</p>
+          <p className="text-gray-400 text-xs mb-1.5">Outstanding</p>
+          <p className="text-white text-2xl font-semibold tabular-nums">{fmtNaira(outstandingAmount)}</p>
+          <p className="text-gray-500 text-xs mt-1">{pending.length} pending</p>
+        </div>
+        <div className="bg-[#1a1d27] border border-white/10 rounded-xl px-5 py-4 border-l-2 border-l-green-500/50">
+          <p className="text-gray-400 text-xs mb-1.5">Total paid out</p>
+          <p className="text-white text-2xl font-semibold tabular-nums">{fmtNaira(paidOutAmount)}</p>
+          <p className="text-gray-500 text-xs mt-1">{processed.length} processed</p>
         </div>
         <div className="bg-[#1a1d27] border border-white/10 rounded-xl px-5 py-4">
-          <p className="text-gray-400 text-xs mb-1.5">Processed</p>
-          <p className="text-white text-2xl font-semibold tabular-nums">{processed.length}</p>
+          <p className="text-gray-400 text-xs mb-1.5">Total volume</p>
+          <p className="text-white text-2xl font-semibold tabular-nums">{fmtNaira(totalVolume)}</p>
+          <p className="text-gray-500 text-xs mt-1">{payouts.length} requests, all-time</p>
         </div>
         <div className="bg-[#1a1d27] border border-white/10 rounded-xl px-5 py-4">
           <p className="text-gray-400 text-xs mb-1.5">Rejected</p>
           <p className="text-white text-2xl font-semibold tabular-nums">{rejected.length}</p>
+          <p className="text-gray-500 text-xs mt-1">{fmtNaira(sumOf(rejected))} requested</p>
         </div>
       </div>
 
