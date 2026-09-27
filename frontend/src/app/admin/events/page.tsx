@@ -328,7 +328,6 @@ export default function AdminEventsPage() {
 
   return (
     <div className="p-5 md:p-8">
-      {/* Header */}
       <div className="mb-8">
         <h1 className="text-white text-xl font-bold">Events</h1>
         <p className="text-gray-400 text-sm mt-1">All events on the platform</p>
@@ -342,7 +341,6 @@ export default function AdminEventsPage() {
         className="w-full sm:w-80 mb-8 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500/50"
       />
 
-      {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-8">
         {[
           { label: "Total Events", value: events.length },
@@ -366,7 +364,6 @@ export default function AdminEventsPage() {
         <p className="text-red-400 text-sm mb-6">{error}</p>
       )}
 
-      {/* Free Events */}
       <div className="bg-[#1a1d27] border border-white/10 rounded-xl p-6 mb-6">
         <div className="flex items-center gap-2 mb-5">
           <h2 className="text-white font-semibold">Free Events</h2>
@@ -386,7 +383,6 @@ export default function AdminEventsPage() {
         )}
       </div>
 
-      {/* Paid Events */}
       <div className="bg-[#1a1d27] border border-white/10 rounded-xl p-6">
         <div className="flex items-center gap-2 mb-5">
           <h2 className="text-white font-semibold">Paid Events</h2>
@@ -406,7 +402,6 @@ export default function AdminEventsPage() {
         )}
       </div>
 
-      {/* Event detail drawer */}
       {selected && (
         <div className="fixed inset-0 z-50 flex justify-end">
           <div className="absolute inset-0 bg-black/70" onClick={() => setSelected(null)} />

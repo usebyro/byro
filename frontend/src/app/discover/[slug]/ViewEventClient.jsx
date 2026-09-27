@@ -241,7 +241,6 @@ export default function ViewEventClient({ slug }) {
       <div className="min-h-screen bg-white flex flex-col">
         <Navbar />
 
-        {/* ── Hero ── */}
         <div className="relative w-full" style={{ height: "380px" }}>
           {imageUrl ? (
             <img src={imageUrl} alt={event.name} className="w-full h-full object-cover" />
@@ -250,7 +249,6 @@ export default function ViewEventClient({ slug }) {
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-black/10" />
 
-          {/* Top-right actions */}
           <div className="absolute top-5 right-5 flex items-center gap-2">
             <ShareMenu
               url={typeof window !== "undefined" ? window.location.href : ""}
@@ -272,7 +270,6 @@ export default function ViewEventClient({ slug }) {
             </button>
           </div>
 
-          {/* Owner: Manage button */}
           {event?.role?.is_owner && (
             <button
               onClick={() => router.push(`/dashboard/events/${event.slug}`)}
@@ -282,7 +279,6 @@ export default function ViewEventClient({ slug }) {
             </button>
           )}
 
-          {/* Bottom overlay */}
           <div className="absolute bottom-0 left-0 right-0 px-6 pb-8">
             <span className="inline-flex items-center bg-white/10 backdrop-blur-sm border border-white/20 text-white text-xs font-bold tracking-wider px-3 py-1.5 rounded-full mb-4">
               {badgeLabel}
@@ -307,12 +303,9 @@ export default function ViewEventClient({ slug }) {
           </div>
         </div>
 
-        {/* ── Body ── */}
         <div className="flex-1 max-w-5xl mx-auto w-full px-4 sm:px-6 py-10 flex flex-col lg:flex-row gap-8 items-start">
 
-          {/* Left column */}
           <div className="flex-1 min-w-0 order-2 lg:order-1">
-            {/* About */}
             <section className="mb-10">
               <h2 className="text-xl font-bold text-gray-900 mb-3">About this event</h2>
               {event.description ? (
@@ -326,7 +319,6 @@ export default function ViewEventClient({ slug }) {
             </section>
 
 
-            {/* Location */}
             <section className="mb-10">
               <h2 className="text-xl font-bold text-gray-900 mb-4">Location</h2>
               {event.location || event.address ? (
@@ -355,7 +347,6 @@ export default function ViewEventClient({ slug }) {
               )}
             </section>
 
-            {/* Organizer */}
             <section className="mb-10">
               <div className="flex items-center justify-between p-5 border border-gray-100 rounded-2xl">
                 <button
@@ -414,7 +405,6 @@ export default function ViewEventClient({ slug }) {
             )}
           </div>
 
-          {/* ── Right sticky panel ── */}
           <div className="lg:w-72 xl:w-80 shrink-0 w-full order-1 lg:order-2">
             <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-5 lg:sticky lg:top-24">
               {isFree ? (
@@ -453,7 +443,6 @@ export default function ViewEventClient({ slug }) {
                     ))}
                   </div>
 
-                  {/* Quantity */}
                   <div className="flex items-center justify-between mb-5">
                     <span className="text-sm font-medium text-gray-700">Quantity</span>
                     <div className="flex items-center gap-3">
@@ -480,7 +469,6 @@ export default function ViewEventClient({ slug }) {
 
                   <p className="-mt-3 mb-5 text-xs text-gray-500 text-right">{describeTicketLimits(activeTier, event)}</p>
 
-                  {/* Price breakdown */}
                   <div className="space-y-2 pb-4 mb-4 border-b border-gray-100 text-sm">
                     <div className="flex justify-between text-gray-600">
                       <span>{effectiveQty} × {activeTier.name}</span>

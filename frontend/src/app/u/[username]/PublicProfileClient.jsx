@@ -174,7 +174,6 @@ export default function PublicProfileClient({ username }) {
     <div className="flex flex-col min-h-screen bg-[#F8F9FA]">
       <Navbar />
 
-      {/* ── Banner Section ── */}
       <div className="relative w-full h-[220px] md:h-[280px] bg-[#E3E8FF] overflow-hidden">
         {profile.cover_image_url && !coverImageError ? (
           <Image
@@ -189,21 +188,17 @@ export default function PublicProfileClient({ username }) {
         ) : null}
       </div>
 
-      {/* ── Profile Header Container ── */}
       <div className="max-w-6xl mx-auto w-full px-4 md:px-8 relative z-10 -mt-16 mb-8">
         <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-gray-100/80">
           <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
             
-            {/* Avatar & Info */}
             <div className="flex flex-col md:flex-row items-center md:items-start gap-6 text-center md:text-left">
-              {/* Avatar overlapping the banner */}
               <Avatar
                 src={profile.avatar_url}
                 name={profile.display_name || profile.handle}
                 className="w-24 h-24 md:w-28 md:h-28 rounded-2xl md:rounded-3xl border-4 border-white shadow-md text-3xl md:text-4xl"
               />
 
-              {/* Bio details */}
               <div className="mt-2">
                 <div className="flex items-center justify-center md:justify-start gap-2 flex-wrap">
                   <h1 className="text-2xl md:text-3xl font-extrabold text-gray-900 leading-tight">
@@ -237,7 +232,6 @@ export default function PublicProfileClient({ username }) {
               </div>
             </div>
 
-            {/* Action Buttons */}
             <div className="flex items-center justify-center gap-2 w-full md:w-auto mt-4 md:mt-2">
               <ShareMenu
                 url={typeof window !== "undefined" ? window.location.href : ""}
@@ -263,7 +257,6 @@ export default function PublicProfileClient({ username }) {
 
           </div>
 
-          {/* Bio text */}
           {profile.bio && (
             <p className="mt-6 text-sm text-gray-600 leading-relaxed text-center md:text-left border-t border-gray-50 pt-5">
               {profile.bio}
@@ -272,10 +265,8 @@ export default function PublicProfileClient({ username }) {
         </div>
       </div>
 
-      {/* ── Tabs & Events Grid ── */}
       <div className="max-w-6xl mx-auto w-full px-4 md:px-8 mb-16 flex-1">
         
-        {/* Navigation Tabs */}
         <div className="flex items-center border-b border-gray-200 gap-8 mb-8">
           <button
             onClick={() => setActiveTab("events")}
@@ -317,7 +308,6 @@ export default function PublicProfileClient({ username }) {
           </button>
         </div>
 
-        {/* Tab Contents */}
         {activeTab === "events" && (
           <div>
             <div className="flex items-center justify-between mb-6">
@@ -394,7 +384,6 @@ export default function PublicProfileClient({ username }) {
               </div>
             )}
 
-            {/* Social Links */}
             {(profile.twitter || profile.instagram || profile.linkedin || profile.telegram) && (
               <div className="border-t border-gray-100 pt-5">
                 <h4 className="font-bold text-gray-900 text-sm mb-3">Connect on Socials</h4>
@@ -541,7 +530,6 @@ function EventCard({ event }) {
       onClick={() => router.push(`/discover/${event.slug}`)}
       className="group bg-white rounded-3xl overflow-hidden border border-gray-100/80 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col h-[380px] cursor-pointer relative"
     >
-      {/* Event image */}
       <div className="h-[200px] w-full relative overflow-hidden shrink-0 bg-gray-100">
         {imageUrl && !imageError ? (
           <Image
@@ -557,12 +545,10 @@ function EventCard({ event }) {
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
 
-        {/* Category Badge overlay */}
         <span className="absolute top-4 left-4 bg-white/20 backdrop-blur-md border border-white/20 text-white text-[10px] font-bold tracking-wider px-3 py-1.5 rounded-full uppercase">
           {badgeLabel}
         </span>
 
-        {/* Heart Icon overlay */}
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -576,14 +562,12 @@ function EventCard({ event }) {
           </svg>
         </button>
 
-        {/* Date Tag Overlay on bottom left */}
         <div className="absolute bottom-4 left-4 text-white text-xs font-semibold flex items-center gap-1.5 opacity-90">
           <HugeiconsIcon icon={Calendar01Icon} size={12} color="white" />
           <span>{formattedDate} · {formattedTime}</span>
         </div>
       </div>
 
-      {/* Info details */}
       <div className="p-5 flex-1 flex flex-col justify-between">
         <div>
           <h3 className="font-serif text-lg font-bold text-gray-900 line-clamp-2 leading-tight group-hover:text-blue-600 transition-colors">
@@ -595,7 +579,6 @@ function EventCard({ event }) {
           </p>
         </div>
 
-        {/* Action row */}
         <div className="flex items-center justify-between border-t border-gray-50 pt-4 mt-3 shrink-0">
           <div>
             <span className="text-[10px] font-bold text-gray-400 tracking-wider uppercase block">From</span>

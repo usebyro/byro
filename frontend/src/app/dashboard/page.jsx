@@ -170,7 +170,6 @@ export default function StudioDashboard() {
   return (
     <div className="p-4 sm:p-6 max-w-5xl mx-auto space-y-5">
 
-      {/* ── Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-gray-100/50">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
@@ -187,7 +186,6 @@ export default function StudioDashboard() {
         </Link>
       </div>
 
-      {/* ── Stat cards ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <StatCard icon={Money01Icon}        label="Revenue"           value={loading || !last30 ? "—" : fmtNaira(Number(last30.revenue))} trend={last30 ? pctChange(Number(last30.revenue), Number(prev30?.revenue)) : null} note={last30 && Number(last30.revenue) === 0 ? "No sales yet" : "Last 30 days"} iconBg="bg-teal-50"   iconColor="text-teal-600" />
         <StatCard icon={Ticket01Icon}       label="Tickets sold"      value={loading || !last30 ? "—" : last30.tickets}                   trend={last30 ? pctChange(last30.tickets, prev30?.tickets) : null}                     note={last30 && last30.tickets === 0 ? "No sales yet" : "Last 30 days"}                    iconBg="bg-blue-50"   iconColor="text-blue-600" />
@@ -195,10 +193,8 @@ export default function StudioDashboard() {
         <StatCard icon={UserMultiple02Icon} label="Avg. fill rate"    value={loading || analytics?.avg_fill_rate == null ? "—" : `${analytics.avg_fill_rate}%`} trend={null} note={analytics && analytics.avg_fill_rate == null ? "Set a capacity to track" : "Tickets sold vs capacity"} iconBg="bg-amber-50"  iconColor="text-amber-600" />
       </div>
 
-      {/* ── Revenue chart + Top by sales ── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
-        {/* Chart */}
         <div className="lg:col-span-2 bg-white rounded-xl border border-gray-100/80 shadow-sm p-4 flex flex-col justify-between">
           <div className="flex items-start justify-between mb-3 gap-2">
             <div>
@@ -262,7 +258,6 @@ export default function StudioDashboard() {
           </div>
         </div>
 
-        {/* Top by sales */}
         <div className="bg-white rounded-xl border border-gray-100/80 shadow-sm p-4 flex flex-col">
           <p className="text-sm font-bold text-gray-800">Top by sales</p>
           <p className="text-[11px] text-gray-400 mb-4">This month</p>
@@ -312,7 +307,6 @@ export default function StudioDashboard() {
         </div>
       </div>
 
-      {/* ── Your events ── */}
       <div className="bg-white rounded-xl border border-gray-100/80 shadow-sm p-4">
         <div className="flex items-center justify-between mb-4">
           <p className="text-sm font-bold text-gray-800">Your events</p>
@@ -362,7 +356,6 @@ export default function StudioDashboard() {
                   href={`/dashboard/events/${event.slug}`}
                   className="flex items-center gap-3 py-2.5 -mx-1 px-1 rounded-lg hover:bg-gray-50/70 transition-colors group"
                 >
-                  {/* Thumbnail */}
                   <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0 relative bg-gray-50 border border-gray-100/50">
                     {img ? (
                       <Image src={img} alt={event.name} fill className="object-cover" />
@@ -371,7 +364,6 @@ export default function StudioDashboard() {
                     )}
                   </div>
 
-                  {/* Name + date */}
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-semibold text-gray-800 truncate group-hover:text-[#4F6EF7] transition-colors">
                       {event.name}
@@ -382,7 +374,6 @@ export default function StudioDashboard() {
                     </p>
                   </div>
 
-                  {/* Progress bar */}
                   <div className="hidden md:flex items-center gap-2 w-32 shrink-0">
                     {capacity > 0 ? (
                       <>
@@ -396,12 +387,10 @@ export default function StudioDashboard() {
                     )}
                   </div>
 
-                  {/* Revenue */}
                   <p className={`text-xs md:w-24 text-right shrink-0 ${stats?.is_free ? "text-gray-500" : "font-bold text-gray-800"}`}>
                     {stats?.is_free ? "Free" : stats && stats.is_owner !== false ? fmtNaira(Number(stats.revenue)) : "—"}
                   </p>
 
-                  {/* Status badge */}
                   <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md ${status.pill} shrink-0 w-16 justify-center`}>
                     <span className={`w-1 h-1 rounded-full ${status.dot}`} />
                     {status.label}

@@ -500,7 +500,6 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
 
   return (
     <div className={embedded ? "" : "min-h-screen bg-[#F5F6FA]"}>
-      {/* ── Top bar ── */}
       <div className="bg-white border-b border-gray-100 px-4 md:px-6 py-3 flex flex-col md:flex-row md:items-center justify-between gap-3 sticky top-0 z-10">
         <div className="flex items-center gap-2">
           <button onClick={() => router.back()} className="flex items-center justify-center w-7 h-7 rounded-lg text-gray-500 hover:text-gray-800 hover:bg-gray-50 transition-colors shrink-0">
@@ -536,13 +535,10 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
         </div>
       </div>
 
-      {/* ── Body ── */}
       <div className="max-w-5xl mx-auto px-4 md:px-6 pt-6 pb-28 md:py-8 flex flex-col lg:flex-row gap-6 items-stretch lg:items-start">
 
-        {/* Left column */}
         <div className="w-full lg:flex-1 min-w-0 space-y-5">
 
-          {/* Event details card */}
           <Collapsible
             id="sec-details"
             title="Event details"
@@ -551,7 +547,6 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
             onToggle={() => toggle("details")}
           >
 
-            {/* Name */}
             <div className="mb-5">
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Event name</label>
               <input
@@ -563,7 +558,6 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
               />
             </div>
 
-            {/* Category */}
             <div className="mb-5">
               <label className="block text-sm font-medium text-gray-700 mb-3">Category</label>
               <div className="flex flex-wrap gap-2">
@@ -609,7 +603,6 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
               </div>
             </div>
 
-            {/* Description */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Description</label>
               <RichTextEditor
@@ -619,7 +612,6 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
             </div>
           </Collapsible>
 
-          {/* Date & location card */}
           <Collapsible
             id="sec-date"
             title="Date & location"
@@ -629,7 +621,6 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
           >
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                {/* Date */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">Date</label>
                   <div className="relative">
@@ -641,7 +632,6 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
                     />
                   </div>
                 </div>
-                {/* Start time */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">Start time</label>
                   <div className="relative">
@@ -655,7 +645,6 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
                 </div>
               </div>
 
-              {/* Venue */}
               <div className="relative">
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Venue</label>
                 <div className="relative">
@@ -672,7 +661,6 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
                   />
                 </div>
 
-                {/* Suggestions dropdown */}
                 {showSuggestions && venueSuggestions.length > 0 && (
                   <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
                     {venueSuggestions.map((s, i) => (
@@ -695,7 +683,6 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
                   </div>
                 )}
 
-                {/* Map preview */}
                 {venueCoords && (
                   <div className="mt-3 rounded-xl overflow-hidden border border-gray-200" style={{ height: "200px" }}>
                     <iframe
@@ -738,7 +725,6 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
             </div>
           </Collapsible>
 
-          {/* Ticket tiers card */}
           <Collapsible
             id="sec-tiers"
             title="Ticket tiers"
@@ -965,10 +951,8 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
           </Collapsible>
         </div>
 
-        {/* Right column */}
         <div className="lg:w-64 xl:w-72 shrink-0 w-full space-y-4">
 
-          {/* Cover image */}
           <Collapsible
             id="sec-cover"
             size="sm"
@@ -1009,7 +993,6 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
             <p className="mt-2.5 text-sm text-gray-500">1600×900px, up to 5MB</p>
           </Collapsible>
 
-          {/* Settings */}
           <Collapsible
             id="sec-settings"
             size="sm"
