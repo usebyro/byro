@@ -33,6 +33,17 @@ function pctChange(current, previous) {
 const MONTH_LABEL = (ym) =>
   new Date(`${ym}-01T00:00:00`).toLocaleDateString("en-US", { month: "short" });
 
+// Week range points come back as full ISO dates ("2026-09-24"), not "YYYY-MM".
+const DAY_LABEL = (isoDate) =>
+  new Date(`${isoDate}T00:00:00`).toLocaleDateString("en-US", { weekday: "short" });
+
+const REVENUE_RANGES = [
+  { value: "week", label: "Week" },
+  { value: "3m", label: "3 months" },
+  { value: "6m", label: "6 months" },
+  { value: "12m", label: "12 months" },
+];
+
 function getImageUrl(event) {
   return (
     event.event_image_url ||
@@ -105,6 +116,8 @@ export default function StudioDashboard() {
   const [dashboard, setDashboard] = useState(null);
   const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading]     = useState(true);
+  const [revenueRange, setRevenueRange] = useState("12m");
+  const [chartLoading, setChartLoading] = useState(false);
   const user = useSelector((s) => s.auth?.user);
   const firstName = (user?.display_name || user?.displayName || user?.name || "").split(" ")[0] || "there";
 
@@ -116,13 +129,25 @@ export default function StudioDashboard() {
   }, []);
 
   useEffect(() => {
-    Promise.allSettled([API.getDashboard(), API.getDashboardAnalytics()])
+    Promise.allSettled([API.getDashboard(), API.getDashboardAnalytics(revenueRange)])
       .then(([d, a]) => {
         setDashboard(d.status === "fulfilled" ? d.value : null);
         setAnalytics(a.status === "fulfilled" ? a.value : null);
       })
       .finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Re-fetch just the chart series when the range changes, after the initial load.
+  useEffect(() => {
+    if (loading) return;
+    setChartLoading(true);
+    API.getDashboardAnalytics(revenueRange)
+      .then((a) => setAnalytics((prev) => ({ ...prev, monthly_revenue: a.monthly_revenue })))
+      .catch(() => {})
+      .finally(() => setChartLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [revenueRange]);
 
   const upcoming = (dashboard?.hosting?.upcoming || []).filter((e) => !e.is_draft);
   const past     = dashboard?.hosting?.past     || [];
@@ -130,8 +155,9 @@ export default function StudioDashboard() {
 
   const last30 = analytics?.last_30d;
   const prev30 = analytics?.previous_30d;
+  const labelFor = revenueRange === "week" ? DAY_LABEL : MONTH_LABEL;
   const chartData = (analytics?.monthly_revenue || []).map((m, i, arr) => ({
-    month: MONTH_LABEL(m.month),
+    month: labelFor(m.month),
     value: Number(m.revenue),
     current: i === arr.length - 1,
   }));
@@ -174,14 +200,31 @@ export default function StudioDashboard() {
 
         {/* Chart */}
         <div className="lg:col-span-2 bg-white rounded-xl border border-gray-100/80 shadow-sm p-4 flex flex-col justify-between">
-          <div className="flex items-start justify-between mb-3">
+          <div className="flex items-start justify-between mb-3 gap-2">
             <div>
               <p className="text-sm font-bold text-gray-800">Revenue</p>
-              <p className="text-[11px] text-gray-400">Last 12 months</p>
+              <p className="text-[11px] text-gray-400">
+                {revenueRange === "week" ? "Last 7 days" : `Last ${REVENUE_RANGES.find((r) => r.value === revenueRange)?.label.toLowerCase() || "12 months"}`}
+              </p>
+            </div>
+            <div className="flex items-center gap-0.5 bg-gray-50 border border-gray-100 rounded-lg p-0.5 shrink-0">
+              {REVENUE_RANGES.map((r) => (
+                <button
+                  key={r.value}
+                  onClick={() => setRevenueRange(r.value)}
+                  className={`px-2 py-1 rounded-md text-[11px] font-semibold transition-colors ${
+                    revenueRange === r.value
+                      ? "bg-white text-gray-900 shadow-sm"
+                      : "text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  {r.value === "week" ? "W" : r.label.replace(" months", "M")}
+                </button>
+              ))}
             </div>
           </div>
           <div className="w-full">
-            {loading ? (
+            {loading || chartLoading ? (
               <div className="h-[150px] rounded-lg bg-gray-50 animate-pulse" />
             ) : !hasRevenue ? (
               <div className="h-[150px] flex flex-col items-center justify-center text-center">

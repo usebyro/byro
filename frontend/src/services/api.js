@@ -244,9 +244,14 @@ const API = {
     }
   },
 
-  getDashboardAnalytics: async () => {
+  // range: "week" | "3m" | "6m" | "12m" (default "12m") — only affects the
+  // revenue chart series (monthly_revenue); everything else in the response
+  // is unaffected.
+  getDashboardAnalytics: async (range) => {
     try {
-      const response = await axiosInstance.get("dashboard/analytics/");
+      const response = await axiosInstance.get("dashboard/analytics/", {
+        params: range ? { range } : undefined,
+      });
       return response.data;
     } catch (error) {
       throw handleApiError(error);
