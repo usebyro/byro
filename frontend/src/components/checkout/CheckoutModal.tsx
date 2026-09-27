@@ -426,7 +426,6 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
         strategy="lazyOnload"
         onLoad={() => setTurnstileReady(true)}
       />
-      {/* ── Checkout header ── */}
       <div className="sticky top-0 z-10 bg-white border-b border-gray-100 px-4 sm:px-6 py-3.5 flex items-center justify-between">
         <div className="w-[70px]" aria-hidden="true" />
         <div className="flex items-center gap-1.5 text-sm text-gray-400">
@@ -491,7 +490,6 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
         </div>
       )}
 
-      {/* ── Step indicator ── */}
       <div className="bg-white border-b border-gray-100 px-6 py-4">
         <div className="flex items-center justify-center">
           {STEPS.map((name, i) => {
@@ -550,10 +548,8 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
         </div>
       </div>
 
-      {/* ── Main content ── */}
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
         <div className="flex flex-col lg:flex-row gap-6 items-start">
-          {/* Left panel */}
           <div className="flex-1 w-full">
             {/* Step 1 – Tickets */}
             {step === 1 && (
@@ -681,7 +677,6 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                   })}
                 </div>
 
-                {/* Promo code */}
                 <div className="mt-4 flex items-center border border-gray-200 rounded-xl overflow-hidden">
                   <div className="flex items-center gap-2 flex-1 min-w-0 px-4 py-3">
                     <svg
@@ -748,7 +743,6 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                 </p>
 
                 <div className="space-y-4">
-                  {/* Full name */}
                   <div>
                     <label className="text-sm font-medium text-gray-700 block mb-1.5">
                       Full name
@@ -776,7 +770,6 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                     </div>
                   </div>
 
-                  {/* Email + Phone */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="text-sm font-medium text-gray-700 block mb-1.5">
@@ -834,7 +827,6 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
 
                 </div>
 
-                {/* Ticket delivery */}
                 <div className="mt-5 border border-gray-100 rounded-xl p-4">
                   <p className="font-semibold text-gray-900 text-sm mb-3">
                     Ticket recipient(s)
@@ -864,7 +856,6 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                     </label>
                   )}
 
-                  {/* Per-recipient details */}
                   {recipientCount > 0 && (
                     <div className="mt-4 space-y-4 border-t border-gray-100 pt-4">
                       {isRedirect && (
@@ -923,9 +914,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                   All transactions are encrypted and secure.
                 </p>
 
-                {/* Payment methods */}
                 <div className="space-y-3 mb-5">
-                  {/* Pay with Paystack */}
                   <label
                     className={`flex items-center gap-4 p-4 rounded-xl border cursor-pointer transition-colors ${
                       payMethod === "paystack"
@@ -1088,11 +1077,9 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
             )}
           </div>
 
-          {/* ── Right panel – Order summary ── */}
           {step < 4 && (
             <div className="lg:w-72 xl:w-80 w-full shrink-0 order-last lg:order-none">
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden lg:sticky lg:top-28">
-                {/* Event preview */}
                 <div className="relative h-28">
                   {event.event_image_url ? (
                     <Image
@@ -1163,7 +1150,6 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                     {event.location}
                   </div>
 
-                  {/* Order lines */}
                   {subtotal > 0 && (
                     <div className="mt-4 pt-4 border-t border-gray-100 space-y-2">
                       {tiers.map((t) => {
@@ -1244,7 +1230,6 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                     </div>
                   )}
 
-                  {/* CTA */}
                   <button
                     onClick={() => {
                       if (step === 2) {

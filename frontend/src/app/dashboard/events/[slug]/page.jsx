@@ -448,7 +448,6 @@ export default function StudioEventPage() {
 
   return (
     <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-5">
-      {/* Back */}
       <div>
         <Link href="/dashboard/events" className="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-700 transition-colors">
           <HugeiconsIcon icon={ArrowLeft01Icon} size={13} color="currentColor" />
@@ -456,7 +455,6 @@ export default function StudioEventPage() {
         </Link>
       </div>
 
-      {/* Event hero */}
       {/* The banner itself must not clip (the Share menu opens below it): only the image layer is clipped. */}
       <div className="relative rounded-xl shadow-sm bg-gray-950" style={{ minHeight: 130 }}>
         <div className="absolute inset-0 overflow-hidden rounded-xl">
@@ -541,7 +539,6 @@ export default function StudioEventPage() {
         </div>
       </div>
 
-      {/* Stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
         {[
           { label: "Revenue", value: eventRevenue === null ? "—" : fmtNaira(eventRevenue), icon: Money01Icon, iconBg: "bg-teal-50 text-teal-600", trend: null, note: "From paid tickets" },
@@ -575,7 +572,6 @@ export default function StudioEventPage() {
         })}
       </div>
 
-      {/* Tabs */}
       <div className="flex gap-4 border-b border-gray-100 pb-0.5">
         {visibleTabs.map((tab) => (
           <button
@@ -594,14 +590,12 @@ export default function StudioEventPage() {
 
       {currentTab === "attendees" && (
         <div className="bg-white rounded-xl border border-gray-100/80 shadow-sm overflow-hidden">
-          {/* Table header */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 px-4 py-3 border-b border-gray-100 bg-white">
             <div className="flex items-center gap-1.5">
               <p className="font-bold text-gray-800 text-sm">Guest list</p>
               <span className="text-gray-400 text-xs">({attendees.length})</span>
             </div>
             <div className="flex items-center gap-2 flex-wrap md:flex-nowrap w-full md:w-auto justify-between md:justify-end">
-              {/* Filter pills */}
               <div className="flex gap-0.5 bg-gray-50 p-0.5 rounded-lg border border-gray-100/50">
                 {["all", "checkedin"].map((f) => (
                   <button
@@ -617,7 +611,6 @@ export default function StudioEventPage() {
                   </button>
                 ))}
               </div>
-              {/* Sort */}
               <div>
                 <label htmlFor="guest-sort" className="sr-only">Sort guests</label>
                 <select
@@ -634,7 +627,6 @@ export default function StudioEventPage() {
                   <option value="tier">By tier</option>
                 </select>
               </div>
-              {/* Search */}
               <div className="relative flex-1 md:flex-initial">
                 <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
@@ -648,7 +640,6 @@ export default function StudioEventPage() {
                 />
               </div>
               <div className="flex items-center gap-1.5 w-full md:w-auto">
-                {/* Check in */}
                 <button
                   onClick={() => { setCheckInMode("scan"); setCheckInModal(true); }}
                   className="flex-1 md:flex-initial flex items-center justify-center gap-1 bg-[#4F6EF7] text-white text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-blue-700 transition-colors shadow-sm shadow-[#4F6EF7]/10"
@@ -656,7 +647,6 @@ export default function StudioEventPage() {
                   <HugeiconsIcon icon={QrCodeIcon} size={11} color="white" />
                   Check in
                 </button>
-                {/* Export */}
                 <button
                   onClick={handlePrint}
                   className="flex-1 md:flex-initial flex items-center justify-center gap-1 bg-white border border-gray-200 text-gray-600 text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-gray-50 transition-colors"
@@ -668,7 +658,6 @@ export default function StudioEventPage() {
             </div>
           </div>
 
-          {/* Active filter summary */}
           {(search || filter !== "all") && (
             <div className="flex items-center gap-2 px-4 py-2 border-b border-gray-100 bg-blue-50/40 text-xs text-gray-600">
               <span>
@@ -685,7 +674,6 @@ export default function StudioEventPage() {
             </div>
           )}
 
-          {/* Column headers */}
           <div className="grid grid-cols-12 px-4 py-2 border-b border-gray-100 bg-gray-50/50">
             <div className="col-span-8 md:col-span-5 text-xs font-bold text-gray-400 tracking-wider uppercase">Attendee</div>
             <div className="hidden md:block md:col-span-3 text-xs font-bold text-gray-400 tracking-wider uppercase">Tier</div>
@@ -693,7 +681,6 @@ export default function StudioEventPage() {
             <div className="col-span-4 md:col-span-2 text-xs font-bold text-gray-400 tracking-wider uppercase text-right">Status</div>
           </div>
 
-          {/* Rows */}
           {loadingAttendees ? (
             <div className="divide-y divide-gray-50">
               {[1, 2, 3, 4, 5].map((i) => (
@@ -752,7 +739,6 @@ export default function StudioEventPage() {
             <div className="divide-y divide-gray-50">
               {filteredAttendees.map((a) => (
                 <div key={a.id} className="grid grid-cols-12 px-4 py-2.5 hover:bg-gray-50/50 items-center transition-colors">
-                  {/* Attendee */}
                   <div className="col-span-8 md:col-span-5 flex items-center gap-2.5 min-w-0">
                     <Avatar name={a.name} />
                     <div className="min-w-0">
@@ -760,17 +746,14 @@ export default function StudioEventPage() {
                       <p className="text-xs text-gray-400 truncate">{a.email}</p>
                     </div>
                   </div>
-                  {/* Tier */}
                   <div className="hidden md:block md:col-span-3">
                     <span className="text-xs font-medium px-2 py-0.5 rounded-md bg-gray-100 text-gray-700">
                       {a.tier}
                     </span>
                   </div>
-                  {/* Ref */}
                   <div className="hidden md:block md:col-span-2">
                     <span className="text-xs font-mono text-gray-500">{a.ref}</span>
                   </div>
-                  {/* Status */}
                   <div className="col-span-4 md:col-span-2 text-right">
                     {a.checkedIn ? (
                       <span className="text-xs font-bold text-green-600 inline-flex items-center justify-end gap-0.5">
@@ -786,7 +769,6 @@ export default function StudioEventPage() {
             </div>
           )}
 
-          {/* Footer */}
           {filteredAttendees.length > 0 && (
             <div className="flex items-center justify-between px-4 py-2.5 border-t border-gray-200 bg-gray-50/30">
               <p className="text-xs font-medium text-gray-400">
@@ -837,7 +819,6 @@ export default function StudioEventPage() {
 
       {currentTab === "discounts" && (
         <div className="bg-white rounded-xl border border-gray-100/80 shadow-sm overflow-visible">
-          {/* Header */}
           <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-gray-100 bg-white">
             <div className="flex items-center gap-1.5">
               <p className="font-bold text-gray-800 text-sm">Discount codes</p>
@@ -865,7 +846,6 @@ export default function StudioEventPage() {
             </div>
           ) : (
             <>
-              {/* Column headers */}
               <div className="grid grid-cols-12 px-4 py-2 border-b border-gray-100 bg-gray-50/50">
                 <div className="col-span-4 md:col-span-3 text-xs font-bold text-gray-400 tracking-wider uppercase">Code</div>
                 <div className="hidden md:block md:col-span-2 text-xs font-bold text-gray-400 tracking-wider uppercase">Discount</div>
@@ -880,32 +860,26 @@ export default function StudioEventPage() {
                   const status = getDiscountStatus(d);
                   return (
                     <div key={d.id} className="grid grid-cols-12 px-4 py-2.5 hover:bg-gray-50/50 items-center transition-colors relative">
-                      {/* Code */}
                       <div className="col-span-4 md:col-span-3 flex items-center gap-1.5 min-w-0">
                         <span className="text-xs font-mono font-bold text-gray-800 truncate">{d.code}</span>
                         <button onClick={() => copyDiscountCode(d.code)} aria-label="Copy code" className="text-gray-300 hover:text-gray-600 shrink-0">
                           <HugeiconsIcon icon={Copy02Icon} size={12} color="currentColor" />
                         </button>
                       </div>
-                      {/* Discount */}
                       <div className="hidden md:block md:col-span-2 text-xs text-gray-600">
                         {d.type === "percent" ? `${d.value}% off` : `₦${d.value.toLocaleString()} off`}
                       </div>
-                      {/* Uses */}
                       <div className="hidden md:block md:col-span-2 text-xs text-gray-600">
                         {d.used} / {d.maxUses ?? "∞"}
                       </div>
-                      {/* Expires */}
                       <div className="hidden md:block md:col-span-3 text-xs text-gray-600">
                         {d.expiresAt ? formatDate(d.expiresAt) : "No expiry"}
                       </div>
-                      {/* Status */}
                       <div className="col-span-6 md:col-span-1 text-right md:text-left">
                         <span className={`text-[11px] font-bold px-2 py-0.5 rounded-md ${status.color}`}>
                           {status.label}
                         </span>
                       </div>
-                      {/* Actions */}
                       <div className="col-span-2 md:col-span-1 flex justify-end">
                         <button
                           onClick={() => setDiscountMenuOpen(discountMenuOpen === d.id ? null : d.id)}
@@ -943,7 +917,6 @@ export default function StudioEventPage() {
         </div>
       )}
 
-      {/* Delete button (owner only) */}
       {canDelete && <div className="mt-4 flex justify-end">
         <button
           onClick={() => setShowDelete(true)}
@@ -965,7 +938,6 @@ export default function StudioEventPage() {
         />
       )}
 
-      {/* Check-in modal */}
       {checkInModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
           <div className="bg-white rounded-xl shadow-xl p-5 w-full max-w-sm">
@@ -976,7 +948,6 @@ export default function StudioEventPage() {
               </button>
             </div>
 
-            {/* Mode toggle */}
             <div className="flex bg-gray-50 rounded-lg p-0.5 mb-3.5 border border-gray-100/50">
               <button
                 onClick={() => setCheckInMode("scan")}
@@ -1052,7 +1023,6 @@ export default function StudioEventPage() {
         </div>
       )}
 
-      {/* Create discount modal */}
       {showDiscountModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
           <form
@@ -1066,7 +1036,6 @@ export default function StudioEventPage() {
               </button>
             </div>
 
-            {/* Code */}
             <label className="block text-[11px] font-semibold text-gray-500 mb-1.5">Code</label>
             <div className="flex gap-1.5 mb-3.5">
               <input
@@ -1086,7 +1055,6 @@ export default function StudioEventPage() {
               </button>
             </div>
 
-            {/* Type + value */}
             <label className="block text-[11px] font-semibold text-gray-500 mb-1.5">Discount</label>
             <div className="flex gap-1.5 mb-3.5">
               <div className="flex bg-gray-50 rounded-lg p-0.5 border border-gray-100/50">
@@ -1118,7 +1086,6 @@ export default function StudioEventPage() {
               />
             </div>
 
-            {/* Max uses + expiry */}
             <div className="grid grid-cols-2 gap-1.5 mb-4">
               <div>
                 <label className="block text-[11px] font-semibold text-gray-500 mb-1.5">Max uses</label>
@@ -1162,7 +1129,6 @@ export default function StudioEventPage() {
         </div>
       )}
 
-      {/* Delete discount code modal */}
       {discountToDelete && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
           <div className="bg-white rounded-xl shadow-xl p-5 w-full max-w-sm border border-gray-100">
@@ -1190,7 +1156,6 @@ export default function StudioEventPage() {
         </div>
       )}
 
-      {/* Delete modal */}
       {showDelete && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
           <div className="bg-white rounded-xl shadow-xl p-5 w-full max-w-sm border border-gray-100">
@@ -1230,7 +1195,6 @@ export default function StudioEventPage() {
         </div>
       )}
 
-      {/* Hidden printable */}
       <div style={{ display: "none" }}>
         <PrintableList ref={printRef} attendees={attendees} eventName={event?.name || ""} />
       </div>

@@ -128,7 +128,6 @@ export default function AdminPayoutsPage() {
 
   return (
     <div className="p-5 md:p-8">
-      {/* Header */}
       <div className="mb-6">
         <h1 className="text-white text-xl font-bold">Payouts</h1>
         <p className="text-gray-400 text-sm mt-1">Review and process organizer withdrawal requests</p>
@@ -140,7 +139,6 @@ export default function AdminPayoutsPage() {
         </div>
       )}
 
-      {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <div className="bg-[#1a1d27] border border-white/10 rounded-xl px-5 py-4 border-l-2 border-l-yellow-500/50">
           <p className="text-gray-400 text-xs mb-1.5">Outstanding</p>
@@ -164,7 +162,6 @@ export default function AdminPayoutsPage() {
         </div>
       </div>
 
-      {/* Table */}
       <div className="bg-[#1a1d27] border border-white/10 rounded-xl p-4 md:p-6">
         {loading ? (
           <p className="text-gray-500 text-sm text-center py-8">Loading…</p>

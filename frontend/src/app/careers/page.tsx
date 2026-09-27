@@ -100,7 +100,6 @@ export default function CareersPage() {
       <Navbar />
 
       <main>
-        {/* Hero */}
         <section className="bg-gradient-to-b from-[#F2F8FF] to-white px-4 pb-20 pt-16 sm:pt-24">
           <div className="mx-auto max-w-3xl text-center">
             <h1 className="text-4xl font-semibold tracking-tight sm:text-5xl">
@@ -129,7 +128,6 @@ export default function CareersPage() {
           </div>
         </section>
 
-        {/* Core values */}
         <section id="values" className="scroll-mt-20 px-4 py-16 sm:py-24">
           <div className="mx-auto grid max-w-5xl gap-12 lg:grid-cols-2 lg:gap-16">
             <div>
@@ -163,7 +161,6 @@ export default function CareersPage() {
           </div>
         </section>
 
-        {/* Benefits */}
         <section className="border-y border-slate-100 bg-[#F8FAFC] px-4 py-16 sm:py-24">
           <div className="mx-auto max-w-5xl">
             <h2 className="text-center text-3xl font-semibold tracking-tight">
@@ -183,7 +180,6 @@ export default function CareersPage() {
           </div>
         </section>
 
-        {/* Jobs */}
         <section id="jobs" className="scroll-mt-20 px-4 py-16 sm:py-24">
           <div className="mx-auto max-w-4xl">
             <div className="text-center">
@@ -230,7 +226,6 @@ export default function CareersPage() {
           </div>
         </section>
 
-        {/* Open application banner */}
         <section className="px-4 pb-20">
           <div className="mx-auto flex max-w-5xl flex-col items-start justify-between gap-6 rounded-xl bg-[#4F6EF7] px-6 py-10 text-white sm:flex-row sm:items-center sm:px-10">
             <div className="max-w-xl">

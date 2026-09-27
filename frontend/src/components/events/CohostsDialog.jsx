@@ -128,7 +128,6 @@ export default function CohostsDialog({ open, onClose, slug, ownerEmail, cohosts
         aria-labelledby="cohosts-title"
         className="relative w-full md:max-w-[460px] max-h-[92vh] overflow-y-auto rounded-t-2xl md:rounded-2xl bg-white border border-gray-200 shadow-xl"
       >
-        {/* Title */}
         <div className="flex items-start justify-between gap-4 px-5 pt-5 pb-4">
           <div>
             <h2 id="cohosts-title" className="text-[15px] font-semibold text-gray-900">Co-hosts</h2>
@@ -144,7 +143,6 @@ export default function CohostsDialog({ open, onClose, slug, ownerEmail, cohosts
           </button>
         </div>
 
-        {/* Invite */}
         <section className="px-5 py-4 border-t border-dashed border-gray-200">
           <h3 className="text-[13px] font-semibold text-gray-900">Invite to co-host</h3>
           <p className="text-[13px] text-gray-500 mt-0.5">Add people by email. They don&apos;t need a Byro account yet.</p>
@@ -187,7 +185,6 @@ export default function CohostsDialog({ open, onClose, slug, ownerEmail, cohosts
           <p className="mt-2 text-xs text-gray-500">{selectedHint}</p>
         </section>
 
-        {/* Who has access */}
         <section className="px-5 py-4 border-t border-dashed border-gray-200">
           <h3 className="text-[13px] font-semibold text-gray-900">Who has access</h3>
 
@@ -299,7 +296,6 @@ export default function CohostsDialog({ open, onClose, slug, ownerEmail, cohosts
           )}
         </section>
 
-        {/* Footer */}
         <div className="flex items-center justify-between gap-3 px-5 py-4 border-t border-dashed border-gray-200">
           <button
             type="button"

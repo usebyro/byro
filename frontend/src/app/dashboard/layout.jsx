@@ -71,7 +71,6 @@ function StudioShell({ children }) {
   const renderSidebarContent = (collapsed, closeMobile = null) => {
     return (
       <>
-        {/* Logo / Header */}
         <div className={`h-[60px] flex items-center border-b border-gray-100 shrink-0 px-4 ${collapsed ? "justify-center" : "justify-between"}`}>
           {!collapsed && (
             <div className="flex items-center gap-2">
@@ -88,7 +87,6 @@ function StudioShell({ children }) {
             </div>
           )}
           
-          {/* Desktop collapse button */}
           {!closeMobile && (
             <button
               onClick={() => setIsCollapsed(!isCollapsed)}
@@ -101,7 +99,6 @@ function StudioShell({ children }) {
             </button>
           )}
 
-          {/* Mobile close button */}
           {closeMobile && (
             <button
               onClick={closeMobile}
@@ -113,7 +110,6 @@ function StudioShell({ children }) {
           )}
         </div>
 
-        {/* Nav */}
         <nav className="flex-1 px-3 py-3 space-y-0.5 overflow-y-auto">
           {NAV.map((item) => {
             const active = item.exact
@@ -139,7 +135,6 @@ function StudioShell({ children }) {
           })}
         </nav>
 
-        {/* Exit dashboard */}
         <div className={`border-t border-gray-100 shrink-0 ${collapsed ? "p-2 text-center" : "px-3 pb-4 pt-2.5"}`}>
           <Link
             href="/"
@@ -159,14 +154,12 @@ function StudioShell({ children }) {
   return (
     <div className="flex h-screen overflow-hidden bg-[#F5F7FB]">
 
-      {/* Desktop sidebar */}
       <aside className={`bg-white border-r border-gray-100 flex flex-col shrink-0 transition-all duration-300 ${
         isCollapsed ? "w-[72px]" : "w-[220px]"
       } hidden md:flex`}>
         {renderSidebarContent(isCollapsed)}
       </aside>
 
-      {/* Mobile drawer + backdrop */}
       {mobileOpen && (
         <div className="md:hidden fixed inset-0 z-50 flex">
           <div
@@ -179,13 +172,10 @@ function StudioShell({ children }) {
         </div>
       )}
 
-      {/* ── Main ── */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
 
-        {/* Top bar */}
         <header className="h-[56px] bg-white border-b border-gray-100 flex items-center px-4 sm:px-6 gap-2 sm:gap-4 shrink-0">
           
-          {/* Mobile hamburger button */}
           <button
             onClick={() => setMobileOpen(true)}
             className="md:hidden p-2 text-gray-500 hover:text-gray-800 rounded-lg hover:bg-gray-50 transition-colors"
@@ -215,7 +205,6 @@ function StudioShell({ children }) {
           <UserMenu user={user} onLogout={handleLogout} size="sm" />
         </header>
 
-        {/* Page content */}
         <main className="flex-1 overflow-y-auto">
           {children}
         </main>
