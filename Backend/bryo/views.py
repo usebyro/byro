@@ -1149,7 +1149,9 @@ class DashboardAnalyticsView(APIView):
     payout balance, so the two never disagree. Draft events are ignored.
 
       - last_30d / previous_30d : tickets sold + revenue, for honest trends
-      - monthly_revenue         : the last 12 calendar months, oldest first
+      - monthly_revenue         : revenue series for the chart, oldest first.
+                                  ?range=week|3m|6m|12m (default 12m) — week
+                                  buckets by day, the rest by calendar month.
       - avg_fill_rate           : mean sold/capacity over events with a limit (the event's, or the sum of
                                   its tier limits when every tier has one) (0-100)
       - top_events              : best sellers this calendar month
@@ -1192,28 +1194,51 @@ class DashboardAnalyticsView(APIView):
         d30 = now - timedelta(days=30)
         d60 = now - timedelta(days=60)
 
-        # Last 12 calendar months, oldest first.
-        year, month = now.year, now.month
-        months = []
-        for _ in range(12):
-            months.append((year, month))
-            month -= 1
-            if month == 0:
-                year, month = year - 1, 12
-        months.reverse()
-        first = months[0]
-        start = now.replace(year=first[0], month=first[1], day=1, hour=0, minute=0, second=0, microsecond=0)
-        by_month = {
-            (row['m'].year, row['m'].month): row['t']
-            for row in paid.filter(created_at__gte=start)
-            .annotate(m=TruncMonth('created_at'))
-            .values('m')
-            .annotate(t=Sum(net_price))
-        }
-        monthly_revenue = [
-            {'month': f'{y}-{m:02d}', 'revenue': str(by_month.get((y, m), zero))}
-            for (y, m) in months
-        ]
+        # Revenue series for the chart. ?range= one of: week, 3m, 6m, 12m
+        # (default 12m). "week" buckets by day; the month ranges bucket by
+        # calendar month, oldest first — same shape either way so the
+        # frontend doesn't need to branch on it.
+        range_param = (request.query_params.get('range') or '12m').strip().lower()
+        RANGE_MONTHS = {'3m': 3, '6m': 6, '12m': 12}
+
+        if range_param == 'week':
+            today = now.date()
+            days = [today - timedelta(days=i) for i in range(6, -1, -1)]
+            start = now.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=6)
+            by_day = {
+                row['d']: row['t']
+                for row in paid.filter(created_at__gte=start)
+                .annotate(d=TruncDate('created_at'))
+                .values('d')
+                .annotate(t=Sum(net_price))
+            }
+            monthly_revenue = [
+                {'month': d.isoformat(), 'revenue': str(by_day.get(d, zero))}
+                for d in days
+            ]
+        else:
+            n_months = RANGE_MONTHS.get(range_param, 12)
+            year, month = now.year, now.month
+            months = []
+            for _ in range(n_months):
+                months.append((year, month))
+                month -= 1
+                if month == 0:
+                    year, month = year - 1, 12
+            months.reverse()
+            first = months[0]
+            start = now.replace(year=first[0], month=first[1], day=1, hour=0, minute=0, second=0, microsecond=0)
+            by_month = {
+                (row['m'].year, row['m'].month): row['t']
+                for row in paid.filter(created_at__gte=start)
+                .annotate(m=TruncMonth('created_at'))
+                .values('m')
+                .annotate(t=Sum(net_price))
+            }
+            monthly_revenue = [
+                {'month': f'{y}-{m:02d}', 'revenue': str(by_month.get((y, m), zero))}
+                for (y, m) in months
+            ]
 
         # Lifetime sold + revenue per event.
         sold_by_event = dict(
