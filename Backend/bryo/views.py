@@ -2647,14 +2647,28 @@ class PayoutBalanceView(APIView):
 
 class AdminPayoutView(APIView):
     """
-    GET   /api/admin/payouts/      — list all payout requests
-    PATCH /api/admin/payouts/:id/  — update status
+    GET    /api/admin/payouts/      — list all payout requests
+    PATCH  /api/admin/payouts/:id/  — update status
+    DELETE /api/admin/payouts/:id/  — remove a payout request outright
+
+    DELETE exists for bad data (a test/duplicate request), not for undoing a
+    real one — deleting a 'processed' row does NOT reverse any real-world
+    transfer, it only stops that amount being subtracted from the
+    organiser's available balance here.
     """
     permission_classes = [IsAdminSecret]
 
     def get(self, request):
         qs = PayoutRequest.objects.select_related('user', 'event').all()
         return Response(PayoutRequestSerializer(qs, many=True).data)
+
+    def delete(self, request, pk):
+        try:
+            payout = PayoutRequest.objects.get(pk=pk)
+        except PayoutRequest.DoesNotExist:
+            return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+        payout.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     def patch(self, request, pk):
         try:

@@ -61,9 +61,9 @@ export default function AdminPayoutsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [updatingId, setUpdatingId] = useState<number | null>(null);
-  const [confirming, setConfirming] = useState<{ payout: PayoutRequest; action: "processed" | "rejected" } | null>(
-    null
-  );
+  const [confirming, setConfirming] = useState<
+    { payout: PayoutRequest; action: "processed" | "rejected" | "delete" } | null
+  >(null);
 
   const loadPayouts = useCallback(async () => {
     setLoading(true);
@@ -98,6 +98,20 @@ export default function AdminPayoutsPage() {
       setPayouts((prev) => prev.map((p) => (p.id === id ? updated : p)));
     } catch {
       setError(`Couldn't ${status === "processed" ? "process" : "reject"} that payout. Please try again.`);
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  const deletePayout = async (id: number) => {
+    setUpdatingId(id);
+    setConfirming(null);
+    try {
+      const res = await fetch(`/api/admin/payouts/${id}`, { method: "DELETE" });
+      if (!res.ok && res.status !== 204) throw new Error("Failed to delete payout");
+      setPayouts((prev) => prev.filter((p) => p.id !== id));
+    } catch {
+      setError("Couldn't delete that payout. Please try again.");
     } finally {
       setUpdatingId(null);
     }
@@ -184,26 +198,37 @@ export default function AdminPayoutsPage() {
                       <StatusBadge status={p.status} />
                     </td>
                     <td className="py-3">
-                      {p.status === "pending" ? (
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => setConfirming({ payout: p, action: "processed" })}
-                            disabled={updatingId === p.id}
-                            className="text-xs font-semibold text-blue-400 hover:text-blue-300 bg-blue-500/10 hover:bg-blue-500/20 disabled:opacity-50 px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap"
-                          >
-                            {updatingId === p.id ? "Updating…" : "Mark as processed"}
-                          </button>
-                          <button
-                            onClick={() => setConfirming({ payout: p, action: "rejected" })}
-                            disabled={updatingId === p.id}
-                            className="text-xs font-semibold text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 disabled:opacity-50 px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap"
-                          >
-                            Reject
-                          </button>
-                        </div>
-                      ) : (
-                        <span className="text-xs text-gray-600 whitespace-nowrap">—</span>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {p.status === "pending" && (
+                          <>
+                            <button
+                              onClick={() => setConfirming({ payout: p, action: "processed" })}
+                              disabled={updatingId === p.id}
+                              className="text-xs font-semibold text-blue-400 hover:text-blue-300 bg-blue-500/10 hover:bg-blue-500/20 disabled:opacity-50 px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap"
+                            >
+                              {updatingId === p.id ? "Updating…" : "Mark as processed"}
+                            </button>
+                            <button
+                              onClick={() => setConfirming({ payout: p, action: "rejected" })}
+                              disabled={updatingId === p.id}
+                              className="text-xs font-semibold text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 disabled:opacity-50 px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap"
+                            >
+                              Reject
+                            </button>
+                          </>
+                        )}
+                        {/* Delete — for bad/test data on any row. Not an "undo": deleting
+                            a processed row doesn't reverse a real transfer, it only
+                            stops it counting against the organiser's balance here. */}
+                        <button
+                          onClick={() => setConfirming({ payout: p, action: "delete" })}
+                          disabled={updatingId === p.id}
+                          title="Delete this payout request"
+                          className="text-xs font-semibold text-gray-500 hover:text-red-400 hover:bg-red-500/10 disabled:opacity-50 px-2 py-1.5 rounded-lg transition-colors whitespace-nowrap"
+                        >
+                          Delete
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -222,7 +247,11 @@ export default function AdminPayoutsPage() {
           />
           <div className="relative w-full max-w-sm bg-[#1a1d27] border border-white/10 rounded-xl p-6 shadow-2xl">
             <h3 className="text-white font-semibold text-sm mb-2">
-              {confirming.action === "processed" ? "Mark payout as processed?" : "Reject this payout request?"}
+              {confirming.action === "processed"
+                ? "Mark payout as processed?"
+                : confirming.action === "rejected"
+                  ? "Reject this payout request?"
+                  : "Delete this payout request?"}
             </h3>
             <div className="bg-white/5 rounded-lg px-3 py-2.5 mb-4 space-y-1">
               <p className="text-white text-sm font-medium truncate">{confirming.payout.user_email}</p>
@@ -231,7 +260,9 @@ export default function AdminPayoutsPage() {
             <p className="text-gray-500 text-xs leading-relaxed mb-5">
               {confirming.action === "processed"
                 ? "This confirms the funds have already been sent outside Byro. This cannot be undone here."
-                : "The organizer will need to submit a new request. This cannot be undone here."}
+                : confirming.action === "rejected"
+                  ? "The organizer will need to submit a new request. This cannot be undone here."
+                  : "Permanently removes this request — for bad or test data, not for undoing a real payout. If it was already processed, deleting it does not reverse any real transfer; it only stops this amount counting against the organiser's balance."}
             </p>
             <div className="flex items-center justify-end gap-2">
               <button
@@ -241,14 +272,22 @@ export default function AdminPayoutsPage() {
                 Cancel
               </button>
               <button
-                onClick={() => updateStatus(confirming.payout.id, confirming.action)}
+                onClick={() =>
+                  confirming.action === "delete"
+                    ? deletePayout(confirming.payout.id)
+                    : updateStatus(confirming.payout.id, confirming.action)
+                }
                 className={`text-xs font-semibold px-3 py-2 rounded-lg transition-colors ${
                   confirming.action === "processed"
                     ? "text-blue-400 bg-blue-500/10 hover:bg-blue-500/20"
                     : "text-red-400 bg-red-500/10 hover:bg-red-500/20"
                 }`}
               >
-                {confirming.action === "processed" ? "Confirm processed" : "Confirm reject"}
+                {confirming.action === "processed"
+                  ? "Confirm processed"
+                  : confirming.action === "rejected"
+                    ? "Confirm reject"
+                    : "Confirm delete"}
               </button>
             </div>
           </div>
