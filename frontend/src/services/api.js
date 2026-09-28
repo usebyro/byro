@@ -411,6 +411,18 @@ const API = {
     }
   },
 
+  // Newsletter (Brevo, via backend)
+  subscribeNewsletter: async (email) => {
+    try {
+      const response = await axiosInstance.post("newsletter/subscribe/", { email });
+      return response.data;
+    } catch (error) {
+      const message = error.response?.data?.error;
+      if (message) throw new Error(message);
+      throw handleApiError(error);
+    }
+  },
+
   // Waitlist
   joinWaitlist: async (data) => {
     try {

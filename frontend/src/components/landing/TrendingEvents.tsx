@@ -4,8 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import axiosInstance from "@/utils/axios";
 import EventCard from "./EventCard";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { FireIcon } from "@hugeicons/core-free-icons";
+import { displayStyle } from "./fonts";
 
 interface Event {
   id: number;
@@ -58,7 +57,7 @@ const TrendingEvents = ({ initialEvents }: Props) => {
 
   if (loading) {
     return (
-      <section className="py-16 bg-[#F8FAFC]">
+      <section className="py-16 sm:py-24 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="animate-pulse">
             <div className="h-4 w-32 bg-gray-200 rounded mb-3" />
@@ -82,23 +81,17 @@ const TrendingEvents = ({ initialEvents }: Props) => {
   }
 
   return (
-    <section className="py-16 bg-[#F8FAFC]">
+    <section className="py-16 sm:py-24 bg-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-end justify-between mb-8">
-          <div>
-            <p className="text-orange-500 text-sm font-semibold uppercase tracking-wide mb-2 flex items-center gap-1.5">
-              <HugeiconsIcon icon={FireIcon} size={16} color="currentColor" /> Trending this week
-            </p>
-            <h2 className="text-3xl font-bold text-gray-900">Selling fast</h2>
-          </div>
+        <div className="flex items-end justify-between mb-10">
+          <h2 className="text-3xl sm:text-5xl font-extrabold tracking-[-0.02em] text-[#0F172A]" style={displayStyle}>
+            Coming up
+          </h2>
           <button
             onClick={() => router.push("/discover")}
-            className="flex items-center gap-1.5 bg-white border border-gray-200 text-gray-700 text-sm font-medium px-4 py-2 rounded-full hover:border-gray-300 hover:shadow-sm transition-all"
+            className="text-sm font-semibold text-[#2563EB] underline underline-offset-4 hover:brightness-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] rounded"
           >
-            View all events
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M5 12h14M12 5l7 7-7 7" />
-            </svg>
+            See all events
           </button>
         </div>
 
@@ -109,7 +102,7 @@ const TrendingEvents = ({ initialEvents }: Props) => {
               onClick={() => router.push("/events/create")}
               className="mt-4 text-blue-600 font-medium hover:text-blue-700"
             >
-              Create the first event →
+              Create the first event
             </button>
           </div>
         ) : (

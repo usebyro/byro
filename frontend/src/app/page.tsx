@@ -1,6 +1,7 @@
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { Hero, BrowseByCategory, TrendingEvents, CommunitySection } from "@/components/landing";
+import { Hero, TrendingEvents, CreateEventSteps, Badges, CommunitySection } from "@/components/landing";
+import { display } from "@/components/landing/fonts";
 
 interface Event {
   id: number;
@@ -44,11 +45,12 @@ export default async function Home() {
   return (
     <>
       <Navbar />
-      <main>
+      <main className={display.variable}>
         <Hero />
-        {/* <BrowseByCategory /> */}
         <TrendingEvents initialEvents={events} />
-        {/* <CommunitySection /> */}
+        <CreateEventSteps />
+        <Badges />
+        <CommunitySection />
       </main>
       <Footer />
     </>

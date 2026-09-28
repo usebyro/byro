@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, Suspense } from "react";
+import { display, displayStyle } from "@/components/landing/fonts";
 import { useSearchParams } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
@@ -62,6 +63,7 @@ function DiscoverPageContent() {
   const [sortBy, setSortBy] = useState("trending");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [visibleCount, setVisibleCount] = useState(6);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const search = searchParams.get("search") || "";
 
   useEffect(() => {
@@ -109,6 +111,20 @@ function DiscoverPageContent() {
     };
     fetchEvents();
   }, [search, selectedCategories, selectedWhen, selectedAreas, priceMax, sortBy]);
+
+  useEffect(() => {
+    if (!filtersOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setFiltersOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [filtersOpen]);
 
   const toggleCategory = (value: string) => {
     setSelectedCategories((prev) =>
@@ -184,19 +200,8 @@ function DiscoverPageContent() {
   const visibleEvents = filteredEvents.slice(0, visibleCount);
   const hasMore = visibleCount < filteredEvents.length;
 
-  return (
+  const filterPanel = (
     <>
-      <Navbar />
-      <main className="min-h-screen bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          {/* Page title */}
-          <h1 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-8">
-            Discover events
-          </h1>
-
-          <div className="flex gap-10">
-            {/* Sidebar filters */}
-            <aside className="hidden lg:block w-52 shrink-0">
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-2 text-gray-800 font-medium text-sm">
                   <svg
@@ -337,24 +342,56 @@ function DiscoverPageContent() {
                   ))}
                 </div>
               </div>
+    </>
+  );
+
+  return (
+    <>
+      <Navbar />
+      <main className={`${display.variable} min-h-screen bg-white`}>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          {/* Page title */}
+          <h1
+            className="mb-8 text-[2.5rem] font-extrabold leading-none tracking-[-0.03em] text-[#0F172A] sm:text-6xl"
+            style={displayStyle}
+          >
+            Discover events
+          </h1>
+
+          <div className="flex gap-10">
+            {/* Sidebar filters */}
+            <aside className="hidden lg:block w-52 shrink-0">
+              {filterPanel}
             </aside>
 
             {/* Main content */}
             <div className="flex-1 min-w-0">
               {/* Top bar */}
               <div className="flex items-center justify-between mb-4">
-                <span className="text-sm text-gray-600">
-                  <span className="font-semibold text-gray-900">
-                    {filteredEvents.length}
-                  </span>{" "}
-                  events · sorted by
-                </span>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setFiltersOpen(true)}
+                    className="flex items-center gap-2 rounded-xl bg-white px-3.5 py-2 text-sm font-semibold text-[#0F172A] ring-2 ring-[#0F172A] transition-colors hover:bg-[#F8FAFC] focus:outline-none focus-visible:ring-[#2563EB] lg:hidden"
+                  >
+                    Filters
+                    {activeFilters.length > 0 && (
+                      <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-[#2563EB] px-1 text-xs text-white">
+                        {activeFilters.length}
+                      </span>
+                    )}
+                  </button>
+                  <span className="text-sm text-gray-600">
+                    <span className="font-semibold text-[#0F172A]">{filteredEvents.length}</span>{" "}
+                    {filteredEvents.length === 1 ? "event" : "events"}
+                  </span>
+                </div>
                 <div className="flex items-center gap-2">
                   <div className="relative">
                     <select
+                      aria-label="Sort by"
                       value={sortBy}
                       onChange={(e) => setSortBy(e.target.value)}
-                      className="text-sm text-gray-700 bg-white border border-gray-200 rounded-full pl-4 pr-8 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none cursor-pointer"
+                      className="text-sm font-medium text-[#0F172A] bg-white rounded-xl pl-4 pr-8 py-2 ring-2 ring-[#0F172A]/15 focus:outline-none focus:ring-[#2563EB] appearance-none cursor-pointer"
                     >
                       {SORT_OPTIONS.map((opt) => (
                         <option key={opt.value} value={opt.value}>
@@ -374,12 +411,12 @@ function DiscoverPageContent() {
                       <path d="M6 9l6 6 6-6" />
                     </svg>
                   </div>
-                  <div className="flex border border-gray-200 rounded-lg overflow-hidden">
+                  <div className="flex overflow-hidden rounded-xl ring-2 ring-[#0F172A]/15">
                     <button
                       onClick={() => setViewMode("grid")}
                       className={`p-2 transition-colors ${
                         viewMode === "grid"
-                          ? "bg-gray-100 text-gray-900"
+                          ? "bg-[#0F172A] text-white"
                           : "bg-white text-gray-400 hover:bg-gray-50"
                       }`}
                       aria-label="Grid view"
@@ -402,7 +439,7 @@ function DiscoverPageContent() {
                       onClick={() => setViewMode("list")}
                       className={`p-2 transition-colors ${
                         viewMode === "list"
-                          ? "bg-gray-100 text-gray-900"
+                          ? "bg-[#0F172A] text-white"
                           : "bg-white text-gray-400 hover:bg-gray-50"
                       }`}
                       aria-label="List view"
@@ -470,9 +507,11 @@ function DiscoverPageContent() {
                 </div>
               ) : visibleEvents.length === 0 ? (
                 <div className="text-center py-20">
-                  <p className="text-gray-500 text-lg mb-1">No events found</p>
-                  <p className="text-gray-400 text-sm mb-5">
-                    Try adjusting your filters
+                  <p className="text-xl font-bold text-[#0F172A] mb-1" style={displayStyle}>
+                    No events match
+                  </p>
+                  <p className="text-gray-500 text-sm mb-5">
+                    Remove a filter to see more.
                   </p>
                   <button
                     onClick={clearAll}
@@ -500,7 +539,7 @@ function DiscoverPageContent() {
                 <div className="text-center mt-10">
                   <button
                     onClick={() => setVisibleCount((prev) => prev + 6)}
-                    className="border border-gray-300 text-gray-700 font-medium px-8 py-3 rounded-full hover:border-gray-400 hover:bg-gray-50 transition-colors"
+                    className="rounded-xl bg-white px-8 py-3 text-sm font-semibold text-[#0F172A] ring-2 ring-[#0F172A] shadow-[0_2px_0_#0F172A] transition-colors hover:bg-[#F8FAFC] focus:outline-none focus-visible:ring-[#2563EB]"
                   >
                     Load more events
                   </button>
@@ -509,6 +548,29 @@ function DiscoverPageContent() {
             </div>
           </div>
         </div>
+        {filtersOpen && (
+          <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label="Filters">
+            <div className="absolute inset-0 bg-[#0F172A]/50" onClick={() => setFiltersOpen(false)} />
+            <div className="absolute inset-x-0 bottom-0 max-h-[85vh] overflow-y-auto rounded-t-3xl bg-white px-6 pb-6 pt-4 ring-2 ring-[#0F172A]">
+              <div className="mb-3 flex justify-end">
+                <button
+                  onClick={() => setFiltersOpen(false)}
+                  aria-label="Close filters"
+                  className="rounded-full p-1 text-2xl leading-none text-gray-500 hover:text-[#0F172A] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB]"
+                >
+                  ×
+                </button>
+              </div>
+              {filterPanel}
+              <button
+                onClick={() => setFiltersOpen(false)}
+                className="sticky bottom-0 mt-6 w-full rounded-xl bg-[#2563EB] py-3 text-sm font-semibold text-white transition-colors hover:brightness-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0F172A] focus-visible:ring-offset-2"
+              >
+                Show {filteredEvents.length} {filteredEvents.length === 1 ? "event" : "events"}
+              </button>
+            </div>
+          </div>
+        )}
       </main>
       <Footer />
     </>
