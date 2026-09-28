@@ -302,8 +302,10 @@ function DiscoverPageContent() {
                     className="w-full h-1.5 accent-blue-600 cursor-pointer"
                   />
                   <div className="flex justify-between text-xs text-gray-500 mt-2">
-                    <span>₦0</span>
-                    <span>₦{priceMax.toLocaleString()}</span>
+                    <span>Free</span>
+                    <span>
+                      {priceMax < PRICE_MAX ? `Up to ₦${priceMax.toLocaleString()}` : "Any price"}
+                    </span>
                   </div>
                 </div>
               </div>
