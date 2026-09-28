@@ -18,6 +18,7 @@ from .views import (
     AdminAnalyticsRevenueTrendView,
     AdminUsersListView,
 )
+from .newsletter_views import NewsletterSubscribeView
 from .auth_views import (
     MagicAuthSendView,
     MagicAuthVerifyView,
@@ -50,6 +51,9 @@ urlpatterns = [
     path('api/auth/oauth/callback/', OAuthCallbackView.as_view(), name='auth_oauth_callback'),
     path('api/auth/refresh/', RefreshView.as_view(), name='auth_refresh'),
     path('api/auth/me/', MeView.as_view(), name='auth_me'),
+
+    # Newsletter (Brevo)
+    path('api/newsletter/subscribe/', NewsletterSubscribeView.as_view(), name='newsletter_subscribe'),
 
     # Dashboard
     path('api/dashboard/', DashboardView.as_view(), name='dashboard'),
