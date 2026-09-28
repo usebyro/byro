@@ -58,7 +58,7 @@ const TrendingEvents = ({ initialEvents }: Props) => {
   if (loading) {
     return (
       <section className="py-16 sm:py-24 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="animate-pulse">
             <div className="h-4 w-32 bg-gray-200 rounded mb-3" />
             <div className="h-8 w-48 bg-gray-200 rounded mb-8" />
@@ -82,7 +82,7 @@ const TrendingEvents = ({ initialEvents }: Props) => {
 
   return (
     <section className="py-16 sm:py-24 bg-white">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-end justify-between mb-10">
           <h2 className="text-3xl sm:text-5xl font-extrabold tracking-[-0.02em] text-[#0F172A]" style={displayStyle}>
             Coming up

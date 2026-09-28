@@ -10,10 +10,10 @@ const steps = [
 const badges = [
   { name: "Rooftop Sessions", tone: "border-[#FFC93C] text-[#FFC93C]", rotate: "-rotate-12" },
   { name: "Sunday Run Club", tone: "border-white text-white", rotate: "rotate-6" },
-  { name: "Builders Meetup", tone: "border-white/50 text-white/70", rotate: "rotate-12" },
+  { name: "Builders Meetup", tone: "border-white text-white", rotate: "rotate-12" },
   { name: "Jazz in the Park", tone: "border-white text-white", rotate: "-rotate-6" },
   { name: "Art Walk", tone: "border-[#FFC93C] text-[#FFC93C]", rotate: "rotate-3" },
-  { name: "Night Market", tone: "border-white/50 text-white/70", rotate: "-rotate-3" },
+  { name: "Night Market", tone: "border-white text-white", rotate: "-rotate-3" },
 ];
 
 const Badges = () => (
