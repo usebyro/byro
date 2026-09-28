@@ -34,6 +34,8 @@ interface Location {
   count: number;
 }
 
+const PRICE_MAX = 50000;
+
 const WHEN_OPTIONS = [
   { value: "today", label: "Today", count: null as null },
   { value: "weekend", label: "This weekend", count: null as null },
@@ -56,9 +58,8 @@ function DiscoverPageContent() {
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedWhen, setSelectedWhen] = useState<string[]>([]);
   const [selectedAreas, setSelectedAreas] = useState<string[]>([]);
-  const [priceMax, setPriceMax] = useState(25000);
+  const [priceMax, setPriceMax] = useState(PRICE_MAX);
   const [sortBy, setSortBy] = useState("trending");
-  const [userCity, setUserCity] = useState("Lagos");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [visibleCount, setVisibleCount] = useState(6);
   const search = searchParams.get("search") || "";
@@ -88,7 +89,7 @@ function DiscoverPageContent() {
         if (selectedCategories.length > 0) params.category = selectedCategories[0];
         if (selectedWhen.length > 0) params.when = selectedWhen[0];
         if (selectedAreas.length > 0) params.area = selectedAreas[0];
-        if (priceMax < 50000) params.max_price = priceMax;
+        if (priceMax < PRICE_MAX) params.max_price = priceMax;
         params.sort = sortBy;
 
         const data = await API.getEvents(params);
@@ -108,32 +109,6 @@ function DiscoverPageContent() {
     };
     fetchEvents();
   }, [search, selectedCategories, selectedWhen, selectedAreas, priceMax, sortBy]);
-
-  useEffect(() => {
-    if (!navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition(
-      async ({ coords }) => {
-        try {
-          const res = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?lat=${coords.latitude}&lon=${coords.longitude}&format=json`,
-            { headers: { "Accept-Language": "en" } }
-          );
-          const data = await res.json();
-          const city =
-            data.address?.city ||
-            data.address?.town ||
-            data.address?.village ||
-            data.address?.county;
-          if (city) setUserCity(city);
-        } catch {
-          // keep default "Lagos"
-        }
-      },
-      () => {
-        // permission denied or error — keep default "Lagos"
-      }
-    );
-  }, []);
 
   const toggleCategory = (value: string) => {
     setSelectedCategories((prev) =>
@@ -172,7 +147,7 @@ function DiscoverPageContent() {
     setSelectedCategories([]);
     setSelectedWhen([]);
     setSelectedAreas([]);
-    setPriceMax(25000);
+    setPriceMax(PRICE_MAX);
     setVisibleCount(6);
   };
 
@@ -190,7 +165,7 @@ function DiscoverPageContent() {
     if (selectedCategories.length > 1 && !selectedCategories.includes(event.category)) {
       return false;
     }
-    if (event.ticket_price > priceMax) {
+    if (priceMax < PRICE_MAX && event.ticket_price > priceMax) {
       return false;
     }
     return true;
@@ -216,8 +191,7 @@ function DiscoverPageContent() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           {/* Page title */}
           <h1 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-8">
-            Events in{" "}
-            <span className="font-serif italic text-blue-600">{userCity}</span>
+            Discover events
           </h1>
 
           <div className="flex gap-10">
@@ -318,7 +292,7 @@ function DiscoverPageContent() {
                   <input
                     type="range"
                     min={0}
-                    max={50000}
+                    max={PRICE_MAX}
                     step={1000}
                     value={priceMax}
                     onChange={(e) => {
