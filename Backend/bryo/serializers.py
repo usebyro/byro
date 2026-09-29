@@ -39,6 +39,9 @@ class UserProfileSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(source='user.email', read_only=True)
     auth_provider = serializers.CharField(source='user.auth_provider', read_only=True)
     avatar_url = serializers.SerializerMethodField()
+    followers_count = serializers.SerializerMethodField()
+    following_count = serializers.SerializerMethodField()
+    is_following = serializers.SerializerMethodField()
     cover_image_url = serializers.SerializerMethodField()
 
     class Meta:
@@ -51,9 +54,13 @@ class UserProfileSerializer(serializers.ModelSerializer):
             'location', 'website',
             'twitter', 'instagram', 'linkedin', 'telegram',
             'is_complete', 'is_public',
+            'followers_count', 'following_count', 'is_following',
             'created_at', 'updated_at',
         ]
-        read_only_fields = ['email', 'auth_provider', 'avatar_url', 'cover_image_url', 'created_at', 'updated_at']
+        read_only_fields = [
+            'email', 'auth_provider', 'avatar_url', 'cover_image_url', 'created_at', 'updated_at',
+            'followers_count', 'following_count', 'is_following',
+        ]
         extra_kwargs = {
             'avatar': {'write_only': True, 'required': False},
             'cover_image': {'write_only': True, 'required': False},
@@ -65,6 +72,20 @@ class UserProfileSerializer(serializers.ModelSerializer):
             if request:
                 return request.build_absolute_uri(obj.avatar.url)
         return None
+
+    def get_followers_count(self, obj):
+        return obj.user.follower_links.count()
+
+    def get_following_count(self, obj):
+        return obj.user.following_links.count()
+
+    def get_is_following(self, obj):
+        """Whether the viewer follows this profile. Always False when signed out."""
+        request = self.context.get('request')
+        user = getattr(request, 'user', None)
+        if not user or not user.is_authenticated:
+            return False
+        return obj.user.follower_links.filter(follower=user).exists()
 
     def get_cover_image_url(self, obj):
         if obj.cover_image:

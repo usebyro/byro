@@ -29,7 +29,7 @@ from django.contrib.auth import get_user_model
 from .models import (
     WaitList, Event, Ticket, TicketTransfer,
     EventCoHost, Payment, UserProfile, EventFormQuestion, EventFormAnswer,
-    TicketTier, PayoutRequest, PromoCode, MerchItem,
+    TicketTier, PayoutRequest, PromoCode, MerchItem, Follow,
 )
 from .pricing import calculate_ticket_fees, FEE_RATE
 from django.urls import reverse
@@ -964,6 +964,9 @@ class ProfileViewSet(viewsets.GenericViewSet):
     """
     serializer_class = UserProfileSerializer
     parser_classes = (JSONParser, MultiPartParser, FormParser)
+    # Declared so the follow action can set it (DRF rejects action kwargs that
+    # are not already attributes on the viewset).
+    throttle_scope = None
 
     def get_permissions(self):
         if self.action == 'public':
@@ -1031,6 +1034,33 @@ class ProfileViewSet(viewsets.GenericViewSet):
         data['merch_items'] = MerchItemSerializer(merch, many=True, context={'request': request}).data
 
         return Response(data)
+
+    @action(detail=False, methods=['POST', 'DELETE'], url_path=r'(?P<handle>[^/.]+)/follow',
+            throttle_scope='follow')
+    def follow(self, request, handle=None):
+        """
+        POST   /api/profile/<handle>/follow/   follow this organiser
+        DELETE /api/profile/<handle>/follow/   unfollow
+
+        Both are idempotent, so a double tap or a retry never errors.
+        """
+        try:
+            target = UserProfile.objects.select_related('user').get(handle=handle)
+        except UserProfile.DoesNotExist:
+            return Response({'error': 'Profile not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if target.user_id == request.user.pk:
+            return Response({'error': "You can't follow yourself."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if request.method == 'POST':
+            Follow.objects.get_or_create(follower=request.user, following=target.user)
+        else:
+            Follow.objects.filter(follower=request.user, following=target.user).delete()
+
+        return Response({
+            'following': request.method == 'POST',
+            'followers_count': target.user.follower_links.count(),
+        })
 
 
 # ---------------------------------------------------------------------------

@@ -43,7 +43,9 @@ const SLIDES = [
 export default function AuthScreen() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectTo = searchParams.get("redirect");
+  // Only same-site paths: a "?redirect=" pointing off-site must never be followed.
+  const rawRedirect = searchParams.get("redirect");
+  const redirectTo = rawRedirect && rawRedirect.startsWith("/") && !rawRedirect.startsWith("//") ? rawRedirect : null;
   const dispatch = useDispatch();
   const [currentSlide, setCurrentSlide] = useState(0);
   const [step, setStep] = useState("email");

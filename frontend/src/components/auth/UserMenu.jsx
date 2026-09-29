@@ -14,13 +14,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
+// Callers may still pass `size`; the avatar is one size now (a 44px touch target).
 export default function UserMenu({
   user,
   onLogout,
-  size = "md",
   className = "",
 }) {
-  const sizeClasses = size === "sm" ? "w-8 h-8 text-xs" : "w-9 h-9 text-sm";
+  const sizeClasses = "w-11 h-11 text-sm";
   const avatarUrl = user?.avatar_url || user?.avatarUrl || null;
   const accountName = user?.display_name || user?.displayName || user?.name || user?.email || "";
 
@@ -32,7 +32,7 @@ export default function UserMenu({
           aria-label="Account menu"
           className={cn(
             "rounded-full flex items-center justify-center shrink-0 select-none overflow-hidden",
-            "hover:opacity-90 transition-opacity focus:outline-none focus:ring-2 focus:ring-blue-200",
+            "hover:opacity-90 transition-opacity focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2",
             sizeClasses,
             className
           )}

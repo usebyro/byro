@@ -1,21 +1,9 @@
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { Hero, BrowseByCategory, TrendingEvents, CommunitySection } from "@/components/landing";
+import type { EventLike } from "@/lib/eventFormat";
+import { Hero, TrendingEvents, StampsSection, HostsSection, TrustRow, CommunitySection } from "@/components/landing";
 
-interface Event {
-  id: number;
-  slug: string;
-  name: string;
-  category: string;
-  category_display?: string;
-  day: string;
-  time_from: string;
-  time_to: string;
-  location: string;
-  ticket_price: number;
-  event_image_url?: string;
-  is_active: boolean;
-}
+type Event = EventLike & { id: number; is_active?: boolean };
 
 async function getEvents(): Promise<Event[]> {
   try {
@@ -32,23 +20,30 @@ async function getEvents(): Promise<Event[]> {
         seen.add(e.id);
         return true;
       })
-      .slice(0, 4);
+      .slice(0, 12);
   } catch {
     return [];
   }
 }
 
 export default async function Home() {
-  const events = await getEvents();
+  const all = await getEvents();
+  // Lead with events that have a cover image so the featured tile and the passport look their best.
+  const events = [
+    ...all.filter((e) => e.event_image_url),
+    ...all.filter((e) => !e.event_image_url),
+  ].slice(0, 5);
 
   return (
     <>
       <Navbar />
-      <main>
-        <Hero />
-        {/* <BrowseByCategory /> */}
-        <TrendingEvents initialEvents={events} />
-        {/* <CommunitySection /> */}
+      <main className="bg-white pb-20 font-body text-ink md:pb-32">
+        <Hero event={events[0]} />
+        <TrendingEvents events={events} />
+        <StampsSection />
+        <HostsSection />
+        <TrustRow />
+        <CommunitySection />
       </main>
       <Footer />
     </>

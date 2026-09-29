@@ -59,6 +59,10 @@ PAYSTACK_CALLBACK_URL = config('PAYSTACK_CALLBACK_URL', default='https://usebyro
 
 # Email
 RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')
+
+# Brevo newsletter contacts (footer signup)
+BREVO_API_KEY = os.environ.get('BREVO_API_KEY', '')
+BREVO_LIST_ID = os.environ.get('BREVO_LIST_ID', '')
 BREVO_SMTP_KEY = os.environ.get('BREVO_SMTP_KEY', '')
 
 # Cloudflare Turnstile
@@ -214,6 +218,9 @@ REST_FRAMEWORK = {
         'auth_verify': '30/hour',
         'auth_refresh': '120/hour',
         'cohost_invite': '60/hour',
+        'newsletter': '10/hour',
+        # Follow/unfollow is cheap but easy to script; this stops rapid toggling.
+        'follow': '120/hour',
     },
 }
 

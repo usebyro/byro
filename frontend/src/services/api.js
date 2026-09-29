@@ -441,6 +441,18 @@ const API = {
     }
   },
 
+  // Newsletter (Brevo, via backend)
+  subscribeNewsletter: async (email) => {
+    try {
+      const response = await axiosInstance.post("newsletter/subscribe/", { email });
+      return response.data;
+    } catch (error) {
+      const message = error.response?.data?.error;
+      if (message) throw new Error(message);
+      throw handleApiError(error);
+    }
+  },
+
   // Waitlist
   joinWaitlist: async (data) => {
     try {
@@ -506,6 +518,25 @@ const API = {
           "Content-Type": "multipart/form-data",
         },
       });
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  // Follow / unfollow an organiser's community page. Both are idempotent.
+  followProfile: async (handle) => {
+    try {
+      const response = await axiosInstance.post(`profile/${encodeURIComponent(handle)}/follow/`);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  unfollowProfile: async (handle) => {
+    try {
+      const response = await axiosInstance.delete(`profile/${encodeURIComponent(handle)}/follow/`);
       return response.data;
     } catch (error) {
       throw handleApiError(error);

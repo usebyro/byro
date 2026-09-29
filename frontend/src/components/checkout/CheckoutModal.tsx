@@ -1,36 +1,15 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import Image from "next/image";
+import { useEffect, useRef, useState } from "react";
+import Script from "next/script";
 import { ticketLimits, stepUp, stepDown, describeTicketLimits } from "@/lib/ticketLimits";
 import EventImageFallback from "@/components/ui/EventImageFallback";
-import Script from "next/script";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import API from "@/services/api";
 import { toast } from "sonner";
 import { trackPurchase, trackSelectTicket } from "@/lib/analytics";
 import { calculateTicketFees } from "@/lib/pricing";
-
-const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
-
-interface TurnstileApi {
-  render: (
-    container: HTMLElement,
-    options: {
-      sitekey: string | undefined;
-      theme?: string;
-      callback?: (token: string) => void;
-      "expired-callback"?: () => void;
-      "error-callback"?: () => void;
-    }
-  ) => string;
-  remove: (widgetId: string) => void;
-  reset: (widgetId: string) => void;
-}
-
-function getTurnstile(): TurnstileApi | undefined {
-  return (window as unknown as { turnstile?: TurnstileApi }).turnstile;
-}
 
 interface Event {
   id: number;
@@ -53,13 +32,13 @@ interface Event {
 interface TicketTier {
   min_tickets_per_person?: number;
   description?: string;
+  max_tickets_per_person?: number | null;
   id: string | number;
   name: string;
   price: number | string;
   capacity?: number | null;
   remaining?: number | null;
   sold?: number | null;
-  max_tickets_per_person?: number | null;
   admits_count?: number | null;
 }
 
@@ -117,6 +96,15 @@ const fmt = (price: number) =>
 
 const STEPS = ["Tickets", "Details", "Payment", "Done"];
 
+const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || "";
+
+type TurnstileApi = {
+  render: (el: HTMLElement, opts: Record<string, unknown>) => string;
+  reset: (id: string) => void;
+  remove: (id: string) => void;
+};
+const getTurnstile = () => (window as unknown as { turnstile?: TurnstileApi }).turnstile;
+
 interface Props {
   event: Event;
   onClose: () => void;
@@ -128,31 +116,64 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [showExitConfirm, setShowExitConfirm] = useState(false);
 
-  /* ── Turnstile (bot check before the ticket/payment request is sent) ── */
-  const turnstileRef = useRef<HTMLDivElement | null>(null);
-  const turnstileWidgetId = useRef<string | null>(null);
-  const [turnstileToken, setTurnstileToken] = useState("");
-  const [turnstileReady, setTurnstileReady] = useState(false);
+  const [confirmRelease, setConfirmRelease] = useState(false);
+
+  /* ── Human check (Cloudflare Turnstile) ──
+     Sits above the pay button on the details and payment steps and is verified
+     by the server when the payment is created. Skipped when no site key is set. */
+  const [tsReady, setTsReady] = useState(false);
+  const [tsToken, setTsToken] = useState("");
+  const tsBox = useRef<HTMLDivElement>(null);
+  const tsWidget = useRef<string | null>(null);
+  const needsTs = !!TURNSTILE_SITE_KEY && (step === 2 || step === 3);
 
   useEffect(() => {
-    if (step !== 2 || !turnstileReady || !turnstileRef.current) return;
-    const turnstile = getTurnstile();
-    if (!turnstile) return;
-
-    if (turnstileWidgetId.current !== null) {
-      turnstile.remove(turnstileWidgetId.current);
-    }
-    setTurnstileToken("");
-    turnstileWidgetId.current = turnstile.render(turnstileRef.current, {
+    if (!needsTs || !tsReady || !tsBox.current) return;
+    const api = getTurnstile();
+    if (!api) return;
+    tsWidget.current = api.render(tsBox.current, {
       sitekey: TURNSTILE_SITE_KEY,
       theme: "light",
-      callback: (token: string) => setTurnstileToken(token),
-      "expired-callback": () => setTurnstileToken(""),
-      "error-callback": () => setTurnstileToken(""),
+      callback: (token: string) => setTsToken(token),
+      "expired-callback": () => setTsToken(""),
+      "error-callback": () => setTsToken(""),
     });
-  }, [step, turnstileReady]);
+    return () => {
+      if (tsWidget.current !== null) getTurnstile()?.remove(tsWidget.current);
+      tsWidget.current = null;
+      setTsToken("");
+    };
+  }, [needsTs, tsReady]);
+
+  // Tokens are single-use, so a failed attempt needs a fresh one.
+  const resetTs = () => {
+    setTsToken("");
+    if (tsWidget.current !== null) getTurnstile()?.reset(tsWidget.current);
+  };
+
+  // Leaving before the order is done asks first. Once it is done, closing is immediate.
+  const requestClose = () => {
+    if (step === 4) onClose();
+    else setConfirmRelease(true);
+  };
+
+  // Escape backs out of the confirmation, or asks to leave; the page behind stays put.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (confirmRelease) setConfirmRelease(false);
+      else if (step === 4) onClose();
+      else setConfirmRelease(true);
+    };
+    document.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [onClose, step, confirmRelease]);
 
   /* ── Tickets ── */
   const hasTiers = tiersProp && tiersProp.length > 0;
@@ -207,9 +228,8 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
   const passFeeToAttendee = event.pass_fee_to_attendee !== false;
   const fees = calculateTicketFees(discountedSubtotal, passFeeToAttendee);
   // Buyer-facing "service fee" = everything added on top of the subtotal
-  // (Byro's 5% + the simulated Paystack cut), so the shown total equals what
-  // Paystack will actually charge and no fee jumps at checkout. When the
-  // organizer absorbs the fee, this is just the simulated Paystack cut.
+  // (Byro's 6.5% + the simulated Paystack cut), so the shown total equals what
+  // Paystack will actually charge and no fee jumps at checkout.
   const serviceFee = fees.displayTotal - fees.subtotal;
   const total = discountedSubtotal + serviceFee;
   const totalQty = Object.values(quantities).reduce((a: number, b: number) => a + b, 0);
@@ -323,11 +343,6 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
       return;
     }
 
-    if (!turnstileToken) {
-      toast.error("Please complete the verification check to continue.");
-      return;
-    }
-
     setIsProcessing(true);
     try {
       // Find the first tier with quantity > 0 to pass as tier_id
@@ -344,7 +359,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
           tier_id,
           attendees,
           promo_code: appliedPromo?.code,
-          turnstile_token: turnstileToken,
+          turnstile_token: tsToken || undefined,
         });
         const ticket = result.tickets?.[0];
         const ticketData = {
@@ -378,7 +393,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
         tier_id,
         attendees,
         promo_code: appliedPromo?.code,
-        turnstile_token: turnstileToken,
+        turnstile_token: tsToken || undefined,
       });
 
       if (result?.data?.authorization_url) {
@@ -398,11 +413,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
       console.error("Payment error:", err);
       const message = err instanceof Error ? err.message : "Payment failed. Please try again.";
       toast.error(message);
-      setTurnstileToken("");
-      const turnstile = getTurnstile();
-      if (turnstileWidgetId.current !== null && turnstile) {
-        turnstile.reset(turnstileWidgetId.current);
-      }
+      resetTs();
     } finally {
       setIsProcessing(false);
     }
@@ -420,144 +431,99 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
   const showRemaining = !!event.show_remaining_count;
 
   return (
-    <div className="fixed inset-0 z-50 bg-[#F1F4F9] overflow-y-auto">
-      <Script
-        src="https://challenges.cloudflare.com/turnstile/v0/api.js"
-        strategy="lazyOnload"
-        onLoad={() => setTurnstileReady(true)}
-      />
-      <div className="sticky top-0 z-10 bg-white border-b border-gray-100 px-4 sm:px-6 py-3.5 flex items-center justify-between">
-        <div className="w-[70px]" aria-hidden="true" />
-        <div className="flex items-center gap-1.5 text-sm text-gray-400">
-          <svg
-            width="13"
-            height="13"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
+    <div
+      className="fixed inset-0 z-50 overflow-y-auto bg-ink/45 font-body text-ink backdrop-blur-[2px]"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Checkout"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) requestClose();
+      }}
+    >
+      {TURNSTILE_SITE_KEY && (
+        <Script
+          src="https://challenges.cloudflare.com/turnstile/v0/api.js"
+          strategy="afterInteractive"
+          onReady={() => setTsReady(true)}
+        />
+      )}
+      {confirmRelease && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-ink/40 p-4" onClick={(e) => e.stopPropagation()}>
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="release-title"
+            aria-describedby="release-desc"
+            className="w-full max-w-sm rounded-[28px] bg-white p-7 shadow-[0_30px_80px_rgba(20,22,28,0.35)]"
           >
-            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-          </svg>
-          Secure checkout
-        </div>
-        <button
-          onClick={() => setShowExitConfirm(true)}
-          className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 transition-colors"
-        >
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-          >
-            <line x1="18" y1="6" x2="6" y2="18" />
-            <line x1="6" y1="6" x2="18" y2="18" />
-          </svg>
-          Exit
-        </button>
-      </div>
-
-      {showExitConfirm && (
-        <div className="fixed inset-0 z-[60] bg-black/40 flex items-center justify-center px-4">
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto p-6 sm:p-8 text-center">
-            <h2 className="text-xl font-bold text-gray-900 mb-3">
-              Release tickets
+            <h2 id="release-title" className="font-display text-2xl font-bold tracking-[-0.02em]">
+              Release your tickets?
             </h2>
-            <p className="text-sm text-gray-500 mb-8 leading-relaxed">
-              Cancel this order and release your tickets?
+            <p id="release-desc" className="mt-2 text-[15px] leading-relaxed text-muted">
+              You&apos;ll leave checkout and your ticket selection will be cleared.
             </p>
-            {/* Stacked on mobile: a long "Release ticket" label squeezed into
-                half a narrow screen was left clipping against its own pill. */}
-            <div className="flex flex-col-reverse sm:flex-row items-center gap-3 sm:gap-4">
+            <div className="mt-6 flex flex-col gap-2.5">
               <button
-                onClick={() => setShowExitConfirm(false)}
-                className="w-full sm:flex-1 border border-gray-200 text-gray-700 font-semibold py-3 rounded-full hover:bg-gray-50 transition-colors"
+                type="button"
+                autoFocus
+                onClick={() => setConfirmRelease(false)}
+                className="h-12 rounded-full bg-brand text-[15px] font-bold text-white transition-[filter,scale] hover:brightness-90 active:scale-[0.96] focus:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2"
               >
-                Cancel
+                Keep my tickets
               </button>
               <button
+                type="button"
                 onClick={onClose}
-                className="w-full sm:flex-1 bg-blue-600 text-white font-semibold py-3 rounded-full hover:bg-blue-700 transition-colors"
+                className="h-12 rounded-full border border-line text-[15px] font-bold text-ink transition-[background-color,scale] hover:bg-mist active:scale-[0.96] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
               >
-                Release ticket
+                Release tickets
               </button>
             </div>
           </div>
         </div>
       )}
-
-      <div className="bg-white border-b border-gray-100 px-6 py-4">
-        <div className="flex items-center justify-center">
-          {STEPS.map((name, i) => {
-            const n = i + 1;
-            const done = step > n;
-            const active = step === n;
-            return (
-              <div key={name} className="flex items-center">
-                <div className="flex items-center gap-1.5 sm:gap-2">
-                  <div
-                    className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs sm:text-sm font-bold transition-colors shrink-0 ${
-                      done
-                        ? "bg-emerald-500 text-white"
-                        : active
-                        ? "bg-blue-600 text-white"
-                        : "bg-gray-100 text-gray-400"
-                    }`}
-                  >
-                    {done ? (
-                      <svg
-                        width="11"
-                        height="11"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="white"
-                        strokeWidth="3"
-                      >
-                        <polyline points="20 6 9 17 4 12" />
-                      </svg>
-                    ) : (
-                      n
-                    )}
-                  </div>
-                  <span
-                    className={`hidden sm:inline text-sm font-medium ${
-                      active
-                        ? "text-gray-900"
-                        : done
-                        ? "text-gray-600"
-                        : "text-gray-400"
-                    }`}
-                  >
-                    {name}
-                  </span>
-                </div>
-                {i < STEPS.length - 1 && (
-                  <div
-                    className={`w-6 sm:w-14 lg:w-20 h-0.5 mx-2 sm:mx-3 rounded-full transition-colors ${
-                      step > n ? "bg-emerald-400" : "bg-gray-200"
-                    }`}
-                  />
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
-        <div className="flex flex-col lg:flex-row gap-6 items-start">
-          <div className="flex-1 w-full">
+      <div className="mx-auto flex min-h-full max-w-[920px] flex-col overflow-hidden bg-white md:my-8 md:min-h-0 md:flex-row md:rounded-[32px] md:shadow-[0_40px_100px_rgba(20,22,28,0.35)]">
+          {/* Left panel */}
+          <div className="flex flex-1 flex-col gap-5 p-5 md:p-10">
+            <div className="flex items-center justify-between gap-3">
+              <ol aria-label="Checkout steps" className="flex items-center gap-2 text-[13px] font-bold">
+                {STEPS.slice(0, 3).map((name, i) => {
+                  const n = i + 1;
+                  const done = step > n;
+                  const active = step === n;
+                  const label = name === "Details" ? "Your details" : name === "Payment" ? "Pay" : name;
+                  return (
+                    <li
+                      key={name}
+                      aria-current={active ? "step" : undefined}
+                      className={`flex h-7 items-center rounded-full px-2.5 ${
+                        done ? "bg-mint text-[#1F7A52]" : active ? "bg-brand text-white" : "bg-mist text-muted"
+                      }`}
+                    >
+                      {n} {label}
+                      {done ? " ✓" : ""}
+                    </li>
+                  );
+                })}
+              </ol>
+              <button
+                type="button"
+                onClick={requestClose}
+                aria-label="Close checkout"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-mist text-ink transition-[background-color,scale] hover:bg-line active:scale-[0.96] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true">
+                  <path d="M6 6l12 12M18 6L6 18" />
+                </svg>
+              </button>
+            </div>
             {/* Step 1 – Tickets */}
             {step === 1 && (
-              <div className="bg-white rounded-2xl p-6 sm:p-8 border border-gray-100 shadow-sm">
-                <h1 className="text-2xl font-bold text-gray-900 mb-1">
+              <div className="flex flex-col">
+                <h1 className="font-display text-[32px] md:text-4xl font-bold tracking-[-0.025em] text-ink mb-1">
                   Choose your tickets
                 </h1>
-                <p className="text-sm text-gray-500 mb-6">
+                <p className="text-sm text-muted mb-6">
                   Select the tiers and quantities you want.{" "}
                   {(() => {
                     if (!showRemaining) return null;
@@ -579,106 +545,86 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                     const cap = tier.remaining != null ? Math.min(max, tier.remaining) : max;
                     const atCap = currentQty >= cap || (currentQty === 0 && tier.remaining != null && tier.remaining < min);
                     return (
-                    <div
-                      key={tier.id}
-                      className={`rounded-xl border p-4 transition-colors ${
-                        (quantities[String(tier.id)] || 0) > 0
-                          ? "border-blue-300 bg-blue-50/50"
-                          : "border-gray-100"
-                      }`}
-                    >
-                      {/* Stacks on mobile so the description gets the full card
-                          width instead of being squeezed into a narrow column
-                          next to the price/stepper. */}
-                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="font-semibold text-gray-900 text-sm">
-                            {tier.name}
-                          </p>
-                          {tier.description && (
-                            <p className="text-xs text-gray-600 mt-0.5 break-words">{tier.description}</p>
-                          )}
-                          <p className="text-xs text-gray-500 mt-0.5">
-                            {showRemaining && tier.remaining != null && tier.remaining > 0 && (
-                              <span className="text-orange-500">{tier.remaining} left</span>
+                      <div
+                        key={tier.id}
+                        className={`rounded-[18px] border p-4 transition-colors ${
+                          currentQty > 0 ? "border-brand bg-[#F3F8FE]" : "border-hairline"
+                        }`}
+                      >
+                        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-ink">{tier.name}</p>
+                            {tier.description && (
+                              <p className="mt-0.5 break-words text-xs text-muted">{tier.description}</p>
                             )}
-                            {tier.remaining === 0 && (
-                              <span className="text-red-500">Sold out</span>
+                            <p className="mt-0.5 text-xs text-muted">
+                              {showRemaining && tier.remaining != null && tier.remaining > 0 && (
+                                <span className="text-orange-500">{tier.remaining} left</span>
+                              )}
+                              {tier.remaining === 0 && <span className="text-red-500">Sold out</span>}
+                              {showRemaining && tier.remaining == null && tier.capacity != null && (
+                                <span>{tier.capacity} capacity</span>
+                              )}
+                            </p>
+                            {tier.remaining !== 0 && (
+                              <p className="mt-0.5 text-xs text-muted">{describeTicketLimits(tier, event)}</p>
                             )}
-                            {showRemaining && tier.remaining == null && tier.capacity != null && (
-                              <span>{tier.capacity} capacity</span>
-                            )}
-                          </p>
-                          {tier.remaining !== 0 && (
-                            <p className="text-xs text-gray-500 mt-0.5">{describeTicketLimits(tier, event)}</p>
-                          )}
-                        </div>
-                        <div className="flex items-center justify-between sm:justify-end gap-3 flex-shrink-0">
-                          <span className="font-semibold text-gray-900 text-sm">
-                            {parseFloat(String(tier.price)) === 0 ? "Free" : fmt(parseFloat(String(tier.price)))}
-                          </span>
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() =>
-                                setQuantities((p) => ({
-                                  ...p,
-                                  [String(tier.id)]: stepDown(p[String(tier.id)] || 0, min),
-                                }))
-                              }
-                              className="w-8 h-8 rounded-full border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-50 transition-colors"
-                            >
-                              <svg
-                                width="13"
-                                height="13"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2.5"
-                              >
-                                <line x1="5" y1="12" x2="19" y2="12" />
-                              </svg>
-                            </button>
-                            <span className="w-5 text-center font-semibold text-gray-900 text-sm">
-                              {quantities[String(tier.id)]}
+                          </div>
+                          <div className="flex shrink-0 items-center justify-between gap-3 md:justify-end">
+                            <span className="text-sm font-semibold text-ink">
+                              {parseFloat(String(tier.price)) === 0 ? "Free" : fmt(parseFloat(String(tier.price)))}
                             </span>
-                            <button
-                              onClick={() =>
-                                setQuantities((p) => {
-                                  const cur = p[String(tier.id)] || 0;
-                                  // Bundled: the first press jumps to the tier's minimum, then one at a time up to its cap.
-                                  const next = stepUp(cur, min, cap);
-                                  if (next === cur) return p;
-                                  // Reset all other tiers to 0 — only one tier can be selected at a time
-                                  const reset: Record<string, number> = {};
-                                  tiers.forEach((t) => { reset[String(t.id)] = 0; });
-                                  return { ...reset, [String(tier.id)]: next };
-                                })
-                              }
-                              disabled={tier.remaining === 0 || atCap}
-                              className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white hover:bg-blue-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                            >
-                              <svg
-                                width="13"
-                                height="13"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2.5"
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                aria-label={`Fewer ${tier.name} tickets`}
+                                onClick={() =>
+                                  setQuantities((p) => ({
+                                    ...p,
+                                    [String(tier.id)]: stepDown(p[String(tier.id)] || 0, min),
+                                  }))
+                                }
+                                className="flex h-9 w-9 items-center justify-center rounded-full border border-line text-muted transition-colors hover:bg-mist"
                               >
-                                <line x1="12" y1="5" x2="12" y2="19" />
-                                <line x1="5" y1="12" x2="19" y2="12" />
-                              </svg>
-                            </button>
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
+                                  <line x1="5" y1="12" x2="19" y2="12" />
+                                </svg>
+                              </button>
+                              <span className="w-5 text-center text-sm font-semibold text-ink">{currentQty}</span>
+                              <button
+                                type="button"
+                                aria-label={`More ${tier.name} tickets`}
+                                onClick={() =>
+                                  setQuantities((p) => {
+                                    const cur = p[String(tier.id)] || 0;
+                                    // Bundled: the first press jumps to the tier's minimum, then one at a time up to its cap.
+                                    const next = stepUp(cur, min, cap);
+                                    if (next === cur) return p;
+                                    // Reset all other tiers to 0: only one tier can be selected at a time
+                                    const reset: Record<string, number> = {};
+                                    tiers.forEach((t) => { reset[String(t.id)] = 0; });
+                                    return { ...reset, [String(tier.id)]: next };
+                                  })
+                                }
+                                disabled={tier.remaining === 0 || atCap}
+                                className="flex h-9 w-9 items-center justify-center rounded-full bg-brand text-white transition-[filter] hover:brightness-90 disabled:cursor-not-allowed disabled:opacity-40"
+                              >
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
+                                  <line x1="12" y1="5" x2="12" y2="19" />
+                                  <line x1="5" y1="12" x2="19" y2="12" />
+                                </svg>
+                              </button>
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
                     );
                   })}
                 </div>
 
-                <div className="mt-4 flex items-center border border-gray-200 rounded-xl overflow-hidden">
-                  <div className="flex items-center gap-2 flex-1 min-w-0 px-4 py-3">
+                {/* Promo code */}
+                <div className="mt-4 flex items-center border border-line rounded-xl overflow-hidden">
+                  <div className="flex items-center gap-3 flex-1 px-4 py-3">
                     <svg
                       width="15"
                       height="15"
@@ -686,7 +632,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                       fill="none"
                       stroke="currentColor"
                       strokeWidth="2"
-                      className="text-gray-400 flex-shrink-0"
+                      className="text-faint flex-shrink-0"
                     >
                       <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
                       <line x1="7" y1="7" x2="7.01" y2="7" />
@@ -700,13 +646,13 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                         if (promoError) setPromoError("");
                       }}
                       placeholder="Have a promo code?"
-                      className="w-full min-w-0 text-sm text-gray-700 placeholder-gray-400 focus:outline-none bg-transparent"
+                      className="flex-1 text-sm text-ink placeholder-gray-400 focus:outline-none bg-transparent"
                     />
                   </div>
                   <button
                     onClick={applyPromo}
                     disabled={!promoCode.trim() || isApplyingPromo}
-                    className="shrink-0 whitespace-nowrap px-4 sm:px-5 py-3 text-sm font-semibold text-gray-700 border-l border-gray-200 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-5 py-3 text-sm font-semibold text-ink border-l border-line hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isApplyingPromo ? "Checking..." : "Apply"}
                   </button>
@@ -734,22 +680,23 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
 
             {/* Step 2 – Details */}
             {step === 2 && (
-              <div className="bg-white rounded-2xl p-6 sm:p-8 border border-gray-100 shadow-sm">
-                <h1 className="text-2xl font-bold text-gray-900 mb-1">
+              <div className="flex flex-col">
+                <h1 className="font-display text-[32px] md:text-4xl font-bold tracking-[-0.025em] text-ink mb-1">
                   Your details
                 </h1>
-                <p className="text-sm text-gray-500 mb-6">
+                <p className="text-sm text-muted mb-6">
                   We will send your tickets and entry QR here.
                 </p>
 
                 <div className="space-y-4">
+                  {/* Full name */}
                   <div>
-                    <label className="text-sm font-medium text-gray-700 block mb-1.5">
+                    <label className="text-sm font-bold text-ink block mb-1.5">
                       Full name
                     </label>
                     <div className="relative">
                       <svg
-                        className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                        className="absolute left-3 top-1/2 -translate-y-1/2 text-faint"
                         width="15"
                         height="15"
                         viewBox="0 0 24 24"
@@ -765,19 +712,20 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                         value={fullName}
                         onChange={(e) => setFullName(e.target.value)}
                         placeholder="Amara Okafor"
-                        className="w-full border border-gray-200 text-black rounded-xl pl-9 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-400"
+                        className="w-full border border-[#D5DBE5] text-ink rounded-[14px] pl-9 pr-4 py-3.5 text-[15px] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand placeholder:text-faint"
                       />
                     </div>
                   </div>
 
+                  {/* Email + Phone */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="text-sm font-medium text-gray-700 block mb-1.5">
+                      <label className="text-sm font-bold text-ink block mb-1.5">
                         Email address
                       </label>
                       <div className="relative">
                         <svg
-                          className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                          className="absolute left-3 top-1/2 -translate-y-1/2 text-faint"
                           width="15"
                           height="15"
                           viewBox="0 0 24 24"
@@ -793,17 +741,17 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                           value={email}
                           onChange={(e) => setEmail(e.target.value)}
                           placeholder="amara@email.com"
-                          className="w-full border border-gray-200 text-black rounded-xl pl-9 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-400"
+                          className="w-full border border-[#D5DBE5] text-ink rounded-[14px] pl-9 pr-4 py-3.5 text-[15px] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand placeholder:text-faint"
                         />
                       </div>
                     </div>
                     <div>
-                      <label className="text-sm font-medium text-gray-700 block mb-1.5">
+                      <label className="text-sm font-bold text-ink block mb-1.5">
                         Phone number
                       </label>
                       <div className="relative">
                         <svg
-                          className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                          className="absolute left-3 top-1/2 -translate-y-1/2 text-faint"
                           width="14"
                           height="14"
                           viewBox="0 0 24 24"
@@ -819,7 +767,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                           value={phone}
                           onChange={(e) => setPhone(e.target.value)}
                           placeholder="+234 801 234 5678"
-                          className="w-full border border-gray-200 text-black rounded-xl pl-9 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-400"
+                          className="w-full border border-[#D5DBE5] text-ink rounded-[14px] pl-9 pr-4 py-3.5 text-[15px] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand placeholder:text-faint"
                         />
                       </div>
                     </div>
@@ -827,12 +775,13 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
 
                 </div>
 
-                <div className="mt-5 border border-gray-100 rounded-xl p-4">
-                  <p className="font-semibold text-gray-900 text-sm mb-3">
+                {/* Ticket delivery */}
+                <div className="mt-5 border border-hairline rounded-xl p-4">
+                  <p className="font-semibold text-ink text-sm mb-3">
                     Ticket recipient(s)
                   </p>
                   {isMultiSeat ? (
-                    <p className="text-sm text-gray-600">
+                    <p className="text-sm text-muted">
                       Enter the details of the guest&apos;s below
                     </p>
                   ) : (
@@ -841,7 +790,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                       <div
                         onClick={() => setSendToOther((v) => !v)}
                         className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 transition-colors cursor-pointer ${
-                          sendToOther ? "bg-blue-600" : "border-2 border-gray-300"
+                          sendToOther ? "bg-brand" : "border-2 border-[#C7CEDA]"
                         }`}
                       >
                         {sendToOther && (
@@ -850,23 +799,24 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                           </svg>
                         )}
                       </div>
-                      <span className="text-sm text-gray-700">
+                      <span className="text-sm text-ink">
                         Send ticket to another email?
                       </span>
                     </label>
                   )}
 
+                  {/* Per-recipient details */}
                   {recipientCount > 0 && (
-                    <div className="mt-4 space-y-4 border-t border-gray-100 pt-4">
+                    <div className="mt-4 space-y-4 border-t border-hairline pt-4">
                       {isRedirect && (
-                        <p className="text-xs text-gray-500">
+                        <p className="text-xs text-muted">
                           You&apos;re paying, but the ticket will be sent to this email.
                         </p>
                       )}
                       {Array.from({ length: recipientCount }, (_, i) => (
                         <div key={i} className="space-y-2">
                           {isMultiSeat && (
-                            <p className="text-xs font-semibold text-gray-700">
+                            <p className="text-xs font-semibold text-ink">
                               {recipientBaseLabel} {i + recipientLabelOffset}
                             </p>
                           )}
@@ -877,14 +827,14 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                                 value={guests[i]?.name || ""}
                                 onChange={(e) => setGuest(i, "name", e.target.value)}
                                 placeholder="Full name"
-                                className="w-full border border-gray-200 text-black rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-400"
+                                className="w-full border border-[#D5DBE5] text-ink rounded-[14px] px-4 py-3 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand placeholder:text-faint"
                               />
                               <input
                                 type="email"
                                 value={guests[i]?.email || ""}
                                 onChange={(e) => setGuest(i, "email", e.target.value)}
                                 placeholder="Email address"
-                                className="w-full border border-gray-200 text-black rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-400"
+                                className="w-full border border-[#D5DBE5] text-ink rounded-[14px] px-4 py-3 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand placeholder:text-faint"
                               />
                             </div>
                           ) : (
@@ -893,7 +843,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                               value={guests[i]?.email || ""}
                               onChange={(e) => setGuest(i, "email", e.target.value)}
                               placeholder="Recipient's email address"
-                              className="w-full border border-gray-200 text-black rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-400"
+                              className="w-full border border-[#D5DBE5] text-ink rounded-[14px] px-4 py-3 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand placeholder:text-faint"
                             />
                           )}
                         </div>
@@ -906,35 +856,37 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
 
             {/* Step 3 – Payment */}
             {step === 3 && (
-              <div className="bg-white rounded-2xl p-6 sm:p-8 border border-gray-100 shadow-sm">
-                <h1 className="text-2xl font-bold text-gray-900 mb-1">
+              <div className="flex flex-col">
+                <h1 className="font-display text-[32px] md:text-4xl font-bold tracking-[-0.025em] text-ink mb-1">
                   Payment
                 </h1>
-                <p className="text-sm text-gray-500 mb-6">
+                <p className="text-sm text-muted mb-6">
                   All transactions are encrypted and secure.
                 </p>
 
+                {/* Payment methods */}
                 <div className="space-y-3 mb-5">
+                  {/* Pay with Paystack */}
                   <label
-                    className={`flex items-center gap-4 p-4 rounded-xl border cursor-pointer transition-colors ${
+                    className={`flex items-center gap-4 p-4 rounded-[18px] border cursor-pointer transition-colors ${
                       payMethod === "paystack"
-                        ? "border-blue-300 bg-blue-50/40"
-                        : "border-gray-100 hover:border-gray-200"
+                        ? "border-brand bg-[#F3F8FE]"
+                        : "border-hairline hover:border-line"
                     }`}
                   >
                     <div
                       onClick={() => setPayMethod("paystack")}
                       className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors cursor-pointer ${
                         payMethod === "paystack"
-                          ? "border-blue-600"
-                          : "border-gray-300"
+                          ? "border-brand"
+                          : "border-[#C7CEDA]"
                       }`}
                     >
                       {payMethod === "paystack" && (
-                        <div className="w-2.5 h-2.5 rounded-full bg-blue-600" />
+                        <div className="w-2.5 h-2.5 rounded-full bg-brand" />
                       )}
                     </div>
-                    <span className="text-gray-400 flex-shrink-0">
+                    <span className="text-faint flex-shrink-0">
                       <svg
                         width="18"
                         height="18"
@@ -948,19 +900,19 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                       </svg>
                     </span>
                     <div>
-                      <p className="font-semibold text-gray-900 text-sm">
+                      <p className="font-semibold text-ink text-sm">
                         Pay with Paystack
                       </p>
-                      <p className="text-gray-500 text-xs mt-0.5">
+                      <p className="text-muted text-xs mt-0.5">
                         Card, bank transfer &amp; more
                       </p>
                     </div>
                   </label>
 
                   {/* Pay with Crypto — coming soon */}
-                  <div className="flex items-center gap-4 p-4 rounded-xl border border-gray-100 opacity-60 cursor-not-allowed select-none">
-                    <div className="w-5 h-5 rounded-full border-2 border-gray-300 flex-shrink-0" />
-                    <span className="text-gray-400 flex-shrink-0">
+                  <div className="flex items-center gap-4 p-4 rounded-[18px] border border-hairline opacity-60 cursor-not-allowed select-none">
+                    <div className="w-5 h-5 rounded-full border-2 border-[#C7CEDA] flex-shrink-0" />
+                    <span className="text-faint flex-shrink-0">
                       <svg
                         width="18"
                         height="18"
@@ -977,10 +929,10 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                     </span>
                     <div className="flex items-center gap-2 flex-1">
                       <div>
-                        <p className="font-semibold text-gray-900 text-sm">
+                        <p className="font-semibold text-ink text-sm">
                           Pay with Crypto
                         </p>
-                        <p className="text-gray-500 text-xs mt-0.5">
+                        <p className="text-muted text-xs mt-0.5">
                           BTC, ETH, USDT and more
                         </p>
                       </div>
@@ -991,7 +943,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                   </div>
                 </div>
 
-                <p className="text-xs text-gray-400 flex items-center gap-1.5 mt-4">
+                <p className="text-xs text-faint flex items-center gap-1.5 mt-4">
                   <svg
                     width="12"
                     height="12"
@@ -1005,87 +957,24 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                   </svg>
                   Secured by Paystack · 256-bit encryption
                 </p>
-
-                <label className="flex items-start gap-2.5 mt-4 cursor-pointer">
-                  <div
-                    onClick={() => setAgreed(!agreed)}
-                    className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors cursor-pointer ${
-                      agreed ? "bg-blue-600" : "border-2 border-gray-300"
-                    }`}
-                  >
-                    {agreed && (
-                      <svg
-                        width="11"
-                        height="11"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="white"
-                        strokeWidth="3"
-                      >
-                        <polyline points="20 6 9 17 4 12" />
-                      </svg>
-                    )}
-                  </div>
-                  <span className="text-xs text-gray-500 leading-relaxed">
-                    I agree to Byro&apos;s{" "}
-                    <a href="/terms" target="_blank" className="text-blue-600 hover:underline">
-                      Terms
-                    </a>{" "}
-                    and{" "}
-                    <a
-                      href="/refund-policy"
-                      target="_blank"
-                      className="text-blue-600 hover:underline"
-                    >
-                      Refund policy
-                    </a>
-                    .
-                  </span>
-                </label>
               </div>
             )}
 
-            {/* Step 4 – Done */}
-            {step === 4 && (
-              <div className="bg-white rounded-2xl p-10 border border-gray-100 shadow-sm text-center">
-                <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-5">
-                  <svg
-                    width="30"
-                    height="30"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="#10b981"
-                    strokeWidth="2.5"
-                  >
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                </div>
-                <h1 className="text-2xl font-bold text-gray-900 mb-2">
-                  You&apos;re in!
-                </h1>
-                <p className="text-gray-500 text-sm mb-6 max-w-xs mx-auto">
-                  Your tickets have been confirmed. Check your email for your QR
-                  entry codes.
-                </p>
-                <button
-                  onClick={onClose}
-                  className="bg-blue-600 text-white font-semibold px-8 py-3 rounded-full hover:bg-blue-700 transition-colors"
-                >
-                  Back to events
-                </button>
-              </div>
-            )}
           </div>
 
+          {/* ── Right panel – Order summary ── */}
           {step < 4 && (
-            <div className="lg:w-72 xl:w-80 w-full shrink-0 order-last lg:order-none">
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden lg:sticky lg:top-28">
-                <div className="relative h-28">
+            <div className="w-full shrink-0 bg-paper md:w-[330px]">
+              <div className="md:sticky md:top-0">
+                {/* Event preview */}
+                <div className="relative m-5 mb-0 h-[150px] overflow-hidden rounded-[18px] md:m-7 md:mb-0">
                   {event.event_image_url ? (
                     <Image
                       src={event.event_image_url}
                       alt={event.name}
                       fill
+                      sizes="330px"
+                      unoptimized={/localhost|127\.0\.0\.1/.test(event.event_image_url)}
                       className="object-cover"
                     />
                   ) : (
@@ -1100,26 +989,14 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                       {badgeLabel}
                     </span>
                   </div>
-                  <button className="absolute top-2.5 right-2.5 w-7 h-7 bg-white/80 backdrop-blur-sm rounded-full flex items-center justify-center">
-                    <svg
-                      width="12"
-                      height="12"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      className="text-gray-600"
-                    >
-                      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-                    </svg>
-                  </button>
                 </div>
 
-                <div className="p-4">
-                  <h3 className="font-bold text-gray-900 text-base mb-2">
+                <div className="p-5 md:p-7">
+                  <p className="mb-3 text-xs font-extrabold tracking-[0.12em] text-muted">YOUR ORDER</p>
+                  <h3 className="mb-2 font-display text-[22px] font-bold text-ink">
                     {event.name}
                   </h3>
-                  <div className="flex items-center gap-1.5 text-xs text-gray-500 mb-1">
+                  <div className="flex items-center gap-1.5 text-xs text-muted mb-1">
                     <svg
                       width="11"
                       height="11"
@@ -1135,7 +1012,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                     </svg>
                     {dateStr} · {timeStr}
                   </div>
-                  <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                  <div className="flex items-center gap-1.5 text-xs text-muted">
                     <svg
                       width="11"
                       height="11"
@@ -1150,8 +1027,9 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                     {event.location}
                   </div>
 
+                  {/* Order lines */}
                   {subtotal > 0 && (
-                    <div className="mt-4 pt-4 border-t border-gray-100 space-y-2">
+                    <div className="mt-4 pt-4 border-t border-hairline space-y-2">
                       {tiers.map((t) => {
                         const q = quantities[String(t.id)] || 0;
                         if (!q) return null;
@@ -1160,17 +1038,17 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                             key={t.id}
                             className="flex justify-between text-sm"
                           >
-                            <span className="text-gray-600">
+                            <span className="text-muted">
                               {q} × {t.name}
                             </span>
-                            <span className="font-medium text-gray-900">
+                            <span className="font-medium text-ink">
                               {fmt(parseFloat(String(t.price)) * q)}
                             </span>
                           </div>
                         );
                       })}
                       <div className="flex justify-between text-sm">
-                        <span className="flex items-center gap-1 text-gray-500">
+                        <span className="flex items-center gap-1 text-muted">
                           Service fee
                           <span className="relative group cursor-default">
                             <svg
@@ -1180,19 +1058,19 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                               fill="none"
                               stroke="currentColor"
                               strokeWidth="2"
-                              className="text-gray-400"
+                              className="text-faint"
                             >
                               <circle cx="12" cy="12" r="10" />
                               <line x1="12" y1="16" x2="12" y2="12" />
                               <line x1="12" y1="8" x2="12.01" y2="8" />
                             </svg>
-                            <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-40 text-center bg-gray-800 text-white text-[10px] leading-tight px-2.5 py-1.5 rounded-lg pointer-events-none shadow-lg z-10">
-                              To serve you better. Non-refundable.
+                            <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block whitespace-nowrap bg-gray-800 text-white text-[10px] leading-tight px-2.5 py-1.5 rounded-lg pointer-events-none shadow-lg z-10">
+                              To serve you better
                               <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
                             </span>
                           </span>
                         </span>
-                        <span className="text-gray-700">{fmt(serviceFee)}</span>
+                        <span className="text-ink">{fmt(serviceFee)}</span>
                       </div>
                       {appliedPromo && (
                         <div className="flex justify-between text-sm">
@@ -1214,22 +1092,27 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                           </span>
                         </div>
                       )}
-                      <div className="flex justify-between pt-2 border-t border-gray-100 mt-1">
-                        <span className="font-bold text-gray-900">Total</span>
-                        <span className="font-bold text-gray-900 text-lg">
+                      <div className="flex justify-between pt-2 border-t border-hairline mt-1">
+                        <span className="font-bold text-ink">Total</span>
+                        <span className="font-bold text-ink text-lg">
                           {fmt(total)}
                         </span>
                       </div>
                     </div>
                   )}
 
-                  {/* Bot check — required before the ticket/payment request is sent */}
-                  {step === 2 && (
-                    <div className="mt-4 flex justify-center">
-                      <div ref={turnstileRef} />
+                  {needsTs && (
+                    <div className="mt-4">
+                      <div className="h-[60px]">
+                        <div ref={tsBox} className="w-[300px] origin-top-left scale-[0.91]" />
+                      </div>
+                      {!tsToken && (
+                        <p className="mt-1.5 text-xs text-muted">Tick the box to continue.</p>
+                      )}
                     </div>
                   )}
 
+                  {/* CTA */}
                   <button
                     onClick={() => {
                       if (step === 2) {
@@ -1255,8 +1138,8 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                         setStep((s) => Math.min(s + 1, 4));
                       }
                     }}
-                    disabled={(step === 1 && totalQty === 0) || (step === 2 && total === 0 && !agreed) || (step === 2 && !turnstileToken) || (step === 2 && isProcessing) || (step === 3 && !agreed) || (step === 3 && isProcessing)}
-                    className="mt-4 w-full bg-blue-600 text-white font-semibold py-3 rounded-full hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed text-sm"
+                    disabled={(step === 1 && totalQty === 0) || (step === 2 && !agreed) || (step === 2 && isProcessing) || (step === 3 && isProcessing) || (needsTs && !tsToken)}
+                    className="mt-4 w-full bg-brand text-white font-semibold py-3 rounded-full hover:brightness-90 transition-colors flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed text-sm"
                   >
                     {step === 1 && (
                       <>
@@ -1385,15 +1268,13 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                     )}
                   </button>
 
-                  {/* Terms — free tickets finish right here (no separate payment
-                      page), so they must agree before the "Get tickets" CTA.
-                      Paid tickets agree on the payment page instead. */}
-                  {step === 2 && total === 0 && (
+                  {/* Terms — directly under the Get tickets / Continue CTA */}
+                  {step === 2 && (
                     <label className="flex items-start gap-2.5 mt-3 cursor-pointer">
                       <div
                         onClick={() => setAgreed(!agreed)}
                         className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors cursor-pointer ${
-                          agreed ? "bg-blue-600" : "border-2 border-gray-300"
+                          agreed ? "bg-brand" : "border-2 border-[#C7CEDA]"
                         }`}
                       >
                         {agreed && (
@@ -1409,16 +1290,16 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                           </svg>
                         )}
                       </div>
-                      <span className="text-xs text-gray-500 leading-relaxed">
+                      <span className="text-xs text-muted leading-relaxed">
                         I agree to Byro&apos;s{" "}
-                        <a href="/terms" target="_blank" className="text-blue-600 hover:underline">
+                        <a href="/terms" target="_blank" className="text-brand hover:underline">
                           Terms
                         </a>{" "}
                         and{" "}
                         <a
                           href="/refund-policy"
                           target="_blank"
-                          className="text-blue-600 hover:underline"
+                          className="text-brand hover:underline"
                         >
                           Refund policy
                         </a>
@@ -1430,7 +1311,6 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
               </div>
             </div>
           )}
-        </div>
       </div>
     </div>
   );

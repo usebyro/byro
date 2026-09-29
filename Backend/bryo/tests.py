@@ -20,7 +20,7 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 from rest_framework.throttling import ScopedRateThrottle
 
-from .models import Event, EventCoHost, UserProfile
+from .models import Event, EventCoHost, Follow, UserProfile
 from .services import workos_auth
 from .services.workos_api import WorkOSAPIError
 
@@ -620,3 +620,84 @@ class PrivateEventVisibilityTests(WorkOSAuthTestCase):
         self.private.save(update_fields=['is_active'])
         self.auth(make_token(sub='user_owner'))
         self.assertEqual(self.client.get(f'/api/events/{self.private.slug}/').status_code, 200)
+
+
+@override_settings(**WORKOS_TEST_SETTINGS)
+class FollowTests(WorkOSAuthTestCase):
+    """Following an organiser's community page, and the counts shown on it."""
+
+    def setUp(self):
+        super().setUp()
+        self.host = User.objects.create_user(email='host@example.com', workos_id='user_host')
+        UserProfile.objects.filter(user=self.host).update(handle='sundayrunclub', display_name='Sunday Run Club')
+        self.fan = User.objects.create_user(email='fan@example.com', workos_id='user_fan')
+        UserProfile.objects.filter(user=self.fan).update(handle='fan')
+        self.url = '/api/profile/sundayrunclub/follow/'
+
+    def as_fan(self):
+        self.auth(make_token(sub='user_fan'))
+
+    def test_signed_out_visitor_cannot_follow(self):
+        res = self.client.post(self.url)
+        self.assertIn(res.status_code, (401, 403))
+        self.assertEqual(Follow.objects.count(), 0)
+
+    def test_follow_creates_a_link_and_returns_the_new_count(self):
+        self.as_fan()
+        res = self.client.post(self.url)
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json(), {'following': True, 'followers_count': 1})
+        self.assertTrue(Follow.objects.filter(follower=self.fan, following=self.host).exists())
+
+    def test_following_twice_is_harmless(self):
+        self.as_fan()
+        self.client.post(self.url)
+        res = self.client.post(self.url)
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json()['followers_count'], 1)
+        self.assertEqual(Follow.objects.count(), 1)
+
+    def test_unfollow_removes_the_link(self):
+        self.as_fan()
+        self.client.post(self.url)
+        res = self.client.delete(self.url)
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json(), {'following': False, 'followers_count': 0})
+        self.assertEqual(Follow.objects.count(), 0)
+
+    def test_unfollowing_someone_you_do_not_follow_is_harmless(self):
+        self.as_fan()
+        res = self.client.delete(self.url)
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json()['following'], False)
+
+    def test_you_cannot_follow_yourself(self):
+        self.auth(make_token(sub='user_host'))
+        res = self.client.post(self.url)
+        self.assertEqual(res.status_code, 400)
+        self.assertEqual(Follow.objects.count(), 0)
+
+    def test_unknown_handle_is_a_404(self):
+        self.as_fan()
+        self.assertEqual(self.client.post('/api/profile/nobody-here/follow/').status_code, 404)
+
+    def test_public_profile_reports_followers_and_the_viewers_own_state(self):
+        Follow.objects.create(follower=self.fan, following=self.host)
+        other = User.objects.create_user(email='other@example.com', workos_id='user_other')
+        Follow.objects.create(follower=other, following=self.host)
+
+        anon = self.client.get('/api/profile/sundayrunclub/').json()
+        self.assertEqual(anon['followers_count'], 2)
+        self.assertFalse(anon['is_following'])
+
+        self.as_fan()
+        as_fan = self.client.get('/api/profile/sundayrunclub/').json()
+        self.assertTrue(as_fan['is_following'])
+
+        self.auth(make_token(sub='user_host'))
+        self.assertFalse(self.client.get('/api/profile/sundayrunclub/').json()['is_following'])
+
+    def test_deleting_a_user_removes_their_follows(self):
+        Follow.objects.create(follower=self.fan, following=self.host)
+        self.fan.delete()
+        self.assertEqual(Follow.objects.count(), 0)

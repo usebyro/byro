@@ -1,11 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams, notFound } from "next/navigation";
-import Image from "next/image";
-import EventImageFallback from "@/components/ui/EventImageFallback";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { Share01Icon, FavouriteIcon, Calendar01Icon, Location01Icon, UserGroupIcon } from "@hugeicons/core-free-icons";
 import API from "@/services/api";
 import { toast } from "sonner";
 import Navbar from "@/components/Navbar";
@@ -14,26 +11,32 @@ import { Providers } from "@/redux/Providers";
 import CheckoutModal from "@/components/checkout/CheckoutModal";
 import ShareMenu from "@/components/ShareMenu";
 import EventPublishedModal from "@/components/events/EventPublishedModal";
-import EventCard from "@/components/landing/EventCard";
+import EventImage from "@/components/brand/EventImage";
+import Stamp from "@/components/brand/Stamp";
+import { StackTile } from "@/components/brand/EventTile";
+import { categoryTone, dayParts, formatNaira, formatTime, isPast } from "@/lib/eventFormat";
 import { trackViewEvent, trackShareEvent, trackSaveEvent, trackBeginCheckout } from "@/lib/analytics";
 import { calculateTicketFees } from "@/lib/pricing";
 import { ticketLimits, describeTicketLimits } from "@/lib/ticketLimits";
 
-/* ── helpers ── */
-const fmt = (price) =>
-  new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(price);
+const fmt = (price) => formatNaira(price);
 
-const categoryLabels = {
-  entertainment: "CONCERTS & MUSIC",
-  web3_crypto:   "WEB3 & CRYPTO",
-  art_culture:   "ART & CULTURE",
-  nightlife:     "NIGHTLIFE & PARTIES",
-  conference:    "CONFERENCES",
-  fitness:       "SPORTS",
-  technology:    "TECHNOLOGY",
-  other:         "OTHER",
-};
+const iconBtn =
+  "flex h-12 w-12 items-center justify-center rounded-full bg-white/95 text-ink shadow-sm transition-[scale,background-color] hover:bg-white active:scale-[0.96] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand";
 
+/* Google Calendar "add event" link built from the event's own fields. */
+function calendarUrl(event) {
+  const day = (event.day || "").replace(/-/g, "");
+  if (!day) return null;
+  const t = (x) => (x || "00:00:00").slice(0, 5).replace(":", "") + "00";
+  const start = `${day}T${t(event.time_from)}`;
+  let end = `${day}T${t(event.time_to || event.time_from)}`;
+  if (end < start) end = start;
+  return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(event.name)}&dates=${start}/${end}&location=${encodeURIComponent(event.location || "")}`;
+}
+
+const inputCls =
+  "w-full rounded-[14px] border border-[#D5DBE5] px-3.5 py-2.5 text-sm text-ink placeholder:text-faint focus:outline-none focus-visible:ring-2 focus-visible:ring-brand";
 
 export default function ViewEventClient({ slug }) {
   const router = useRouter();
@@ -46,7 +49,7 @@ export default function ViewEventClient({ slug }) {
   const [showCheckout, setShowCheckout] = useState(false);
   const [saved, setSaved] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
-  const [relatedEvents, setRelatedEvents] = useState([]);
+  const [more, setMore] = useState([]);
 
   /* Ticket tier selection */
   const [selectedTier, setSelectedTier] = useState("general");
@@ -115,7 +118,8 @@ export default function ViewEventClient({ slug }) {
           const resolvedTiers = embeddedTiers.length > 0 ? embeddedTiers : fetchedTiers;
           if (resolvedTiers.length > 0) {
             setRealTiers(resolvedTiers);
-            setSelectedTier(String(resolvedTiers[0].id));
+            const firstOpen = resolvedTiers.find((t) => t.remaining !== 0) || resolvedTiers[0];
+            setSelectedTier(String(firstOpen.id));
           }
         } else {
           throw new Error("Invalid event data");
@@ -132,19 +136,21 @@ export default function ViewEventClient({ slug }) {
     doFetch();
   }, [slug, router]);
 
-  /* "Other events you may like" — same category, excluding this one */
+  /* Other events you may like: same category first, then whatever is trending */
   useEffect(() => {
-    if (!event?.category || !event?.slug) return;
+    if (!event?.slug) return;
     let cancelled = false;
+    const pick = (data) => {
+      const raw = Array.isArray(data) ? data : data?.events || data?.data || [];
+      return raw.filter((e) => e.slug !== event.slug && !isPast(e)).slice(0, 4);
+    };
     API.getEvents({ category: event.category })
-      .then((data) => {
-        if (cancelled) return;
-        const raw = Array.isArray(data) ? data : data.events || data.data || [];
-        setRelatedEvents(raw.filter((e) => e.slug !== event.slug).slice(0, 3));
-      })
+      .then(pick)
+      .then((same) => (same.length > 0 ? same : API.getEvents({ sort: "trending" }).then(pick)))
+      .then((list) => { if (!cancelled) setMore(list); })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, [event?.category, event?.slug]);
+  }, [event?.slug, event?.category]);
 
   /* Transfer */
   const [showTransfer, setShowTransfer] = useState(false);
@@ -174,17 +180,6 @@ export default function ViewEventClient({ slug }) {
     }
   }, [ticketId]);
 
-  /* Derived values */
-  const formattedDate = useMemo(() => {
-    if (!event?.day) return "";
-    return new Date(event.day).toLocaleDateString("en-US", { weekday: "long", day: "numeric", month: "long" });
-  }, [event?.day]);
-
-  const formattedTime = useMemo(() => {
-    if (!event?.time_from) return "";
-    return new Date(`1970-01-01T${event.time_from}`).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true });
-  }, [event?.time_from]);
-
   /* Registration closes one full day after the event has ended */
   const registrationClosed = useMemo(() => {
     if (!event?.day) return false;
@@ -196,9 +191,16 @@ export default function ViewEventClient({ slug }) {
   }, [event?.day, event?.time_to, event?.time_from]);
 
   if (loading) return (
-    <div className="flex items-center justify-center min-h-screen bg-white">
-      <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-blue-600" />
-    </div>
+    <Providers>
+      <div className="min-h-screen bg-white font-body">
+        <Navbar />
+        <div className="mx-auto max-w-[1440px] animate-pulse px-4 pt-8 md:px-12 xl:px-24">
+          <div className="h-[260px] rounded-3xl bg-mist md:h-[460px] md:rounded-[36px]" />
+          <div className="mt-10 h-12 w-2/3 rounded-2xl bg-mist" />
+          <div className="mt-6 h-24 rounded-3xl bg-mist" />
+        </div>
+      </div>
+    </Providers>
   );
 
   if (error || (!loading && !event)) return notFound();
@@ -212,8 +214,19 @@ export default function ViewEventClient({ slug }) {
     : rawTicketPrice;
   const isFree = ticketPrice === 0 && realTiers.every(t => parseFloat(String(t.price)) === 0);
   const attendeeCount = event.attendee_count ?? 0;
-  const badgeLabel   = categoryLabels[event.category] || event.category?.toUpperCase();
-  const imageUrl     = getImageUrl();
+  const imageUrl = getImageUrl();
+  const tone = categoryTone(event.category, event.category_display);
+  const parts = dayParts(event.day);
+  const timeRange = event.time_to && event.time_to !== event.time_from
+    ? `${formatTime(event.time_from)} – ${formatTime(event.time_to)}`
+    : formatTime(event.time_from);
+  const calUrl = calendarUrl(event);
+  const mapsUrl = event.location
+    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.location)}`
+    : null;
+  const stampCity = (event.location || "").split(",").pop().trim().toUpperCase().slice(0, 12) || "BYRO";
+  const stampDate = parts.dd ? `${parts.dd}.${(event.day || "").slice(5, 7)}.${(event.day || "").slice(2, 4)}` : "";
+  const orgInitial = (event.owner_handle || event.owner_email || "B")[0].toUpperCase();
 
   const tiers = realTiers.length > 0
     ? realTiers.map(t => ({ ...t, desc: t.description || "", price: parseFloat(String(t.price)) || 0 }))
@@ -223,7 +236,6 @@ export default function ViewEventClient({ slug }) {
   // A group tier (admits_count > 1) is a SINGLE ticket that admits several
   // people, so its quantity is locked at 1 (the admits count becomes attendee
   // slots at checkout, not extra tickets).
-  const isGroupTier = Number(activeTier?.admits_count) > 1;
   const { min: minQty, max: maxQty } = ticketLimits(activeTier, event);
   // Tickets are sold in the tier's bundle: never below its minimum, never above its maximum.
   const effectiveQty = Math.min(maxQty, Math.max(minQty, qty));
@@ -231,101 +243,199 @@ export default function ViewEventClient({ slug }) {
   const tierFees = calculateTicketFees(activeTier.price * effectiveQty, passFeeToAttendee);
   const tierSubtotal = tierFees.subtotal;
   // Buyer-facing "service fee" = everything added on top of the subtotal
-  // (Byro's 5% + the simulated Paystack cut), so the breakdown reconciles
+  // (Byro's 6.5% + the simulated Paystack cut), so the breakdown reconciles
   // and the shown total equals what Paystack will actually charge.
   const serviceFee = tierFees.displayTotal - tierFees.subtotal;
   const tierTotal = tierFees.displayTotal;
 
+  const startCheckout = () => {
+    trackBeginCheckout({
+      eventName: event.name,
+      eventSlug: event.slug,
+      value: parseFloat(event.ticket_price ?? 0),
+    });
+    setShowCheckout(true);
+  };
+
+  const scrollToTickets = () => {
+    document.getElementById("tickets")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  const stepBtn =
+    "flex h-11 w-11 items-center justify-center rounded-full border border-line bg-white text-xl text-ink transition-[scale,background-color] hover:bg-mist active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand";
+
   return (
     <Providers>
-      <div className="min-h-screen bg-white flex flex-col">
+      <div className="flex min-h-screen flex-col bg-white font-body text-ink">
         <Navbar />
 
-        <div className="relative w-full" style={{ height: "380px" }}>
-          {imageUrl ? (
-            <img src={imageUrl} alt={event.name} className="w-full h-full object-cover" />
-          ) : (
-            <EventImageFallback category={event.category} tone="solid" />
-          )}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-black/10" />
-
-          <div className="absolute top-5 right-5 flex items-center gap-2">
-            <ShareMenu
-              url={typeof window !== "undefined" ? window.location.href : ""}
-              title={event.name}
-              campaign="event_share"
-              content={event.slug}
-              onShare={(method) => trackShareEvent({ eventName: event.name, eventSlug: event.slug, method })}
-              className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
-            >
-              <HugeiconsIcon icon={Share01Icon} size={16} color="white" />
-            </ShareMenu>
-            <button
-              onClick={() => { setSaved(s => !s); if (!saved) trackSaveEvent({ eventName: event.name, eventSlug: event.slug }); }}
-              className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill={saved ? "white" : "none"} stroke="white" strokeWidth="2">
-                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-              </svg>
-            </button>
-          </div>
-
-          {event?.role?.is_owner && (
-            <button
-              onClick={() => router.push(`/dashboard/events/${event.slug}`)}
-              className="absolute top-5 left-5 bg-blue-600 text-white text-xs font-semibold px-4 py-2 rounded-full hover:bg-blue-700 transition-colors"
-            >
-              Manage Event
-            </button>
-          )}
-
-          <div className="absolute bottom-0 left-0 right-0 px-6 pb-8">
-            <span className="inline-flex items-center bg-white/10 backdrop-blur-sm border border-white/20 text-white text-xs font-bold tracking-wider px-3 py-1.5 rounded-full mb-4">
-              {badgeLabel}
-            </span>
-            <h1 className="text-white text-4xl sm:text-5xl font-bold leading-tight mb-4">{event.name}</h1>
-            <div className="flex flex-wrap items-center gap-5 text-white/80 text-sm">
-              <span className="flex items-center gap-1.5">
-                <HugeiconsIcon icon={Calendar01Icon} size={14} color="rgba(255,255,255,0.8)" />
-                {formattedDate}{formattedTime && ` · ${formattedTime}`}
-              </span>
-              <span className="flex items-center gap-1.5">
-                <HugeiconsIcon icon={Location01Icon} size={14} color="rgba(255,255,255,0.8)" />
-                {event.location || "TBD"}
-              </span>
-              {attendeeCount > 0 && (
-                <span className="flex items-center gap-1.5">
-                  <HugeiconsIcon icon={UserGroupIcon} size={14} color="rgba(255,255,255,0.8)" />
-                  {attendeeCount.toLocaleString()} going
-                </span>
+        <main className="flex-1 pb-28 lg:pb-0">
+          {/* Cover */}
+          <section className="mx-auto max-w-[1440px] px-4 pt-4 md:px-12 md:pt-6 xl:px-24">
+            <div className="relative h-[260px] overflow-hidden rounded-3xl bg-mist md:h-[460px] md:rounded-[36px]">
+              <EventImage
+                event={{ name: event.name, category: event.category, event_image_url: imageUrl }}
+                sizes="(min-width: 1440px) 1248px, 100vw"
+                priority
+              />
+              <div className="absolute right-4 top-4 flex gap-2 md:right-5 md:top-5">
+                <ShareMenu
+                  url={typeof window !== "undefined" ? window.location.href : ""}
+                  title={event.name}
+                  campaign="event_share"
+                  content={event.slug}
+                  onShare={(method) => trackShareEvent({ eventName: event.name, eventSlug: event.slug, method })}
+                  className={iconBtn}
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M12 3v13M7 8l5-5 5 5M5 14v5h14v-5" />
+                  </svg>
+                  <span className="sr-only">Share event</span>
+                </ShareMenu>
+                <button
+                  type="button"
+                  aria-label={saved ? "Remove from saved" : "Save event"}
+                  aria-pressed={saved}
+                  onClick={() => { setSaved(s => !s); if (!saved) trackSaveEvent({ eventName: event.name, eventSlug: event.slug }); }}
+                  className={iconBtn}
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill={saved ? "#ef4444" : "none"} stroke={saved ? "#ef4444" : "currentColor"} strokeWidth="2" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z" />
+                  </svg>
+                </button>
+              </div>
+              {event?.role?.is_owner && (
+                <Link
+                  href={`/dashboard/events/${event.slug}`}
+                  className="absolute left-4 top-4 flex h-11 items-center rounded-full bg-ink px-5 text-sm font-bold text-white transition-[scale] active:scale-[0.96] md:left-5 md:top-5"
+                >
+                  Manage event
+                </Link>
               )}
             </div>
-          </div>
-        </div>
+          </section>
 
-        <div className="flex-1 max-w-5xl mx-auto w-full px-4 sm:px-6 py-10 flex flex-col lg:flex-row gap-8 items-start">
+          {/* Body */}
+          <section className="mx-auto flex max-w-[1440px] flex-col gap-10 px-4 pt-8 md:px-12 md:pt-11 lg:flex-row lg:items-start lg:gap-16 xl:px-24">
+            {/* Main column */}
+            <div className="flex min-w-0 flex-1 flex-col gap-9">
+              <div className="flex flex-col gap-3.5">
+                <span
+                  className="flex h-[30px] items-center self-start rounded-full px-3 text-xs font-extrabold uppercase tracking-[0.06em]"
+                  style={{ background: tone.bg, color: tone.text }}
+                >
+                  {tone.label}
+                </span>
+                <h1 className="text-balance font-display text-[40px] font-bold leading-none tracking-[-0.04em] md:text-[64px]">
+                  {event.name}
+                </h1>
+                <div className="mt-1.5 grid gap-3 md:grid-cols-2">
+                  <div className="flex items-center gap-3.5 rounded-[20px] bg-paper p-[18px_20px]">
+                    <span className="flex h-14 w-[52px] shrink-0 flex-col items-center justify-center rounded-[14px] bg-white">
+                      <span className="text-[10px] font-extrabold text-brand">{parts.month}</span>
+                      <span className="font-display text-[22px] font-bold leading-none">{parts.dd}</span>
+                    </span>
+                    <span className="min-w-0 text-[15px]">
+                      <b>{parts.long}</b>
+                      <br />
+                      <span className="text-muted">{timeRange}</span>
+                      {calUrl && (
+                        <>
+                          <br />
+                          <a href={calUrl} target="_blank" rel="noopener noreferrer" className="text-sm font-bold text-brand hover:text-brand-dark">
+                            Add to calendar
+                          </a>
+                        </>
+                      )}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3.5 rounded-[20px] bg-paper p-[18px_20px]">
+                    <span className="flex h-14 w-[52px] shrink-0 items-center justify-center rounded-[14px] bg-white">
+                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#3669F6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M12 21s7-6.2 7-11.5A7 7 0 0 0 5 9.5C5 14.8 12 21 12 21z" />
+                        <circle cx="12" cy="9.5" r="2.5" />
+                      </svg>
+                    </span>
+                    <span className="min-w-0 text-[15px]">
+                      <b className="break-words">{event.location || "Location to be announced"}</b>
+                      {mapsUrl && (
+                        <>
+                          <br />
+                          <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="text-sm font-bold text-brand hover:text-brand-dark">
+                            Get directions
+                          </a>
+                        </>
+                      )}
+                    </span>
+                  </div>
+                </div>
+              </div>
 
-          <div className="flex-1 min-w-0 order-2 lg:order-1">
-            <section className="mb-10">
-              <h2 className="text-xl font-bold text-gray-900 mb-3">About this event</h2>
-              {event.description ? (
-                <div
-                  className="text-gray-600 text-sm leading-relaxed prose prose-sm max-w-none prose-headings:text-gray-900 prose-headings:font-bold prose-p:text-gray-600 prose-ul:text-gray-600 prose-ol:text-gray-600 prose-hr:border-gray-200"
-                  dangerouslySetInnerHTML={{ __html: event.description }}
-                />
-              ) : (
-                <p className="text-gray-600 text-sm leading-relaxed">No description provided for this event.</p>
-              )}
-            </section>
+              {/* About */}
+              <div className="flex flex-col gap-3.5">
+                <h2 className="font-display text-[28px] font-bold tracking-[-0.02em]">About this event</h2>
+                {event.description ? (
+                  <div
+                    className="prose max-w-[680px] text-[17px] leading-[1.7] text-[#3B4252] prose-headings:font-display prose-headings:text-ink prose-p:text-[#3B4252] prose-a:text-brand"
+                    dangerouslySetInnerHTML={{ __html: event.description }}
+                  />
+                ) : (
+                  <p className="max-w-[680px] text-[17px] leading-[1.7] text-[#3B4252]">No description provided for this event.</p>
+                )}
+                <div className="mt-1 flex flex-wrap gap-2">
+                  {event.transferable && (
+                    <span className="flex h-[34px] items-center rounded-full bg-mist px-3 text-[13px] font-bold">Tickets are transferable</span>
+                  )}
+                  {attendeeCount > 0 && (
+                    <span className="flex h-[34px] items-center rounded-full bg-mist px-3 text-[13px] font-bold">
+                      {attendeeCount.toLocaleString()} going
+                    </span>
+                  )}
+                </div>
+              </div>
 
+              {/* Organiser */}
+              <div className="flex flex-wrap items-center gap-4 rounded-3xl border border-hairline p-5 md:px-6 md:py-[22px]">
+                <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-sky font-extrabold text-brand">
+                  {orgInitial}
+                </span>
+                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                  <span className="text-[13px] text-muted">Organised by</span>
+                  <span className="truncate text-lg font-extrabold">
+                    {event.owner_handle ? `@${event.owner_handle}` : event.owner_email || "Byro Africa"}
+                  </span>
+                  <span className="text-[13px] text-muted">
+                    {event.owner_events_count ?? 0} event{event.owner_events_count === 1 ? "" : "s"} hosted
+                  </span>
+                </div>
+                {event.owner_handle && (
+                  <Link
+                    href={`/u/${event.owner_handle}`}
+                    className="flex h-11 items-center rounded-full border border-line px-[18px] text-sm font-bold transition-colors hover:bg-mist focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                  >
+                    View profile
+                  </Link>
+                )}
+              </div>
 
-            <section className="mb-10">
-              <h2 className="text-xl font-bold text-gray-900 mb-4">Location</h2>
-              {event.location || event.address ? (
-                <>
-                  <div className="rounded-2xl overflow-hidden border border-gray-100" style={{ height: "240px" }}>
+              {/* The stamp you'll collect */}
+              <div className="flex flex-col items-start gap-5 rounded-[28px] bg-butter p-6 md:flex-row md:items-center md:gap-7 md:px-8 md:py-7">
+                <Stamp name={event.name.length > 18 ? event.name.slice(0, 16) + "…" : event.name} city={stampCity} date={stampDate} ink="blue" size={120} tilt={-8} filled className="shrink-0" />
+                <div className="flex flex-col gap-1.5">
+                  <span className="font-display text-2xl font-bold tracking-[-0.01em]">Collect this stamp</span>
+                  <span className="max-w-[460px] text-base leading-[1.55] text-muted">
+                    Check in at the door and this stamp lands in your byro passport, next to every other night you&apos;ve been to.
+                  </span>
+                </div>
+              </div>
+
+              {/* Location map */}
+              {(event.location || event.address) && (
+                <div className="flex flex-col gap-4">
+                  <h2 className="font-display text-[28px] font-bold tracking-[-0.02em]">Location</h2>
+                  <div className="h-60 overflow-hidden rounded-3xl border border-hairline">
                     <iframe
-                      title="event-location-map"
+                      title="Event location map"
                       width="100%"
                       height="100%"
                       style={{ border: "none" }}
@@ -334,223 +444,190 @@ export default function ViewEventClient({ slug }) {
                       src={`https://maps.google.com/maps?q=${encodeURIComponent(event.location || event.address)}&output=embed&z=15`}
                     />
                   </div>
-                  <div className="flex items-start gap-2 mt-3">
-                    <HugeiconsIcon icon={Location01Icon} size={14} color="#6b7280" className="shrink-0 mt-0.5" />
-                    <p className="text-sm text-gray-600">{event.location || event.address}</p>
-                  </div>
-                </>
-              ) : (
-                <div className="rounded-2xl bg-gray-50 border border-gray-100 h-40 flex flex-col items-center justify-center gap-2">
-                  <HugeiconsIcon icon={Location01Icon} size={28} color="#d1d5db" />
-                  <p className="text-xs text-gray-400">No location set</p>
                 </div>
               )}
-            </section>
 
-            <section className="mb-10">
-              <div className="flex items-center justify-between p-5 border border-gray-100 rounded-2xl">
-                <button
-                  type="button"
-                  onClick={() => event.owner_handle && router.push(`/u/${event.owner_handle}`)}
-                  disabled={!event.owner_handle}
-                  className={`flex items-center gap-4 text-left ${event.owner_handle ? "cursor-pointer" : "cursor-default"}`}
-                >
-                  <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-sm shrink-0">
-                    {(event.owner_handle || event.owner_email || "EL")[0].toUpperCase()}
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-400 uppercase tracking-wide font-medium mb-0.5">Organised by</p>
-                    <p className="font-semibold text-gray-900 text-sm">
-                      {event.owner_handle ? `@${event.owner_handle}` : event.owner_email || "Byro Africa"}
-                    </p>
-                    <p className="text-xs text-gray-400">
-                      {event.owner_events_count ?? 0} event{event.owner_events_count === 1 ? "" : "s"} · 0 Followers
-                    </p>
-                  </div>
-                </button>
-                <button className="border border-gray-200 text-gray-700 text-xs font-semibold px-4 py-2 rounded-full hover:bg-gray-50 transition-colors">
-                  Follow
-                </button>
-              </div>
-            </section>
-
-            {/* Transfer (if registered + transferable) */}
-            {registered && event.transferable && (
-              <section className="mb-8">
-                <button
-                  onClick={() => setShowTransfer(s => !s)}
-                  className="text-blue-600 text-sm font-medium underline"
-                >
-                  Transfer Ticket
-                </button>
-                {showTransfer && (
-                  <form onSubmit={handleTransferSubmit} className="mt-4 space-y-3 max-w-sm">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Recipient&apos;s Name</label>
-                      <input type="text" value={transferName} onChange={e => setTransferName(e.target.value)}
-                        className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="John Doe" required />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Recipient&apos;s Email</label>
-                      <input type="email" value={transferEmail} onChange={e => setTransferEmail(e.target.value)}
-                        className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="example@email.com" required />
-                    </div>
-                    <div className="flex gap-2">
-                      <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-medium">Send</button>
-                      <button type="button" onClick={() => setShowTransfer(false)} className="bg-gray-100 text-gray-700 px-4 py-2 rounded-xl text-sm font-medium">Cancel</button>
-                    </div>
-                  </form>
-                )}
-              </section>
-            )}
-          </div>
-
-          <div className="lg:w-72 xl:w-80 shrink-0 w-full order-1 lg:order-2">
-            <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-5 lg:sticky lg:top-24">
-              {isFree ? (
-                <p className="text-3xl font-bold text-gray-900 mb-5">Free</p>
-              ) : tiers.length > 0 ? (
-                <>
-                  <p className="text-[10px] font-bold text-gray-400 tracking-widest uppercase mb-3">Select ticket tier</p>
-                  <div className="space-y-2 mb-5">
-                    {tiers.map(tier => (
-                      <button
-                        key={tier.id}
-                        onClick={() => {
-                          setSelectedTier(String(tier.id));
-                          // Start each tier at its own minimum (e.g. 2 for a couples ticket).
-                          setQty(ticketLimits(tier, event).min);
-                        }}
-                        className={`w-full flex items-center justify-between p-3.5 rounded-xl border transition-colors text-left ${
-                          String(selectedTier) === String(tier.id) ? "border-blue-400 bg-blue-50" : "border-gray-100 hover:border-gray-200"
-                        }`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
-                            String(selectedTier) === String(tier.id) ? "border-blue-600" : "border-gray-300"
-                          }`}>
-                            {String(selectedTier) === String(tier.id) && <div className="w-2 h-2 rounded-full bg-blue-600" />}
-                          </div>
-                          <div>
-                            <p className="text-sm font-semibold text-gray-900 leading-tight">{tier.name}</p>
-                            {tier.desc && <p className="text-xs text-gray-400">{tier.desc}</p>}
-                          </div>
-                        </div>
-                        <span className="text-sm font-bold text-gray-900 ml-2 shrink-0">
-                          {tier.price === 0 ? "Free" : fmt(tier.price)}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-
-                  <div className="flex items-center justify-between mb-5">
-                    <span className="text-sm font-medium text-gray-700">Quantity</span>
-                    <div className="flex items-center gap-3">
-                      <button
-                        onClick={() => setQty(q => Math.max(minQty, Math.min(maxQty, q) - 1))}
-                        disabled={effectiveQty <= minQty}
-                        className="w-8 h-8 rounded-full border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                      >
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="5" y1="12" x2="19" y2="12" /></svg>
-                      </button>
-                      <span className="w-5 text-center font-bold text-gray-900 text-sm">{effectiveQty}</span>
-                      <button
-                        onClick={() => setQty(Math.min(maxQty, effectiveQty + 1))}
-                        disabled={effectiveQty >= maxQty}
-                        className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white hover:bg-blue-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                      >
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                          <line x1="12" y1="5" x2="12" y2="19" />
-                          <line x1="5" y1="12" x2="19" y2="12" />
-                        </svg>
-                      </button>
-                    </div>
-                  </div>
-
-                  <p className="-mt-3 mb-5 text-xs text-gray-500 text-right">{describeTicketLimits(activeTier, event)}</p>
-
-                  <div className="space-y-2 pb-4 mb-4 border-b border-gray-100 text-sm">
-                    <div className="flex justify-between text-gray-600">
-                      <span>{effectiveQty} × {activeTier.name}</span>
-                      <span>{fmt(tierSubtotal)}</span>
-                    </div>
-                    <div className="flex justify-between text-gray-400">
-                      <span>Service fee</span>
-                      <span>{fmt(serviceFee)}</span>
-                    </div>
-                    <div className="flex justify-between font-bold text-gray-900 pt-1">
-                      <span>Total</span>
-                      <span className="text-lg">{fmt(tierTotal)}</span>
-                    </div>
-                  </div>
-                </>
-              ) : (
-                /* No tiers — flat price */
-                <>
-                  <p className="text-3xl font-bold text-gray-900 mb-5">{fmt(ticketPrice)}</p>
-                </>
+              {/* Transfer (if registered + transferable) */}
+              {registered && event.transferable && (
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => setShowTransfer(s => !s)}
+                    aria-expanded={showTransfer}
+                    className="text-sm font-bold text-brand underline underline-offset-4 hover:text-brand-dark"
+                  >
+                    Transfer ticket
+                  </button>
+                  {showTransfer && (
+                    <form onSubmit={handleTransferSubmit} className="mt-4 max-w-sm space-y-3">
+                      <div>
+                        <label htmlFor="transfer-name" className="mb-1 block text-sm font-bold">Recipient&apos;s name</label>
+                        <input id="transfer-name" type="text" value={transferName} onChange={e => setTransferName(e.target.value)} className={inputCls} placeholder="John Doe" required />
+                      </div>
+                      <div>
+                        <label htmlFor="transfer-email" className="mb-1 block text-sm font-bold">Recipient&apos;s email</label>
+                        <input id="transfer-email" type="email" value={transferEmail} onChange={e => setTransferEmail(e.target.value)} className={inputCls} placeholder="example@email.com" required />
+                      </div>
+                      <div className="flex gap-2">
+                        <button type="submit" className="h-11 rounded-full bg-brand px-5 text-sm font-bold text-white transition-[filter,scale] hover:brightness-90 active:scale-[0.96]">Send ticket</button>
+                        <button type="button" onClick={() => setShowTransfer(false)} className="h-11 rounded-full border border-line px-5 text-sm font-bold transition-colors hover:bg-mist">Cancel</button>
+                      </div>
+                    </form>
+                  )}
+                </div>
               )}
+            </div>
+
+            {/* Ticket panel */}
+            <aside
+              id="tickets"
+              aria-label="Tickets"
+              className="flex w-full shrink-0 scroll-mt-28 flex-col gap-4 rounded-[30px] border border-hairline bg-white p-6 shadow-[0_24px_60px_rgba(20,22,28,0.08)] md:p-7 lg:sticky lg:top-28 lg:w-[420px]"
+            >
+              <h2 className="font-display text-2xl font-bold">Tickets</h2>
 
               {registered ? (
-                <div className="space-y-2">
+                <div className="flex flex-col gap-3">
+                  <p className="rounded-2xl bg-mint px-4 py-3 text-sm font-bold text-[#1F7A52]">You&apos;re going. Your ticket is ready.</p>
                   <button
+                    type="button"
                     onClick={() => router.push(`/ticket/${ticketId}`)}
-                    className="w-full bg-emerald-500 text-white font-semibold py-3 rounded-full hover:bg-emerald-600 transition-colors text-sm"
+                    className="flex h-14 items-center justify-center rounded-full bg-brand text-[17px] font-bold text-white transition-[filter,scale] hover:brightness-90 active:scale-[0.96] focus:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2"
                   >
-                    View Ticket
+                    View ticket
                   </button>
                   <button
+                    type="button"
                     onClick={handleCancelRegistration}
-                    className="w-full border border-red-200 text-red-500 font-medium py-2.5 rounded-full text-sm hover:bg-red-50 transition-colors"
+                    className="h-12 rounded-full border border-red-200 text-sm font-bold text-red-600 transition-colors hover:bg-red-50"
                   >
                     Cancel registration
                   </button>
                 </div>
               ) : (
-                <button
-                  onClick={() => {
-                  trackBeginCheckout({
-                    eventName: event.name,
-                    eventSlug: event.slug,
-                    value: parseFloat(event.ticket_price ?? 0),
-                  });
-                  setShowCheckout(true);
-                }}
-                  disabled={registrationClosed}
-                  className="w-full bg-blue-600 text-white font-bold py-3.5 rounded-full hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 text-sm disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed disabled:hover:bg-gray-300"
-                >
-                  {registrationClosed ? "Registration closed" : (
+                <>
+                  {isFree ? (
+                    <p className="font-display text-4xl font-bold">Free</p>
+                  ) : tiers.length > 0 ? (
                     <>
-                      Buy ticket
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                        <path d="M5 12h14M12 5l7 7-7 7" />
-                      </svg>
+                      <div role="radiogroup" aria-label="Ticket type" className="flex flex-col gap-3">
+                        {tiers.map(tier => {
+                          const sel = String(selectedTier) === String(tier.id);
+                          const out = tier.remaining === 0;
+                          return (
+                            <button
+                              key={tier.id}
+                              type="button"
+                              role="radio"
+                              aria-checked={sel}
+                              disabled={out}
+                              onClick={() => {
+                                setSelectedTier(String(tier.id));
+                                // Start each tier at its own minimum (e.g. 2 for a couples ticket).
+                                setQty(ticketLimits(tier, event).min);
+                              }}
+                              className={`flex items-center gap-3.5 rounded-[18px] border px-[18px] py-4 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
+                                out ? "cursor-not-allowed border-line bg-paper" : sel ? "border-2 border-brand bg-[#F3F8FE]" : "border-line hover:border-[#C7CEDA]"
+                              }`}
+                            >
+                              <span className={`h-5 w-5 shrink-0 rounded-full ${sel && !out ? "border-[6px] border-brand" : "border-2 border-[#C7CEDA]"}`} />
+                              <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                                <span className="text-base font-extrabold">{tier.name}</span>
+                                {(tier.desc || (tier.remaining != null && tier.remaining > 0 && tier.remaining <= 10)) && (
+                                  <span className="text-[13px] text-muted">
+                                    {tier.desc}
+                                    {tier.desc && tier.remaining != null && tier.remaining <= 10 && tier.remaining > 0 ? " · " : ""}
+                                    {tier.remaining != null && tier.remaining > 0 && tier.remaining <= 10 ? `${tier.remaining} left` : ""}
+                                  </span>
+                                )}
+                              </span>
+                              <span className="shrink-0 text-base font-extrabold">
+                                {out ? "Sold out" : tier.price === 0 ? "Free" : fmt(tier.price)}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      <div className="flex items-center justify-between px-0.5 py-1.5">
+                        <span id="qty-label" className="text-[15px] font-bold">Quantity</span>
+                        <div className="flex items-center gap-1.5" role="group" aria-labelledby="qty-label">
+                          <button type="button" aria-label="Fewer tickets" onClick={() => setQty(Math.max(minQty, effectiveQty - 1))} disabled={effectiveQty <= minQty} className={stepBtn}>−</button>
+                          <span aria-live="polite" className="w-8 text-center text-[17px] font-extrabold">{effectiveQty}</span>
+                          <button type="button" aria-label="More tickets" onClick={() => setQty(Math.min(maxQty, effectiveQty + 1))} disabled={effectiveQty >= maxQty} className={stepBtn}>+</button>
+                        </div>
+                      </div>
+                      <p className="-mt-2 text-right text-xs text-muted">{describeTicketLimits(activeTier, event)}</p>
+
+                      <div className="flex flex-col gap-2 border-t-[1.5px] border-dashed border-line pt-3.5 text-[15px]">
+                        <div className="flex justify-between">
+                          <span className="text-muted">{effectiveQty} × {activeTier.name}</span>
+                          <span className="font-bold">{fmt(tierSubtotal)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted">Service fee</span>
+                          <span className="font-bold">{fmt(serviceFee)}</span>
+                        </div>
+                        <div className="mt-1 flex justify-between text-lg">
+                          <span className="font-extrabold">Total</span>
+                          <span className="font-extrabold">{fmt(tierTotal)}</span>
+                        </div>
+                      </div>
                     </>
+                  ) : (
+                    <p className="font-display text-4xl font-bold">{fmt(ticketPrice)}</p>
                   )}
-                </button>
+
+                  <button
+                    type="button"
+                    onClick={startCheckout}
+                    disabled={registrationClosed}
+                    className="flex h-14 items-center justify-center rounded-full bg-brand text-[17px] font-bold text-white transition-[filter,scale] hover:brightness-90 active:scale-[0.96] focus:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-line disabled:text-faint disabled:hover:brightness-100"
+                  >
+                    {registrationClosed ? "Registration closed" : isFree ? "Register" : "Get tickets"}
+                  </button>
+                  <p className="flex items-center justify-center gap-1.5 text-center text-[13px] text-muted">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2F9E6E" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z" />
+                    </svg>
+                    Secure checkout with Paystack
+                  </p>
+                </>
               )}
+            </aside>
+          </section>
 
-              <p className="text-center text-xs text-gray-400 flex items-center justify-center gap-1 mt-3">
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                </svg>
-                Secure checkout · instant QR ticket
-              </p>
-            </div>
-          </div>
-        </div>
+          {/* More events */}
+          {more.length > 0 && (
+            <section className="mx-auto flex max-w-[1440px] flex-col gap-5 px-4 pt-16 md:px-12 md:pt-[90px] xl:px-24">
+              <div className="flex items-baseline justify-between gap-4">
+                <h2 className="font-display text-[26px] font-bold tracking-[-0.025em] md:text-[34px]">More to go to</h2>
+                <Link href="/discover" className="text-[15px] font-bold text-brand hover:text-brand-dark">See all</Link>
+              </div>
+              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+                {more.map((e) => (
+                  <StackTile key={e.slug} event={e} showCategory={false} />
+                ))}
+              </div>
+            </section>
+          )}
+        </main>
 
-        {relatedEvents.length > 0 && (
-          <div className="w-[90%] max-w-6xl mx-auto py-12">
-            <h2 className="text-xl font-bold text-gray-900 mb-6">
-              Other Events You May Like
-            </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-              {relatedEvents.map((e) => (
-                <EventCard key={e.id} event={e} />
-              ))}
+        {/* Phone: sticky buy bar */}
+        {!registered && (
+          <div className="fixed inset-x-0 bottom-0 z-40 flex items-center gap-4 border-t border-hairline bg-white/95 px-4 py-3 backdrop-blur lg:hidden">
+            <div className="flex min-w-0 flex-1 flex-col">
+              <span className="text-xs text-muted">{isFree ? "Entry" : "From"}</span>
+              <span className="truncate font-display text-xl font-bold">{isFree ? "Free" : fmt(ticketPrice)}</span>
             </div>
+            <button
+              type="button"
+              onClick={scrollToTickets}
+              disabled={registrationClosed}
+              className="flex h-12 items-center rounded-full bg-brand px-7 text-[15px] font-bold text-white transition-[filter,scale] active:scale-[0.96] disabled:bg-line disabled:text-faint"
+            >
+              {registrationClosed ? "Closed" : isFree ? "Register" : "Get tickets"}
+            </button>
           </div>
         )}
 
