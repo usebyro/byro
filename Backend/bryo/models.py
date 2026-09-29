@@ -7,6 +7,7 @@ from django.dispatch import receiver
 from django.conf import settings
 from django.utils import timezone
 from django.utils.crypto import get_random_string
+from django.core.validators import MinValueValidator, MaxValueValidator
 import uuid
 
 
@@ -54,6 +55,7 @@ class CustomUser(AbstractUser):
         ("workos", "WorkOS"),
         ("privy", "Privy"),
         ("web3auth", "Web3Auth"),
+        ("guest", "Guest (ticket checkout, no login)"),
     ]
     auth_provider = models.CharField(
         max_length=50,
@@ -115,6 +117,7 @@ class UserProfile(models.Model):
     handle = models.SlugField(max_length=50, unique=True, null=True, blank=True)
     bio = models.TextField(max_length=500, blank=True)
     avatar = models.ImageField(upload_to='avatars/', null=True, blank=True)
+    cover_image = models.ImageField(upload_to='covers/', null=True, blank=True)
     location = models.CharField(max_length=100, blank=True)
     website = models.URLField(blank=True)
 
@@ -131,6 +134,10 @@ class UserProfile(models.Model):
 
     # Flag used by frontend to redirect new users to profile setup
     is_complete = models.BooleanField(default=False)
+
+    # Whether this organiser's community/profile is publicly listed
+    # (shown on /u/<handle> and any public directory). Asked at onboarding.
+    is_public = models.BooleanField(default=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -241,21 +248,21 @@ class Event(models.Model):
         ('private', 'Private'),
     ]
     
-    # New: Event Categories based on your requirements
+    # The "Create event" category picker sends one of these values directly
+    # (its display labels differ from these — e.g. it shows "Concerts" for
+    # `entertainment`, "Sports" for `fitness`, "Nightlife" for `art_culture`,
+    # and "Conferences" for `conference`). Keep this list as the single
+    # source of truth; a category the picker doesn't (yet) offer a button
+    # for can still be set here without introducing a duplicate slug.
     CATEGORY_CHOICES = [
-        ('web3_crypto', 'Web3 & Crypto'),
         ('entertainment', 'Entertainment'),
-        ('art_culture', 'Art & Culture'),
         ('fitness', 'Fitness'),
+        ('art_culture', 'Art & Culture'),
+        ('nightlife', 'Nightlife'),
         ('conference', 'Conference'),
+        ('web3_crypto', 'Web3 & Crypto'),
         ('technology', 'Technology'),
         ('other', 'Other'),
-        # Added to match the "Create event" category picker (Concerts, Sports,
-        # Nightlife, Conferences) — kept alongside the existing choices above.
-        ('concerts', 'Concerts'),
-        ('sports', 'Sports'),
-        ('nightlife', 'Nightlife'),
-        ('conferences', 'Conferences'),
     ]
 
     name = models.CharField(max_length=100)
@@ -288,11 +295,22 @@ class Event(models.Model):
         decimal_places=2, 
         default=0.00
     )
+    # Overall limit on seats for the event (its venue). Empty means unlimited.
+    # Tiers can have their own limits inside this one; a purchase must fit both.
     capacity = models.IntegerField(blank=False, null=True)
+    # Most tickets one buyer can get in a single order, for an event with NO tiers.
+    # When an event has tiers, each tier sets its own limit (TicketTier.max_tickets_per_person).
+    max_tickets_per_person = models.PositiveSmallIntegerField(
+        default=5, validators=[MinValueValidator(1), MaxValueValidator(10)]
+    )
     transferable = models.BooleanField(default=False)
     show_remaining_count = models.BooleanField(
         default=False,
         help_text="If enabled, expose remaining ticket counts to attendees"
+    )
+    pass_fee_to_attendee = models.BooleanField(
+        default=True,
+        help_text="If enabled, Byro's service fee is added to the attendee's ticket price. If disabled, the fee is deducted from the organizer's payout instead."
     )
     event_image = models.ImageField(
         upload_to='event_images/', 
@@ -306,8 +324,24 @@ class Event(models.Model):
     )
     hosted_by = models.CharField(max_length=200, default='Byro africa')
     is_active = models.BooleanField(default=True)
+    # A draft is visible only to its host and co-hosts, and cannot sell tickets.
+    # Distinct from visibility='private', which is unlisted but still purchasable
+    # by anyone holding the link.
+    is_draft = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    # Reminder/notification bookkeeping — set by the send_event_reminders
+    # management command and the ticket-sales milestone check, so re-runs
+    # don't re-send the same email.
+    reminder_sent_at = models.DateTimeField(
+        null=True, blank=True,
+        help_text="When the 24h-before attendee/organizer reminder was sent"
+    )
+    milestones_notified = models.JSONField(
+        default=list, blank=True,
+        help_text="Ticket-sold milestone thresholds already emailed to the organizer"
+    )
 
     def save(self, *args, **kwargs):
         if self.slug:
@@ -343,6 +377,51 @@ class Event(models.Model):
             user=user, status=EventCoHost.STATUS_ACCEPTED
         ).exists()
 
+    def cohost_role(self, user):
+        """The accepted co-host's role ('manager' or 'checkin'), else None."""
+        if user is None or not user.is_authenticated:
+            return None
+        grant = self.cohosts.filter(
+            user=user, status=EventCoHost.STATUS_ACCEPTED
+        ).only('role').first()
+        return grant.role if grant else None
+
+    def can_manage(self, user):
+        """Owner, or a co-host with the manager role: edit the event, tickets, discounts."""
+        if user is None or not user.is_authenticated:
+            return False
+        return self.owner == user or self.cohost_role(user) == EventCoHost.ROLE_MANAGER
+
+    def can_check_in(self, user):
+        """Owner or any accepted co-host: see the guest list and check people in."""
+        return self.is_owner_or_cohost(user)
+
+    def sold_seats(self):
+        """Seats taken: one ticket row per attendee, paid or free."""
+        return self.tickets.filter(payment_status__in=['paid', 'free']).count()
+
+    def effective_capacity(self):
+        """
+        The number of seats that can be sold, or None when unlimited.
+        The event's own limit wins; otherwise, when tiers exist and every one of
+        them has a limit, the total of those limits. Any unlimited tier (or no
+        limits at all) means unlimited.
+        """
+        if self.capacity:
+            return self.capacity
+        caps = list(self.tiers.values_list('capacity', flat=True))
+        if caps and all(c is not None for c in caps):
+            return sum(caps)
+        return None
+
+    def is_sold_out(self):
+        """True once no more tickets can be bought: the event is full, or every tier is."""
+        cap = self.effective_capacity()
+        if cap is not None and self.sold_seats() >= cap:
+            return True
+        tiers = list(self.tiers.all())
+        return bool(tiers) and all(t.capacity is not None and t.remaining() == 0 for t in tiers)
+
     def is_owner_or_cohost(self, user):
         """Check if user is owner or co-host of this event"""
         if not user.is_authenticated:
@@ -372,6 +451,7 @@ class Event(models.Model):
                 'can_edit': False,
                 'can_delete': False,
                 'can_manage_cohosts': False,
+                'can_check_in': False,
                 'can_register': True,
             }
         
@@ -384,18 +464,22 @@ class Event(models.Model):
                 'can_edit': True,
                 'can_delete': True,
                 'can_manage_cohosts': True,
+                'can_check_in': True,
                 'can_register': True,
             }
         
         # Check if user is a co-host
-        if self.is_cohost(user):
+        cohost_role = self.cohost_role(user)
+        if cohost_role:
             return {
                 'role': 'cohost',
+                'cohost_role': cohost_role,
                 'is_owner': False,
                 'is_cohost': True,
-                'can_edit': True,
+                'can_edit': cohost_role == EventCoHost.ROLE_MANAGER,
                 'can_delete': False,
                 'can_manage_cohosts': False,
+                'can_check_in': True,
                 'can_register': True,
             }
         
@@ -406,6 +490,7 @@ class Event(models.Model):
             'can_edit': False,
             'can_delete': False,
             'can_manage_cohosts': False,
+            'can_check_in': False,
             'can_register': True,
         }
     class Meta:
@@ -438,6 +523,17 @@ class EventCoHost(models.Model):
         (STATUS_ACCEPTED, 'Accepted'),
     ]
 
+    # What an accepted co-host may do. Managers can run the event (edit it,
+    # tickets, discounts, guest list, check-in). Check-in staff can only see
+    # the guest list and check people in. Only the owner can delete the event,
+    # manage co-hosts, or receive revenue.
+    ROLE_MANAGER = 'manager'
+    ROLE_CHECKIN = 'checkin'
+    ROLE_CHOICES = [
+        (ROLE_MANAGER, 'Manager'),
+        (ROLE_CHECKIN, 'Check-in only'),
+    ]
+
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='cohosts')
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -452,6 +548,7 @@ class EventCoHost(models.Model):
     status = models.CharField(
         max_length=20, choices=STATUS_CHOICES, default=STATUS_ACCEPTED, db_index=True
     )
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default=ROLE_MANAGER)
     added_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -519,11 +616,25 @@ class TicketTier(models.Model):
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='tiers')
     name = models.CharField(max_length=100)
     price = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    # Short note from the organiser shown to buyers under the tier name.
+    description = models.CharField(max_length=200, blank=True, default='')
     # Total tickets available for this tier. Null = unlimited.
     capacity = models.PositiveIntegerField(null=True, blank=True)
     # People admitted per ticket in this tier (e.g. a "Group of 4" = 4).
     # Each admitted person still becomes a separate Ticket row (own QR).
     admits_count = models.PositiveIntegerField(default=1)
+    # Fewest tickets one buyer must take of THIS tier in one order. 2 with a
+    # maximum of 2 makes a couples ticket that can only be bought as a pair.
+    min_tickets_per_person = models.PositiveSmallIntegerField(
+        default=1, validators=[MinValueValidator(1), MaxValueValidator(10)],
+    )
+    # Most tickets one buyer can get of THIS tier in a single order (1 to 10).
+    # Empty means no per-order limit for the tier (its capacity still applies).
+    # Defaults to 5 so existing tiers keep the cap the checkout used to enforce.
+    max_tickets_per_person = models.PositiveSmallIntegerField(
+        null=True, blank=True, default=5,
+        validators=[MinValueValidator(1), MaxValueValidator(10)],
+    )
     order = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -595,6 +706,33 @@ class PromoCode(models.Model):
 
     def __str__(self):
         return f"{self.code} ({self.event.slug})"
+
+
+class MerchItem(models.Model):
+    """
+    A merch item an organiser lists on their public community page
+    (/u/<handle>). Byro doesn't take payment for these yet — `purchase_link`
+    points buyers to wherever the organiser actually sells it (a form, DM,
+    external store, etc).
+    """
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='merch_items',
+    )
+    name = models.CharField(max_length=120)
+    description = models.TextField(blank=True)
+    price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    image = models.ImageField(upload_to='merch/', null=True, blank=True)
+    purchase_link = models.URLField(blank=True, help_text="Where buyers go to purchase this item")
+    stock = models.PositiveIntegerField(null=True, blank=True, help_text="Blank = unlimited")
+    is_active = models.BooleanField(default=True, help_text="Shown on the public profile when on")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.name} ({self.owner_id})"
 
 
 class Ticket(models.Model):

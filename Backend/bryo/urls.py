@@ -8,10 +8,14 @@ from .views import (
     TicketTransferViewSet,
     PaystackPaymentViewSet,
     ProfileViewSet,
+    MerchViewSet,
     DashboardView,
+    DashboardAnalyticsView,
     PayoutRequestView,
     PayoutBalanceView,
     AdminPayoutView,
+    AdminEventDetailView,
+    AdminEventAttendeesView,
     PaystackBankListView,
     PaystackResolveAccountView,
     AdminAnalyticsSummaryView,
@@ -37,6 +41,7 @@ router.register(r'tickets', TicketViewSet)
 router.register(r'transfers', TicketTransferViewSet, basename='transfer')
 router.register(r'payments', PaystackPaymentViewSet, basename='payment')
 router.register(r'profile', ProfileViewSet, basename='profile')
+router.register(r'merch', MerchViewSet, basename='merch')
 
 
 urlpatterns = [
@@ -57,6 +62,7 @@ urlpatterns = [
 
     # Dashboard
     path('api/dashboard/', DashboardView.as_view(), name='dashboard'),
+    path('api/dashboard/analytics/', DashboardAnalyticsView.as_view(), name='dashboard-analytics'),
 
     # Events (explicit routes that need to come before the router catch-all)
     path('api/events/categories/', EventViewSet.as_view({'get': 'categories'}), name='event-categories'),
@@ -82,6 +88,8 @@ urlpatterns = [
     # Admin — payouts
     path('api/admin/payouts/', AdminPayoutView.as_view(), name='admin-payout-list'),
     path('api/admin/payouts/<int:pk>/', AdminPayoutView.as_view(), name='admin-payout-detail'),
+    path('api/admin/events/<int:pk>/', AdminEventDetailView.as_view(), name='admin-event-detail'),
+    path('api/admin/events/<slug:slug>/attendees/', AdminEventAttendeesView.as_view(), name='admin-event-attendees'),
 
     # Paystack — bank verification
     path('api/paystack/banks/', PaystackBankListView.as_view(), name='paystack-banks'),

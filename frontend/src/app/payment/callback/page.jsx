@@ -38,7 +38,7 @@ function PaymentCallbackContent() {
           // Do not send it here to avoid duplicates.
 
           setStatus("success");
-          setTimeout(() => router.push("/ticket-confirmation"), 1500);
+          setTimeout(() => router.push("/order-confirmed"), 1500);
         } else {
           setStatus("failed");
         }

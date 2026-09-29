@@ -4,7 +4,7 @@ from django.utils.text import slugify
 from .models import (
     Payment, WaitList, Ticket, Event, EventCoHost,
     TicketTransfer, Payment, UserProfile, EventFormQuestion, EventFormAnswer,
-    TicketTier, PayoutRequest, PromoCode,
+    TicketTier, PayoutRequest, PromoCode, MerchItem,
 )
 from django.core.mail import send_mail
 from django.contrib.auth import get_user_model
@@ -42,6 +42,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
     followers_count = serializers.SerializerMethodField()
     following_count = serializers.SerializerMethodField()
     is_following = serializers.SerializerMethodField()
+    cover_image_url = serializers.SerializerMethodField()
 
     class Meta:
         model = UserProfile
@@ -49,17 +50,21 @@ class UserProfileSerializer(serializers.ModelSerializer):
             'email', 'auth_provider', 'role',
             'display_name', 'handle', 'bio',
             'avatar', 'avatar_url',
+            'cover_image', 'cover_image_url',
             'location', 'website',
             'twitter', 'instagram', 'linkedin', 'telegram',
-            'is_complete',
+            'is_complete', 'is_public',
             'followers_count', 'following_count', 'is_following',
             'created_at', 'updated_at',
         ]
         read_only_fields = [
-            'email', 'auth_provider', 'avatar_url', 'created_at', 'updated_at',
+            'email', 'auth_provider', 'avatar_url', 'cover_image_url', 'created_at', 'updated_at',
             'followers_count', 'following_count', 'is_following',
         ]
-        extra_kwargs = {'avatar': {'write_only': True, 'required': False}}
+        extra_kwargs = {
+            'avatar': {'write_only': True, 'required': False},
+            'cover_image': {'write_only': True, 'required': False},
+        }
 
     def get_avatar_url(self, obj):
         if obj.avatar:
@@ -81,6 +86,13 @@ class UserProfileSerializer(serializers.ModelSerializer):
         if not user or not user.is_authenticated:
             return False
         return obj.user.follower_links.filter(follower=user).exists()
+
+    def get_cover_image_url(self, obj):
+        if obj.cover_image:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.cover_image.url)
+        return None
 
     def validate_handle(self, value):
         if not value:
@@ -131,9 +143,22 @@ class TicketTierSerializer(serializers.ModelSerializer):
     remaining = serializers.SerializerMethodField()
     sold = serializers.SerializerMethodField()
 
+    def validate(self, attrs):
+        # The smallest order can't be bigger than the largest one.
+        inst = self.instance
+        minimum = attrs.get('min_tickets_per_person', inst.min_tickets_per_person if inst else 1)
+        maximum = attrs['max_tickets_per_person'] if 'max_tickets_per_person' in attrs else (
+            inst.max_tickets_per_person if inst else 5
+        )
+        if maximum is not None and minimum > maximum:
+            raise serializers.ValidationError({
+                'min_tickets_per_person': "The minimum can't be more than the maximum."
+            })
+        return attrs
+
     class Meta:
         model = TicketTier
-        fields = ['id', 'name', 'price', 'capacity', 'admits_count', 'order', 'remaining', 'sold']
+        fields = ['id', 'name', 'description', 'price', 'capacity', 'admits_count', 'min_tickets_per_person', 'max_tickets_per_person', 'order', 'remaining', 'sold']
         read_only_fields = ['id']
 
     def get_remaining(self, obj):
@@ -194,6 +219,35 @@ class PromoCodeSerializer(serializers.ModelSerializer):
         return data
 
 
+class MerchItemSerializer(serializers.ModelSerializer):
+    image_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = MerchItem
+        fields = [
+            'id', 'name', 'description', 'price', 'image', 'image_url',
+            'purchase_link', 'stock', 'is_active', 'created_at', 'updated_at',
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+        extra_kwargs = {'image': {'write_only': True}}
+
+    def get_image_url(self, obj):
+        if obj.image:
+            request = self.context.get('request')
+            return request.build_absolute_uri(obj.image.url) if request else obj.image.url
+        return None
+
+    def validate_price(self, value):
+        if value is not None and value < 0:
+            raise serializers.ValidationError("Price can't be negative.")
+        return value
+
+    def validate_stock(self, value):
+        if value is not None and value < 0:
+            raise serializers.ValidationError("Stock can't be negative.")
+        return value
+
+
 class EventCoHostSerializer(serializers.ModelSerializer):
     """
     Serializer for co-host information.
@@ -206,8 +260,8 @@ class EventCoHostSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = EventCoHost
-        fields = ['id', 'email', 'name', 'status', 'added_at', 'accepted_at']
-        read_only_fields = ['id', 'status', 'added_at', 'accepted_at']
+        fields = ['id', 'email', 'name', 'status', 'role', 'added_at', 'accepted_at']
+        read_only_fields = ['id', 'status', 'role', 'added_at', 'accepted_at']
 
     def get_email(self, obj):
         return obj.user.email if obj.user else obj.invited_email
@@ -223,6 +277,7 @@ class EventCoHostSerializer(serializers.ModelSerializer):
 class EventSerializer(serializers.ModelSerializer):
     owner_email = serializers.EmailField(source='owner.email', read_only=True)
     owner_handle = serializers.SerializerMethodField()
+    is_sold_out = serializers.SerializerMethodField()
     owner_events_count = serializers.SerializerMethodField()
     cohosts = EventCoHostSerializer(many=True, read_only=True)
 
@@ -250,12 +305,28 @@ class EventSerializer(serializers.ModelSerializer):
             'category', 'category_display',
             'day', 'time_from', 'time_to', 'location', 'description',
             'virtual_link', 'ticket_price', 'capacity', 'transferable',
-            'show_remaining_count',
+            'show_remaining_count', 'pass_fee_to_attendee', 'max_tickets_per_person', 'is_sold_out',
             'event_image', 'event_image_url', 'visibility', 'timezone', 'hosted_by',
-            'is_active', 'created_at', 'updated_at',
+            'is_active', 'is_draft', 'created_at', 'updated_at',
             'cohosts', 'role', 'tiers',
         ]
-        read_only_fields = ['id', 'slug', 'owner', 'is_active', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'slug', 'owner', 'is_active', 'is_sold_out', 'created_at', 'updated_at']
+
+    def get_is_sold_out(self, obj):
+        return obj.is_sold_out()
+
+    def validate_capacity(self, value):
+        if value is None:
+            return value
+        if value < 1:
+            raise serializers.ValidationError("Capacity must be at least 1, or leave it empty for unlimited.")
+        if self.instance is not None:
+            sold = self.instance.sold_seats()
+            if value < sold:
+                raise serializers.ValidationError(
+                    f"{sold} ticket{'s' if sold != 1 else ''} already sold, so capacity can't be lower than {sold}."
+                )
+        return value
 
     def get_owner_handle(self, obj):
         """Public handle for the owner's profile (/u/<handle>), if they have one."""
@@ -268,7 +339,7 @@ class EventSerializer(serializers.ModelSerializer):
         """Number of active events this owner has hosted, for the public 'Organised by' card."""
         if not obj.owner:
             return 0
-        return Event.objects.filter(owner=obj.owner, is_active=True).count()
+        return Event.objects.filter(owner=obj.owner, is_active=True, is_draft=False).count()
 
     def get_role(self, obj):
         """

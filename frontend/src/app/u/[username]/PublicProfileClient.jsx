@@ -7,6 +7,7 @@ import API from "@/services/api";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import ShareMenu from "@/components/ShareMenu";
+import FollowButton from "@/components/community/FollowButton";
 import EventImage from "@/components/brand/EventImage";
 import { categoryTone, dayParts, eventInitials, formatTime, priceLabel } from "@/lib/eventFormat";
 
@@ -23,6 +24,7 @@ export default function PublicProfileClient({ username }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [tab, setTab] = useState("upcoming");
+  const [followers, setFollowers] = useState(0);
 
   useEffect(() => {
     if (!username) return;
@@ -33,6 +35,7 @@ export default function PublicProfileClient({ username }) {
         // Fetch public profile
         const profileData = await API.getPublicProfile(username);
         setProfile(profileData);
+        setFollowers(profileData.followers_count ?? 0);
 
         // Fetch all public events to filter client-side
         const eventsRes = await API.getEvents();
@@ -114,7 +117,10 @@ export default function PublicProfileClient({ username }) {
   const slot = hashOf(profile.handle || username) % INKS.length;
   const ink = INKS[slot];
   const tint = TINTS[slot];
-  const cover = upcomingEvents.find((e) => e.event_image_url) || events.find((e) => e.event_image_url) || null;
+  const cover = profile.cover_image_url
+    ? { name, category: "other", event_image_url: profile.cover_image_url }
+    : upcomingEvents.find((e) => e.event_image_url) || events.find((e) => e.event_image_url) || null;
+  const merchItems = profile.merch_items || [];
   const categoryLabels = [...new Set(events.map((e) => e.category).filter(Boolean))].map((c) => categoryTone(c).label);
   const meta = [`@${profile.handle || username}`, profile.location, categoryLabels[0]].filter(Boolean).join(" · ");
 
@@ -136,9 +142,9 @@ export default function PublicProfileClient({ username }) {
   ].filter(Boolean);
 
   const stats = [
+    { value: followers.toLocaleString(), label: followers === 1 ? "follower" : "followers" },
     { value: events.length, label: events.length === 1 ? "event hosted" : "events hosted" },
     { value: upcomingEvents.length, label: "coming up" },
-    { value: pastEvents.length, label: "past events" },
   ];
 
   const seg = (on) =>
@@ -172,7 +178,13 @@ export default function PublicProfileClient({ username }) {
                 eventInitials(name)
               )}
             </span>
-            <div className="order-2 ml-auto md:order-3 md:mb-1.5 md:ml-0">
+            <div className="order-2 ml-auto flex items-center gap-2 md:order-3 md:mb-1.5 md:ml-0">
+              <FollowButton
+                handle={profile.handle || username}
+                initialFollowing={!!profile.is_following}
+                onChange={(count) => setFollowers(count)}
+                className="h-[50px] px-7 text-base"
+              />
               <ShareMenu
                 url={typeof window !== "undefined" ? window.location.href : ""}
                 title={name}
@@ -221,8 +233,21 @@ export default function PublicProfileClient({ username }) {
           </div>
         </section>
 
+        {merchItems.length > 0 && (
+          <nav aria-label="Sections" className="mx-auto mt-10 max-w-[1440px] px-4 md:mt-11 md:px-12 xl:px-24">
+            <div className="flex gap-1.5 border-b border-hairline">
+              <a href="#events" className="-mb-px flex h-[52px] items-center border-b-[3px] border-brand px-[18px] text-base font-bold text-ink">
+                Events
+              </a>
+              <a href="#merch" className="flex h-[52px] items-center px-[18px] text-base font-bold text-faint hover:text-ink">
+                Merch
+              </a>
+            </div>
+          </nav>
+        )}
+
         {/* Events */}
-        <section className="mx-auto flex max-w-[1440px] flex-col gap-5 px-4 pt-10 md:px-12 md:pt-12 xl:px-24">
+        <section id="events" className="mx-auto flex max-w-[1440px] scroll-mt-28 flex-col gap-5 px-4 pt-10 md:px-12 md:pt-9 xl:px-24">
           <div className="flex flex-wrap items-center gap-5">
             <h2 className="font-display text-[30px] font-bold tracking-[-0.02em]">Events</h2>
             <div role="group" aria-label="Show events" className="flex gap-0.5 rounded-full bg-mist p-1">
@@ -290,6 +315,20 @@ export default function PublicProfileClient({ username }) {
               <EmptyState message="No past events yet." />
             ))}
         </section>
+
+        {merchItems.length > 0 && (
+          <section id="merch" className="mx-auto flex max-w-[1440px] scroll-mt-28 flex-col gap-5 px-4 pt-14 md:px-12 md:pt-16 xl:px-24">
+            <div className="flex items-baseline gap-3.5">
+              <h2 className="font-display text-[30px] font-bold tracking-[-0.02em]">Merch</h2>
+              <span className="text-sm text-muted">Sold by {name}</span>
+            </div>
+            <ul className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+              {merchItems.map((item) => (
+                <MerchTile key={item.id} item={item} />
+              ))}
+            </ul>
+          </section>
+        )}
       </main>
 
       <Footer />
@@ -305,5 +344,47 @@ function EmptyState({ message }) {
         Browse events
       </Link>
     </div>
+  );
+}
+
+/** One merch item: a photo on a single neutral tile, then name, price and a Buy link. */
+function MerchTile({ item }) {
+  const hasStock = item.stock !== null && item.stock !== undefined;
+  const soldOut = hasStock && item.stock <= 0;
+  const price = item.price ? `₦${Number(item.price).toLocaleString("en-NG")}` : "Price on request";
+  return (
+    <li className="flex flex-col gap-3">
+      <div className="relative flex h-[260px] items-center justify-center overflow-hidden rounded-3xl bg-mist">
+        {item.image_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={item.image_url} alt={item.name} className="h-full w-full object-cover" />
+        ) : (
+          <svg width="96" height="96" viewBox="0 0 24 24" fill="none" stroke="#8A91A0" strokeWidth="1.1" strokeLinejoin="round" aria-hidden="true">
+            <path d="M5 8h14l-1 13H6zM9 8V6a3 3 0 0 1 6 0v2" />
+          </svg>
+        )}
+        <span className="absolute left-3 top-3 flex h-7 items-center rounded-full bg-white px-2.5 text-xs font-extrabold">
+          {soldOut ? "Sold out" : hasStock ? `${item.stock} left` : "In stock"}
+        </span>
+      </div>
+      <div className="flex flex-col gap-0.5 px-1">
+        <span className="font-display text-[19px] font-bold leading-tight">{item.name}</span>
+        <span className="text-[15px] font-extrabold">{price}</span>
+      </div>
+      {item.purchase_link && !soldOut && (
+        <a
+          href={item.purchase_link}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex h-11 items-center justify-center gap-2 rounded-full border border-line text-sm font-bold text-ink transition-[background-color,scale] hover:bg-mist active:scale-[0.96] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+        >
+          Buy
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M7 17L17 7M9 7h8v8" />
+          </svg>
+          <span className="sr-only">(opens the organiser&apos;s store)</span>
+        </a>
+      )}
+    </li>
   );
 }

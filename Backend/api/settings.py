@@ -262,6 +262,7 @@ CORS_ALLOWED_ORIGINS = [
     'https://byro-two.vercel.app',
     'https://usebyro.com',
     'https://www.usebyro.com',
+    'https://admin.usebyro.com',
 ]
 
 

@@ -8,7 +8,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('bryo', '0020_promocode_payment_promo_code'),
+        ('bryo', '0033_alter_event_category'),
     ]
 
     operations = [

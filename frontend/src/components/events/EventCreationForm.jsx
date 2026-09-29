@@ -7,8 +7,6 @@ import { useSelector } from "react-redux";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Camera01Icon,
-  Calendar01Icon,
-  Clock01Icon,
   Location01Icon,
   ArrowLeft01Icon,
   Add01Icon,
@@ -16,62 +14,125 @@ import {
   Edit01Icon,
   DragDropVerticalIcon,
 } from "@hugeicons/core-free-icons";
+import { describeTicketLimits } from "@/lib/ticketLimits";
 import API from "../../services/api";
 import RichTextEditor from "./RichTextEditor";
-import EventPublishedModal from "./EventPublishedModal";
 
 /* ── Category options ── */
+/* Each category keeps its own accent when selected (a chip tints toward its
+ * own color) rather than every category sharing one generic selection ring. */
 const CATEGORIES = [
   {
     id: "entertainment",
     label: "Concerts",
-    gradient: "from-purple-600 to-pink-500",
+    accent: "#9333ea",
+    tint: "#f5ebfe",
     icon: (
-      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+      <>
         <path d="M9 18V5l12-2v13" />
         <circle cx="6" cy="18" r="3" />
         <circle cx="18" cy="16" r="3" />
-      </svg>
+      </>
     ),
   },
   {
     id: "fitness",
     label: "Sports",
-    gradient: "from-orange-500 to-amber-400",
+    accent: "#ea580c",
+    tint: "#fef1e6",
     icon: (
-      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
-        <circle cx="12" cy="12" r="10" />
-        <path d="M4.93 4.93l4.24 4.24M14.83 14.83l4.24 4.24M4.93 19.07l4.24-4.24M14.83 9.17l4.24-4.24" />
-      </svg>
+      <>
+        <circle cx="12" cy="12" r="9" />
+        <path d="M4.9 4.9l4.2 4.2M14.8 14.8l4.2 4.2M4.9 19.1l4.2-4.2M14.8 9.2l4.2-4.2" />
+      </>
+    ),
+  },
+  {
+    id: "nightlife",
+    label: "Nightlife",
+    accent: "#e11d48",
+    tint: "#fdecef",
+    icon: (
+      <path d="M20 9.5A7.5 7.5 0 0 1 12.5 17a7.5 7.5 0 0 1-3.5-.85L4 18l1.85-5A7.5 7.5 0 0 1 5 9.5 7.5 7.5 0 0 1 12.5 2h.4A7.6 7.6 0 0 1 20 9.5z" />
     ),
   },
   {
     id: "art_culture",
-    label: "Nightlife",
-    gradient: "from-pink-600 to-rose-400",
+    label: "Art & Culture",
+    accent: "#a21caf",
+    tint: "#fbeafe",
     icon: (
-      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
-        <path d="M21 10.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
-      </svg>
+      <>
+        <path d="M12 2a10 10 0 1 0 0 20c1.1 0 2-.9 2-2 0-.5-.2-1-.5-1.3-.3-.4-.5-.8-.5-1.3 0-1.1.9-2 2-2h2.4c2 0 3.6-1.6 3.6-3.6C21 6.6 17 2 12 2Z" />
+        <circle cx="7.5" cy="11.5" r="1" fill="currentColor" stroke="none" />
+        <circle cx="10.5" cy="7.5" r="1" fill="currentColor" stroke="none" />
+        <circle cx="15" cy="8" r="1" fill="currentColor" stroke="none" />
+      </>
     ),
   },
   {
     id: "conference",
     label: "Conferences",
-    gradient: "from-teal-600 to-emerald-400",
+    accent: "#0d9488",
+    tint: "#e8f7f5",
     icon: (
-      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+      <>
         <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
         <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
         <line x1="12" y1="19" x2="12" y2="22" />
-        <line x1="8" y1="22" x2="16" y2="22" />
-      </svg>
+      </>
+    ),
+  },
+  {
+    id: "web3_crypto",
+    label: "Web3 & Crypto",
+    accent: "#0891b2",
+    tint: "#e6f6f9",
+    icon: (
+      <>
+        <polygon points="12 2 21 7 21 17 12 22 3 17 3 7" />
+        <line x1="12" y1="12" x2="12" y2="22" />
+        <line x1="12" y1="12" x2="21" y2="7" />
+        <line x1="12" y1="12" x2="3" y2="7" />
+      </>
+    ),
+  },
+  {
+    id: "technology",
+    label: "Technology",
+    accent: "#4f46e5",
+    tint: "#edecfd",
+    icon: (
+      <>
+        <rect x="6" y="6" width="12" height="12" rx="2" />
+        <line x1="9" y1="2" x2="9" y2="6" />
+        <line x1="15" y1="2" x2="15" y2="6" />
+        <line x1="9" y1="18" x2="9" y2="22" />
+        <line x1="15" y1="18" x2="15" y2="22" />
+        <line x1="2" y1="9" x2="6" y2="9" />
+        <line x1="2" y1="15" x2="6" y2="15" />
+        <line x1="18" y1="9" x2="22" y2="9" />
+        <line x1="18" y1="15" x2="22" y2="15" />
+      </>
+    ),
+  },
+  {
+    id: "other",
+    label: "Other",
+    accent: "#4b5563",
+    tint: "#f0f1f3",
+    icon: (
+      <>
+        <circle cx="5" cy="12" r="1.4" fill="currentColor" stroke="none" />
+        <circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none" />
+        <circle cx="19" cy="12" r="1.4" fill="currentColor" stroke="none" />
+      </>
     ),
   },
 ];
 
 const fmt = (n) =>
-  new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN", minimumFractionDigits: 0 }).format(n);
+  new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n);
 
 const convertTo24Hour = (t) => (!t ? "00:00:00" : `${t}:00`);
 
@@ -101,8 +162,11 @@ const formatDateForServer = (d) => {
 /* ── Default tiers ── */
 const DEFAULT_TIERS = [];
 
-export default function EventCreationForm({ editSlug = null, initialData = null }) {
+export default function EventCreationForm({ editSlug = null, initialData = null, embedded = false }) {
   const router = useRouter();
+  const wasDraft = Boolean(initialData?.is_draft);
+  // A live event can't be turned back into a draft (it may already have sold tickets).
+  const canSaveDraft = !editSlug || wasDraft;
   const { token } = useSelector((state) => state.auth);
   const fileInputRef = useRef(null);
   const venueTimerRef = useRef(null);
@@ -116,10 +180,13 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
   const [timeFrom, setTimeFrom] = useState("");
   const [venue, setVenue] = useState("");
   const [virtualLink, setVirtualLink] = useState("");
+  const [showVirtual, setShowVirtual] = useState(false);
   const [eventVisibility, setEventVisibility] = useState(true);
   const [showRemainingCount, setShowRemainingCount] = useState(false);
   const [ticketsTransferable, setTicketsTransferable] = useState(false);
-  const [capacity, setCapacity] = useState("Unlimited");
+  const [passFeeToAttendee, setPassFeeToAttendee] = useState(true);
+  const [capacity, setCapacity] = useState(""); // overall seats for the event; empty = unlimited
+  const [maxPerPerson, setMaxPerPerson] = useState("5"); // most tickets one buyer can get in one order
 
   /* venue autocomplete */
   const [venueCoords, setVenueCoords] = useState(null);
@@ -139,8 +206,20 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
 
   /* submission */
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [eventCreated, setEventCreated] = useState(false);
-  const [eventSlug, setEventSlug] = useState(null);
+
+  /* The floating support chat would sit on top of the Publish button on phones */
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia("(max-width: 767px)").matches) return;
+    const tawk = () => window.Tawk_API;
+    tawk()?.hideWidget?.();
+    const previous = tawk()?.onLoad;
+    if (tawk()) tawk().onLoad = () => { previous?.(); tawk()?.hideWidget?.(); };
+    return () => { tawk()?.showWidget?.(); };
+  }, []);
+
+  /* which cards are expanded (Settings starts collapsed: the defaults suit most events) */
+  const [open, setOpen] = useState({ details: true, date: true, tiers: true, cover: true, settings: false });
+  const toggle = (key) => setOpen((o) => ({ ...o, [key]: !o[key] }));
 
   /* pre-fill when editing */
   useEffect(() => {
@@ -154,8 +233,11 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
     setDescription(d.description || "");
     setTicketsTransferable(d.transferable || false);
     setShowRemainingCount(d.show_remaining_count || false);
+    setPassFeeToAttendee(d.pass_fee_to_attendee !== undefined ? d.pass_fee_to_attendee : true);
     setCategory(d.category || "entertainment");
     setEventVisibility(d.visibility === "public");
+    setCapacity(d.capacity != null ? String(d.capacity) : "");
+    setMaxPerPerson(String(d.max_tickets_per_person ?? 5));
     if (d.event_image_url || d.event_image) {
       const base = (process.env.NEXT_PUBLIC_API_URL || "https://byro.onrender.com").replace(/\/api\/?$/, "");
       const imgUrl = d.event_image_url || (d.event_image?.startsWith("http") ? d.event_image : `${base}${d.event_image}`);
@@ -172,9 +254,12 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
           const mapped = data.map((t) => ({
             id: t.id, // real numeric backend ID — won't match "tier_" filter, so won't be re-POSTed
             name: t.name,
-            price: t.price != null ? String(t.price) : "",
+            price: t.price != null && t.price !== "" ? String(parseFloat(t.price)) : "",
             available: t.capacity != null ? String(t.capacity) : "Unlimited",
             admits: t.admits_count != null ? String(t.admits_count) : "1",
+            perPerson: t.max_tickets_per_person != null ? String(t.max_tickets_per_person) : "Unlimited",
+            minPerPerson: String(t.min_tickets_per_person ?? 1),
+            description: t.description || "",
           }));
           setTiers(mapped);
           // Deep-copy snapshot so we can diff for PATCH/DELETE on save
@@ -199,7 +284,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
   /* Tier editing helpers */
   const startEditTier = (tier) => {
     setEditingTierId(tier.id);
-    setEditTierData({ name: tier.name, available: tier.available, price: tier.price, admits: tier.admits ?? "1" });
+    setEditTierData({ name: tier.name, available: tier.available, price: tier.price, admits: tier.admits ?? "1", perPerson: tier.perPerson ?? "5", minPerPerson: tier.minPerPerson ?? "1", description: tier.description ?? "" });
   };
 
   const saveEditTier = () => {
@@ -213,9 +298,9 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
 
   const addTier = () => {
     const newId = `tier_${Date.now()}`;
-    setTiers(prev => [...prev, { id: newId, name: "New Tier", available: "100", price: "", admits: "1" }]);
+    setTiers(prev => [...prev, { id: newId, name: "New Tier", available: "Unlimited", price: "", admits: "1", perPerson: "5", minPerPerson: "1", description: "" }]);
     setEditingTierId(newId);
-    setEditTierData({ name: "New Tier", available: "100", price: "", admits: "1" });
+    setEditTierData({ name: "New Tier", available: "Unlimited", price: "", admits: "1", perPerson: "5", minPerPerson: "1", description: "" });
   };
 
   const handleVenueChange = useCallback((val) => {
@@ -243,7 +328,23 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
   }, []);
 
   /* Submit */
+  // Tiers that add up to more than the total can't all be sold: say so.
+  const tierCapNumbers = tiers.map((t) => parseInt(String(t.available).replace(/,/g, ""), 10));
+  const tierAllocationTotal = tierCapNumbers.every((n) => !Number.isNaN(n)) ? tierCapNumbers.reduce((a, b) => a + b, 0) : null;
+  const totalCapacityNumber = capacity.trim() ? parseInt(capacity, 10) : null;
+  const tierAllocationWarning =
+    tiers.length > 0 && totalCapacityNumber && tierAllocationTotal !== null && tierAllocationTotal > totalCapacityNumber
+      ? `Your tiers add up to ${tierAllocationTotal} tickets, but total capacity is ${totalCapacityNumber}. Sales stop at ${totalCapacityNumber}.`
+      : "";
+
   const handleSubmit = async (isDraft = false) => {
+    if (capacity.trim() && !/^[1-9]\d*$/.test(capacity.trim())) {
+      toast.error("Total capacity must be a whole number of 1 or more, or empty for no limit.");
+      setOpen((o) => ({ ...o, tiers: true }));
+      return;
+    }
+    // Required fields live in these two cards: never validate behind a collapsed one.
+    setOpen((o) => ({ ...o, details: true, date: true }));
     if (!eventName.trim()) { toast.error("Event name is required"); return; }
     if (!date.trim()) { toast.error("Event date is required"); return; }
     if (!timeFrom) { toast.error("Start time is required"); return; }
@@ -275,14 +376,17 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
       ticket_price: ticketPrice,
       transferable: ticketsTransferable.toString(),
       show_remaining_count: showRemainingCount.toString(),
-      visibility: isDraft ? "private" : (eventVisibility ? "public" : "private"),
+      pass_fee_to_attendee: passFeeToAttendee.toString(),
+      visibility: eventVisibility ? "public" : "private",
+      is_draft: isDraft.toString(),
       category,
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "GMT+01:00",
     };
     if (venue) fields.location = venue;
     if (virtualLink) fields.virtual_link = virtualLink;
     if (description) fields.description = description;
-    if (capacity !== "Unlimited") fields.capacity = capacity;
+    fields.capacity = capacity.trim(); // empty clears the limit
+    fields.max_tickets_per_person = maxPerPerson;
 
     Object.entries(fields).forEach(([k, v]) => formData.append(k, v));
     if (eventImage instanceof File) formData.append("event_image", eventImage);
@@ -293,6 +397,20 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
       return isNaN(n) ? null : n;
     };
 
+    // "Unlimited" (or empty) means no per-order limit for the tier.
+    const parsePerPerson = (val) => {
+      const n = parseInt(String(val ?? ""), 10);
+      return isNaN(n) ? null : Math.min(10, Math.max(1, n));
+    };
+
+    // The minimum can never be above the maximum (or below 1).
+    const parseMin = (val, max) => {
+      const n = parseInt(String(val ?? "1"), 10);
+      const min = isNaN(n) ? 1 : Math.min(10, Math.max(1, n));
+      const cap = parsePerPerson(max);
+      return cap === null ? min : Math.min(min, cap);
+    };
+
     const parseAdmits = (val) => {
       const n = parseInt(String(val ?? "1"), 10);
       return isNaN(n) || n < 1 ? 1 : n;
@@ -300,9 +418,12 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
 
     const tierPayload = (tier, idx) => ({
       name: tier.name,
+      description: (tier.description || "").trim(),
       price: parseFloat(tier.price) || 0,
       capacity: parseCapacity(tier.available),
       admits_count: parseAdmits(tier.admits),
+      max_tickets_per_person: parsePerPerson(tier.perPerson),
+      min_tickets_per_person: parseMin(tier.minPerPerson, tier.perPerson),
       order: idx,
     });
 
@@ -332,7 +453,10 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
             const changed =
               !orig ||
               orig.name !== tier.name ||
+              (orig.description ?? "") !== (tier.description ?? "") ||
               orig.price !== tier.price ||
+              orig.perPerson !== tier.perPerson ||
+              (orig.minPerPerson ?? "1") !== (tier.minPerPerson ?? "1") ||
               orig.available !== tier.available ||
               (orig.admits ?? "1") !== (tier.admits ?? "1");
             if (changed) ops.push(API.updateTier(slug, tier.id, tierPayload(tier, idx)));
@@ -357,12 +481,13 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
 
         toast.success(editSlug ? "Event updated!" : isDraft ? "Draft saved!" : "Event published!");
         if (editSlug) {
-          router.push(`/dashboard/events/${editSlug}`);
+          // Publishing a draft is the moment to show the share modal.
+          const justPublished = wasDraft && !isDraft;
+          router.push(`/dashboard/events/${editSlug}${justPublished ? "?published=1" : ""}`);
         } else if (isDraft) {
-          router.push(`/discover/${response.slug}?preview=true`);
+          router.push(`/dashboard/events/${response.slug}`);
         } else {
-          setEventSlug(response.slug || response.id);
-          setEventCreated(true);
+          router.push(`/dashboard/events/${response.slug || response.id}?published=1`);
         }
       }
     } catch (err) {
@@ -374,52 +499,54 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
   };
 
   return (
-    <div className="min-h-screen bg-[#F5F6FA]">
-      {/* ── Top bar ── */}
-      <div className="bg-white border-b border-gray-100 px-3 sm:px-6 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sticky top-0 z-10">
+    <div className={embedded ? "" : "min-h-screen bg-[#F5F6FA]"}>
+      <div className="bg-white border-b border-gray-100 px-4 md:px-6 py-3 flex flex-col md:flex-row md:items-center justify-between gap-3 sticky top-0 z-10">
         <div className="flex items-center gap-2">
           <button onClick={() => router.back()} className="flex items-center justify-center w-7 h-7 rounded-lg text-gray-500 hover:text-gray-800 hover:bg-gray-50 transition-colors shrink-0">
             <HugeiconsIcon icon={ArrowLeft01Icon} size={14} color="#6b7280" />
           </button>
           <span className="text-gray-200 text-sm">/</span>
-          <h1 className="text-base sm:text-lg font-bold text-gray-900 truncate">
+          <h1 className="text-base md:text-lg font-bold text-gray-900 truncate">
             {editSlug ? "Edit event" : "Create event"}
           </h1>
         </div>
-        <div className="grid grid-cols-2 gap-2 w-full sm:flex sm:w-auto sm:items-center sm:gap-2.5">
-          <button
-            onClick={() => handleSubmit(true)}
-            disabled={isSubmitting}
-            className="border border-gray-200 text-gray-700 text-[11px] sm:text-xs font-semibold px-2.5 py-2 rounded-xl hover:bg-gray-50 transition-colors disabled:opacity-40 text-center w-full sm:w-auto"
-          >
-            Save draft
-          </button>
+        <div className="fixed bottom-0 inset-x-0 z-20 grid grid-cols-2 gap-2 bg-white border-t border-gray-200 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:static md:z-auto md:flex md:w-auto md:items-center md:gap-2.5 md:bg-transparent md:border-0 md:p-0">
+          {canSaveDraft && (
+            <button
+              onClick={() => handleSubmit(true)}
+              disabled={isSubmitting}
+              className="border border-gray-200 text-gray-700 text-sm min-h-[44px] md:min-h-0 md:text-xs font-semibold px-3 py-2 rounded-xl hover:bg-gray-50 transition-colors disabled:opacity-40 text-center w-full md:w-auto"
+            >
+              Save draft
+            </button>
+          )}
           <button
             onClick={() => handleSubmit(false)}
             disabled={isSubmitting}
-            className="bg-blue-600 text-white text-[11px] sm:text-xs font-semibold px-2.5 py-2 rounded-xl hover:bg-blue-700 transition-colors flex items-center justify-center gap-1 sm:gap-1.5 disabled:opacity-40 w-full sm:w-auto"
+            className={`bg-blue-600 text-white text-sm min-h-[44px] md:min-h-0 md:text-xs font-semibold px-3 py-2 rounded-xl hover:bg-blue-700 transition-colors flex items-center justify-center gap-1 md:gap-1.5 disabled:opacity-40 w-full md:w-auto ${canSaveDraft ? "" : "col-span-2 md:col-span-1"}`}
           >
             {isSubmitting ? (
               <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25" /><path d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" fill="currentColor" className="opacity-75" /></svg>
             ) : (
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12" /></svg>
             )}
-            {isSubmitting ? "Saving..." : "Publish event"}
+            {isSubmitting ? "Saving..." : editSlug && !wasDraft ? "Save changes" : "Publish event"}
           </button>
         </div>
       </div>
 
-      {/* ── Body ── */}
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8 flex flex-col lg:flex-row gap-6 items-start">
+      <div className="max-w-5xl mx-auto px-4 md:px-6 pt-6 pb-28 md:py-8 flex flex-col lg:flex-row gap-6 items-stretch lg:items-start">
 
-        {/* Left column */}
-        <div className="flex-1 min-w-0 space-y-5">
+        <div className="w-full lg:flex-1 min-w-0 space-y-5">
 
-          {/* Event details card */}
-          <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
-            <h2 className="font-bold text-gray-900 text-base mb-5">Event details</h2>
+          <Collapsible
+            id="sec-details"
+            title="Event details"
+            summary={[categories.find((c) => c.id === category)?.label, eventName.trim()].filter(Boolean).join(", ") || "Name, category and description"}
+            open={open.details}
+            onToggle={() => toggle("details")}
+          >
 
-            {/* Name */}
             <div className="mb-5">
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Event name</label>
               <input
@@ -431,34 +558,51 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
               />
             </div>
 
-            {/* Category */}
             <div className="mb-5">
               <label className="block text-sm font-medium text-gray-700 mb-3">Category</label>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {categories.map(cat => (
-                  <button
-                    key={cat.id}
-                    type="button"
-                    onClick={() => setCategory(cat.id)}
-                    className={`relative flex flex-col items-center justify-center p-5 rounded-2xl bg-gradient-to-br ${cat.gradient} transition-all ${
-                      category === cat.id
-                        ? "ring-2 ring-offset-2 ring-blue-500 scale-[1.02]"
-                        : "opacity-70 hover:opacity-90"
-                    }`}
-                  >
-                    {cat.icon}
-                    <span className="text-white text-xs font-semibold mt-2">{cat.label}</span>
-                    {category === cat.id && (
-                      <div className="absolute top-2 right-2 w-4 h-4 bg-white rounded-full flex items-center justify-center">
-                        <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="3"><polyline points="20 6 9 17 4 12" /></svg>
-                      </div>
-                    )}
-                  </button>
-                ))}
+              <div className="flex flex-wrap gap-2">
+                {categories.map(cat => {
+                  const selected = category === cat.id;
+                  return (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => setCategory(cat.id)}
+                      style={{
+                        borderColor: selected ? cat.accent : undefined,
+                        backgroundColor: selected ? cat.tint : undefined,
+                      }}
+                      className={`flex-none flex items-center gap-2 pl-1.5 pr-3.5 py-1.5 rounded-full border transition-colors ${
+                        selected
+                          ? "font-semibold text-gray-900"
+                          : "border-gray-200 text-gray-600 hover:border-gray-300"
+                      }`}
+                    >
+                      <span
+                        className="flex items-center justify-center w-[26px] h-[26px] rounded-full flex-none"
+                        style={{ backgroundColor: cat.accent }}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          {cat.icon}
+                        </svg>
+                      </span>
+                      <span className="text-sm whitespace-nowrap">{cat.label}</span>
+                      {selected && (
+                        <span
+                          className="flex items-center justify-center w-3.5 h-3.5 rounded-full flex-none"
+                          style={{ backgroundColor: cat.accent }}
+                        >
+                          <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
-            {/* Description */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Description</label>
               <RichTextEditor
@@ -466,42 +610,41 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
                 onChange={setDescription}
               />
             </div>
-          </div>
+          </Collapsible>
 
-          {/* Date & location card */}
-          <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
-            <h2 className="font-bold text-gray-900 text-base mb-5">Date &amp; location</h2>
+          <Collapsible
+            id="sec-date"
+            title="Date & location"
+            summary={[formatDisplayDate(date)?.main, formatDisplayTime(timeFrom), venue.trim()].filter(Boolean).join(", ") || "When and where it happens"}
+            open={open.date}
+            onToggle={() => toggle("date")}
+          >
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                {/* Date */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">Date</label>
                   <div className="relative">
-                    <HugeiconsIcon icon={Calendar01Icon} size={15} color="#9ca3af" className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                     <input
                       type="date"
                       value={date}
                       onChange={e => setDate(e.target.value)}
-                      className="w-full border border-gray-200 rounded-xl pl-9 pr-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className={`w-full border border-gray-200 rounded-xl px-4 py-3 min-h-[46px] text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${date ? "text-gray-900" : "text-gray-400"}`}
                     />
                   </div>
                 </div>
-                {/* Start time */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">Start time</label>
                   <div className="relative">
-                    <HugeiconsIcon icon={Clock01Icon} size={15} color="#9ca3af" className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                     <input
                       type="time"
                       value={timeFrom}
                       onChange={e => setTimeFrom(e.target.value)}
-                      className="w-full border border-gray-200 rounded-xl pl-9 pr-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className={`w-full border border-gray-200 rounded-xl px-4 py-3 min-h-[46px] text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${timeFrom ? "text-gray-900" : "text-gray-400"}`}
                     />
                   </div>
                 </div>
               </div>
 
-              {/* Venue */}
               <div className="relative">
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Venue</label>
                 <div className="relative">
@@ -518,7 +661,6 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
                   />
                 </div>
 
-                {/* Suggestions dropdown */}
                 {showSuggestions && venueSuggestions.length > 0 && (
                   <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
                     {venueSuggestions.map((s, i) => (
@@ -541,7 +683,6 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
                   </div>
                 )}
 
-                {/* Map preview */}
                 {venueCoords && (
                   <div className="mt-3 rounded-xl overflow-hidden border border-gray-200" style={{ height: "200px" }}>
                     <iframe
@@ -556,35 +697,89 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
                 )}
               </div>
 
-              {/* Virtual link */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Virtual link <span className="text-gray-400 font-normal">(optional)</span>
-                </label>
-                <input
-                  type="url"
-                  value={virtualLink}
-                  onChange={e => setVirtualLink(e.target.value)}
-                  placeholder="https://meet.example.com/..."
-                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-400"
-                />
-              </div>
+              {/* Virtual link: only shown once it is wanted (or already set) */}
+              {showVirtual || virtualLink ? (
+                <div>
+                  <label htmlFor="virtual-link" className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Virtual link
+                  </label>
+                  <input
+                    id="virtual-link"
+                    type="url"
+                    inputMode="url"
+                    value={virtualLink}
+                    onChange={e => setVirtualLink(e.target.value)}
+                    placeholder="https://meet.example.com/..."
+                    className="w-full border border-gray-200 rounded-xl px-4 py-3 min-h-[46px] text-base md:text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setShowVirtual(true)}
+                  className="text-sm font-semibold text-blue-600 hover:text-blue-700 min-h-[44px] md:min-h-0 text-left"
+                >
+                  Add virtual link
+                </button>
+              )}
             </div>
-          </div>
+          </Collapsible>
 
-          {/* Ticket tiers card */}
-          <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
-            <div className="flex items-center justify-between mb-5">
-              <h2 className="font-bold text-gray-900 text-base">Ticket tiers</h2>
+          <Collapsible
+            id="sec-tiers"
+            title="Ticket tiers"
+            summary={
+              [
+                capacity.trim() ? `${capacity} seats` : "Unlimited seats",
+                tiers.length > 0 ? `${tiers.length} tier${tiers.length === 1 ? "" : "s"}` : null,
+                tiers.length === 0 ? `up to ${maxPerPerson} per person` : null,
+              ].filter(Boolean).join(", ")
+            }
+            open={open.tiers}
+            onToggle={() => toggle("tiers")}
+            action={
               <button
                 type="button"
-                onClick={addTier}
-                className="flex items-center gap-1.5 text-blue-600 text-sm font-semibold hover:text-blue-700 transition-colors"
+                onClick={() => { setOpen((o) => ({ ...o, tiers: true })); addTier(); }}
+                className="flex items-center gap-1.5 min-h-[44px] md:min-h-0 px-2 text-blue-600 text-sm font-semibold hover:text-blue-700 transition-colors"
               >
                 <HugeiconsIcon icon={Add01Icon} size={15} color="#2563eb" />
                 Add tier
               </button>
+            }
+          >
+            <div className="grid gap-4 md:grid-cols-2 mb-5">
+              <div>
+                <label htmlFor="total-capacity" className="block text-sm font-medium text-gray-700 mb-1.5">Total capacity</label>
+                <input
+                  id="total-capacity"
+                  type="text"
+                  inputMode="numeric"
+                  value={capacity}
+                  onChange={(e) => setCapacity(e.target.value.replace(/[^\d]/g, ""))}
+                  placeholder="Unlimited"
+                  className="w-full border border-gray-200 rounded-xl px-4 py-3 min-h-[46px] text-base md:text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                <p className="mt-1.5 text-xs text-gray-500">Sales stop when this many seats are taken. Leave empty for no limit.</p>
+              </div>
+              {tiers.length === 0 && <div>
+                <label htmlFor="max-per-person" className="block text-sm font-medium text-gray-700 mb-1.5">Tickets per person</label>
+                <select
+                  id="max-per-person"
+                  value={maxPerPerson}
+                  onChange={(e) => setMaxPerPerson(e.target.value)}
+                  className="w-full border border-gray-200 rounded-xl bg-white px-4 py-3 min-h-[46px] text-base md:text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
+                    <option key={n} value={String(n)}>{n}</option>
+                  ))}
+                </select>
+                <p className="mt-1.5 text-xs text-gray-500">The most tickets one buyer can get in a single order. With tiers, each tier sets its own.</p>
+              </div>}
             </div>
+            {tierAllocationWarning && (
+              <p className="mb-4 rounded-lg bg-amber-50 border border-amber-100 px-3 py-2 text-sm text-amber-800">{tierAllocationWarning}</p>
+            )}
 
             <div className="space-y-2">
               {tiers.map((tier, idx) => (
@@ -603,42 +798,105 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
                           />
                         </div>
                         <div>
-                          <label className="text-xs font-medium text-gray-600 mb-1 block">Available</label>
+                          <label className="text-xs font-medium text-gray-600 mb-1 block">Tickets available</label>
                           <input
                             type="text"
                             value={editTierData.available}
                             onChange={e => setEditTierData(p => ({ ...p, available: e.target.value }))}
                             className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            placeholder="100"
+                            placeholder="Unlimited"
                           />
+                          {parseInt(editTierData.admits, 10) > 1 && parseInt(editTierData.available, 10) > 0 && (
+                            <p className="text-xs text-gray-500 mt-1">
+                              Counted in people: {parseInt(editTierData.available, 10)} people is {Math.floor(parseInt(editTierData.available, 10) / parseInt(editTierData.admits, 10))} groups of {parseInt(editTierData.admits, 10)}.
+                            </p>
+                          )}
                         </div>
+                      </div>
+                      <div>
+                        <label htmlFor={`tier-desc-${tier.id}`} className="text-xs font-medium text-gray-600 mb-1 block">Description <span className="text-gray-400 font-normal">(optional)</span></label>
+                        <textarea
+                          id={`tier-desc-${tier.id}`}
+                          rows={2}
+                          maxLength={200}
+                          value={editTierData.description ?? ""}
+                          onChange={e => setEditTierData(p => ({ ...p, description: e.target.value }))}
+                          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                          placeholder="e.g. Admits two people, includes one drink each"
+                        />
+                        <p className="mt-1 text-xs text-gray-500 text-right">{(editTierData.description ?? "").length}/200</p>
+                      </div>
+                      <div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label htmlFor={`min-per-person-${tier.id}`} className="text-xs font-medium text-gray-600 mb-1 block">Minimum per order</label>
+                            <select
+                              id={`min-per-person-${tier.id}`}
+                              value={editTierData.minPerPerson ?? "1"}
+                              disabled={parseInt(editTierData.admits, 10) > 1}
+                              onChange={e => setEditTierData(p => {
+                                const min = parseInt(e.target.value, 10);
+                                const max = parseInt(p.perPerson, 10);
+                                // Raising the minimum past the maximum lifts the maximum with it.
+                                return { ...p, minPerPerson: e.target.value, perPerson: !isNaN(max) && max < min ? e.target.value : p.perPerson };
+                              })}
+                              className="w-full border border-gray-200 rounded-lg bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-400"
+                            >
+                              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
+                                <option key={n} value={String(n)}>{n}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label htmlFor={`per-person-${tier.id}`} className="text-xs font-medium text-gray-600 mb-1 block">Maximum per order</label>
+                            <select
+                              id={`per-person-${tier.id}`}
+                              value={editTierData.perPerson ?? "5"}
+                              disabled={parseInt(editTierData.admits, 10) > 1}
+                              onChange={e => setEditTierData(p => {
+                                const max = parseInt(e.target.value, 10);
+                                const min = parseInt(p.minPerPerson, 10);
+                                // Lowering the maximum below the minimum pulls the minimum down.
+                                return { ...p, perPerson: e.target.value, minPerPerson: !isNaN(max) && min > max ? e.target.value : p.minPerPerson };
+                              })}
+                              className="w-full border border-gray-200 rounded-lg bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-400"
+                            >
+                              <option value="Unlimited">No limit</option>
+                              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
+                                <option key={n} value={String(n)}>{n}</option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                        <p className="mt-1 text-xs text-gray-500">
+                          {parseInt(editTierData.admits, 10) > 1
+                            ? `A group ticket that admits ${parseInt(editTierData.admits, 10)} people. It is always bought one at a time.`
+                            : (() => {
+                                const min = parseInt(editTierData.minPerPerson, 10) || 1;
+                                const max = parseInt(editTierData.perPerson, 10);
+                                if (!isNaN(max) && min === max && min > 1) return `Sold only in sets of ${min}, like a couples ticket. Buyers can't get fewer.`;
+                                if (min > 1) return `Buyers must take at least ${min}, so the counter starts at ${min}.`;
+                                return "The fewest and the most one buyer can get of this ticket in one order.";
+                              })()}
+                        </p>
                       </div>
                       <div>
                         <label className="text-xs font-medium text-gray-600 mb-1 block">Price (₦) — leave blank for free</label>
                         <input
-                          type="number"
-                          min="0"
-                          step="100"
+                          type="text"
+                          inputMode="decimal"
                           value={editTierData.price}
-                          onChange={e => setEditTierData(p => ({ ...p, price: e.target.value }))}
+                          onChange={e => {
+                            // A number input silently reports "" the moment a comma
+                            // sneaks in (e.g. "5,000"), which downstream treated as
+                            // "no price" and made the tier free. Strip anything but
+                            // digits and a single decimal point instead.
+                            const cleaned = e.target.value.replace(/[^0-9.]/g, "");
+                            setEditTierData(p => ({ ...p, price: cleaned }));
+                          }}
                           className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                           placeholder="e.g. 8500"
                         />
-                      </div>
-                      <div>
-                        <label className="text-xs font-medium text-gray-600 mb-1 block">People per ticket</label>
-                        <input
-                          type="number"
-                          min="1"
-                          step="1"
-                          value={editTierData.admits ?? "1"}
-                          onChange={e => setEditTierData(p => ({ ...p, admits: e.target.value }))}
-                          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          placeholder="1"
-                        />
-                        <p className="text-[11px] text-gray-400 mt-1">
-                          For group tickets (e.g. &quot;Group of 4&quot; → 4). This is one ticket that admits that many people; the buyer fills in each guest&apos;s details at checkout.
-                        </p>
                       </div>
                       <div className="flex gap-2">
                         <button type="button" onClick={saveEditTier} className="bg-blue-600 text-white text-xs font-semibold px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">Save</button>
@@ -653,14 +911,26 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
                       </span>
                       <div className="flex-1 min-w-0">
                         <p className="font-semibold text-gray-900 text-sm">{tier.name}</p>
+                        {tier.description && <p className="text-xs text-gray-600 mt-0.5 break-words">{tier.description}</p>}
                         <p className="text-xs text-gray-400 mt-0.5">
-                          {tier.available} available
-                          {parseInt(tier.admits, 10) > 1 ? ` · admits ${tier.admits} per ticket` : ""}
+                          {!tier.available || tier.available === "Unlimited" ? "Unlimited" : `${tier.available} available`}
+                          {`, ${describeTicketLimits({
+                            admits_count: parseInt(tier.admits, 10),
+                            min_tickets_per_person: parseInt(tier.minPerPerson, 10) || 1,
+                            max_tickets_per_person: tier.perPerson && tier.perPerson !== "Unlimited" ? parseInt(tier.perPerson, 10) : null,
+                          }).toLowerCase()}`}
                         </p>
                       </div>
-                      <span className="font-bold text-gray-900 text-sm mr-2">
-                        {tier.price ? fmt(parseFloat(tier.price)) : "Free"}
-                      </span>
+                      <div className="mr-2 text-right">
+                        <p className="font-bold text-gray-900 text-sm">
+                          {tier.price ? fmt(parseFloat(tier.price)) : "Free"}
+                        </p>
+                        {parseInt(tier.admits, 10) > 1 ? (
+                          <p className="text-xs text-gray-500">for {tier.admits} people</p>
+                        ) : parseInt(tier.minPerPerson, 10) > 1 ? (
+                          <p className="text-xs text-gray-500">per ticket</p>
+                        ) : null}
+                      </div>
                       <button type="button" onClick={() => startEditTier(tier)} className="text-gray-400 hover:text-gray-700 transition-colors p-1">
                         <HugeiconsIcon icon={Edit01Icon} size={15} color="currentColor" />
                       </button>
@@ -678,15 +948,19 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
             <p className="text-xs text-gray-400 mt-4">
               Free event? Skip this section. For paid events, add at least one tier with a price, the first tier&apos;s price becomes the event ticket price.
             </p>
-          </div>
+          </Collapsible>
         </div>
 
-        {/* Right column */}
         <div className="lg:w-64 xl:w-72 shrink-0 w-full space-y-4">
 
-          {/* Cover image */}
-          <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
-            <h3 className="font-bold text-gray-900 text-sm mb-4">Cover image</h3>
+          <Collapsible
+            id="sec-cover"
+            size="sm"
+            title="Cover image"
+            summary={imagePreview ? "Image added" : "No image yet"}
+            open={open.cover}
+            onToggle={() => toggle("cover")}
+          >
             <input type="file" ref={fileInputRef} onChange={handleImageChange} className="hidden" accept="image/*" />
             <div
               onClick={() => fileInputRef.current?.click()}
@@ -696,11 +970,14 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
               {imagePreview ? (
                 <img src={imagePreview} alt="Cover" className="w-full h-full object-cover" />
               ) : (
-                <div className="w-full h-full bg-gradient-to-br from-purple-700 to-pink-500 flex flex-col items-center justify-center gap-2">
+                <div className="w-full h-full bg-gray-100 flex flex-col items-center justify-center gap-2">
                   {isImageLoading ? (
-                    <svg className="animate-spin" width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="white" strokeWidth="4" className="opacity-25" /><path d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" fill="white" className="opacity-75" /></svg>
+                    <svg className="animate-spin" width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="#6b7280" strokeWidth="4" className="opacity-25" /><path d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" fill="#6b7280" className="opacity-75" /></svg>
                   ) : (
-                    <HugeiconsIcon icon={Camera01Icon} size={24} color="white" />
+                    <>
+                      <HugeiconsIcon icon={Camera01Icon} size={24} color="#6b7280" />
+                      <span className="text-sm text-gray-500">Add cover image</span>
+                    </>
                   )}
                 </div>
               )}
@@ -713,17 +990,23 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
                 </div>
               )}
             </div>
-            <p className="text-xs text-gray-400 mt-2.5">1600×900px recommended. JPG or PNG, max 5MB.</p>
-          </div>
+            <p className="mt-2.5 text-sm text-gray-500">1600×900px, up to 5MB</p>
+          </Collapsible>
 
-          {/* Settings */}
-          <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
-            <h3 className="font-bold text-gray-900 text-sm mb-4">Settings</h3>
+          <Collapsible
+            id="sec-settings"
+            size="sm"
+            title="Settings"
+            summary={`${eventVisibility ? "Public" : "Private"}, ${passFeeToAttendee ? "fee passed to attendees" : "you cover the fee"}`}
+            open={open.settings}
+            onToggle={() => toggle("settings")}
+          >
             <div className="space-y-4">
               {[
                 { label: "Public event", value: eventVisibility, toggle: () => setEventVisibility(v => !v) },
-                { label: "Show remaining count", value: showRemainingCount, toggle: () => setShowRemainingCount(v => !v) },
-                { label: "Transferable tickets", value: ticketsTransferable, toggle: () => setTicketsTransferable(v => !v) },
+                { label: "Show ticket count", value: showRemainingCount, toggle: () => setShowRemainingCount(v => !v) },
+                // { label: "Transferable tickets", value: ticketsTransferable, toggle: () => setTicketsTransferable(v => !v) }, // disabled for now
+                { label: "Pass service fee to attendees", value: passFeeToAttendee, toggle: () => setPassFeeToAttendee(v => !v) },
               ].map(({ label, value, toggle }) => (
                 <div key={label} className="flex items-center justify-between">
                   <span className="text-sm text-gray-700">{label}</span>
@@ -737,7 +1020,12 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
                 </div>
               ))}
             </div>
-          </div>
+            <p className="text-xs text-gray-400 mt-3">
+              {passFeeToAttendee
+                ? "Byro's platform fee is added at checkout."
+                : "Byro's platform fee will be deducted from your payout."}
+            </p>
+          </Collapsible>
 
           {editSlug && (
             <button
@@ -750,13 +1038,50 @@ export default function EventCreationForm({ editSlug = null, initialData = null 
           )}
         </div>
       </div>
-
-      {eventCreated && eventSlug && (
-        <EventPublishedModal
-          event={{ slug: eventSlug, name: eventName }}
-          onClose={() => router.push(`/discover/${eventSlug}?preview=true`)}
-        />
-      )}
     </div>
+  );
+}
+
+/* ── Collapsible card: phones only. From tablet up the card is a plain, always-open section. ── */
+function Collapsible({ id, title, summary, open, onToggle, action = null, size = "md", children }) {
+  const pad = size === "sm" ? "px-5" : "px-4 md:px-6";
+  const titleCls = `block font-bold text-gray-900 ${size === "sm" ? "text-sm" : "text-base"}`;
+  return (
+    <section className="bg-white rounded-2xl border border-gray-100 shadow-sm">
+      {/* Phones: tap the header to collapse or expand */}
+      <div className={`md:hidden flex items-center justify-between gap-3 ${pad}`}>
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={open}
+          aria-controls={id}
+          className="flex-1 min-w-0 flex items-center justify-between gap-3 py-4 text-left rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+        >
+          <span className="min-w-0">
+            <span className={titleCls}>{title}</span>
+            {!open && summary && <span className="block text-sm text-gray-500 truncate mt-0.5">{summary}</span>}
+          </span>
+          <svg
+            width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+            strokeLinecap="round" strokeLinejoin="round"
+            className={`shrink-0 text-gray-400 transition-transform motion-reduce:transition-none ${open ? "rotate-180" : ""}`}
+            aria-hidden="true"
+          >
+            <path d="M6 9l6 6 6-6" />
+          </svg>
+        </button>
+        {action}
+      </div>
+
+      {/* Tablet and up: a normal heading, nothing to toggle */}
+      <div className={`hidden md:flex items-center justify-between gap-3 pt-6 pb-3 ${pad}`}>
+        <h2 className={titleCls}>{title}</h2>
+        {action}
+      </div>
+
+      <div id={id} className={`${pad} pb-5 md:pb-6 pt-1 ${open ? "" : "hidden md:block"}`}>
+        {children}
+      </div>
+    </section>
   );
 }

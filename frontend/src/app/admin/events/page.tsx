@@ -102,14 +102,14 @@ function EventTable({
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-white/5 text-left">
-            <th className="pb-3 pr-6 text-xs text-gray-500 uppercase tracking-wider font-medium">Event</th>
-            <th className="pb-3 pr-6 text-xs text-gray-500 uppercase tracking-wider font-medium">Date</th>
-            <th className="pb-3 pr-6 text-xs text-gray-500 uppercase tracking-wider font-medium">Location</th>
-            <th className="pb-3 pr-6 text-xs text-gray-500 uppercase tracking-wider font-medium">Category</th>
-            <th className="pb-3 pr-6 text-xs text-gray-500 uppercase tracking-wider font-medium">Price</th>
-            <th className="pb-3 pr-6 text-xs text-gray-500 uppercase tracking-wider font-medium">Created</th>
-            <th className="pb-3 pr-6 text-xs text-gray-500 uppercase tracking-wider font-medium">Tickets Sold</th>
-            <th className="pb-3 text-xs text-gray-500 uppercase tracking-wider font-medium">Status</th>
+            <th className="pb-3 pr-6 text-xs text-gray-500 font-medium">Event</th>
+            <th className="pb-3 pr-6 text-xs text-gray-500 font-medium">Date</th>
+            <th className="pb-3 pr-6 text-xs text-gray-500 font-medium">Location</th>
+            <th className="pb-3 pr-6 text-xs text-gray-500 font-medium">Category</th>
+            <th className="pb-3 pr-6 text-xs text-gray-500 font-medium">Price</th>
+            <th className="pb-3 pr-6 text-xs text-gray-500 font-medium">Created</th>
+            <th className="pb-3 pr-6 text-xs text-gray-500 font-medium">Tickets sold</th>
+            <th className="pb-3 text-xs text-gray-500 font-medium">Status</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-white/5">
@@ -139,7 +139,7 @@ function EventTable({
               <td className="py-3 pr-6 text-gray-400 capitalize">
                 {event.category?.replace(/_/g, " ") || "—"}
               </td>
-              <td className="py-3 pr-6 text-gray-300 whitespace-nowrap">
+              <td className="py-3 pr-6 text-gray-300 whitespace-nowrap tabular-nums">
                 {event.ticket_price > 0
                   ? `₦${Number(event.ticket_price).toLocaleString()}`
                   : "Free"}
@@ -147,7 +147,7 @@ function EventTable({
               <td className="py-3 pr-6 text-gray-400 whitespace-nowrap">
                 {formatDateTime(event.created_at)}
               </td>
-              <td className="py-3 pr-6 text-gray-300 whitespace-nowrap">
+              <td className="py-3 pr-6 text-gray-300 whitespace-nowrap tabular-nums">
                 {ticketCounts[event.id] === null || ticketCounts[event.id] === undefined
                   ? "—"
                   : ticketCounts[event.id]}
@@ -163,6 +163,38 @@ function EventTable({
   );
 }
 
+function csvEscape(value: string) {
+  if (/[",\n]/.test(value)) {
+    return `"${value.replace(/"/g, '""')}"`;
+  }
+  return value;
+}
+
+function downloadAttendeesCsv(event: Event | null, attendees: Attendee[]) {
+  const header = ["Name", "Email", "Ticket tier", "Payment status", "Checked in"];
+  const rows = attendees.map((a) => [
+    a.current_owner_name || "",
+    a.current_owner_email || "",
+    a.tier_name || "",
+    a.payment_status || "",
+    a.checked_in ? "Yes" : "No",
+  ]);
+  const csv = [header, ...rows]
+    .map((row) => row.map((cell) => csvEscape(String(cell))).join(","))
+    .join("\n");
+
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  const slug = event?.slug || "event";
+  link.href = url;
+  link.download = `${slug}-attendees.csv`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
 export default function AdminEventsPage() {
   const [events, setEvents] = useState<Event[]>([]);
   const [ticketCounts, setTicketCounts] = useState<Record<number, number | null>>({});
@@ -175,21 +207,24 @@ export default function AdminEventsPage() {
   const [attendeesError, setAttendeesError] = useState("");
   const [attendeesLoading, setAttendeesLoading] = useState(false);
 
+  const [updatingId, setUpdatingId] = useState<number | null>(null);
+  const [actionError, setActionError] = useState("");
+  const [confirming, setConfirming] = useState<
+    { event: Event; action: "suspend" | "reactivate" | "delete" } | null
+  >(null);
+
   const openEvent = (event: Event) => {
     setSelected(event);
     setAttendees(null);
     setAttendeesError("");
     setAttendeesLoading(true);
-    axiosInstance
-      .get(`events/${event.slug}/attendees/`)
-      .then((r) => setAttendees(r.data.attendees ?? []))
-      .catch((err) => {
-        setAttendeesError(
-          err?.response?.status === 403
-            ? "You can only see the attendee list for events you own or co-host."
-            : "Couldn't load attendees for this event."
-        );
+    fetch(`/api/admin/events/${event.slug}/attendees`)
+      .then(async (res) => {
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data?.error || "Couldn't load attendees for this event.");
+        setAttendees(data.attendees ?? []);
       })
+      .catch(() => setAttendeesError("Couldn't load attendees for this event."))
       .finally(() => setAttendeesLoading(false));
   };
 
@@ -205,18 +240,17 @@ export default function AdminEventsPage() {
         if (cancelled) return;
         setEvents(data);
 
-        // Per-event attendee counts are only visible to that event's owner/co-hosts,
-        // so this call 403s (and shows "—") for any event the admin doesn't also own.
-        // It's a nice-to-have per-row detail, not the source of truth for the total below.
+        // Per-event attendee counts, via the admin-secret-authenticated proxy
+        // so this works for every event, not just ones the admin also owns.
         const counts: Record<number, number | null> = {};
         data.forEach((e) => { counts[e.id] = null; });
 
         await Promise.allSettled(
           data.map((event) =>
-            axiosInstance
-              .get(`events/${event.slug}/attendees/`)
+            fetch(`/api/admin/events/${event.slug}/attendees`)
+              .then((res) => (res.ok ? res.json() : null))
               .then((r) => {
-                counts[event.id] = r.data.count ?? 0;
+                counts[event.id] = r?.count ?? null;
               })
               .catch(() => {
                 counts[event.id] = null;
@@ -245,6 +279,39 @@ export default function AdminEventsPage() {
     return () => { cancelled = true; };
   }, []);
 
+  const runAction = async (event: Event, action: "suspend" | "reactivate" | "delete") => {
+    setUpdatingId(event.id);
+    setActionError("");
+    setConfirming(null);
+    try {
+      if (action === "delete") {
+        const res = await fetch(`/api/admin/events/${event.id}`, { method: "DELETE" });
+        if (!res.ok) throw new Error("Failed to delete event");
+        setEvents((prev) => prev.filter((e) => e.id !== event.id));
+        setSelected(null);
+      } else {
+        const is_active = action === "reactivate";
+        const res = await fetch(`/api/admin/events/${event.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ is_active }),
+        });
+        if (!res.ok) throw new Error("Failed to update event");
+        const updated: Event = await res.json();
+        setEvents((prev) => prev.map((e) => (e.id === event.id ? { ...e, ...updated } : e)));
+        setSelected((prev) => (prev && prev.id === event.id ? { ...prev, ...updated } : prev));
+      }
+    } catch {
+      setActionError(
+        action === "delete"
+          ? "Couldn't delete this event. Please try again."
+          : `Couldn't ${action === "suspend" ? "suspend" : "reactivate"} this event. Please try again.`
+      );
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
   const [search, setSearch] = useState("");
   const q = search.trim().toLowerCase();
   const matchesSearch = (e: Event) =>
@@ -261,7 +328,6 @@ export default function AdminEventsPage() {
 
   return (
     <div className="p-5 md:p-8">
-      {/* Header */}
       <div className="mb-8">
         <h1 className="text-white text-xl font-bold">Events</h1>
         <p className="text-gray-400 text-sm mt-1">All events on the platform</p>
@@ -275,7 +341,6 @@ export default function AdminEventsPage() {
         className="w-full sm:w-80 mb-8 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500/50"
       />
 
-      {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-8">
         {[
           { label: "Total Events", value: events.length },
@@ -287,8 +352,8 @@ export default function AdminEventsPage() {
             key={stat.label}
             className="bg-[#1a1d27] border border-white/10 rounded-xl px-5 py-4"
           >
-            <p className="text-gray-400 text-xs uppercase tracking-wider mb-1">{stat.label}</p>
-            <p className="text-white text-2xl font-bold">
+            <p className="text-gray-400 text-xs mb-1.5">{stat.label}</p>
+            <p className="text-white text-2xl font-semibold tabular-nums">
               {loading ? "—" : stat.value}
             </p>
           </div>
@@ -299,7 +364,6 @@ export default function AdminEventsPage() {
         <p className="text-red-400 text-sm mb-6">{error}</p>
       )}
 
-      {/* Free Events */}
       <div className="bg-[#1a1d27] border border-white/10 rounded-xl p-6 mb-6">
         <div className="flex items-center gap-2 mb-5">
           <h2 className="text-white font-semibold">Free Events</h2>
@@ -319,7 +383,6 @@ export default function AdminEventsPage() {
         )}
       </div>
 
-      {/* Paid Events */}
       <div className="bg-[#1a1d27] border border-white/10 rounded-xl p-6">
         <div className="flex items-center gap-2 mb-5">
           <h2 className="text-white font-semibold">Paid Events</h2>
@@ -339,7 +402,6 @@ export default function AdminEventsPage() {
         )}
       </div>
 
-      {/* Event detail drawer */}
       {selected && (
         <div className="fixed inset-0 z-50 flex justify-end">
           <div className="absolute inset-0 bg-black/70" onClick={() => setSelected(null)} />
@@ -348,7 +410,9 @@ export default function AdminEventsPage() {
               <div className="min-w-0">
                 <h3 className="text-white font-semibold truncate">{selected.name}</h3>
                 <p className="text-gray-500 text-xs mt-0.5">
-                  {formatDate(selected.day)} · {selected.location || "No location set"}
+                  {selected.location
+                    ? `${formatDate(selected.day)}, ${selected.location}`
+                    : `${formatDate(selected.day)}, no location set`}
                 </p>
               </div>
               <button
@@ -363,21 +427,21 @@ export default function AdminEventsPage() {
             <div className="p-6 space-y-6">
               <div className="grid grid-cols-2 gap-3">
                 <div className="bg-white/5 rounded-lg px-3 py-2.5">
-                  <p className="text-gray-500 text-[10px] uppercase tracking-wider mb-0.5">Category</p>
+                  <p className="text-gray-500 text-[11px] mb-0.5">Category</p>
                   <p className="text-white text-sm capitalize">{selected.category?.replace(/_/g, " ") || "—"}</p>
                 </div>
                 <div className="bg-white/5 rounded-lg px-3 py-2.5">
-                  <p className="text-gray-500 text-[10px] uppercase tracking-wider mb-0.5">Price</p>
-                  <p className="text-white text-sm">
+                  <p className="text-gray-500 text-[11px] mb-0.5">Price</p>
+                  <p className="text-white text-sm tabular-nums">
                     {selected.ticket_price > 0 ? `₦${Number(selected.ticket_price).toLocaleString()}` : "Free"}
                   </p>
                 </div>
                 <div className="bg-white/5 rounded-lg px-3 py-2.5">
-                  <p className="text-gray-500 text-[10px] uppercase tracking-wider mb-0.5">Status</p>
+                  <p className="text-gray-500 text-[11px] mb-0.5">Status</p>
                   <StatusBadge status={getEventStatus(selected)} />
                 </div>
                 <div className="bg-white/5 rounded-lg px-3 py-2.5">
-                  <p className="text-gray-500 text-[10px] uppercase tracking-wider mb-0.5">Created</p>
+                  <p className="text-gray-500 text-[11px] mb-0.5">Created</p>
                   <p className="text-white text-sm">{formatDateTime(selected.created_at)}</p>
                 </div>
               </div>
@@ -388,13 +452,53 @@ export default function AdminEventsPage() {
                 rel="noopener noreferrer"
                 className="inline-block text-xs font-semibold text-blue-400 hover:text-blue-300"
               >
-                View public event page ↗
+                View public event page
               </a>
 
               <div>
-                <h4 className="text-white text-sm font-semibold mb-3">
-                  Attendees{attendees ? ` (${attendees.length})` : ""}
-                </h4>
+                <h4 className="text-white text-sm font-semibold mb-2">Moderation</h4>
+                {actionError && <p className="text-red-400 text-xs mb-2">{actionError}</p>}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    onClick={() =>
+                      setConfirming({
+                        event: selected,
+                        action: selected.is_active ? "suspend" : "reactivate",
+                      })
+                    }
+                    disabled={updatingId === selected.id}
+                    className={`text-xs font-semibold px-3 py-2 rounded-lg transition-colors disabled:opacity-50 ${
+                      selected.is_active
+                        ? "text-yellow-400 bg-yellow-500/10 hover:bg-yellow-500/20"
+                        : "text-green-400 bg-green-500/10 hover:bg-green-500/20"
+                    }`}
+                  >
+                    {selected.is_active ? "Suspend event" : "Reactivate event"}
+                  </button>
+                  <button
+                    onClick={() => setConfirming({ event: selected, action: "delete" })}
+                    disabled={updatingId === selected.id}
+                    className="text-xs font-semibold text-red-400 bg-red-500/10 hover:bg-red-500/20 disabled:opacity-50 px-3 py-2 rounded-lg transition-colors"
+                  >
+                    Delete event
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-white text-sm font-semibold">
+                    Attendees{attendees ? ` (${attendees.length})` : ""}
+                  </h4>
+                  {attendees && attendees.length > 0 && (
+                    <button
+                      onClick={() => downloadAttendeesCsv(selected, attendees)}
+                      className="text-xs font-semibold text-blue-400 bg-blue-500/10 hover:bg-blue-500/20 px-3 py-1.5 rounded-lg transition-colors"
+                    >
+                      Export CSV
+                    </button>
+                  )}
+                </div>
                 {attendeesLoading ? (
                   <p className="text-gray-500 text-sm">Loading…</p>
                 ) : attendeesError ? (
@@ -424,6 +528,50 @@ export default function AdminEventsPage() {
                   <p className="text-gray-500 text-sm">No attendees yet.</p>
                 )}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Suspend/reactivate/delete confirmation modal */}
+      {confirming && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/70" onClick={() => setConfirming(null)} />
+          <div className="relative w-full max-w-sm bg-[#1a1d27] border border-white/10 rounded-xl p-6 shadow-2xl">
+            <h3 className="text-white font-semibold text-sm mb-2">
+              {confirming.action === "suspend" && "Suspend this event?"}
+              {confirming.action === "reactivate" && "Reactivate this event?"}
+              {confirming.action === "delete" && "Delete this event?"}
+            </h3>
+            <p className="text-gray-400 text-xs leading-relaxed mb-5">
+              {confirming.action === "suspend" &&
+                `${confirming.event.name} will be hidden from discovery and can't accept new registrations.`}
+              {confirming.action === "reactivate" &&
+                `${confirming.event.name} will be visible on the platform again.`}
+              {confirming.action === "delete" &&
+                `${confirming.event.name} and its data will be permanently removed. This cannot be undone.`}
+            </p>
+            <div className="flex items-center justify-end gap-2">
+              <button
+                onClick={() => setConfirming(null)}
+                className="text-xs font-semibold text-gray-300 hover:text-white px-3 py-2 rounded-lg hover:bg-white/5 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => runAction(confirming.event, confirming.action)}
+                className={`text-xs font-semibold px-3 py-2 rounded-lg transition-colors ${
+                  confirming.action === "delete"
+                    ? "text-red-400 bg-red-500/10 hover:bg-red-500/20"
+                    : confirming.action === "suspend"
+                      ? "text-yellow-400 bg-yellow-500/10 hover:bg-yellow-500/20"
+                      : "text-green-400 bg-green-500/10 hover:bg-green-500/20"
+                }`}
+              >
+                {confirming.action === "suspend" && "Confirm suspend"}
+                {confirming.action === "reactivate" && "Confirm reactivate"}
+                {confirming.action === "delete" && "Confirm delete"}
+              </button>
             </div>
           </div>
         </div>

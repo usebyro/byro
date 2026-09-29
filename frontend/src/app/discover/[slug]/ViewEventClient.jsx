@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
-import { useRouter, notFound } from "next/navigation";
+import { useRouter, useSearchParams, notFound } from "next/navigation";
 import API from "@/services/api";
 import { toast } from "sonner";
 import Navbar from "@/components/Navbar";
@@ -10,12 +10,14 @@ import Footer from "@/components/Footer";
 import { Providers } from "@/redux/Providers";
 import CheckoutModal from "@/components/checkout/CheckoutModal";
 import ShareMenu from "@/components/ShareMenu";
+import EventPublishedModal from "@/components/events/EventPublishedModal";
 import EventImage from "@/components/brand/EventImage";
 import Stamp from "@/components/brand/Stamp";
 import { StackTile } from "@/components/brand/EventTile";
 import { categoryTone, dayParts, formatNaira, formatTime, isPast } from "@/lib/eventFormat";
 import { trackViewEvent, trackShareEvent, trackSaveEvent, trackBeginCheckout } from "@/lib/analytics";
 import { calculateTicketFees } from "@/lib/pricing";
+import { ticketLimits, describeTicketLimits } from "@/lib/ticketLimits";
 
 const fmt = (price) => formatNaira(price);
 
@@ -38,6 +40,7 @@ const inputCls =
 
 export default function ViewEventClient({ slug }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [event, setEvent] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -45,6 +48,7 @@ export default function ViewEventClient({ slug }) {
   const [ticketId, setTicketId] = useState(null);
   const [showCheckout, setShowCheckout] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
   const [more, setMore] = useState([]);
 
   /* Ticket tier selection */
@@ -74,6 +78,16 @@ export default function ViewEventClient({ slug }) {
       });
     }
   }, [event?.name]);
+
+  /* Deep link from the "event published" email's share CTA: /discover/:slug?share=1 */
+  useEffect(() => {
+    if (!event || searchParams.get("share") !== "1") return;
+    setShowShareModal(true);
+    const params = new URLSearchParams(searchParams);
+    params.delete("share");
+    const qs = params.toString();
+    router.replace(`/discover/${slug}${qs ? `?${qs}` : ""}`, { scroll: false });
+  }, [event, searchParams, router, slug]);
 
   /* Fetch event */
   useEffect(() => {
@@ -122,18 +136,21 @@ export default function ViewEventClient({ slug }) {
     doFetch();
   }, [slug, router]);
 
-  /* More events to browse */
+  /* Other events you may like: same category first, then whatever is trending */
   useEffect(() => {
+    if (!event?.slug) return;
     let cancelled = false;
-    API.getEvents({ sort: "trending" })
-      .then((data) => {
-        const raw = Array.isArray(data) ? data : data?.events || data?.data || [];
-        const list = raw.filter((e) => e.slug !== slug && !isPast(e)).slice(0, 4);
-        if (!cancelled) setMore(list);
-      })
+    const pick = (data) => {
+      const raw = Array.isArray(data) ? data : data?.events || data?.data || [];
+      return raw.filter((e) => e.slug !== event.slug && !isPast(e)).slice(0, 4);
+    };
+    API.getEvents({ category: event.category })
+      .then(pick)
+      .then((same) => (same.length > 0 ? same : API.getEvents({ sort: "trending" }).then(pick)))
+      .then((list) => { if (!cancelled) setMore(list); })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, [slug]);
+  }, [event?.slug, event?.category]);
 
   /* Transfer */
   const [showTransfer, setShowTransfer] = useState(false);
@@ -219,10 +236,11 @@ export default function ViewEventClient({ slug }) {
   // A group tier (admits_count > 1) is a SINGLE ticket that admits several
   // people, so its quantity is locked at 1 (the admits count becomes attendee
   // slots at checkout, not extra tickets).
-  const isGroupTier = Number(activeTier?.admits_count) > 1;
-  const maxQty = activeTier.remaining != null ? Math.max(1, activeTier.remaining) : 50;
-  const effectiveQty = isGroupTier ? 1 : Math.min(qty, maxQty);
-  const tierFees = calculateTicketFees(activeTier.price * effectiveQty);
+  const { min: minQty, max: maxQty } = ticketLimits(activeTier, event);
+  // Tickets are sold in the tier's bundle: never below its minimum, never above its maximum.
+  const effectiveQty = Math.min(maxQty, Math.max(minQty, qty));
+  const passFeeToAttendee = event.pass_fee_to_attendee !== false;
+  const tierFees = calculateTicketFees(activeTier.price * effectiveQty, passFeeToAttendee);
   const tierSubtotal = tierFees.subtotal;
   // Buyer-facing "service fee" = everything added on top of the subtotal
   // (Byro's 6.5% + the simulated Paystack cut), so the breakdown reconciles
@@ -505,8 +523,8 @@ export default function ViewEventClient({ slug }) {
                               disabled={out}
                               onClick={() => {
                                 setSelectedTier(String(tier.id));
-                                // Group tiers are one ticket — reset qty to 1.
-                                if (Number(tier.admits_count) > 1) setQty(1);
+                                // Start each tier at its own minimum (e.g. 2 for a couples ticket).
+                                setQty(ticketLimits(tier, event).min);
                               }}
                               className={`flex items-center gap-3.5 rounded-[18px] border px-[18px] py-4 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
                                 out ? "cursor-not-allowed border-line bg-paper" : sel ? "border-2 border-brand bg-[#F3F8FE]" : "border-line hover:border-[#C7CEDA]"
@@ -534,11 +552,12 @@ export default function ViewEventClient({ slug }) {
                       <div className="flex items-center justify-between px-0.5 py-1.5">
                         <span id="qty-label" className="text-[15px] font-bold">Quantity</span>
                         <div className="flex items-center gap-1.5" role="group" aria-labelledby="qty-label">
-                          <button type="button" aria-label="Fewer tickets" onClick={() => setQty(q => Math.max(1, q - 1))} disabled={effectiveQty <= 1} className={stepBtn}>−</button>
+                          <button type="button" aria-label="Fewer tickets" onClick={() => setQty(Math.max(minQty, effectiveQty - 1))} disabled={effectiveQty <= minQty} className={stepBtn}>−</button>
                           <span aria-live="polite" className="w-8 text-center text-[17px] font-extrabold">{effectiveQty}</span>
-                          <button type="button" aria-label="More tickets" onClick={() => { if (!isGroupTier) setQty(q => Math.min(maxQty, q + 1)); }} disabled={isGroupTier || effectiveQty >= maxQty} className={stepBtn}>+</button>
+                          <button type="button" aria-label="More tickets" onClick={() => setQty(Math.min(maxQty, effectiveQty + 1))} disabled={effectiveQty >= maxQty} className={stepBtn}>+</button>
                         </div>
                       </div>
+                      <p className="-mt-2 text-right text-xs text-muted">{describeTicketLimits(activeTier, event)}</p>
 
                       <div className="flex flex-col gap-2 border-t-[1.5px] border-dashed border-line pt-3.5 text-[15px]">
                         <div className="flex justify-between">
@@ -616,6 +635,10 @@ export default function ViewEventClient({ slug }) {
 
         {showCheckout && (
           <CheckoutModal event={event} onClose={() => setShowCheckout(false)} tiers={realTiers} />
+        )}
+
+        {showShareModal && event && (
+          <EventPublishedModal event={event} onClose={() => setShowShareModal(false)} />
         )}
       </div>
     </Providers>

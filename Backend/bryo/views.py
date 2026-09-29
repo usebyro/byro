@@ -8,6 +8,7 @@ from rest_framework.throttling import ScopedRateThrottle
 from django.core.validators import validate_email
 from django.core.exceptions import ValidationError as DjangoValidationError
 from .services import workos_api
+from .services.turnstile import check_and_remember_verification
 from . import apps
 from .serializers import (
     WaitListSerializer, EventSerializer, TicketSerializer,
@@ -16,7 +17,7 @@ from .serializers import (
     UserProfileSerializer, EventFormQuestionSerializer,
     PayoutRequestSerializer,
 )
-from django.http import JsonResponse, HttpResponse
+from django.http import JsonResponse, HttpResponse, Http404
 from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
@@ -28,16 +29,17 @@ from django.contrib.auth import get_user_model
 from .models import (
     WaitList, Event, Ticket, TicketTransfer,
     EventCoHost, Payment, UserProfile, EventFormQuestion, EventFormAnswer,
-    TicketTier, PayoutRequest, PromoCode, Follow,
+    TicketTier, PayoutRequest, PromoCode, MerchItem, Follow,
 )
-from .pricing import calculate_ticket_fees
+from .pricing import calculate_ticket_fees, FEE_RATE
 from django.urls import reverse
-from .serializers import EventSerializer, TicketSerializer, PaymentSerializer, TicketTierSerializer, PromoCodeSerializer
+from .serializers import EventSerializer, TicketSerializer, PaymentSerializer, TicketTierSerializer, PromoCodeSerializer, MerchItemSerializer
 from .permissions import IsEventOwnerOrCoHost, IsEventOwner, IsAdminSecret
 from django.db import transaction, IntegrityError
 from django.db import models
 from django.db.models import Q, Min, OuterRef, Subquery, Sum, Count, F
-from django.db.models.functions import TruncDate
+from django.db.models.functions import TruncDate, TruncMonth, Cast, Greatest
+from django.db.models.fields.json import KeyTextTransform
 from django.db.models.functions import Coalesce
 from django.http import JsonResponse
 from django.conf import settings
@@ -83,42 +85,49 @@ def _pending_reservation_count(payments_qs):
 
 def lock_and_check_capacity(event, tier_id, quantity):
     """
-    Must be called inside transaction.atomic(). Locks the relevant row
-    (tier or event) so concurrent requests are serialized, preventing
-    overselling. Returns the resolved TicketTier instance, or None if the
-    event has no tiers (legacy flat capacity).
+    Must be called inside transaction.atomic(). Locks the event row and then the
+    tier row (always in that order, so two buyers can't deadlock) so concurrent
+    requests are serialized and the last seat can't be sold twice.
+
+    A purchase must fit BOTH the event's overall capacity and the chosen tier's
+    own capacity. Each attendee is one ticket row, so counting rows counts seats.
+    Returns the resolved TicketTier, or None if the event has no tiers.
     Raises InsufficientCapacityError if there isn't enough room.
     """
+    locked_event = Event.objects.select_for_update().get(pk=event.pk)
+
+    tier = None
     if tier_id:
         try:
             tier = TicketTier.objects.select_for_update().get(pk=tier_id, event=event)
         except TicketTier.DoesNotExist:
             raise InsufficientCapacityError("Ticket tier not found for this event")
-        if tier.capacity is not None:
-            sold = tier.tickets.filter(payment_status__in=['paid', 'free']).count()
-            reserved = _pending_reservation_count(tier.payments.all())
-            if sold + reserved + _seats_for(tier, quantity) > tier.capacity:
-                raise InsufficientCapacityError("Not enough tickets available in this tier")
-        return tier
 
-    # No tier specified — fall back to legacy event-level capacity, locked.
-    locked_event = Event.objects.select_for_update().get(pk=event.pk)
+    seats = _seats_for(tier, quantity)
+
     if locked_event.capacity:
-        registered_count = locked_event.tickets.filter(
-            payment_status__in=['paid', 'free']
-        ).count()
+        sold = locked_event.tickets.filter(payment_status__in=['paid', 'free']).count()
         reserved = _pending_reservation_count(locked_event.payments.all())
-        if registered_count + reserved + quantity > locked_event.capacity:
+        if sold + reserved + seats > locked_event.capacity:
             raise InsufficientCapacityError("Not enough tickets available")
-    return None
+
+    if tier is not None and tier.capacity is not None:
+        sold = tier.tickets.filter(payment_status__in=['paid', 'free']).count()
+        reserved = _pending_reservation_count(tier.payments.all())
+        if sold + reserved + seats > tier.capacity:
+            raise InsufficientCapacityError("Not enough tickets available in this tier")
+
+    return tier
 
 
 def send_ticket_confirmation_email(ticket, customer_name, customer_email, event):
-    """Send the "you're in" email for a single ticket, with a ticket image (QR + event details) attached."""
+    """Send the "you're in" email for a single ticket, with a ticket image (QR + event details) and a calendar invite attached."""
+    from datetime import datetime, timedelta
     from .emails import ticket_confirmation_email
     from .mailer import send_email
     from .models import EventFormAnswer
     from .ticket_image import generate_ticket_png
+    from .ics import generate_ics
 
     form_answers = [
         {"question": a.question.question, "answer": str(a.answer)}
@@ -145,23 +154,51 @@ def send_ticket_confirmation_email(ticket, customer_name, customer_email, event)
         attendee_name=customer_name,
         ticket_id=str(ticket.ticket_id),
         qr_data=str(ticket.qr_token),
+        tier_name=ticket.tier.name if ticket.tier else None,
+    )
+    start = datetime.combine(event.day, event.time_from)
+    end = (
+        datetime.combine(event.day, event.time_to)
+        if event.time_to and event.time_to > event.time_from
+        else start + timedelta(hours=2)
+    )
+    ics_bytes = generate_ics(
+        event_name=event.name,
+        description=event.description,
+        location=event.location or '',
+        start=start,
+        end=end,
+        organizer_name='Byro',
+        uid=f"byro-ticket-{ticket.ticket_id}@usebyro.com",
     )
     send_email(
         to=customer_email,
         subject=email_data['subject'],
         html=email_data['html'],
         text=email_data['text'],
-        attachments=[{
-            "filename": "ticket.png",
-            "content": ticket_png,
-            "content_type": "image/png",
-        }],
+        attachments=[
+            {
+                "filename": "ticket.png",
+                "content": ticket_png,
+                "content_type": "image/png",
+            },
+            {
+                "filename": "event.ics",
+                "content": ics_bytes,
+                "content_type": "text/calendar; charset=utf-8; method=PUBLISH",
+            },
+        ],
     )
 
 
-def send_cohost_invite_email(email, event, inviter, is_new_user=False):
+def send_cohost_invite_email(email, event, inviter, is_new_user=False, role='manager'):
     """
     Notify someone that they've been made a co-host.
+
+    For someone with no account the email's button is an "Accept" link to
+    sign-in/sign-up (carrying the invited address and the event to return to),
+    so no separate sign-up email is needed. Existing users just get a link to
+    the event, since their access is already active.
 
     Best-effort: a mail failure must not undo the grant, which is already
     committed by the time this runs. Mirrors send_ticket_confirmation_email's
@@ -171,7 +208,16 @@ def send_cohost_invite_email(email, event, inviter, is_new_user=False):
     from .mailer import send_email
 
     try:
+        from urllib.parse import quote
         frontend_url = (settings.FRONTEND_URL or "https://usebyro.com").rstrip('/')
+        event_path = f"/dashboard/events/{event.slug}"
+        if is_new_user:
+            event_url = (
+                f"{frontend_url}/login?redirect={quote(event_path, safe='')}"
+                f"&email={quote(email, safe='')}"
+            )
+        else:
+            event_url = f"{frontend_url}{event_path}"
         inviter_profile = getattr(inviter, 'profile', None)
         inviter_name = (
             (inviter_profile.display_name if inviter_profile else '')
@@ -181,8 +227,10 @@ def send_cohost_invite_email(email, event, inviter, is_new_user=False):
         email_data = cohost_invite_email(
             event_name=event.name,
             inviter_name=inviter_name,
-            event_url=f"{frontend_url}/discover/{event.slug}",
+            event_url=event_url,
             is_new_user=is_new_user,
+            role=role,
+            invitee_email=email,
         )
         send_email(
             to=email,
@@ -192,6 +240,54 @@ def send_cohost_invite_email(email, event, inviter, is_new_user=False):
         )
     except Exception as e:
         logger.error("Failed to send co-host invite email to %s: %s", email, e)
+
+
+def _send_event_published_email(event):
+    """
+    Congratulate the organizer on publishing and nudge them to share.
+
+    Best-effort: a mail failure must not affect event creation, which has
+    already committed by the time this runs.
+    """
+    if not event.owner_id or not event.owner.email:
+        return
+
+    from .emails import event_published_email
+    from .mailer import send_email
+
+    try:
+        owner_profile = getattr(event.owner, 'profile', None)
+        owner_name = (
+            (owner_profile.display_name if owner_profile else '')
+            or event.owner.get_full_name()
+            or event.owner.email
+        )
+        frontend_url = (settings.FRONTEND_URL or "https://usebyro.com").rstrip('/')
+        public_url = f"{frontend_url}/discover/{event.slug}"
+        share_cta_url = f"{public_url}?share=1"
+        is_first_event = Event.objects.filter(owner=event.owner, is_active=True).count() <= 1
+        date_str = event.day.strftime('%A, %B %d, %Y') if event.day else ''
+        time_str = event.time_from.strftime('%I:%M %p') if event.time_from else ''
+        email_data = event_published_email(
+            name=owner_name,
+            event_name=event.name,
+            date=date_str,
+            time=time_str,
+            location=event.location or '',
+            event_url=public_url,
+            share_cta_url=share_cta_url,
+            is_first_event=is_first_event,
+        )
+        send_email(
+            to=event.owner.email,
+            subject=email_data['subject'],
+            html=email_data['html'],
+            text=email_data['text'],
+        )
+    except Exception as e:
+        logger.error("Failed to send event published email for event %s: %s", event.pk, e)
+
+
 def _seats_for(tier, quantity):
     """Total attendee slots a purchase produces = quantity × people-per-ticket.
 
@@ -218,6 +314,38 @@ def _normalize_attendees(attendees_raw, seats, buyer_name, buyer_email):
             'email': email or buyer_email,
         })
     return result
+
+
+def _get_or_create_guest_user(email, name):
+    """Find or create a lightweight account for a guest (non-authenticated)
+    ticket purchaser, keyed by email, so their purchase surfaces in the
+    admin dashboard's user list/stats like any other account.
+
+    No usable password is set, so this alone never grants login access. If
+    the same email later signs in through WorkOS, upsert_user() links that
+    login to this same row (by email) and flips auth_provider to 'workos' —
+    the guest account transparently becomes their real account.
+    """
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+    email = (email or '').strip().lower()
+    if not email:
+        return None
+
+    user = User.objects.filter(email__iexact=email).first()
+    if user is not None:
+        return user
+
+    user = User.objects.create_user(
+        email=email,
+        auth_provider='guest',
+    )
+    # create_user's post_save signal already made a blank UserProfile —
+    # just fill in the name we have from checkout.
+    name = (name or '').strip()[:100]
+    if name:
+        UserProfile.objects.filter(user=user).update(display_name=name)
+    return user
 
 
 def _create_tickets(event, tier, attendees, *, payment_status, payment=None, user=None):
@@ -247,6 +375,79 @@ def _email_tickets(tickets, event):
             )
         except Exception as email_err:
             logger.error(f"Failed to send ticket confirmation email: {email_err}")
+
+    if tickets:
+        _check_and_notify_milestones(event)
+
+
+MILESTONE_BASE = (1, 10, 25, 50)
+MILESTONE_STEP = 100  # every 100 after the base thresholds
+
+
+def _milestones_up_to(count):
+    """Sorted milestone thresholds <= count: 1, 10, 25, 50, then every 100."""
+    thresholds = {m for m in MILESTONE_BASE if m <= count}
+    thresholds.update(
+        MILESTONE_STEP * n for n in range(1, count // MILESTONE_STEP + 1)
+    )
+    return sorted(thresholds)
+
+
+def _organizer_recipients(event):
+    """(name, email) pairs for the event owner and every accepted co-host."""
+    recipients = []
+    if event.owner_id and event.owner.email:
+        name = event.owner.get_full_name() or event.owner.email
+        recipients.append((name, event.owner.email))
+    for cohost in event.cohosts.filter(status=EventCoHost.STATUS_ACCEPTED).select_related('user'):
+        if cohost.user and cohost.user.email:
+            name = cohost.user.get_full_name() or cohost.user.email
+            recipients.append((name, cohost.user.email))
+    return recipients
+
+
+def _check_and_notify_milestones(event):
+    """Email the organizer/co-hosts once when total tickets sold crosses a
+    milestone (1st sale, 10, 25, 50, then every 100). Best-effort — a mail
+    failure here must not affect ticket issuance."""
+    try:
+        from .emails import milestone_reached_email
+        from .mailer import send_email
+
+        total_sold = event.tickets.filter(payment_status__in=['paid', 'free']).count()
+        already_notified = set(event.milestones_notified or [])
+        newly_crossed = [
+            m for m in _milestones_up_to(total_sold) if m not in already_notified
+        ]
+        if not newly_crossed:
+            return
+
+        frontend_url = (settings.FRONTEND_URL or "https://usebyro.com").rstrip('/')
+        dashboard_url = f"{frontend_url}/dashboard/events/{event.slug}"
+        recipients = _organizer_recipients(event)
+
+        for milestone in newly_crossed:
+            for name, email in recipients:
+                try:
+                    email_data = milestone_reached_email(
+                        name=name,
+                        event_name=event.name,
+                        milestone=milestone,
+                        tickets_sold=total_sold,
+                        dashboard_url=dashboard_url,
+                    )
+                    send_email(
+                        to=email, subject=email_data['subject'],
+                        html=email_data['html'], text=email_data['text'],
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to send milestone email to {email}: {e}")
+
+        Event.objects.filter(pk=event.pk).update(
+            milestones_notified=sorted(already_notified.union(newly_crossed))
+        )
+    except Exception as e:
+        logger.error(f"Milestone check failed for event {event.pk}: {e}")
 
 
 def _attendees_from_payment(payment):
@@ -290,7 +491,10 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
         event_slug = request.data.get('event_slug')
         customer_email = request.data.get('customer_email')
         customer_name = request.data.get('customer_name')
-        quantity = int(request.data.get('quantity', 1))
+        try:
+            quantity = int(request.data.get('quantity', 1))
+        except (TypeError, ValueError):
+            return Response({'error': 'Quantity must be a whole number'}, status=status.HTTP_400_BAD_REQUEST)
         tier_id = request.data.get('tier_id')
         attendees_raw = request.data.get('attendees')
         promo_code_str = (request.data.get('promo_code') or '').strip().upper()
@@ -301,22 +505,36 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Bot gate: the checkout's Cloudflare Turnstile token. Enforced whenever a
-        # secret is configured, so environments without one keep working.
-        if getattr(settings, 'TURNSTILE_SECRET_KEY', ''):
-            from .services.turnstile import verify_turnstile_token
-            client_ip = (
-                request.META.get('HTTP_X_FORWARDED_FOR', '').split(',')[0].strip()
-                or request.META.get('REMOTE_ADDR')
+        turnstile_token = request.data.get('turnstile_token')
+        if not check_and_remember_verification(
+            turnstile_token, customer_email, remote_ip=self.get_client_ip(request)
+        ):
+            return Response(
+                {'error': 'Verification failed. Please try again.'},
+                status=status.HTTP_400_BAD_REQUEST,
             )
-            if not verify_turnstile_token(request.data.get('turnstile_token'), remote_ip=client_ip):
-                return Response(
-                    {'error': 'Verification failed. Tick "Verify you are human" and try again.'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
 
         # Get event
-        event = get_object_or_404(Event, slug=event_slug, is_active=True)
+        event = get_object_or_404(Event, slug=event_slug, is_active=True, is_draft=False)
+
+        # The organiser decides how many tickets one order may contain. Each tier
+        # sets its own limit (empty = no limit); an event without tiers uses the
+        # event's limit.
+        if quantity < 1:
+            return Response({'error': 'Quantity must be at least 1'}, status=status.HTTP_400_BAD_REQUEST)
+        limit_tier = TicketTier.objects.filter(pk=tier_id, event=event).first() if tier_id else None
+        limit = limit_tier.max_tickets_per_person if limit_tier is not None else event.max_tickets_per_person
+        minimum = limit_tier.min_tickets_per_person if limit_tier is not None else 1
+        if quantity < minimum:
+            return Response(
+                {'error': f"{limit_tier.name} tickets are sold {minimum} at a time or more. Choose at least {minimum}."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if limit is not None and quantity > limit:
+            return Response(
+                {'error': f"You can buy up to {limit} {limit_tier.name if limit_tier else ''} ticket{'s' if limit != 1 else ''} per order.".replace('  ', ' ')},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         try:
             with transaction.atomic():
@@ -344,11 +562,14 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
             discount_amount = promo.compute_discount(subtotal)
 
         discounted_subtotal = subtotal - discount_amount
-        fees = calculate_ticket_fees(discounted_subtotal)
+        fees = calculate_ticket_fees(discounted_subtotal, pass_fee_to_attendee=event.pass_fee_to_attendee)
         amount = fees['total']
 
         # For free events/tiers, create ticket(s) directly
-        linked_user = request.user if request.user.is_authenticated else None
+        linked_user = (
+            request.user if request.user.is_authenticated
+            else _get_or_create_guest_user(customer_email, customer_name)
+        )
         if amount == 0:
             with transaction.atomic():
                 # Re-check capacity under lock right before creating tickets,
@@ -708,6 +929,30 @@ class WaitListViewSet(viewsets.ModelViewSet):
 
 
 # ---------------------------------------------------------------------------
+# Merch
+# ---------------------------------------------------------------------------
+
+class MerchViewSet(viewsets.ModelViewSet):
+    """
+    /api/merch/          — GET (list mine), POST (create)
+    /api/merch/<id>/     — GET, PATCH, DELETE (mine only)
+
+    Public display lives on the profile endpoint (ProfileViewSet.public),
+    which lists a user's active items — this viewset is the organiser-facing
+    CRUD side, always scoped to request.user.
+    """
+    serializer_class = MerchItemSerializer
+    permission_classes = [IsAuthenticated]
+    parser_classes = (JSONParser, MultiPartParser, FormParser)
+
+    def get_queryset(self):
+        return MerchItem.objects.filter(owner=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(owner=self.request.user)
+
+
+# ---------------------------------------------------------------------------
 # Profile
 # ---------------------------------------------------------------------------
 
@@ -761,16 +1006,33 @@ class ProfileViewSet(viewsets.GenericViewSet):
         serializer = self.get_serializer(profile, context={'request': request})
         return Response({'avatar_url': serializer.data['avatar_url']})
 
+    @action(detail=False, methods=['POST'], url_path='me/cover-image',
+            parser_classes=[MultiPartParser, FormParser])
+    def upload_cover_image(self, request):
+        profile = self._get_or_create_profile(request.user)
+        if 'cover_image' not in request.FILES:
+            return Response({'error': 'No cover image file provided'}, status=status.HTTP_400_BAD_REQUEST)
+        profile.cover_image = request.FILES['cover_image']
+        profile.save(update_fields=['cover_image'])
+        serializer = self.get_serializer(profile, context={'request': request})
+        return Response({'cover_image_url': serializer.data['cover_image_url']})
+
     @action(detail=False, methods=['GET'], url_path=r'(?P<handle>[^/.]+)')
     def public(self, request, handle=None):
         try:
             profile = UserProfile.objects.select_related('user').get(handle=handle)
         except UserProfile.DoesNotExist:
             return Response({'error': 'Profile not found'}, status=status.HTTP_404_NOT_FOUND)
+        if not profile.is_public and (not request.user.is_authenticated or request.user != profile.user):
+            return Response({'error': 'Profile not found'}, status=status.HTTP_404_NOT_FOUND)
         serializer = self.get_serializer(profile, context={'request': request})
         # Public view: strip private fields
         data = serializer.data
         data.pop('auth_provider', None)
+
+        merch = MerchItem.objects.filter(owner=profile.user, is_active=True)
+        data['merch_items'] = MerchItemSerializer(merch, many=True, context={'request': request}).data
+
         return Response(data)
 
     @action(detail=False, methods=['POST', 'DELETE'], url_path=r'(?P<handle>[^/.]+)/follow',
@@ -873,6 +1135,7 @@ class DashboardView(APIView):
                 'category': event.category,
                 'ticket_price': str(event.ticket_price),
                 'is_active': event.is_active,
+                'is_draft': event.is_draft,
                 'capacity': event.capacity,
                 'is_owner': event.owner_id == user.id,
                 'attendee_count': event.tickets.filter(
@@ -907,6 +1170,164 @@ class DashboardView(APIView):
         })
 
 
+class DashboardAnalyticsView(APIView):
+    """
+    GET /api/dashboard/analytics/
+
+    Real numbers for the organiser overview, scoped to events the user owns
+    or co-hosts (accepted). Revenue uses the same net-of-fee rule as the
+    payout balance, so the two never disagree. Draft events are ignored.
+
+      - last_30d / previous_30d : tickets sold + revenue, for honest trends
+      - monthly_revenue         : revenue series for the chart, oldest first.
+                                  ?range=week|3m|6m|12m (default 12m) — week
+                                  buckets by day, the rest by calendar month.
+      - avg_fill_rate           : mean sold/capacity over events with a limit (the event's, or the sum of
+                                  its tier limits when every tier has one) (0-100)
+      - top_events              : best sellers this calendar month
+      - events                  : lifetime sold + revenue + is_free + is_owner per event slug
+    Revenue is counted for events you own only (co-hosts don't receive it).
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        now = timezone.now()
+
+        events = Event.objects.filter(
+            Q(owner=user) | Q(
+                cohosts__user=user,
+                cohosts__status=EventCoHost.STATUS_ACCEPTED,
+            ),
+            is_active=True,
+            is_draft=False,
+        ).distinct()
+        event_ids = list(events.values_list('pk', flat=True))
+        owned_ids = set(events.filter(owner=user).values_list('pk', flat=True))
+
+        net_price = ticket_net_price_expr()
+        zero = Decimal('0')
+        # Sales are counted for every event you help run; revenue only for the
+        # events you own, matching what you can actually withdraw.
+        sold = Ticket.objects.filter(event_id__in=event_ids, payment_status__in=['paid', 'free'])
+        paid = Ticket.objects.filter(event_id__in=owned_ids, payment_status='paid')
+
+        def window(start, end=None):
+            s_qs, p_qs = sold.filter(created_at__gte=start), paid.filter(created_at__gte=start)
+            if end is not None:
+                s_qs, p_qs = s_qs.filter(created_at__lt=end), p_qs.filter(created_at__lt=end)
+            return {
+                'tickets': s_qs.count(),
+                'revenue': str(p_qs.aggregate(t=Coalesce(Sum(net_price), zero))['t']),
+            }
+
+        d30 = now - timedelta(days=30)
+        d60 = now - timedelta(days=60)
+
+        # Revenue series for the chart. ?range= one of: week, 3m, 6m, 12m
+        # (default 12m). "week" buckets by day; the month ranges bucket by
+        # calendar month, oldest first — same shape either way so the
+        # frontend doesn't need to branch on it.
+        range_param = (request.query_params.get('range') or '12m').strip().lower()
+        RANGE_MONTHS = {'3m': 3, '6m': 6, '12m': 12}
+
+        if range_param == 'week':
+            today = now.date()
+            days = [today - timedelta(days=i) for i in range(6, -1, -1)]
+            start = now.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=6)
+            by_day = {
+                row['d']: row['t']
+                for row in paid.filter(created_at__gte=start)
+                .annotate(d=TruncDate('created_at'))
+                .values('d')
+                .annotate(t=Sum(net_price))
+            }
+            monthly_revenue = [
+                {'month': d.isoformat(), 'revenue': str(by_day.get(d, zero))}
+                for d in days
+            ]
+        else:
+            n_months = RANGE_MONTHS.get(range_param, 12)
+            year, month = now.year, now.month
+            months = []
+            for _ in range(n_months):
+                months.append((year, month))
+                month -= 1
+                if month == 0:
+                    year, month = year - 1, 12
+            months.reverse()
+            first = months[0]
+            start = now.replace(year=first[0], month=first[1], day=1, hour=0, minute=0, second=0, microsecond=0)
+            by_month = {
+                (row['m'].year, row['m'].month): row['t']
+                for row in paid.filter(created_at__gte=start)
+                .annotate(m=TruncMonth('created_at'))
+                .values('m')
+                .annotate(t=Sum(net_price))
+            }
+            monthly_revenue = [
+                {'month': f'{y}-{m:02d}', 'revenue': str(by_month.get((y, m), zero))}
+                for (y, m) in months
+            ]
+
+        # Lifetime sold + revenue per event.
+        sold_by_event = dict(
+            sold.values_list('event__slug').annotate(n=Count('id')).values_list('event__slug', 'n')
+        )
+        revenue_by_event = dict(
+            paid.values_list('event__slug').annotate(t=Sum(net_price)).values_list('event__slug', 't')
+        )
+        # An event is free when its base price is 0 and none of its tiers charge.
+        paid_tier_events = set(
+            TicketTier.objects.filter(event_id__in=event_ids, price__gt=0)
+            .values_list('event_id', flat=True)
+        )
+        per_event = {
+            slug: {
+                'sold': sold_by_event.get(slug, 0),
+                'revenue': str(revenue_by_event.get(slug, zero)),
+                'is_free': base_price == 0 and event_id not in paid_tier_events,
+                'is_owner': event_id in owned_ids,
+            }
+            for event_id, slug, base_price in events.values_list('pk', 'slug', 'ticket_price')
+        }
+
+        # Average fill rate across events that have a capacity.
+        fills = []
+        for ev in events.prefetch_related('tiers'):
+            capacity = ev.effective_capacity()
+            if capacity:
+                fills.append(min(sold_by_event.get(ev.slug, 0) / capacity, 1))
+        avg_fill_rate = round(sum(fills) / len(fills) * 100) if fills else None
+
+        # Best sellers this calendar month.
+        month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        month_sold = dict(
+            sold.filter(created_at__gte=month_start)
+            .values_list('event__slug').annotate(n=Count('id'))
+            .values_list('event__slug', 'n')
+        )
+        month_revenue = dict(
+            paid.filter(created_at__gte=month_start)
+            .values_list('event__slug').annotate(t=Sum(net_price))
+            .values_list('event__slug', 't')
+        )
+        top_events = [
+            {'slug': slug, 'sold': n, 'revenue': str(month_revenue.get(slug, zero))}
+            for slug, n in sorted(month_sold.items(), key=lambda kv: kv[1], reverse=True)[:3]
+        ]
+
+        return Response({
+            'currency': 'NGN',
+            'last_30d': window(d30),
+            'previous_30d': window(d60, d30),
+            'monthly_revenue': monthly_revenue,
+            'avg_fill_rate': avg_fill_rate,
+            'top_events': top_events,
+            'events': per_event,
+        })
+
+
 class EventViewSet(viewsets.ModelViewSet):
     """
     EventViewSet with role-based permissions and category filtering
@@ -930,13 +1351,13 @@ class EventViewSet(viewsets.ModelViewSet):
         - Create: Authenticated users only
         - Update, delete: Owner/co-host only (both can edit)
         """
-        if self.action in ['list', 'retrieve', 'register', 'categories', 'locations', 'tiers', 'tier_detail']:
+        if self.action in ['list', 'retrieve', 'register', 'categories', 'locations', 'tiers', 'tier_detail', 'validate_promo']:
             permission_classes = [AllowAny]
         elif self.action in ['create']:
             permission_classes = [IsAuthenticated]
-        elif self.action in ['update', 'partial_update', 'destroy']:
+        elif self.action in ['update', 'partial_update']:
             permission_classes = [IsAuthenticated, IsEventOwnerOrCoHost]
-        elif self.action in ['add_cohost', 'remove_cohost']:
+        elif self.action in ['destroy', 'add_cohost', 'update_cohost', 'remove_cohost']:
             permission_classes = [IsAuthenticated, IsEventOwner]
         else:
             permission_classes = [IsAuthenticated]
@@ -1041,8 +1462,9 @@ class EventViewSet(viewsets.ModelViewSet):
         user = self.request.user
         is_listing = self.action == 'list'
 
+        # Drafts are visible only to the host and co-hosts (and superusers).
         if not user.is_authenticated:
-            queryset = queryset.filter(is_active=True)
+            queryset = queryset.filter(is_active=True, is_draft=False)
             if is_listing:
                 queryset = queryset.filter(visibility='public')
         elif not user.is_superuser:
@@ -1053,7 +1475,11 @@ class EventViewSet(viewsets.ModelViewSet):
                     cohosts__status=EventCoHost.STATUS_ACCEPTED,
                 )
             )
-            visible = Q(is_active=True, visibility='public') if is_listing else Q(is_active=True)
+            visible = (
+                Q(is_active=True, is_draft=False, visibility='public')
+                if is_listing
+                else Q(is_active=True, is_draft=False)
+            )
             queryset = queryset.filter(visible | own)
         queryset = queryset.distinct()
 
@@ -1089,7 +1515,8 @@ class EventViewSet(viewsets.ModelViewSet):
                 count = Event.objects.filter(
                     category=choice_value, 
                     is_active=True,
-                    visibility='public'
+                    visibility='public',
+                    is_draft=False
                 ).count()
                 
                 categories.append({
@@ -1100,7 +1527,8 @@ class EventViewSet(viewsets.ModelViewSet):
             
             total_events = Event.objects.filter(
                 is_active=True, 
-                visibility='public'
+                visibility='public',
+                is_draft=False
             ).count()
             
             return Response({
@@ -1129,7 +1557,8 @@ class EventViewSet(viewsets.ModelViewSet):
         try:
             base_qs = Event.objects.filter(
                 is_active=True,
-                visibility='public'
+                visibility='public',
+                is_draft=False
             ).exclude(location='').exclude(location__isnull=True)
 
             counts = (
@@ -1183,7 +1612,10 @@ class EventViewSet(viewsets.ModelViewSet):
         
         if 'transferable' not in request.data:
             serializer.validated_data['transferable'] = True
-        
+
+        if 'pass_fee_to_attendee' not in request.data:
+            serializer.validated_data['pass_fee_to_attendee'] = True
+
         self.perform_create(serializer)
 
         if apps.posthog_client is not None:
@@ -1200,7 +1632,9 @@ class EventViewSet(viewsets.ModelViewSet):
         event_url = request.build_absolute_uri(
             reverse('event-detail', kwargs={'slug': serializer.data['slug']})
         )
-        
+
+        _send_event_published_email(serializer.instance)
+
         response_data = serializer.data
         response_data['event_url'] = event_url
         
@@ -1263,7 +1697,7 @@ class EventViewSet(viewsets.ModelViewSet):
             serializer = TicketTierSerializer(queryset, many=True, context={'request': request})
             return Response(serializer.data)
 
-        if not request.user.is_authenticated or not event.is_owner_or_cohost(request.user):
+        if not request.user.is_authenticated or not event.can_manage(request.user):
             return Response(
                 {"error": "You don't have permission to manage tiers for this event"},
                 status=status.HTTP_403_FORBIDDEN,
@@ -1287,7 +1721,7 @@ class EventViewSet(viewsets.ModelViewSet):
         """
         event = self.get_object()
 
-        if not request.user.is_authenticated or not event.is_owner_or_cohost(request.user):
+        if not request.user.is_authenticated or not event.can_manage(request.user):
             return Response(
                 {"error": "You don't have permission to manage tiers for this event"},
                 status=status.HTTP_403_FORBIDDEN,
@@ -1317,7 +1751,7 @@ class EventViewSet(viewsets.ModelViewSet):
         POST /api/events/{slug}/promo-codes/  — create a code (owner/co-host only)
         """
         event = self.get_object()
-        if not event.is_owner_or_cohost(request.user):
+        if not event.can_manage(request.user):
             return Response(
                 {"error": "You don't have permission to manage promo codes for this event"},
                 status=status.HTTP_403_FORBIDDEN,
@@ -1349,7 +1783,7 @@ class EventViewSet(viewsets.ModelViewSet):
         DELETE /api/events/{slug}/promo-codes/{promo_id}/ — delete a code (owner/co-host only)
         """
         event = self.get_object()
-        if not event.is_owner_or_cohost(request.user):
+        if not event.can_manage(request.user):
             return Response(
                 {"error": "You don't have permission to manage promo codes for this event"},
                 status=status.HTTP_403_FORBIDDEN,
@@ -1400,6 +1834,11 @@ class EventViewSet(viewsets.ModelViewSet):
         """
         try:
             event = self.get_object()
+            if event.is_draft:
+                return Response(
+                    {"error": "This event is not open for registration yet."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
             tier_id = request.data.get('tier_id')
 
             name = request.data.get('name', '').strip()
@@ -1428,6 +1867,13 @@ class EventViewSet(viewsets.ModelViewSet):
             if missing:
                 return Response(
                     {"error": "Missing answers for required questions", "question_ids": list(missing)},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            reg_tier = TicketTier.objects.filter(pk=tier_id, event=event).first() if tier_id else None
+            if reg_tier is not None and reg_tier.min_tickets_per_person > 1:
+                return Response(
+                    {"error": f"{reg_tier.name} tickets are sold {reg_tier.min_tickets_per_person} at a time or more."},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
@@ -1474,6 +1920,8 @@ class EventViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_201_CREATED,
             )
 
+        except Http404:
+            raise
         except Exception as e:
             logger.exception("Error in event registration")
             return Response(
@@ -1540,7 +1988,7 @@ class EventViewSet(viewsets.ModelViewSet):
         """
         event = self.get_object()
         role = event.get_user_role(request.user)
-        if not (role['is_owner'] or role['is_cohost']):
+        if not role['can_check_in']:
             return Response(
                 {'error': 'Only the event owner or co-hosts can view attendees'},
                 status=status.HTTP_403_FORBIDDEN,
@@ -1580,7 +2028,7 @@ class EventViewSet(viewsets.ModelViewSet):
         """
         event = self.get_object()
         role = event.get_user_role(request.user)
-        if not (role['is_owner'] or role['is_cohost']):
+        if not role['can_check_in']:
             return Response(
                 {'error': 'Only the event owner or co-hosts can check in attendees'},
                 status=status.HTTP_403_FORBIDDEN,
@@ -1638,7 +2086,7 @@ class EventViewSet(viewsets.ModelViewSet):
         """
         event = self.get_object()
         role = event.get_user_role(request.user)
-        if not (role['is_owner'] or role['is_cohost']):
+        if not role['can_check_in']:
             return Response(
                 {'error': 'Only the event owner or co-hosts can view stats'},
                 status=status.HTTP_403_FORBIDDEN,
@@ -1683,7 +2131,7 @@ class EventViewSet(viewsets.ModelViewSet):
 
         # POST — only owner/cohost can add questions
         role = event.get_user_role(request.user)
-        if not (role['is_owner'] or role['is_cohost']):
+        if not event.can_manage(request.user):
             return Response(
                 {'error': 'Only the event owner or co-hosts can manage form questions'},
                 status=status.HTTP_403_FORBIDDEN,
@@ -1699,19 +2147,28 @@ class EventViewSet(viewsets.ModelViewSet):
         """
         Add co-host to event - only event owner can add co-hosts
         POST /api/events/{slug}/add_cohost/
-        Body: {"email": "cohost@example.com"}
+        Body: {"email": "cohost@example.com", "role": "manager" | "checkin"}
+        role is optional and defaults to "manager". "checkin" can only see the
+        guest list and check people in.
 
         The invitee does not need a Byro account. If they have never signed in,
         the grant is stored as pending and claimed automatically the first time
         they sign in with this address (see auth_views.claim_pending_cohost_invites).
+        They get one email whose Accept button leads to sign-in/sign-up.
         A pending grant confers no access.
         """
         event = self.get_object()
         email = (request.data.get('email') or '').strip().lower()
+        role = (request.data.get('role') or EventCoHost.ROLE_MANAGER).strip().lower()
 
         if not email:
             return Response(
                 {"error": "Email is required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        if role not in dict(EventCoHost.ROLE_CHOICES):
+            return Response(
+                {"error": "Role must be 'manager' or 'checkin'"},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -1752,10 +2209,11 @@ class EventViewSet(viewsets.ModelViewSet):
                 user=cohost_user,
                 invited_email=email,
                 status=EventCoHost.STATUS_ACCEPTED,
+                role=role,
                 accepted_at=timezone.now(),
                 added_by=request.user,
             )
-            send_cohost_invite_email(email, event, request.user, is_new_user=False)
+            send_cohost_invite_email(email, event, request.user, is_new_user=False, role=role)
             if apps.posthog_client is not None:
                 apps.posthog_client.capture(
                     'cohost_invited', properties={'invitee_has_account': True}
@@ -1768,6 +2226,7 @@ class EventViewSet(viewsets.ModelViewSet):
                     "id": cohost.id,
                     "email": cohost_user.email,
                     "name": cohost_user.get_full_name() or cohost_user.email,
+                    "role": cohost.role,
                     "added_at": cohost.added_at,
                 }
             }, status=status.HTTP_201_CREATED)
@@ -1778,12 +2237,13 @@ class EventViewSet(viewsets.ModelViewSet):
             user=None,
             invited_email=email,
             status=EventCoHost.STATUS_PENDING,
+            role=role,
             added_by=request.user,
         )
-        # Best-effort: WorkOS emails its own sign-up invitation, and we send the
-        # event-specific one. Neither failing should undo the pending grant.
-        workos_api.send_invitation(email)
-        send_cohost_invite_email(email, event, request.user, is_new_user=True)
+        # One email only: it carries an Accept link to sign in or sign up, so we
+        # no longer ask WorkOS to send a second, separate sign-up invitation.
+        # A failure here must not undo the pending grant.
+        send_cohost_invite_email(email, event, request.user, is_new_user=True, role=role)
         if apps.posthog_client is not None:
             apps.posthog_client.capture(
                 'cohost_invited', properties={'invitee_has_account': False}
@@ -1797,10 +2257,38 @@ class EventViewSet(viewsets.ModelViewSet):
                 "id": cohost.id,
                 "email": email,
                 "name": email,
+                "role": cohost.role,
                 "added_at": cohost.added_at,
             }
         }, status=status.HTTP_201_CREATED)
     
+    @action(detail=True, methods=['PATCH'], permission_classes=[IsAuthenticated, IsEventOwner])
+    def update_cohost(self, request, slug=None):
+        """
+        Change what a co-host (or a pending invite) may do - only the event owner.
+        PATCH /api/events/{slug}/update_cohost/
+        Body: {"cohost_id": 123, "role": "manager" | "checkin"}
+        """
+        event = self.get_object()
+        cohost_id = request.data.get('cohost_id')
+        role = (request.data.get('role') or '').strip().lower()
+
+        if not cohost_id:
+            return Response({"error": "cohost_id is required"}, status=status.HTTP_400_BAD_REQUEST)
+        if role not in dict(EventCoHost.ROLE_CHOICES):
+            return Response(
+                {"error": "Role must be 'manager' or 'checkin'"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        try:
+            cohost = EventCoHost.objects.get(id=cohost_id, event=event)
+        except EventCoHost.DoesNotExist:
+            return Response({"error": "Co-host not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        cohost.role = role
+        cohost.save(update_fields=['role'])
+        return Response({"message": "Permissions updated", "cohost_id": cohost.id, "role": cohost.role})
+
     @action(detail=True, methods=['DELETE'], permission_classes=[IsAuthenticated, IsEventOwner])
     def remove_cohost(self, request, slug=None):
         """
@@ -1906,6 +2394,34 @@ class TicketViewSet(viewsets.ModelViewSet):
         png_bytes = generate_qr_png(str(ticket.qr_token))
         return HttpResponse(png_bytes, content_type='image/png')
 
+    @action(detail=True, methods=['get'], permission_classes=[AllowAny])
+    def calendar(self, request, ticket_id=None):
+        """.ics calendar file for this ticket's event."""
+        from datetime import datetime, timedelta
+        from django.utils.text import slugify
+        from .ics import generate_ics
+        ticket = self.get_object()
+        event = ticket.event
+        start = datetime.combine(event.day, event.time_from)
+        end = (
+            datetime.combine(event.day, event.time_to)
+            if event.time_to and event.time_to > event.time_from
+            else start + timedelta(hours=2)
+        )
+        ics_bytes = generate_ics(
+            event_name=event.name,
+            description=event.description,
+            location=event.location or '',
+            start=start,
+            end=end,
+            organizer_name='Byro',
+            uid=f"byro-ticket-{ticket.ticket_id}@usebyro.com",
+        )
+        response = HttpResponse(ics_bytes, content_type='text/calendar; charset=utf-8')
+        filename = slugify(event.name) or 'event'
+        response['Content-Disposition'] = f'attachment; filename="{filename}.ics"'
+        return response
+
 class TicketTransferViewSet(viewsets.ModelViewSet):
     """
     ViewSet for Ticket Transfer operations
@@ -1953,13 +2469,74 @@ class TicketTransferViewSet(viewsets.ModelViewSet):
 # Payout endpoints
 # ---------------------------------------------------------------------------
 
+def ticket_net_price_expr():
+    """
+    What the organizer earns from one paid ticket.
+
+    Starts from the tier price (or the event's flat ticket_price), then takes
+    off this ticket's share of any promo-code discount. Checkout records the
+    discount for a whole purchase on Payment.metadata['discount_amount'], and a
+    purchase can produce several tickets, so each ticket carries an equal share.
+    If the organizer absorbs Byro's service fee (`pass_fee_to_attendee=False`),
+    that fee is 5% of the DISCOUNTED price and is deducted here.
+
+    Shared by the payout balance and the dashboard analytics so both agree.
+    """
+    money = models.DecimalField(max_digits=12, decimal_places=2)
+    whole = models.IntegerField()
+    ticket_price = Coalesce(
+        F('tier__price'), F('event__ticket_price'), Decimal('0'), output_field=money
+    )
+    # Discounts are whole naira. Split them in whole naira, rounding each
+    # ticket's share UP, so an uneven split can only ever under-credit the
+    # organizer by a few naira, never over-credit. Plain integer arithmetic
+    # keeps this identical on SQLite and Postgres.
+    discount = Coalesce(
+        Cast(Cast(KeyTextTransform('discount_amount', 'payment__metadata'), money), whole),
+        0,
+        output_field=whole,
+    )
+    tickets_in_payment = Coalesce(
+        Subquery(
+            Ticket.objects.filter(payment=OuterRef('payment'))
+            .order_by()
+            .values('payment')
+            .annotate(n=Count('pk'))
+            .values('n')[:1],
+            output_field=whole,
+        ),
+        1,
+        output_field=whole,
+    )
+    discount_share = models.ExpressionWrapper(
+        (discount + tickets_in_payment - 1) / tickets_in_payment, output_field=whole
+    )
+    after_discount = Greatest(
+        models.ExpressionWrapper(ticket_price - discount_share, output_field=money),
+        Decimal('0'),
+        output_field=money,
+    )
+    return models.Case(
+        models.When(
+            event__pass_fee_to_attendee=False,
+            then=models.ExpressionWrapper(
+                after_discount * (Decimal('1') - FEE_RATE), output_field=money
+            ),
+        ),
+        default=after_discount,
+        output_field=money,
+    )
+
+
 def compute_available_balance(user, event=None):
     """
     Funds an organizer can currently withdraw.
 
-    = ticket revenue on events they own or co-host
+    = ticket revenue on events they OWN. Co-hosts help run an event but the
+      money belongs to its owner, so co-hosting earns nothing here.
       (price of every sold/paid ticket — tier price, or the event's flat
-      ticket_price for tier-less events; free tickets contribute nothing)
+      ticket_price for tier-less events, less any promo-code discount;
+      free tickets contribute nothing)
     − sum of payout requests that are still pending or already processed
       (rejected requests don't hold funds).
 
@@ -1967,23 +2544,23 @@ def compute_available_balance(user, event=None):
     since the payment total also includes the service fee that never
     belongs to the organizer.
 
+    For events where the organizer has chosen to absorb Byro's service fee
+    (`pass_fee_to_attendee=False`), that fee is deducted from the ticket
+    price here instead of being added to what the attendee paid.
+
     When `event` is given, the balance is scoped to that single event.
     """
     if event is not None:
+        if event.owner_id != user.id:
+            return Decimal('0')
         event_ids = [event.pk]
     else:
-        event_ids = list(
-            Event.objects.filter(
-                Q(owner=user) | Q(cohosts__user=user)
-            ).values_list('pk', flat=True).distinct()
-        )
+        event_ids = list(Event.objects.filter(owner=user).values_list('pk', flat=True))
 
-    ticket_price = Coalesce(
-        F('tier__price'), F('event__ticket_price'), Decimal('0')
-    )
+    net_price = ticket_net_price_expr()
     earned = (
         Ticket.objects.filter(event_id__in=event_ids, payment_status='paid')
-        .aggregate(total=Coalesce(Sum(ticket_price), Decimal('0')))['total']
+        .aggregate(total=Coalesce(Sum(net_price), Decimal('0')))['total']
     )
 
     payouts = PayoutRequest.objects.filter(
@@ -2013,9 +2590,9 @@ class PayoutRequestView(APIView):
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         event = serializer.validated_data.get('event')
-        if event is not None and not event.is_owner_or_cohost(request.user):
+        if event is not None and event.owner_id != request.user.id:
             return Response(
-                {'error': 'You can only request a payout for an event you own or co-host'},
+                {'error': 'Only the event owner can request a payout for an event'},
                 status=status.HTTP_403_FORBIDDEN,
             )
 
@@ -2080,7 +2657,9 @@ class PayoutBalanceView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        available = compute_available_balance(request.user)
+        # Never negative: a past co-host who withdrew before only the owner could
+        # earn now has payouts but no earnings.
+        available = max(compute_available_balance(request.user), Decimal('0'))
         payouts = PayoutRequest.objects.filter(user=request.user)
         paid_out = sum(
             (p.amount for p in payouts if p.status == 'processed'), Decimal('0')
@@ -2098,14 +2677,28 @@ class PayoutBalanceView(APIView):
 
 class AdminPayoutView(APIView):
     """
-    GET   /api/admin/payouts/      — list all payout requests
-    PATCH /api/admin/payouts/:id/  — update status
+    GET    /api/admin/payouts/      — list all payout requests
+    PATCH  /api/admin/payouts/:id/  — update status
+    DELETE /api/admin/payouts/:id/  — remove a payout request outright
+
+    DELETE exists for bad data (a test/duplicate request), not for undoing a
+    real one — deleting a 'processed' row does NOT reverse any real-world
+    transfer, it only stops that amount being subtracted from the
+    organiser's available balance here.
     """
     permission_classes = [IsAdminSecret]
 
     def get(self, request):
         qs = PayoutRequest.objects.select_related('user', 'event').all()
         return Response(PayoutRequestSerializer(qs, many=True).data)
+
+    def delete(self, request, pk):
+        try:
+            payout = PayoutRequest.objects.get(pk=pk)
+        except PayoutRequest.DoesNotExist:
+            return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+        payout.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     def patch(self, request, pk):
         try:
@@ -2222,6 +2815,79 @@ class AdminAnalyticsSummaryView(APIView):
         })
 
 
+class AdminEventDetailView(APIView):
+    """
+    PATCH  /api/admin/events/<pk>/  — { is_active: bool }
+    DELETE /api/admin/events/<pk>/
+
+    Not the owner-facing EventViewSet: no ownership check, gated only by the
+    admin secret. The admin panel's suspend/reactivate/delete buttons need
+    this for events the platform admin doesn't personally own.
+    """
+    permission_classes = [IsAdminSecret]
+
+    def _get_event(self, pk):
+        try:
+            return Event.objects.get(pk=pk)
+        except Event.DoesNotExist:
+            return None
+
+    def patch(self, request, pk):
+        event = self._get_event(pk)
+        if event is None:
+            return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+        is_active = request.data.get('is_active')
+        if is_active is not None:
+            event.is_active = bool(is_active)
+            event.save(update_fields=['is_active'])
+        return Response(EventSerializer(event, context={'request': request}).data)
+
+    def delete(self, request, pk):
+        event = self._get_event(pk)
+        if event is None:
+            return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+        event.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class AdminEventAttendeesView(APIView):
+    """
+    GET /api/admin/events/<slug>/attendees/
+
+    Same shape as EventViewSet.attendees, but gated on the admin secret
+    instead of event ownership — the admin panel needs to see attendees for
+    any event, not just ones the platform admin happens to own or co-host.
+    """
+    permission_classes = [IsAdminSecret]
+
+    def get(self, request, slug):
+        try:
+            event = Event.objects.get(slug=slug)
+        except Event.DoesNotExist:
+            return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        tickets = event.tickets.select_related('user').prefetch_related('form_answers__question')
+
+        checked_in_filter = request.query_params.get('checked_in')
+        if checked_in_filter == 'true':
+            tickets = tickets.filter(checked_in=True)
+        elif checked_in_filter == 'false':
+            tickets = tickets.filter(checked_in=False)
+
+        status_filter = request.query_params.get('payment_status', 'confirmed')
+        if status_filter == 'confirmed':
+            tickets = tickets.filter(payment_status__in=['paid', 'free'])
+        elif status_filter != 'all':
+            tickets = tickets.filter(payment_status=status_filter)
+
+        serializer = TicketSerializer(tickets, many=True, context={'request': request})
+        return Response({
+            'count': tickets.count(),
+            'checked_in_count': tickets.filter(checked_in=True).count(),
+            'attendees': serializer.data,
+        })
+
+
 class AdminUsersListView(APIView):
     """
     GET /api/admin/users/?role=organizer
@@ -2249,6 +2915,7 @@ class AdminUsersListView(APIView):
                 'display_name': p.display_name,
                 'handle': p.handle,
                 'role': p.role,
+                'auth_provider': p.user.auth_provider,
                 'events_created': p.events_created,
                 'date_joined': p.user.date_joined,
             }

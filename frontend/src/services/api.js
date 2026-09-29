@@ -113,6 +113,8 @@ const API = {
 
   getTicketQrUrl: (ticketId) => `${axiosInstance.defaults.baseURL}tickets/${ticketId}/qr/`,
 
+  getTicketCalendarUrl: (ticketId) => `${axiosInstance.defaults.baseURL}tickets/${ticketId}/calendar/`,
+
   getMyTicket: async (slug) => {
     try {
       const response = await axiosInstance.get(`events/${slug}/my_ticket/`);
@@ -242,6 +244,20 @@ const API = {
     }
   },
 
+  // range: "week" | "3m" | "6m" | "12m" (default "12m") — only affects the
+  // revenue chart series (monthly_revenue); everything else in the response
+  // is unaffected.
+  getDashboardAnalytics: async (range) => {
+    try {
+      const response = await axiosInstance.get("dashboard/analytics/", {
+        params: range ? { range } : undefined,
+      });
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
   // Register for an event
   registerEvent: async (eventSlug, userData) => {
     try {
@@ -294,9 +310,22 @@ const API = {
     }
   },
 
-  addCohost: async (slug, email) => {
+  // role: "manager" (run the event) or "checkin" (guest list and check-in only)
+  addCohost: async (slug, email, role = "manager") => {
     try {
-      const response = await axiosInstance.post(`events/${slug}/add_cohost/`, { email });
+      const response = await axiosInstance.post(`events/${slug}/add_cohost/`, { email, role });
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  updateCohost: async (slug, cohostId, role) => {
+    try {
+      const response = await axiosInstance.patch(`events/${slug}/update_cohost/`, {
+        cohost_id: cohostId,
+        role,
+      });
       return response.data;
     } catch (error) {
       throw handleApiError(error);
@@ -474,6 +503,40 @@ const API = {
           "Content-Type": "multipart/form-data",
         },
       });
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  uploadCoverImage: async (file) => {
+    try {
+      const body = new FormData();
+      body.append("cover_image", file);
+      const response = await axiosInstance.post("profile/me/cover-image/", body, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  // Follow / unfollow an organiser's community page. Both are idempotent.
+  followProfile: async (handle) => {
+    try {
+      const response = await axiosInstance.post(`profile/${encodeURIComponent(handle)}/follow/`);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  unfollowProfile: async (handle) => {
+    try {
+      const response = await axiosInstance.delete(`profile/${encodeURIComponent(handle)}/follow/`);
       return response.data;
     } catch (error) {
       throw handleApiError(error);

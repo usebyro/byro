@@ -98,7 +98,7 @@ const Navbar = () => {
               >
                 Create an event
               </Link>
-              <UserMenu user={user} onLogout={handleLogout} size="sm" />
+              <UserMenu user={user} onLogout={handleLogout} />
             </>
           ) : (
             <>

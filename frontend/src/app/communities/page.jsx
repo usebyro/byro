@@ -5,6 +5,7 @@ import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import EventImage from "@/components/brand/EventImage";
+import FollowButton from "@/components/community/FollowButton";
 import API from "@/services/api";
 import { categoryTone, dayParts, eventInitials, formatTime, isPast } from "@/lib/eventFormat";
 
@@ -36,6 +37,8 @@ function buildCommunities(events, profiles) {
       bio: profile.bio || "",
       location: profile.location || "",
       avatar: profile.avatar_url || null,
+      followers: profile.followers_count ?? 0,
+      isFollowing: !!profile.is_following,
       total: c.events.length,
       upcoming,
       next: upcoming[0] || null,
@@ -106,7 +109,7 @@ export default function CommunitiesPage() {
     return communities
       .filter((c) => interest === "all" || c.categories.includes(interest))
       .filter((c) => !q || `${c.name} ${c.handle} ${c.bio} ${c.location}`.toLowerCase().includes(q))
-      .sort((a, b) => b.upcoming.length - a.upcoming.length || b.total - a.total);
+      .sort((a, b) => b.followers - a.followers || b.upcoming.length - a.upcoming.length || b.total - a.total);
   }, [communities, query, interest]);
 
   const [featured, ...rest] = filtered;
@@ -197,7 +200,7 @@ export default function CommunitiesPage() {
                   </div>
                   <div className="flex flex-1 flex-col gap-3 p-6 md:px-11 md:py-10">
                     <span className="flex h-7 items-center self-start rounded-full bg-white px-3 text-xs font-extrabold tracking-[0.08em] text-brand">
-                      MOST ACTIVE
+                      FEATURED
                     </span>
                     <div className="flex items-center gap-3.5">
                       <Avatar community={featured} size={60} />
@@ -212,6 +215,10 @@ export default function CommunitiesPage() {
                     {featured.bio && <p className="line-clamp-3 max-w-[480px] text-base leading-[1.55] text-[#3B4252]">{featured.bio}</p>}
                     <div className="flex-1" />
                     <div className="flex flex-wrap items-center gap-x-[18px] gap-y-3 text-[15px]">
+                      <span>
+                        <b>{featured.followers.toLocaleString()}</b>{" "}
+                        <span className="text-muted">{featured.followers === 1 ? "follower" : "followers"}</span>
+                      </span>
                       <span>
                         <b>{featured.total}</b> <span className="text-muted">{featured.total === 1 ? "event" : "events"} hosted</span>
                       </span>
@@ -255,6 +262,9 @@ export default function CommunitiesPage() {
                           {c.bio && <p className="line-clamp-3 text-[15px] leading-[1.5] text-[#3B4252]">{c.bio}</p>}
                           <div className="mt-1 flex flex-wrap gap-2">
                             <span className="flex h-[30px] items-center rounded-full bg-mist px-2.5 text-xs font-bold">
+                              {c.followers.toLocaleString()} {c.followers === 1 ? "follower" : "followers"}
+                            </span>
+                            <span className="flex h-[30px] items-center rounded-full bg-mist px-2.5 text-xs font-bold">
                               {c.total} {c.total === 1 ? "event" : "events"}
                             </span>
                             <span className="flex h-[30px] items-center rounded-full px-2.5 text-xs font-bold" style={{ background: c.tint }}>
@@ -262,12 +272,25 @@ export default function CommunitiesPage() {
                             </span>
                           </div>
                           <div className="flex-1" />
-                          <Link
-                            href={`/u/${c.handle}`}
-                            className="mt-2.5 flex h-[46px] items-center justify-center rounded-full border border-line text-[15px] font-bold transition-[background-color,scale] hover:bg-mist active:scale-[0.96] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
-                          >
-                            View community
-                          </Link>
+                          <div className="mt-2.5 flex items-center gap-2">
+                            <FollowButton
+                              handle={c.handle}
+                              initialFollowing={c.isFollowing}
+                              onChange={(count) =>
+                                setCommunities((list) => list.map((x) => (x.handle === c.handle ? { ...x, followers: count } : x)))
+                              }
+                              className="h-[46px] flex-1 text-[15px]"
+                            />
+                            <Link
+                              href={`/u/${c.handle}`}
+                              aria-label={`Open ${c.name}`}
+                              className="flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-full border border-line transition-[background-color,scale] hover:bg-mist active:scale-[0.96] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                            >
+                              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                <path d="M5 12h14M13 6l6 6-6 6" />
+                              </svg>
+                            </Link>
+                          </div>
                         </div>
                       </article>
                     ))}

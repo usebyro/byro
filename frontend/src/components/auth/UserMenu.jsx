@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Avatar from "@/components/ui/Avatar";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { UserIcon, Logout01Icon } from "@hugeicons/core-free-icons";
 import {
@@ -13,24 +14,15 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
-function getInitial(user) {
-  return (
-    user?.display_name?.charAt(0)?.toUpperCase() ||
-    user?.displayName?.charAt(0)?.toUpperCase() ||
-    user?.name?.charAt(0)?.toUpperCase() ||
-    user?.email?.charAt(0)?.toUpperCase() ||
-    "U"
-  );
-}
-
+// Callers may still pass `size`; the avatar is one size now (a 44px touch target).
 export default function UserMenu({
   user,
   onLogout,
-  size = "md",
   className = "",
 }) {
-  const sizeClasses = size === "sm" ? "w-11 h-11 text-sm font-bold" : "w-11 h-11 text-sm font-bold";
+  const sizeClasses = "w-11 h-11 text-sm";
   const avatarUrl = user?.avatar_url || user?.avatarUrl || null;
+  const accountName = user?.display_name || user?.displayName || user?.name || user?.email || "";
 
   return (
     <DropdownMenu>
@@ -39,19 +31,13 @@ export default function UserMenu({
           type="button"
           aria-label="Account menu"
           className={cn(
-            "rounded-full text-white flex items-center justify-center font-medium shrink-0 select-none overflow-hidden",
-            !avatarUrl && "bg-brand",
+            "rounded-full flex items-center justify-center shrink-0 select-none overflow-hidden",
             "hover:opacity-90 transition-opacity focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2",
             sizeClasses,
             className
           )}
         >
-          {avatarUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
-          ) : (
-            getInitial(user)
-          )}
+          <Avatar src={avatarUrl} name={accountName} className="w-full h-full rounded-full" />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">

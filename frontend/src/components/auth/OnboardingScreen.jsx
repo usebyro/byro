@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { CompassIcon, Megaphone01Icon, Camera01Icon, UserIcon } from "@hugeicons/core-free-icons";
 import API from "@/services/api";
+import { FaXTwitter, FaInstagram, FaLinkedinIn, FaTelegram } from "react-icons/fa6";
 
 const ROLES = [
   {
@@ -49,6 +50,10 @@ const ORGANIZER_STEPS = [
       { key: "social", label: "Social media", type: "social" },
     ],
   },
+  {
+    title: "Visibility",
+    fields: [{ key: "isPublic", type: "toggle" }],
+  },
 ];
 
 const SLIDES = [
@@ -56,6 +61,14 @@ const SLIDES = [
   { src: "/images/people_grooving.png", alt: "People enjoying live events" },
   { src: "/images/techevent.jpeg", alt: "Tech event" },
 ];
+
+// Where to go when onboarding finishes: the page they were sent here from, if it is a
+// same-site path (a co-host invitation returns them to the event). Read at click time.
+const returnPath = (fallback) => {
+  if (typeof window === "undefined") return fallback;
+  const target = new URLSearchParams(window.location.search).get("redirect");
+  return target && target.startsWith("/") && !target.startsWith("//") ? target : fallback;
+};
 
 export default function OnboardingScreen() {
   const router = useRouter();
@@ -72,8 +85,11 @@ export default function OnboardingScreen() {
     instagram: "",
     linkedin: "",
     telegram: "",
+    isPublic: true,
   });
+  const [avatarFile, setAvatarFile] = useState(null);
   const [avatarPreview, setAvatarPreview] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     document.title = "Welcome | Byro";
@@ -91,7 +107,28 @@ export default function OnboardingScreen() {
   const handleAvatarChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setAvatarFile(file);
     setAvatarPreview(URL.createObjectURL(file));
+  };
+
+  const saveOrganizerProfile = async () => {
+    setIsSaving(true);
+    try {
+      if (avatarFile) {
+        await API.uploadAvatar(avatarFile);
+      }
+      const { isPublic, displayName, ...rest } = hostForm;
+      await API.updateProfile({
+        ...rest,
+        display_name: displayName,
+        is_public: isPublic,
+        is_complete: true,
+      });
+    } catch (err) {
+      console.error("Could not save onboarding profile:", err);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleSelectRole = (id) => {
@@ -104,7 +141,7 @@ export default function OnboardingScreen() {
       setWizardStep(0);
       setStage("organizer-details");
     } else {
-      router.push("/home");
+      router.push(returnPath("/home"));
     }
   };
 
@@ -115,10 +152,11 @@ export default function OnboardingScreen() {
     return !hostForm[field.key]?.trim();
   });
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (isNextDisabled) return;
     if (isLastWizardStep) {
-      router.push("/dashboard");
+      await saveOrganizerProfile();
+      router.push(returnPath("/dashboard"));
     } else {
       setWizardStep((s) => s + 1);
     }
@@ -132,9 +170,10 @@ export default function OnboardingScreen() {
     }
   };
 
-  const handleSkip = () => {
+  const handleSkip = async () => {
     if (isNextDisabled) return;
-    router.push("/dashboard");
+    await saveOrganizerProfile();
+    router.push(returnPath("/dashboard"));
   };
 
   return (
@@ -212,11 +251,11 @@ export default function OnboardingScreen() {
                   {ORGANIZER_STEPS[wizardStep].fields.map((field) =>
                     field.type === "avatar" ? (
                       <div key="avatar" className="flex items-center gap-5">
-                        <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-violet-500 to-purple-700 flex items-center justify-center text-white shrink-0 overflow-hidden">
+                        <div className="w-20 h-20 rounded-2xl bg-gray-100 flex items-center justify-center text-gray-400 shrink-0 overflow-hidden">
                           {avatarPreview ? (
                             <img src={avatarPreview} alt="Preview" className="w-full h-full object-cover" />
                           ) : (
-                            <HugeiconsIcon icon={UserIcon} size={28} color="white" />
+                            <HugeiconsIcon icon={UserIcon} size={28} color="#9ca3af" />
                           )}
                         </div>
                         <div>
@@ -231,14 +270,38 @@ export default function OnboardingScreen() {
                           </label>
                         </div>
                       </div>
+                    ) : field.type === "toggle" ? (
+                      <label key={field.key} className="flex items-start justify-between gap-4 border border-gray-200 rounded-2xl p-4 cursor-pointer">
+                        <span>
+                          <span className="block text-sm font-semibold text-gray-900">List Community publicly</span>
+                          <span className="block text-xs text-gray-500 mt-0.5">
+                            Your profile will be publicly listed on the community page
+                          </span>
+                        </span>
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={hostForm.isPublic}
+                          onClick={() => hostField("isPublic", !hostForm.isPublic)}
+                          className={`shrink-0 w-11 h-6 rounded-full transition-colors relative ${
+                            hostForm.isPublic ? "bg-blue-600" : "bg-gray-200"
+                          }`}
+                        >
+                          <span
+                            className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform ${
+                              hostForm.isPublic ? "translate-x-5" : "translate-x-0"
+                            }`}
+                          />
+                        </button>
+                      </label>
                     ) : field.type === "social" ? (
                       <div key="social">
                         <p className="text-xs font-semibold text-gray-700 mb-2">Social media</p>
                         <div className="grid grid-cols-2 gap-3">
-                          <SocialInput prefix="x.com/" value={hostForm.twitter} onChange={(v) => hostField("twitter", v)} placeholder="handle" />
-                          <SocialInput prefix="instagram.com/" value={hostForm.instagram} onChange={(v) => hostField("instagram", v)} placeholder="handle" />
-                          <SocialInput prefix="linkedin.com/in/" value={hostForm.linkedin} onChange={(v) => hostField("linkedin", v)} placeholder="username" />
-                          <SocialInput prefix="t.me/" value={hostForm.telegram} onChange={(v) => hostField("telegram", v)} placeholder="handle" />
+                          <SocialInput icon={FaXTwitter} prefix="x.com/" value={hostForm.twitter} onChange={(v) => hostField("twitter", v)} placeholder="handle" />
+                          <SocialInput icon={FaInstagram} prefix="instagram.com/" value={hostForm.instagram} onChange={(v) => hostField("instagram", v)} placeholder="handle" />
+                          <SocialInput icon={FaLinkedinIn} prefix="linkedin.com/in/" value={hostForm.linkedin} onChange={(v) => hostField("linkedin", v)} placeholder="username" />
+                          <SocialInput icon={FaTelegram} prefix="t.me/" value={hostForm.telegram} onChange={(v) => hostField("telegram", v)} placeholder="handle" />
                         </div>
                       </div>
                     ) : (
@@ -267,7 +330,7 @@ export default function OnboardingScreen() {
                     <button
                       type="button"
                       onClick={handleSkip}
-                      disabled={isNextDisabled}
+                      disabled={isNextDisabled || isSaving}
                       title={isNextDisabled ? "Fill in the required field before skipping" : undefined}
                       className="text-sm font-medium text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-gray-400"
                     >
@@ -276,10 +339,10 @@ export default function OnboardingScreen() {
                     <button
                       type="button"
                       onClick={handleNext}
-                      disabled={isNextDisabled}
+                      disabled={isNextDisabled || isSaving}
                       className="bg-blue-600 text-white font-semibold py-2.5 px-6 rounded-full hover:bg-blue-700 transition-colors text-sm disabled:opacity-40 disabled:cursor-not-allowed"
                     >
-                      {isLastWizardStep ? "Finish" : "Next"}
+                      {isSaving ? "Saving…" : isLastWizardStep ? "Finish" : "Next"}
                     </button>
                   </div>
                 </div>
@@ -344,19 +407,21 @@ function OrganizerField({ field, value, onChange }) {
   );
 }
 
-function SocialInput({ prefix, value, onChange, placeholder }) {
+function SocialInput({ icon: Icon, prefix, value, onChange, placeholder }) {
   return (
     <div className="relative">
-      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 pointer-events-none select-none">
+      <span className="absolute left-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5 text-[11px] text-gray-500 pointer-events-none select-none">
+        <Icon className="w-3.5 h-3.5 text-gray-700" aria-hidden="true" />
         {prefix}
       </span>
       <input
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        style={{ paddingLeft: `${prefix.length * 6.5 + 12}px` }}
+        style={{ paddingLeft: `${prefix.length * 6.8 + 34}px` }}
         className="w-full border border-gray-200 rounded-lg pr-3 py-2 text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
         placeholder={placeholder}
+        aria-label={prefix}
       />
     </div>
   );

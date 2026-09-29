@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import Script from "next/script";
+import { ticketLimits, stepUp, stepDown, describeTicketLimits } from "@/lib/ticketLimits";
+import EventImageFallback from "@/components/ui/EventImageFallback";
 import Image from "next/image";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import API from "@/services/api";
 import { toast } from "sonner";
@@ -24,9 +25,14 @@ interface Event {
   event_image_url?: string;
   is_active: boolean;
   show_remaining_count?: boolean;
+  pass_fee_to_attendee?: boolean;
+  max_tickets_per_person?: number;
 }
 
 interface TicketTier {
+  min_tickets_per_person?: number;
+  description?: string;
+  max_tickets_per_person?: number | null;
   id: string | number;
   name: string;
   price: number | string;
@@ -36,20 +42,11 @@ interface TicketTier {
   admits_count?: number | null;
 }
 
-const categoryGradients: Record<string, string> = {
-  entertainment: "from-purple-700 via-purple-500 to-pink-500",
-  web3_crypto: "from-amber-600 via-amber-500 to-orange-400",
-  art_culture: "from-pink-700 via-pink-500 to-rose-400",
-  conference: "from-emerald-700 via-emerald-600 to-teal-500",
-  fitness: "from-orange-600 via-amber-500 to-yellow-400",
-  technology: "from-indigo-700 via-indigo-500 to-violet-400",
-  other: "from-gray-600 via-gray-500 to-slate-400",
-};
-
 const categoryLabels: Record<string, string> = {
   entertainment: "CONCERTS & MUSIC",
   web3_crypto: "WEB3 & CRYPTO",
-  art_culture: "NIGHTLIFE & PARTIES",
+  art_culture: "ART & CULTURE",
+  nightlife: "NIGHTLIFE & PARTIES",
   conference: "CONFERENCES",
   fitness: "SPORTS",
   technology: "TECHNOLOGY",
@@ -59,7 +56,8 @@ const categoryLabels: Record<string, string> = {
 const categoryDotColors: Record<string, string> = {
   entertainment: "bg-purple-300",
   web3_crypto: "bg-amber-300",
-  art_culture: "bg-pink-300",
+  art_culture: "bg-violet-300",
+  nightlife: "bg-pink-300",
   conference: "bg-emerald-300",
   fitness: "bg-orange-300",
   technology: "bg-indigo-300",
@@ -93,6 +91,7 @@ const fmt = (price: number) =>
     style: "currency",
     currency: "NGN",
     minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
   }).format(price);
 
 const STEPS = ["Tickets", "Details", "Payment", "Done"];
@@ -113,6 +112,7 @@ interface Props {
 }
 
 export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Props) {
+  const limitsFor = (tier: TicketTier) => ticketLimits(tier, event);
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -225,7 +225,8 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
       )
     : 0;
   const discountedSubtotal = subtotal - discount;
-  const fees = calculateTicketFees(discountedSubtotal);
+  const passFeeToAttendee = event.pass_fee_to_attendee !== false;
+  const fees = calculateTicketFees(discountedSubtotal, passFeeToAttendee);
   // Buyer-facing "service fee" = everything added on top of the subtotal
   // (Byro's 6.5% + the simulated Paystack cut), so the shown total equals what
   // Paystack will actually charge and no fee jumps at checkout.
@@ -379,7 +380,8 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
           quantity: totalQty,
           isFree: true,
         });
-        setStep(4);
+        onClose();
+        router.push("/order-confirmed");
         return;
       }
 
@@ -417,8 +419,6 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
     }
   };
 
-  const gradient =
-    categoryGradients[event.category] || categoryGradients.other;
   const dotColor =
     categoryDotColors[event.category] || "bg-gray-300";
   const badgeLabel =
@@ -540,95 +540,84 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
 
                 <div className="space-y-3">
                   {tiers.map((tier) => {
-                    // A group tier (admits_count > 1) is ONE ticket that admits
-                    // several people — quantity is locked at 1 (the admits count
-                    // becomes attendee slots, not extra tickets).
-                    const isGroupTier = Number(tier.admits_count) > 1;
                     const currentQty = quantities[String(tier.id)] || 0;
-                    const atCap = isGroupTier && currentQty >= 1;
+                    const { min, max } = limitsFor(tier);
+                    const cap = tier.remaining != null ? Math.min(max, tier.remaining) : max;
+                    const atCap = currentQty >= cap || (currentQty === 0 && tier.remaining != null && tier.remaining < min);
                     return (
-                    <div
-                      key={tier.id}
-                      className={`rounded-[18px] border p-4 flex items-center justify-between transition-colors ${
-                        (quantities[String(tier.id)] || 0) > 0
-                          ? "border-brand bg-[#F3F8FE]"
-                          : "border-hairline"
-                      }`}
-                    >
-                      <div>
-                        <p className="font-semibold text-ink text-sm">
-                          {tier.name}
-                        </p>
-                        <p className="text-xs text-muted mt-0.5">
-                          {showRemaining && tier.remaining != null && tier.remaining > 0 && (
-                            <span className="text-orange-500">{tier.remaining} left</span>
-                          )}
-                          {tier.remaining === 0 && (
-                            <span className="text-red-500">Sold out</span>
-                          )}
-                          {showRemaining && tier.remaining == null && tier.capacity != null && (
-                            <span>{tier.capacity} capacity</span>
-                          )}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-3 flex-shrink-0">
-                        <span className="font-semibold text-ink text-sm">
-                          {parseFloat(String(tier.price)) === 0 ? "Free" : fmt(parseFloat(String(tier.price)))}
-                        </span>
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() =>
-                              setQuantities((p) => ({
-                                ...p,
-                                [String(tier.id)]: Math.max(0, (p[String(tier.id)] || 0) - 1),
-                              }))
-                            }
-                            className="w-8 h-8 rounded-full border border-line flex items-center justify-center text-muted hover:bg-gray-50 transition-colors"
-                          >
-                            <svg
-                              width="13"
-                              height="13"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2.5"
-                            >
-                              <line x1="5" y1="12" x2="19" y2="12" />
-                            </svg>
-                          </button>
-                          <span className="w-5 text-center font-semibold text-ink text-sm">
-                            {quantities[String(tier.id)]}
-                          </span>
-                          <button
-                            onClick={() =>
-                              setQuantities((p) => {
-                                const cur = p[String(tier.id)] || 0;
-                                // A group tier is a single ticket — never exceed qty 1.
-                                if (isGroupTier && cur >= 1) return p;
-                                // Reset all other tiers to 0 — only one tier can be selected at a time
-                                const reset: Record<string, number> = {};
-                                tiers.forEach((t) => { reset[String(t.id)] = 0; });
-                                return { ...reset, [String(tier.id)]: cur + 1 };
-                              })
-                            }
-                            disabled={tier.remaining === 0 || atCap}
-                            className="w-8 h-8 rounded-full bg-brand flex items-center justify-center text-white hover:brightness-90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                          >
-                            <svg
-                              width="13"
-                              height="13"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2.5"
-                            >
-                              <line x1="12" y1="5" x2="12" y2="19" />
-                              <line x1="5" y1="12" x2="19" y2="12" />
-                            </svg>
-                          </button>
+                      <div
+                        key={tier.id}
+                        className={`rounded-[18px] border p-4 transition-colors ${
+                          currentQty > 0 ? "border-brand bg-[#F3F8FE]" : "border-hairline"
+                        }`}
+                      >
+                        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-ink">{tier.name}</p>
+                            {tier.description && (
+                              <p className="mt-0.5 break-words text-xs text-muted">{tier.description}</p>
+                            )}
+                            <p className="mt-0.5 text-xs text-muted">
+                              {showRemaining && tier.remaining != null && tier.remaining > 0 && (
+                                <span className="text-orange-500">{tier.remaining} left</span>
+                              )}
+                              {tier.remaining === 0 && <span className="text-red-500">Sold out</span>}
+                              {showRemaining && tier.remaining == null && tier.capacity != null && (
+                                <span>{tier.capacity} capacity</span>
+                              )}
+                            </p>
+                            {tier.remaining !== 0 && (
+                              <p className="mt-0.5 text-xs text-muted">{describeTicketLimits(tier, event)}</p>
+                            )}
+                          </div>
+                          <div className="flex shrink-0 items-center justify-between gap-3 md:justify-end">
+                            <span className="text-sm font-semibold text-ink">
+                              {parseFloat(String(tier.price)) === 0 ? "Free" : fmt(parseFloat(String(tier.price)))}
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                aria-label={`Fewer ${tier.name} tickets`}
+                                onClick={() =>
+                                  setQuantities((p) => ({
+                                    ...p,
+                                    [String(tier.id)]: stepDown(p[String(tier.id)] || 0, min),
+                                  }))
+                                }
+                                className="flex h-9 w-9 items-center justify-center rounded-full border border-line text-muted transition-colors hover:bg-mist"
+                              >
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
+                                  <line x1="5" y1="12" x2="19" y2="12" />
+                                </svg>
+                              </button>
+                              <span className="w-5 text-center text-sm font-semibold text-ink">{currentQty}</span>
+                              <button
+                                type="button"
+                                aria-label={`More ${tier.name} tickets`}
+                                onClick={() =>
+                                  setQuantities((p) => {
+                                    const cur = p[String(tier.id)] || 0;
+                                    // Bundled: the first press jumps to the tier's minimum, then one at a time up to its cap.
+                                    const next = stepUp(cur, min, cap);
+                                    if (next === cur) return p;
+                                    // Reset all other tiers to 0: only one tier can be selected at a time
+                                    const reset: Record<string, number> = {};
+                                    tiers.forEach((t) => { reset[String(t.id)] = 0; });
+                                    return { ...reset, [String(tier.id)]: next };
+                                  })
+                                }
+                                disabled={tier.remaining === 0 || atCap}
+                                className="flex h-9 w-9 items-center justify-center rounded-full bg-brand text-white transition-[filter] hover:brightness-90 disabled:cursor-not-allowed disabled:opacity-40"
+                              >
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
+                                  <line x1="12" y1="5" x2="12" y2="19" />
+                                  <line x1="5" y1="12" x2="19" y2="12" />
+                                </svg>
+                              </button>
+                            </div>
+                          </div>
                         </div>
                       </div>
-                    </div>
                     );
                   })}
                 </div>
@@ -971,36 +960,6 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
               </div>
             )}
 
-            {/* Step 4 – Done */}
-            {step === 4 && (
-              <div className="py-10 text-center">
-                <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-5">
-                  <svg
-                    width="30"
-                    height="30"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="#10b981"
-                    strokeWidth="2.5"
-                  >
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                </div>
-                <h1 className="text-2xl font-bold text-ink mb-2">
-                  You&apos;re in!
-                </h1>
-                <p className="text-muted text-sm mb-6 max-w-xs mx-auto">
-                  Your tickets have been confirmed. Check your email for your QR
-                  entry codes.
-                </p>
-                <button
-                  onClick={onClose}
-                  className="bg-brand text-white font-semibold px-8 py-3 rounded-full hover:brightness-90 transition-colors"
-                >
-                  Back to events
-                </button>
-              </div>
-            )}
           </div>
 
           {/* ── Right panel – Order summary ── */}
@@ -1019,9 +978,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                       className="object-cover"
                     />
                   ) : (
-                    <div
-                      className={`w-full h-full bg-gradient-to-br ${gradient}`}
-                    />
+                    <EventImageFallback category={event.category} tone="solid" />
                   )}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
                   <div className="absolute top-2.5 left-3">

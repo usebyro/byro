@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import EventImageFallback from "@/components/ui/EventImageFallback";
 import CheckoutModal from "@/components/checkout/CheckoutModal";
 import API from "@/services/api";
 
@@ -32,20 +33,11 @@ interface Event {
   tiers?: TicketTier[];
 }
 
-const categoryGradients: Record<string, string> = {
-  entertainment: "from-purple-700 via-purple-500 to-pink-500",
-  web3_crypto: "from-amber-600 via-amber-500 to-orange-400",
-  art_culture: "from-pink-700 via-pink-500 to-rose-400",
-  conference: "from-emerald-700 via-emerald-600 to-teal-500",
-  fitness: "from-orange-600 via-amber-500 to-yellow-400",
-  technology: "from-indigo-700 via-indigo-500 to-violet-400",
-  other: "from-gray-600 via-gray-500 to-slate-400",
-};
-
 const categoryDotColors: Record<string, string> = {
   entertainment: "bg-purple-300",
   web3_crypto: "bg-amber-300",
-  art_culture: "bg-pink-300",
+  art_culture: "bg-violet-300",
+  nightlife: "bg-pink-300",
   conference: "bg-emerald-300",
   fitness: "bg-orange-300",
   technology: "bg-indigo-300",
@@ -55,7 +47,8 @@ const categoryDotColors: Record<string, string> = {
 const categoryLabels: Record<string, string> = {
   entertainment: "CONCERTS & MUSIC",
   web3_crypto: "WEB3 & CRYPTO",
-  art_culture: "NIGHTLIFE & PARTIES",
+  art_culture: "ART & CULTURE",
+  nightlife: "NIGHTLIFE & PARTIES",
   conference: "CONFERENCES",
   fitness: "SPORTS",
   technology: "TECHNOLOGY",
@@ -89,6 +82,7 @@ const formatPrice = (price: number) =>
     style: "currency",
     currency: "NGN",
     minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
   }).format(price);
 
 const EventCard = ({ event }: { event: Event }) => {
@@ -115,7 +109,6 @@ const EventCard = ({ event }: { event: Event }) => {
   };
 
   const isSoldOut = event.is_sold_out ?? false;
-  const gradient = categoryGradients[event.category] || categoryGradients.other;
   const dotColor = categoryDotColors[event.category] || "bg-gray-300";
   const badgeLabel =
     event.category_display?.toUpperCase() ||
@@ -148,7 +141,7 @@ const EventCard = ({ event }: { event: Event }) => {
               onError={() => setImageError(true)}
             />
           ) : (
-            <div className={`w-full h-full bg-gradient-to-br ${gradient}`} />
+            <EventImageFallback category={event.category} tone="solid" />
           )}
 
           {/* Bottom gradient overlay */}

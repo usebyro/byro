@@ -97,7 +97,8 @@ type Tone = { label: string; ink: string; bg: string; text: string };
 
 const TONES: Record<string, Tone> = {
   entertainment: { label: "Concerts & music", ink: "#3669F6", bg: "#E6F2FC", text: "#2451D6" },
-  art_culture: { label: "Nightlife", ink: "#D0668E", bg: "#FCECEE", text: "#8C2E52" },
+  nightlife: { label: "Nightlife", ink: "#D0668E", bg: "#FCECEE", text: "#8C2E52" },
+  art_culture: { label: "Art & culture", ink: "#C9971C", bg: "#FFFDE9", text: "#8A6508" },
   fitness: { label: "Sports & fitness", ink: "#2F9E6E", bg: "#E9F7EF", text: "#1F7A52" },
   conference: { label: "Conferences", ink: "#3669F6", bg: "#E6F2FC", text: "#2451D6" },
   technology: { label: "Technology", ink: "#5B6272", bg: "#F3F6FB", text: "#3B4252" },

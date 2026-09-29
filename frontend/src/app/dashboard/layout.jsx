@@ -1,20 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Home01Icon,
-  QrCodeIcon,
   Money01Icon,
-  Settings01Icon,
   ArrowLeft01Icon,
   Ticket01Icon,
   Menu01Icon,
   Cancel01Icon,
   UserCircleIcon,
+  ShoppingBag01Icon,
 } from "@hugeicons/core-free-icons";
 import { Providers } from "@/redux/Providers";
 import { useSelector, useDispatch } from "react-redux";
@@ -25,10 +24,9 @@ import NotificationBell from "@/components/dashboard/NotificationBell";
 const NAV = [
   { label: "Overview", href: "/dashboard/overview", icon: Home01Icon,     exact: true },
   { label: "Events",    href: "/dashboard/events",   icon: Ticket01Icon },
-  { label: "Check-in", href: "/dashboard/check-in", icon: QrCodeIcon },
+  { label: "Merch",    href: "/dashboard/merch",    icon: ShoppingBag01Icon },
   { label: "Payouts",  href: "/dashboard/payouts",  icon: Money01Icon },
   { label: "Profile",  href: "/dashboard/profile",  icon: UserCircleIcon },
-  { label: "Settings", href: "/dashboard/settings", icon: Settings01Icon },
 ];
 
 function StudioShell({ children }) {
@@ -36,6 +34,7 @@ function StudioShell({ children }) {
   const router   = useRouter();
   const dispatch = useDispatch();
   const user     = useSelector((s) => s.auth?.user);
+  const token    = useSelector((s) => s.auth?.token);
 
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -47,15 +46,31 @@ function StudioShell({ children }) {
     setMobileOpen(false);
   }
 
+  // The dashboard is organiser-only. A visitor with no session — e.g. hitting
+  // usebyro.com/dashboard directly — gets bounced to login, and back to
+  // whatever dashboard page they wanted once they sign in.
+  useEffect(() => {
+    if (!token) {
+      router.replace(`/login?redirect=${encodeURIComponent(pathname)}`);
+    }
+  }, [token, pathname, router]);
+
   const handleLogout = () => {
     dispatch(signOut());
     router.push("/");
   };
 
+  if (!token) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#F5F7FB]">
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-600" />
+      </div>
+    );
+  }
+
   const renderSidebarContent = (collapsed, closeMobile = null) => {
     return (
       <>
-        {/* Logo / Header */}
         <div className={`h-[60px] flex items-center border-b border-gray-100 shrink-0 px-4 ${collapsed ? "justify-center" : "justify-between"}`}>
           {!collapsed && (
             <div className="flex items-center gap-2">
@@ -66,13 +81,12 @@ function StudioShell({ children }) {
                 height={20}
                 className="h-[18px] w-auto"
               />
-              <span className="text-[9px] font-bold text-[#4F6EF7] bg-[#EEF2FF] px-2 py-0.5 rounded tracking-widest uppercase">
-                Studio
+              <span className="text-[11px] font-bold text-[#4F6EF7] bg-[#EEF2FF] px-2 py-0.5 rounded">
+                Dashboard
               </span>
             </div>
           )}
           
-          {/* Desktop collapse button */}
           {!closeMobile && (
             <button
               onClick={() => setIsCollapsed(!isCollapsed)}
@@ -85,7 +99,6 @@ function StudioShell({ children }) {
             </button>
           )}
 
-          {/* Mobile close button */}
           {closeMobile && (
             <button
               onClick={closeMobile}
@@ -97,7 +110,6 @@ function StudioShell({ children }) {
           )}
         </div>
 
-        {/* Nav */}
         <nav className="flex-1 px-3 py-3 space-y-0.5 overflow-y-auto">
           {NAV.map((item) => {
             const active = item.exact
@@ -123,7 +135,6 @@ function StudioShell({ children }) {
           })}
         </nav>
 
-        {/* Exit dashboard */}
         <div className={`border-t border-gray-100 shrink-0 ${collapsed ? "p-2 text-center" : "px-3 pb-4 pt-2.5"}`}>
           <Link
             href="/"
@@ -143,14 +154,12 @@ function StudioShell({ children }) {
   return (
     <div className="flex h-screen overflow-hidden bg-[#F5F7FB]">
 
-      {/* Desktop sidebar */}
       <aside className={`bg-white border-r border-gray-100 flex flex-col shrink-0 transition-all duration-300 ${
         isCollapsed ? "w-[72px]" : "w-[220px]"
       } hidden md:flex`}>
         {renderSidebarContent(isCollapsed)}
       </aside>
 
-      {/* Mobile drawer + backdrop */}
       {mobileOpen && (
         <div className="md:hidden fixed inset-0 z-50 flex">
           <div
@@ -163,13 +172,10 @@ function StudioShell({ children }) {
         </div>
       )}
 
-      {/* ── Main ── */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
 
-        {/* Top bar */}
         <header className="h-[56px] bg-white border-b border-gray-100 flex items-center px-4 sm:px-6 gap-2 sm:gap-4 shrink-0">
           
-          {/* Mobile hamburger button */}
           <button
             onClick={() => setMobileOpen(true)}
             className="md:hidden p-2 text-gray-500 hover:text-gray-800 rounded-lg hover:bg-gray-50 transition-colors"
@@ -199,7 +205,6 @@ function StudioShell({ children }) {
           <UserMenu user={user} onLogout={handleLogout} size="sm" />
         </header>
 
-        {/* Page content */}
         <main className="flex-1 overflow-y-auto">
           {children}
         </main>

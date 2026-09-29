@@ -18,7 +18,7 @@ export default function EditEventPage() {
     API.getEvent(slug)
       .then((data) => {
         // Check the user has permission to edit
-        if (!data?.role?.is_owner && !data?.role?.is_cohost) {
+        if (!data?.role?.can_edit) {
           toast.error("You don't have permission to edit this event");
           router.push(`/discover/${slug}`);
           return;

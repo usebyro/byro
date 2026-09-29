@@ -2,7 +2,7 @@
  * Single source of truth for Byro's ticket pricing on the frontend.
  * Mirrors Backend/bryo/pricing.py exactly.
  *
- * - Byro service fee = 6.5% of the ticket subtotal (Byro's revenue).
+ * - Byro service fee = 5% of the ticket subtotal (Byro's revenue).
  * - The amount SENT to Paystack is `subtotal + serviceFee` (the `total` field).
  *   Paystack adds its own charge on top of that at checkout (fees borne by the
  *   customer), so the buyer pays a little more than `total`.
@@ -18,7 +18,7 @@
  * The backend recomputes everything itself, so these values are for display.
  */
 
-const FEE_RATE = 0.065;
+const FEE_RATE = 0.05;
 
 // Paystack local-transaction fee parameters (for simulation only).
 const PAYSTACK_RATE = 0.015;
@@ -50,13 +50,19 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
-export function calculateTicketFees(subtotal: number): TicketFees {
+/**
+ * When `passFeeToAttendee` is false, the organizer absorbs Byro's service
+ * fee: `serviceFee` is still reported (so it can be shown as deducted from
+ * the organizer's payout), but it is NOT added to `total` / `displayTotal` -
+ * the attendee only pays the subtotal (plus Paystack's own fee).
+ */
+export function calculateTicketFees(subtotal: number, passFeeToAttendee: boolean = true): TicketFees {
   if (subtotal <= 0) {
     return { subtotal: 0, serviceFee: 0, total: 0, paystackFee: 0, displayTotal: 0 };
   }
 
   const serviceFee = Math.round(subtotal * FEE_RATE);
-  const total = subtotal + serviceFee;
+  const total = passFeeToAttendee ? subtotal + serviceFee : subtotal;
   const paystackFee = simulatePaystackFee(total);
   const displayTotal = total + paystackFee;
 

@@ -75,30 +75,30 @@ const faqs = [
   },
 ];
 
-const FEE_RATE = 0.08;
-const FEE_FLAT = 100;
+const FEE_RATE = 0.05;
 
 function formatNaira(amount) {
   return `₦${amount.toLocaleString("en-NG", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
   })}`;
 }
 
 function PayoutCalculator() {
   const [price, setPrice] = useState(10000);
   const [quantity, setQuantity] = useState(50);
+  const [attendeePaysFee, setAttendeePaysFee] = useState(true);
 
   const { grossRevenue, totalFee, payout } = useMemo(() => {
     const p = Number(price) || 0;
     const q = Number(quantity) || 0;
-    const fee = p * FEE_RATE + FEE_FLAT;
+    const feePerTicket = attendeePaysFee ? 0 : p * FEE_RATE;
     return {
       grossRevenue: p * q,
-      totalFee: fee * q,
-      payout: (p - fee) * q,
+      totalFee: feePerTicket * q,
+      payout: (p - feePerTicket) * q,
     };
-  }, [price, quantity]);
+  }, [price, quantity, attendeePaysFee]);
 
   const handleNumberChange = (setter) => (e) => {
     const val = e.target.value;
@@ -150,6 +150,25 @@ function PayoutCalculator() {
             </div>
           </label>
         </div>
+
+        <div className="flex items-center justify-between bg-white/5 border border-slate-800 rounded-xl px-3.5 py-3 mb-6">
+          <span className="text-[11px] font-semibold text-slate-300">
+            I absorb fee
+          </span>
+          <button
+            type="button"
+            onClick={() => setAttendeePaysFee((v) => !v)}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+              !attendeePaysFee ? "bg-[#4F6EF7]" : "bg-slate-700"
+            }`}
+          >
+            <span
+              className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                !attendeePaysFee ? "translate-x-6" : "translate-x-1"
+              }`}
+            />
+          </button>
+        </div>
       </div>
 
       <div className="space-y-4">
@@ -163,7 +182,7 @@ function PayoutCalculator() {
         </div>
         <div className="flex justify-between items-center pb-4 border-b border-slate-800">
           <span className="text-xs text-slate-300">
-            Platform fee (8% + ₦100 per ticket)
+            Platform fee (5% per ticket)
           </span>
           <span className="text-sm font-bold text-[#4F6EF7]">
             −{formatNaira(totalFee)}
@@ -175,9 +194,8 @@ function PayoutCalculator() {
           </span>
           <span className="text-lg font-black">{formatNaira(payout)}</span>
         </div>
-        <p className="text-[10px] text-slate-500 leading-relaxed">
-          Shown assuming you absorb the fee. You can instead pass it on to
-          attendees at checkout. The choice is always yours.
+        <p className="text-[10px] text-slate-500 leading-relaxed text-center">
+          Final payment charge is dependent on payment gateway.
         </p>
       </div>
     </div>
@@ -249,7 +267,7 @@ export default function PricingPage() {
                   <span className="text-5xl sm:text-6xl font-black text-white">Free</span>
                 </div>
                 <p className="text-slate-400 text-xs mt-1 mb-6">
-                  8% + ₦100 per paid ticket sold
+                  5% per paid ticket sold
                 </p>
               </div>
 

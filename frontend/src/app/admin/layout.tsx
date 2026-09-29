@@ -10,6 +10,7 @@ import {
   DashboardSquare01Icon,
   Wallet01Icon,
   UserMultipleIcon,
+  UserGroupIcon,
   Menu01Icon,
   Cancel01Icon,
 } from "@hugeicons/core-free-icons";
@@ -21,6 +22,7 @@ const navItems = [
   { label: "Events", href: "/events", icon: Calendar03Icon },
   { label: "Users", href: "/users", icon: UserMultipleIcon },
   { label: "Payouts", href: "/payouts", icon: Wallet01Icon },
+  { label: "Team", href: "/team", icon: UserGroupIcon },
 ];
 
 function isActive(pathname: string, href: string) {

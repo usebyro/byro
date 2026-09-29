@@ -12,6 +12,9 @@ const nextConfig: NextConfig = {
   },
   images: {
     formats: ['image/avif', 'image/webp'],
+    // Next 16 refuses to optimise images served from localhost. Allow it in dev
+    // only, so uploads from the local backend (localhost:8000) show up.
+    dangerouslyAllowLocalIP: process.env.NODE_ENV === 'development',
     remotePatterns: [
       {
         protocol: 'https',
@@ -55,8 +58,18 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [
       {
+        // Only on the main site. next.config redirects run before
+        // middleware.ts, so without this guard the admin subdomain's
+        // "/events" (meant to be rewritten to "/admin/events") gets
+        // hijacked by this rule and sent to the public /home page instead.
         source: '/events',
         destination: '/home',
+        permanent: true,
+        missing: [{ type: 'host', value: 'admin.usebyro.com' }],
+      },
+      {
+        source: '/ticket-confirmation',
+        destination: '/order-confirmed',
         permanent: true,
       },
     ];
