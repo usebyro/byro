@@ -4,6 +4,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import Script from "next/script";
 import { Providers } from "@/redux/Providers";
 import { Toaster } from 'sonner';
+import { displayFont, bodyFont } from "@/components/brand/fonts";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -46,7 +47,7 @@ export const metadata: Metadata = {
       "Create communities. Discover events. Create memories. Byro is the community events platform built for organisers and attendees.",
     images: [
       {
-        url: "/assets/waitlist.png",
+        url: "/og-image.png",
         width: 1200,
         height: 630,
         alt: "Byro. Community Events Platform",
@@ -58,7 +59,7 @@ export const metadata: Metadata = {
     title: "Byro. Build Communities and Discover Events",
     description:
       "Create communities. Discover events. Create memories. Byro is the community events platform built for organisers and attendees.",
-    images: ["/assets/waitlist.png"],
+    images: ["/og-image.png"],
     creator: "@byroafrica",
   },
   robots: {
@@ -122,7 +123,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         gtag('config', 'G-PKLCDNL7QC');
       `}</Script>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} ${displayFont.variable} ${bodyFont.variable} antialiased`}
       >
         <script
           type="application/ld+json"

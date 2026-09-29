@@ -1,12 +1,5 @@
-import { Bricolage_Grotesque } from "next/font/google";
+import { displayFont } from "@/components/brand/fonts";
 
-export const display = Bricolage_Grotesque({
-  subsets: ["latin"],
-  variable: "--font-hero-display",
-  axes: ["opsz", "wdth"],
-});
-
-export const displayStyle = {
-  fontFamily: "var(--font-hero-display), sans-serif",
-  fontVariationSettings: "'wdth' 85",
-} as const;
+/** Kept so older imports keep working; the font variables now live on <body>. */
+export const display = displayFont;
+export const displayStyle = { fontFamily: "var(--font-display), sans-serif" } as const;

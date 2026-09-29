@@ -29,7 +29,7 @@ export default function UserMenu({
   size = "md",
   className = "",
 }) {
-  const sizeClasses = size === "sm" ? "w-8 h-8 text-xs" : "w-9 h-9 text-sm";
+  const sizeClasses = size === "sm" ? "w-11 h-11 text-sm font-bold" : "w-11 h-11 text-sm font-bold";
   const avatarUrl = user?.avatar_url || user?.avatarUrl || null;
 
   return (
@@ -40,8 +40,8 @@ export default function UserMenu({
           aria-label="Account menu"
           className={cn(
             "rounded-full text-white flex items-center justify-center font-medium shrink-0 select-none overflow-hidden",
-            !avatarUrl && "bg-gradient-to-br from-violet-500 to-purple-700",
-            "hover:opacity-90 transition-opacity focus:outline-none focus:ring-2 focus:ring-blue-200",
+            !avatarUrl && "bg-brand",
+            "hover:opacity-90 transition-opacity focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2",
             sizeClasses,
             className
           )}

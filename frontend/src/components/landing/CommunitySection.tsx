@@ -1,28 +1,34 @@
 import Link from "next/link";
-import { displayStyle } from "./fonts";
 import { Reveal } from "./Reveal";
 
-const CommunitySection = () => (
-  <section className="bg-white px-4 py-20 sm:px-6 sm:py-28 lg:px-8">
-    <Reveal className="mx-auto max-w-6xl">
-    <div className="flex w-full max-w-6xl flex-col items-start justify-between gap-8 rounded-3xl bg-[#2563EB] p-6 text-white sm:p-14 md:flex-row md:items-center">
-      <div>
-        <h2 className="text-[2rem] font-extrabold leading-[1.05] tracking-[-0.02em] sm:text-5xl" style={displayStyle}>
-          Hosting something?
-        </h2>
-        <p className="mt-4 max-w-md text-base leading-relaxed text-white/80">
-          Sell tickets, keep your crowd together, and give every guest a badge to remember it by.
-        </p>
-      </div>
-      <Link
-        href="/events/create"
-        className="w-full flex-shrink-0 rounded-xl bg-white px-7 text-center md:w-auto py-3.5 text-sm font-semibold text-[#0F172A] transition-colors hover:bg-[#FFC93C] focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#2563EB]"
-      >
-        Create an event
-      </Link>
-    </div>
-    </Reveal>
-  </section>
-);
-
-export default CommunitySection;
+export default function FinalCta() {
+  return (
+    <section className="mx-auto max-w-[1440px] px-4 pt-16 md:px-12 md:pt-[130px] xl:px-24">
+      <Reveal>
+        <div className="relative flex flex-col items-center justify-center gap-5 overflow-hidden rounded-[30px] bg-brand px-[22px] py-10 text-center text-white md:h-[380px] md:gap-6 md:rounded-[40px] md:py-0">
+          <span aria-hidden="true" className="absolute -left-5 -top-5 h-[100px] w-[100px] -rotate-12 rounded-full border-4 border-double border-white/35 md:left-[70px] md:top-[60px] md:h-[120px] md:w-[120px] md:border-[5px]" />
+          <span aria-hidden="true" className="absolute bottom-[50px] right-[90px] hidden h-[110px] w-[150px] rotate-[8deg] rounded-3xl border-[5px] border-double border-white/35 md:block" />
+          <span aria-hidden="true" className="absolute right-[220px] top-10 hidden h-[70px] w-[70px] rounded-full border-4 border-double border-white/30 md:block" />
+          <h2 className="relative text-balance font-display text-4xl font-bold leading-[1.02] tracking-[-0.035em] md:text-[72px] md:leading-none md:tracking-[-0.04em]">
+            Your next stamp is
+            <br className="hidden md:block" /> one ticket away.
+          </h2>
+          <div className="relative flex w-full flex-col gap-3 md:w-auto md:flex-row">
+            <Link
+              href="/discover"
+              className="flex h-[50px] items-center justify-center rounded-full bg-white px-7 text-[15px] font-bold text-ink transition-[filter,scale] hover:brightness-95 active:scale-[0.96] focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-brand md:h-[54px] md:text-base"
+            >
+              Find events
+            </Link>
+            <Link
+              href="/events/create"
+              className="hidden h-[54px] items-center justify-center rounded-full border-[1.5px] border-white/60 px-7 text-base font-bold text-white transition-[background-color,scale] hover:bg-white/10 active:scale-[0.96] focus:outline-none focus-visible:ring-2 focus-visible:ring-white md:flex"
+            >
+              Create an event
+            </Link>
+          </div>
+        </div>
+      </Reveal>
+    </section>
+  );
+}

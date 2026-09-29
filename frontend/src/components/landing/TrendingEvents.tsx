@@ -1,120 +1,80 @@
-"use client";
+import Link from "next/link";
+import { PosterTile } from "@/components/brand/EventTile";
+import EventImage from "@/components/brand/EventImage";
+import { dayParts, formatTime, priceLabel, type EventLike } from "@/lib/eventFormat";
+import { Reveal } from "./Reveal";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import axiosInstance from "@/utils/axios";
-import EventCard from "./EventCard";
-import { displayStyle } from "./fonts";
-
-interface Event {
-  id: number;
-  slug: string;
-  name: string;
-  category: string;
-  category_display?: string;
-  day: string;
-  time_from: string;
-  time_to: string;
-  location: string;
-  ticket_price: number;
-  event_image_url?: string;
-  is_active: boolean;
+/** Layout of the small tiles by how many events there are, so the grid never leaves holes. */
+function tileSpan(total: number, index: number) {
+  if (total === 2) return "md:col-span-2 md:row-span-2";
+  if (total === 3) return "md:col-span-2 md:row-span-1";
+  if (total === 4) return index === 0 ? "md:col-span-2 md:row-span-1" : "md:col-span-1 md:row-span-1";
+  return "md:col-span-1 md:row-span-1";
 }
 
-interface Props {
-  initialEvents?: Event[];
-}
-
-const TrendingEvents = ({ initialEvents }: Props) => {
-  const router = useRouter();
-  const [events, setEvents] = useState<Event[]>(initialEvents ?? []);
-  const [loading, setLoading] = useState(!initialEvents);
-
-  useEffect(() => {
-    // Skip client-side fetch if the server already provided data
-    if (initialEvents) return;
-
-    const fetchEvents = async () => {
-      try {
-        const response = await axiosInstance.get("events/");
-        const data = response.data;
-        const raw = Array.isArray(data) ? data : data.events || data.data || [];
-        const seen = new Set<number>();
-        const eventList = raw.filter((e: Event) => {
-          if (seen.has(e.id)) return false;
-          seen.add(e.id);
-          return true;
-        });
-        setEvents(eventList.slice(0, 4));
-      } catch (error) {
-        console.error("Error fetching events:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchEvents();
-  }, [initialEvents]);
-
-  if (loading) {
-    return (
-      <section className="py-16 sm:py-24 bg-white">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="animate-pulse">
-            <div className="h-4 w-32 bg-gray-200 rounded mb-3" />
-            <div className="h-8 w-48 bg-gray-200 rounded mb-8" />
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              {[...Array(4)].map((_, i) => (
-                <div key={i} className="bg-white rounded-2xl overflow-hidden border border-gray-100">
-                  <div className="h-44 bg-gray-100" />
-                  <div className="p-4 space-y-3">
-                    <div className="h-5 bg-gray-100 rounded w-3/4" />
-                    <div className="h-4 bg-gray-100 rounded w-1/2" />
-                    <div className="h-4 bg-gray-100 rounded w-2/3" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-    );
-  }
+export default function TrendingEvents({ events }: { events: EventLike[] }) {
+  const [featured, ...rest] = events;
+  const small = rest.slice(0, 4);
 
   return (
-    <section className="py-16 sm:py-24 bg-white">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-end justify-between mb-10">
-          <h2 className="text-3xl sm:text-5xl font-extrabold tracking-[-0.02em] text-[#0F172A]" style={displayStyle}>
-            Coming up
-          </h2>
-          <button
-            onClick={() => router.push("/discover")}
-            className="text-sm font-semibold text-[#2563EB] underline underline-offset-4 hover:brightness-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] rounded"
-          >
-            See all events
-          </button>
-        </div>
+    <section className="mx-auto max-w-[1440px] px-4 pt-16 md:px-12 md:pt-[120px] xl:px-24">
+      <Reveal className="flex items-end justify-between gap-4">
+        <h2 className="font-display text-4xl font-bold leading-none tracking-[-0.035em] md:text-[56px]">
+          This week,
+          <br />
+          <span className="text-faint">near you.</span>
+        </h2>
+        <Link
+          href="/discover"
+          className="flex h-12 shrink-0 items-center gap-2 rounded-full border border-line px-5 text-[15px] font-bold text-ink transition-colors hover:bg-mist focus:outline-none focus-visible:ring-2 focus-visible:ring-brand md:px-[22px]"
+        >
+          <span>
+            See all<span className="hidden md:inline"> events</span>
+          </span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M5 12h14M13 6l6 6-6 6" />
+          </svg>
+        </Link>
+      </Reveal>
 
-        {events.length === 0 ? (
-          <div className="text-center py-12">
-            <p className="text-gray-500 text-lg">No events available yet.</p>
-            <button
-              onClick={() => router.push("/events/create")}
-              className="mt-4 text-blue-600 font-medium hover:text-blue-700"
-            >
-              Create the first event
-            </button>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {events.map((event) => (
-              <EventCard key={event.id} event={event} />
+      {!featured ? (
+        <div className="mt-9 flex flex-col items-start gap-3 rounded-[30px] bg-mist p-8 md:p-12">
+          <p className="font-display text-2xl font-bold">No events yet</p>
+          <p className="text-muted">Be the first to put something on the calendar.</p>
+          <Link href="/events/create" className="mt-2 flex h-12 items-center rounded-full bg-brand px-6 font-bold text-white transition-[filter] hover:brightness-90">
+            Create an event
+          </Link>
+        </div>
+      ) : (
+        <Reveal className="mt-9">
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-4 md:grid-rows-[300px_300px]">
+            <PosterTile
+              event={featured}
+              featured
+              className={`h-[360px] md:h-auto ${small.length === 0 ? "md:col-span-4 md:row-span-2" : "md:col-span-2 md:row-span-2"}`}
+            />
+            {small.map((e, i) => (
+              <PosterTile key={e.slug} event={e} className={`hidden ${tileSpan(events.length, i)} md:block`} />
+            ))}
+            {small.map((e) => (
+              <Link key={`row-${e.slug}`} href={`/discover/${e.slug}`} className="flex items-center gap-3.5 md:hidden">
+                <span className="relative h-[88px] w-[88px] shrink-0 overflow-hidden rounded-[18px]">
+                  <EventImage event={e} sizes="88px" />
+                </span>
+                <span className="flex min-w-0 flex-col gap-0.5">
+                  <span className="text-xs font-extrabold uppercase text-brand">
+                    {dayParts(e.day).short} · {formatTime(e.time_from)}
+                  </span>
+                  <span className="truncate font-display text-lg font-bold">{e.name}</span>
+                  <span className="truncate text-[13px] text-muted">
+                    {e.location} · {priceLabel(e)}
+                  </span>
+                </span>
+              </Link>
             ))}
           </div>
-        )}
-      </div>
+        </Reveal>
+      )}
     </section>
   );
-};
-
-export default TrendingEvents;
+}

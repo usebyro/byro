@@ -1,63 +1,28 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { useRouter } from "next/navigation";
-import Image from "next/image";
-import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  Share01Icon,
-  Location01Icon,
-  Calendar01Icon,
-  MusicNote01Icon,
-  Moon02Icon,
-  FootballIcon,
-  Mic01Icon,
-  HappyIcon,
-  FireworksIcon,
-} from "@hugeicons/core-free-icons";
+import Link from "next/link";
+import { FaXTwitter, FaInstagram, FaLinkedinIn, FaTelegram } from "react-icons/fa6";
 import API from "@/services/api";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { toast } from "sonner";
 import ShareMenu from "@/components/ShareMenu";
-import { FaXTwitter, FaInstagram, FaLinkedinIn, FaTelegram } from "react-icons/fa6";
+import EventImage from "@/components/brand/EventImage";
+import { categoryTone, dayParts, eventInitials, formatTime, priceLabel } from "@/lib/eventFormat";
 
-const CATEGORY_ICONS = {
-  entertainment: MusicNote01Icon,
-  art_culture: Moon02Icon,
-  fitness: FootballIcon,
-  conference: Mic01Icon,
-  comedy: HappyIcon,
-  festivals: FireworksIcon,
-};
+const INKS = ["#3669F6", "#D0668E", "#2F9E6E", "#C9971C", "#1F2A44"];
+const TINTS = ["#E6F2FC", "#FCECEE", "#E9F7EF", "#FFFDE9", "#F3F6FB"];
+const hashOf = (s) => [...s].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7);
 
-const CATEGORY_LABELS = {
-  entertainment: "CONCERTS & MUSIC",
-  web3_crypto: "WEB3 & CRYPTO",
-  art_culture: "NIGHTLIFE & PARTIES",
-  conference: "CONFERENCES",
-  fitness: "SPORTS",
-  technology: "TECHNOLOGY",
-  other: "OTHER",
-};
-
-const fmtPrice = (price) => {
-  return new Intl.NumberFormat("en-NG", {
-    style: "currency",
-    currency: "NGN",
-    minimumFractionDigits: 0,
-  }).format(price);
-};
+const pill =
+  "flex h-10 items-center gap-2 rounded-full border border-line bg-white px-3.5 text-[13px] font-bold text-ink transition-colors hover:bg-paper focus:outline-none focus-visible:ring-2 focus-visible:ring-brand";
 
 export default function PublicProfileClient({ username }) {
-  const router = useRouter();
   const [profile, setProfile] = useState(null);
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [isFollowing, setIsFollowing] = useState(false);
-  const [activeTab, setActiveTab] = useState("upcoming");
-  const [avatarError, setAvatarError] = useState(false);
+  const [tab, setTab] = useState("upcoming");
 
   useEffect(() => {
     if (!username) return;
@@ -106,431 +71,239 @@ export default function PublicProfileClient({ username }) {
 
     events.forEach((evt) => {
       const evtDate = new Date(`${evt.day}T${evt.time_from || "00:00:00"}`);
-      if (evtDate >= now) {
-        upcoming.push(evt);
-      } else {
-        past.push(evt);
-      }
+      if (evtDate >= now) upcoming.push(evt);
+      else past.push(evt);
     });
 
-    // Sort upcoming events ascending (soonest first)
     upcoming.sort((a, b) => new Date(a.day) - new Date(b.day));
-    // Sort past events descending (most recent first)
     past.sort((a, b) => new Date(b.day) - new Date(a.day));
 
     return { upcomingEvents: upcoming, pastEvents: past };
   }, [events]);
 
-  const handleFollowToggle = () => {
-    setIsFollowing((f) => !f);
-    toast.success(isFollowing ? `Unfollowed ${profile?.display_name}` : `Following ${profile?.display_name}`);
-  };
-
   if (loading) {
     return (
-      <div className="flex flex-col min-h-screen bg-[#F8F9FA]">
+      <div className="flex min-h-screen flex-col bg-white font-body">
         <Navbar />
-        <div className="flex-1 flex items-center justify-center py-20">
-          <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-blue-600" />
+        <div className="mx-auto w-full max-w-[1440px] animate-pulse px-4 pt-6 md:px-12 xl:px-24">
+          <div className="h-[200px] rounded-[30px] bg-mist md:h-[300px] md:rounded-[36px]" />
+          <div className="mt-6 h-12 w-1/2 rounded-2xl bg-mist" />
+          <div className="mt-4 h-24 rounded-3xl bg-mist" />
         </div>
-        <Footer />
       </div>
     );
   }
 
   if (error || !profile) {
     return (
-      <div className="flex flex-col min-h-screen bg-[#F8F9FA]">
+      <div className="flex min-h-screen flex-col bg-white font-body text-ink">
         <Navbar />
-        <div className="flex-1 flex flex-col items-center justify-center py-20 text-center px-4">
-          <h1 className="text-2xl font-bold text-gray-800 mb-2">Profile Not Found</h1>
-          <p className="text-gray-500 mb-6">The organizer profile you are looking for does not exist.</p>
-          <button
-            onClick={() => router.push("/")}
-            className="px-6 py-2.5 bg-blue-600 text-white rounded-full font-semibold hover:bg-blue-700 transition-colors shadow-sm"
-          >
-            Go to Home
-          </button>
+        <div className="mx-auto flex w-full max-w-xl flex-1 flex-col items-start gap-4 px-4 pt-20 md:px-8">
+          <h1 className="font-display text-[44px] font-bold leading-none tracking-[-0.04em] md:text-6xl">Community not found</h1>
+          <p className="text-lg leading-relaxed text-muted">We couldn&apos;t find that organiser. The link may be wrong, or the page may have moved.</p>
+          <Link href="/communities" className="mt-2 flex h-[52px] items-center rounded-full bg-brand px-7 text-base font-bold text-white transition-[filter,scale] hover:brightness-90 active:scale-[0.96]">
+            Browse communities
+          </Link>
         </div>
         <Footer />
       </div>
     );
   }
 
-  const initials = `${profile.display_name?.[0] || profile.handle?.[0] || "?"}`.toUpperCase();
-  const categoriesList = Array.from(new Set(events.map((e) => e.category))).filter(Boolean);
+  const name = profile.display_name || profile.handle || username;
+  const slot = hashOf(profile.handle || username) % INKS.length;
+  const ink = INKS[slot];
+  const tint = TINTS[slot];
+  const cover = upcomingEvents.find((e) => e.event_image_url) || events.find((e) => e.event_image_url) || null;
+  const categoryLabels = [...new Set(events.map((e) => e.category).filter(Boolean))].map((c) => categoryTone(c).label);
+  const meta = [`@${profile.handle || username}`, profile.location, categoryLabels[0]].filter(Boolean).join(" · ");
+
+  const socials = [
+    profile.instagram && { label: "Instagram", href: `https://instagram.com/${profile.instagram}`, icon: <FaInstagram size={17} color="#B23E68" aria-hidden="true" /> },
+    profile.twitter && { label: "X", href: `https://x.com/${profile.twitter}`, icon: <FaXTwitter size={15} color="#14161C" aria-hidden="true" /> },
+    profile.telegram && { label: "Telegram", href: `https://t.me/${profile.telegram}`, icon: <FaTelegram size={17} color="#229ED9" aria-hidden="true" /> },
+    profile.linkedin && { label: "LinkedIn", href: `https://linkedin.com/in/${profile.linkedin}`, icon: <FaLinkedinIn size={16} color="#0A66C2" aria-hidden="true" /> },
+    profile.website && {
+      label: "Website",
+      href: profile.website,
+      icon: (
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#14161C" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="9" />
+          <path d="M3 12h18M12 3c2.5 2.7 2.5 15.3 0 18M12 3c-2.5 2.7-2.5 15.3 0 18" />
+        </svg>
+      ),
+    },
+  ].filter(Boolean);
+
+  const stats = [
+    { value: events.length, label: events.length === 1 ? "event hosted" : "events hosted" },
+    { value: upcomingEvents.length, label: "coming up" },
+    { value: pastEvents.length, label: "past events" },
+  ];
+
+  const seg = (on) =>
+    `h-10 rounded-full px-4 text-sm font-bold text-ink transition-[background-color,box-shadow] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
+      on ? "bg-white shadow-[0_4px_14px_rgba(20,22,28,0.10)]" : "hover:bg-white/60"
+    }`;
 
   return (
-    <div className="flex flex-col min-h-screen bg-[#F8F9FA]">
+    <div className="flex min-h-screen flex-col bg-white font-body text-ink">
       <Navbar />
 
-      {/* ── Banner Section ── */}
-      <div className="relative w-full h-[220px] md:h-[280px] bg-gradient-to-r from-[#310E3D] via-[#651A67] to-[#DF3C82] overflow-hidden">
-        {/* Decorative elements for background depth */}
-        <div className="absolute top-[-50px] right-[-50px] w-[300px] h-[300px] bg-white/5 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute bottom-[-100px] left-[10%] w-[400px] h-[400px] bg-purple-500/10 rounded-full blur-3xl pointer-events-none" />
-      </div>
-
-      {/* ── Profile Header Container ── */}
-      <div className="max-w-6xl mx-auto w-full px-4 md:px-8 relative z-10 -mt-16 mb-8">
-        <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-gray-100/80">
-          <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
-            
-            {/* Avatar & Info */}
-            <div className="flex flex-col md:flex-row items-center md:items-start gap-6 text-center md:text-left">
-              {/* Avatar Box (Squircle box overlapping banner style) */}
-              <div className="w-24 h-24 md:w-28 md:h-28 rounded-2xl md:rounded-3xl bg-gradient-to-br from-blue-500 to-indigo-600 border-4 border-white shadow-md flex items-center justify-center text-white text-3xl md:text-4xl font-extrabold shrink-0 relative overflow-hidden">
-                {profile.avatar_url && !avatarError ? (
-                  <Image
-                    src={profile.avatar_url}
-                    alt={profile.display_name}
-                    fill
-                    sizes="112px"
-                    className="object-cover"
-                    onError={() => setAvatarError(true)}
-                  />
-                ) : (
-                  <span>{initials}</span>
-                )}
-              </div>
-
-              {/* Bio details */}
-              <div className="mt-2">
-                <div className="flex items-center justify-center md:justify-start gap-2 flex-wrap">
-                  <h1 className="text-2xl md:text-3xl font-extrabold text-gray-900 leading-tight">
-                    {profile.display_name || profile.handle}
-                  </h1>
-                  <span className="inline-flex items-center justify-center w-5 h-5 bg-blue-500 text-white rounded-full shrink-0">
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                    </svg>
-                  </span>
-                </div>
-
-                <div className="flex flex-wrap items-center justify-center md:justify-start gap-x-4 gap-y-2 mt-3 text-xs md:text-sm text-gray-500 font-medium">
-                  {categoriesList.length > 0 && (
-                    <span className="flex items-center gap-1">
-                      <HugeiconsIcon icon={MusicNote01Icon} size={14} className="text-gray-400" />
-                      {categoriesList.map(c => CATEGORY_LABELS[c] || c).join(" · ")}
-                    </span>
-                  )}
-                  {profile.location && (
-                    <span className="flex items-center gap-1">
-                      <HugeiconsIcon icon={Location01Icon} size={14} className="text-gray-400" />
-                      {profile.location}
-                    </span>
-                  )}
-                  <span className="text-gray-400">·</span>
-                  <span className="font-semibold text-gray-800">
-                    {isFollowing ? "1.2k" : "1.2k"} followers
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="flex items-center justify-center gap-3 w-full md:w-auto mt-4 md:mt-2">
-              <button
-                onClick={handleFollowToggle}
-                className={`flex-1 md:flex-none px-6 py-2.5 rounded-full font-bold text-sm shadow-sm transition-all duration-200 ${
-                  isFollowing
-                    ? "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                    : "bg-blue-600 text-white hover:bg-blue-700 hover:shadow"
-                }`}
-              >
-                {isFollowing ? "Following" : "Follow"}
-              </button>
+      <main className="flex-1 pb-16">
+        {/* Cover + identity */}
+        <section className="mx-auto max-w-[1440px] px-4 pt-4 md:px-12 md:pt-5 xl:px-24">
+          <div className="relative h-[190px] overflow-hidden rounded-[30px] md:h-[300px] md:rounded-[36px]" style={{ background: tint }}>
+            {cover ? (
+              <EventImage event={cover} sizes="(min-width: 1440px) 1248px, 100vw" priority />
+            ) : (
+              <div aria-hidden="true" className="absolute inset-0" style={{ background: ink, opacity: 0.12 }} />
+            )}
+          </div>
+          <div className="relative z-10 -mt-12 flex flex-wrap items-end px-2 md:-mt-[70px] md:gap-6 md:px-10">
+            <span
+              className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-full border-[6px] border-white font-display text-3xl font-extrabold text-white md:h-[140px] md:w-[140px] md:text-[44px]"
+              style={{ background: ink }}
+            >
+              {profile.avatar_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={profile.avatar_url} alt="" className="h-full w-full object-cover" />
+              ) : (
+                eventInitials(name)
+              )}
+            </span>
+            <div className="order-2 ml-auto md:order-3 md:mb-1.5 md:ml-0">
               <ShareMenu
                 url={typeof window !== "undefined" ? window.location.href : ""}
-                title={profile?.display_name || username}
+                title={name}
                 campaign="profile_share"
                 content={username}
-                className="px-4 py-2.5 border border-gray-200 rounded-full hover:bg-gray-50 text-gray-600 transition-colors shadow-sm"
-                aria-label="Share Profile"
+                className="flex h-[50px] w-[50px] items-center justify-center rounded-full border border-line bg-white text-ink transition-[background-color,scale] hover:bg-mist active:scale-[0.96]"
+                aria-label="Share community"
               >
-                <HugeiconsIcon icon={Share01Icon} size={16} />
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M12 3v13M7 8l5-5 5 5M5 14v5h14v-5" />
+                </svg>
+                <span className="sr-only">Share community</span>
               </ShareMenu>
             </div>
-
+            <div className="order-3 mt-3 flex basis-full flex-col gap-1 md:order-2 md:-mb-5 md:mt-0 md:min-w-0 md:flex-1 md:basis-0">
+              <h1 className="text-balance font-display text-[32px] font-bold leading-[1.05] tracking-[-0.03em] md:text-[44px]">{name}</h1>
+              <span className="text-sm text-muted md:text-[15px]">{meta}</span>
+            </div>
           </div>
+        </section>
 
-          {/* Bio text */}
-          {profile.bio && (
-            <p className="mt-6 text-sm text-gray-600 leading-relaxed text-center md:text-left border-t border-gray-50 pt-5">
-              {profile.bio}
+        {/* About + stats */}
+        <section className="mx-auto flex max-w-[1440px] flex-col gap-8 px-4 pt-8 md:flex-row md:items-start md:gap-12 md:px-12 md:pt-8 xl:px-32">
+          <div className="flex min-w-0 flex-1 flex-col gap-[18px]">
+            <p className="max-w-[680px] text-pretty text-[17px] leading-[1.65] text-[#3B4252] md:text-lg">
+              {profile.bio || "This organiser hasn't written a bio yet."}
             </p>
-          )}
-        </div>
-      </div>
-
-      {/* ── Tabs & Events Grid ── */}
-      <div className="max-w-6xl mx-auto w-full px-4 md:px-8 mb-16 flex-1">
-        
-        {/* Navigation Tabs */}
-        <div className="flex items-center border-b border-gray-200 gap-8 mb-8">
-          <button
-            onClick={() => setActiveTab("upcoming")}
-            className={`pb-4 text-sm font-semibold relative transition-colors ${
-              activeTab === "upcoming" ? "text-blue-600" : "text-gray-500 hover:text-gray-800"
-            }`}
-          >
-            Upcoming · {upcomingEvents.length}
-            {activeTab === "upcoming" && (
-              <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 rounded-full" />
-            )}
-          </button>
-          <button
-            onClick={() => setActiveTab("past")}
-            className={`pb-4 text-sm font-semibold relative transition-colors ${
-              activeTab === "past" ? "text-blue-600" : "text-gray-500 hover:text-gray-800"
-            }`}
-          >
-            Past · {pastEvents.length}
-            {activeTab === "past" && (
-              <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 rounded-full" />
-            )}
-          </button>
-          <button
-            onClick={() => setActiveTab("about")}
-            className={`pb-4 text-sm font-semibold relative transition-colors ${
-              activeTab === "about" ? "text-blue-600" : "text-gray-500 hover:text-gray-800"
-            }`}
-          >
-            About
-            {activeTab === "about" && (
-              <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 rounded-full" />
-            )}
-          </button>
-        </div>
-
-        {/* Tab Contents */}
-        {activeTab === "upcoming" && (
-          upcomingEvents.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {upcomingEvents.map((evt) => (
-                <EventCard key={evt.slug} event={evt} />
-              ))}
-            </div>
-          ) : (
-            <EmptyState message="No upcoming events scheduled." />
-          )
-        )}
-
-        {activeTab === "past" && (
-          pastEvents.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {pastEvents.map((evt) => (
-                <EventCard key={evt.slug} event={evt} />
-              ))}
-            </div>
-          ) : (
-            <EmptyState message="No past events found." />
-          )
-        )}
-
-        {activeTab === "about" && (
-          <div className="bg-white rounded-3xl p-6 md:p-8 border border-gray-100 shadow-sm space-y-6">
-            <div>
-              <h3 className="font-bold text-gray-900 text-lg mb-2">About Organizer</h3>
-              <p className="text-gray-600 text-sm leading-relaxed">
-                {profile.bio || "No description provided."}
-              </p>
-            </div>
-
-            {(profile.location || profile.website) && (
-              <div className="border-t border-gray-100 pt-5 space-y-3">
-                {profile.location && (
-                  <div className="flex items-center gap-3 text-sm text-gray-600">
-                    <HugeiconsIcon icon={Location01Icon} size={16} className="text-gray-400" />
-                    <span>Based in {profile.location}</span>
-                  </div>
-                )}
-                {profile.website && (
-                  <div className="flex items-center gap-3 text-sm text-gray-600">
-                    <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9s2.015-9 4.5-9m0 0a9.003 9.003 0 018.716 3.253M12 3a9.003 9.003 0 00-8.716 3.253" />
-                    </svg>
-                    <a href={profile.website} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
-                      {profile.website}
-                    </a>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Social Links */}
-            {(profile.twitter || profile.instagram || profile.linkedin || profile.telegram) && (
-              <div className="border-t border-gray-100 pt-5">
-                <h4 className="font-bold text-gray-900 text-sm mb-3">Connect on Socials</h4>
-                <div className="flex flex-wrap gap-4">
-                  {profile.twitter && (
-                    <a href={`https://twitter.com/${profile.twitter}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-sm px-4 py-2 bg-gray-50 rounded-xl hover:bg-gray-100 text-gray-700 transition-colors font-medium">
-                      <FaXTwitter size={15} color="#000000" />
-                      Twitter
-                    </a>
-                  )}
-                  {profile.instagram && (
-                    <a href={`https://instagram.com/${profile.instagram}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-sm px-4 py-2 bg-gray-50 rounded-xl hover:bg-gray-100 text-gray-700 transition-colors font-medium">
-                      <FaInstagram size={15} color="#E4405F" />
-                      Instagram
-                    </a>
-                  )}
-                  {profile.linkedin && (
-                    <a href={`https://linkedin.com/in/${profile.linkedin}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-sm px-4 py-2 bg-gray-50 rounded-xl hover:bg-gray-100 text-gray-700 transition-colors font-medium">
-                      <FaLinkedinIn size={15} color="#0A66C2" />
-                      LinkedIn
-                    </a>
-                  )}
-                  {profile.telegram && (
-                    <a href={`https://t.me/${profile.telegram}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-sm px-4 py-2 bg-gray-50 rounded-xl hover:bg-gray-100 text-gray-700 transition-colors font-medium">
-                      <FaTelegram size={15} color="#26A5E4" />
-                      Telegram
-                    </a>
-                  )}
-                </div>
+            {socials.length > 0 && (
+              <div className="flex flex-wrap gap-2.5">
+                {socials.map((s) => (
+                  <a key={s.label} href={s.href} target="_blank" rel="noopener noreferrer" className={pill}>
+                    {s.icon}
+                    {s.label}
+                  </a>
+                ))}
               </div>
             )}
           </div>
-        )}
+          <div className="grid w-full grid-cols-3 gap-2.5 md:w-[420px] md:shrink-0">
+            {stats.map((s) => (
+              <div key={s.label} className="flex flex-col gap-0.5 rounded-[22px] border border-line bg-white p-4 md:p-[18px]">
+                <span className="font-display text-[28px] font-bold md:text-[32px]">{s.value}</span>
+                <span className="text-[13px] font-bold text-[#3B4252]">{s.label}</span>
+              </div>
+            ))}
+          </div>
+        </section>
 
-      </div>
+        {/* Events */}
+        <section className="mx-auto flex max-w-[1440px] flex-col gap-5 px-4 pt-10 md:px-12 md:pt-12 xl:px-24">
+          <div className="flex flex-wrap items-center gap-5">
+            <h2 className="font-display text-[30px] font-bold tracking-[-0.02em]">Events</h2>
+            <div role="group" aria-label="Show events" className="flex gap-0.5 rounded-full bg-mist p-1">
+              <button type="button" aria-pressed={tab === "upcoming"} onClick={() => setTab("upcoming")} className={seg(tab === "upcoming")}>
+                Upcoming · {upcomingEvents.length}
+              </button>
+              <button type="button" aria-pressed={tab === "past"} onClick={() => setTab("past")} className={seg(tab === "past")}>
+                Past · {pastEvents.length}
+              </button>
+            </div>
+          </div>
+
+          {tab === "upcoming" &&
+            (upcomingEvents.length > 0 ? (
+              <div className="grid gap-6 lg:grid-cols-2">
+                {upcomingEvents.map((evt) => {
+                  const parts = dayParts(evt.day);
+                  const free = priceLabel(evt) === "Free";
+                  return (
+                    <Link
+                      key={evt.slug}
+                      href={`/discover/${evt.slug}`}
+                      className="flex flex-col overflow-hidden rounded-[26px] border border-hairline transition-shadow hover:shadow-[0_16px_40px_rgba(20,22,28,0.08)] focus:outline-none focus-visible:ring-4 focus-visible:ring-brand/40 md:flex-row"
+                    >
+                      <div className="relative h-48 shrink-0 md:h-auto md:w-60">
+                        <EventImage event={evt} sizes="(min-width: 768px) 240px, 100vw" />
+                      </div>
+                      <div className="flex flex-1 flex-col gap-1.5 p-5 md:px-6 md:py-[22px]">
+                        <span className="text-[13px] font-extrabold uppercase text-brand">
+                          {parts.short} · {formatTime(evt.time_from)}
+                        </span>
+                        <span className="font-display text-2xl font-bold leading-[1.1]">{evt.name}</span>
+                        <span className="text-sm text-muted">
+                          {evt.location} · {priceLabel(evt)}
+                        </span>
+                        <div className="min-h-3 flex-1" />
+                        <span className="flex h-[42px] items-center self-start rounded-full bg-brand px-[18px] text-sm font-bold text-white">
+                          {free ? "Register" : "Get tickets"}
+                        </span>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            ) : (
+              <EmptyState message="Nothing coming up right now." />
+            ))}
+
+          {tab === "past" &&
+            (pastEvents.length > 0 ? (
+              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+                {pastEvents.map((evt) => (
+                  <Link key={evt.slug} href={`/discover/${evt.slug}`} className="group flex flex-col gap-2.5 rounded-[22px] focus:outline-none focus-visible:ring-4 focus-visible:ring-brand/40">
+                    <div className="relative h-[170px] overflow-hidden rounded-[22px]">
+                      <EventImage event={evt} sizes="(min-width: 1024px) 22vw, 100vw" className="saturate-[0.75] transition-transform duration-500 group-hover:scale-[1.03]" />
+                    </div>
+                    <span className="font-display text-[17px] font-bold">{evt.name}</span>
+                    <span className="text-[13px] text-muted">
+                      {dayParts(evt.day).dayMonth} · {evt.location}
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <EmptyState message="No past events yet." />
+            ))}
+        </section>
+      </main>
 
       <Footer />
     </div>
   );
 }
 
-// ── Card component for event grid (matches the style of Eko Live Entertainment cards) ──
-function EventCard({ event }) {
-  const router = useRouter();
-  const [imageError, setImageError] = useState(false);
-
-  const formattedDate = useMemo(() => {
-    if (!event.day) return "";
-    return new Date(event.day).toLocaleDateString("en-US", {
-      day: "numeric",
-      month: "short",
-    });
-  }, [event.day]);
-
-  const formattedTime = useMemo(() => {
-    if (!event.time_from) return "";
-    return new Date(`1970-01-01T${event.time_from}`).toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: true,
-    });
-  }, [event.time_from]);
-
-  const getImageUrl = () => {
-    if (event.event_image_url) return event.event_image_url;
-    if (!event.event_image) return null;
-    if (event.event_image.startsWith("http")) return event.event_image;
-    const base = (process.env.NEXT_PUBLIC_API_URL || "https://byro.onrender.com").replace(/\/api\/?$/, "");
-    return `${base}${event.event_image}`;
-  };
-
-  const imageUrl = getImageUrl();
-  const badgeLabel = CATEGORY_LABELS[event.category] || event.category?.toUpperCase();
-  const ticketPrice = parseFloat(event.ticket_price ?? 0);
-  const isFree = ticketPrice === 0;
-
-  return (
-    <div
-      onClick={() => router.push(`/discover/${event.slug}`)}
-      className="group bg-white rounded-3xl overflow-hidden border border-gray-100/80 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col h-[380px] cursor-pointer relative"
-    >
-      {/* Event Image / Gradient */}
-      <div className="h-[200px] w-full relative overflow-hidden shrink-0 bg-gradient-to-br from-[#4a148c] via-[#7b1fa2] to-[#ec407a]">
-        {imageUrl && !imageError ? (
-          <Image
-            src={imageUrl}
-            alt={event.name}
-            fill
-            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-            className="object-cover group-hover:scale-105 transition-transform duration-500"
-            onError={() => setImageError(true)}
-          />
-        ) : (
-          <div className="absolute inset-0 bg-gradient-to-tr from-purple-900/90 via-purple-700/60 to-pink-500/40" />
-        )}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
-
-        {/* Category Badge overlay */}
-        <span className="absolute top-4 left-4 bg-white/20 backdrop-blur-md border border-white/20 text-white text-[10px] font-bold tracking-wider px-3 py-1.5 rounded-full uppercase">
-          {badgeLabel}
-        </span>
-
-        {/* Heart Icon overlay */}
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            toast.success("Saved event!");
-          }}
-          className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center hover:bg-white/30 transition-colors"
-          aria-label="Save Event"
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
-            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-          </svg>
-        </button>
-
-        {/* Date Tag Overlay on bottom left */}
-        <div className="absolute bottom-4 left-4 text-white text-xs font-semibold flex items-center gap-1.5 opacity-90">
-          <HugeiconsIcon icon={Calendar01Icon} size={12} color="white" />
-          <span>{formattedDate} · {formattedTime}</span>
-        </div>
-      </div>
-
-      {/* Info details */}
-      <div className="p-5 flex-1 flex flex-col justify-between">
-        <div>
-          <h3 className="font-serif text-lg font-bold text-gray-900 line-clamp-2 leading-tight group-hover:text-blue-600 transition-colors">
-            {event.name}
-          </h3>
-          <p className="text-xs text-gray-500 flex items-center gap-1 mt-2 font-medium">
-            <HugeiconsIcon icon={Location01Icon} size={12} className="text-gray-400" />
-            <span className="truncate">{event.location || "TBD"}</span>
-          </p>
-        </div>
-
-        {/* Action row */}
-        <div className="flex items-center justify-between border-t border-gray-50 pt-4 mt-3 shrink-0">
-          <div>
-            <span className="text-[10px] font-bold text-gray-400 tracking-wider uppercase block">From</span>
-            <span className="text-base font-extrabold text-gray-900">
-              {isFree ? "Free" : fmtPrice(ticketPrice)}
-            </span>
-          </div>
-
-          <button
-            className="ticket-cta bg-blue-600 text-white font-semibold text-xs pl-4 pr-3 py-2.5 rounded-full hover:bg-blue-700 transition-colors flex items-center gap-1.5 group-hover:shadow shadow-sm"
-            style={{ "--ticket-notch-right": "22px", "--ticket-notch-left": "14px" }}
-          >
-            <span className="ticket-cta-notch-left ticket-cta-notch-top" />
-            <span className="ticket-cta-notch-left ticket-cta-notch-bottom" />
-            <span>Get tickets</span>
-            <span className="ticket-cta-divider" />
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <path d="M5 12h14M12 5l7 7-7 7" />
-            </svg>
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Empty State Component ──
 function EmptyState({ message }) {
   return (
-    <div className="bg-white rounded-3xl py-16 px-4 border border-gray-100 shadow-sm flex flex-col items-center justify-center text-center">
-      <div className="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 mb-3">
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
-        </svg>
-      </div>
-      <p className="text-sm font-medium text-gray-500">{message}</p>
+    <div className="flex flex-col items-start gap-2 rounded-[30px] bg-mist p-8 md:p-10">
+      <p className="font-display text-xl font-bold">{message}</p>
+      <Link href="/discover" className="text-[15px] font-bold text-brand hover:text-brand-dark">
+        Browse events
+      </Link>
     </div>
   );
 }

@@ -3,7 +3,6 @@
 import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { FaInstagram, FaXTwitter } from "react-icons/fa6";
 import API from "@/services/api";
 
 const footerLinks = [
@@ -36,9 +35,9 @@ const footerLinks = [
   },
 ];
 
-const socialIcons = [
-  { label: "Instagram", icon: FaInstagram, href: "https://instagram.com/usebyro_" },
-  { label: "Twitter / X", icon: FaXTwitter, href: "https://x.com/usebyro" },
+const socials = [
+  { label: "Instagram", href: "https://instagram.com/usebyro_" },
+  { label: "X", href: "https://x.com/usebyro" },
 ];
 
 const Footer = () => {
@@ -62,97 +61,80 @@ const Footer = () => {
   };
 
   return (
-  <footer className="bg-[#0F172A] text-white/70">
-    <div className="mx-auto max-w-7xl px-6 py-14 lg:px-8 lg:py-16">
-      <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-[1.3fr_1fr_1fr_1fr_1.4fr] lg:gap-14">
-        <div>
-          <Link href="/" className="mb-5 inline-block">
-            <Image
-              src="/assets/images/logo.svg"
-              alt="byro"
-              width={72}
-              height={30}
-              className="h-7 w-auto brightness-0 invert"
-            />
-          </Link>
-          <p className="max-w-[260px] text-[15px] leading-7">
-            Byro is where events become communities. Discover, attend and never lose your people.
-          </p>
-          <div className="mt-6 flex items-center gap-3">
-            {socialIcons.map(({ label, icon: Icon, href }) => (
-              <a
-                key={label}
-                href={href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-[#2563EB] focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
-                aria-label={label}
+    <footer className="bg-paper font-body text-muted">
+      <div className="mx-auto max-w-[1440px] px-4 pb-8 pt-12 md:px-12 md:pb-10 md:pt-[72px] xl:px-24">
+        <div className="grid gap-10 md:grid-cols-2 lg:grid-cols-[1.6fr_1fr_1fr_1fr] lg:gap-14">
+          <div className="flex flex-col gap-4">
+            <Link href="/" className="inline-block" aria-label="byro home">
+              <Image src="/assets/images/logo.svg" alt="byro" width={88} height={50} className="h-10 w-auto md:h-12" />
+            </Link>
+            <p className="text-base">Go out. Keep the memory.</p>
+            <form onSubmit={handleSubscribe} className="mt-2 flex max-w-md gap-2">
+              <label htmlFor="footer-email" className="sr-only">Email address</label>
+              <input
+                id="footer-email"
+                type="email"
+                required
+                value={email}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  if (status !== "loading") setStatus("idle");
+                }}
+                placeholder="Get the week's best events by email"
+                className="h-12 min-w-0 flex-1 rounded-full border border-line bg-white px-[18px] text-sm text-ink placeholder:text-faint focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+              />
+              <button
+                type="submit"
+                disabled={status === "loading"}
+                className="h-12 shrink-0 rounded-full bg-ink px-5 text-sm font-bold text-white transition-[filter,scale] hover:brightness-125 active:scale-[0.96] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 disabled:opacity-60"
               >
-                <Icon size={17} />
-              </a>
+                {status === "loading" ? "Subscribing" : "Subscribe"}
+              </button>
+            </form>
+            <p role="status" className={`min-h-5 text-sm ${status === "error" ? "text-red-600" : "text-muted"}`}>
+              {status === "done" || status === "error" ? message : ""}
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-10 md:contents">
+            {footerLinks.map(({ title, links }) => (
+              <div key={title} className="flex flex-col gap-3 text-[15px]">
+                <h4 className="font-extrabold text-ink">{title}</h4>
+                <ul className="flex flex-col gap-3">
+                  {links.map((link) => (
+                    <li key={link.label}>
+                      <Link
+                        href={link.href}
+                        className="transition-colors hover:text-ink focus:outline-none focus-visible:text-ink focus-visible:underline"
+                      >
+                        {link.label}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             ))}
           </div>
         </div>
 
-        {footerLinks.map(({ title, links }) => (
-          <div key={title}>
-            <h4 className="mb-4 text-sm font-semibold text-white">{title}</h4>
-            <ul className="space-y-3">
-              {links.map((link) => (
-                <li key={link.label}>
-                  <Link
-                    href={link.href}
-                    className="text-[15px] transition-colors hover:text-white focus:outline-none focus-visible:text-white focus-visible:underline"
-                  >
-                    {link.label}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
-
-        <div>
-          <h4 className="mb-4 text-sm font-semibold text-white">Stay in the loop</h4>
-          <p className="mb-5 text-[15px]">New events and updates. No spam.</p>
-          <form onSubmit={handleSubscribe} className="flex rounded-full bg-white/10 p-1 ring-1 ring-white/20 focus-within:ring-2 focus-within:ring-white">
-            <label htmlFor="footer-email" className="sr-only">Email address</label>
-            <input
-              id="footer-email"
-              type="email"
-              required
-              value={email}
-              onChange={(e) => {
-                setEmail(e.target.value);
-                if (status !== "loading") setStatus("idle");
-              }}
-              placeholder="you@email.com"
-              className="min-w-0 flex-1 bg-transparent px-4 text-sm text-white placeholder:text-white/50 focus:outline-none"
-            />
-            <button
-              type="submit"
-              disabled={status === "loading"}
-              className="shrink-0 rounded-full bg-[#2563EB] px-5 py-2 text-sm font-semibold text-white transition-colors hover:brightness-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:opacity-60"
-            >
-              {status === "loading" ? "Subscribing" : "Subscribe"}
-            </button>
-          </form>
-          <p
-            role="status"
-            className={`mt-3 min-h-5 text-sm ${status === "error" ? "text-red-300" : "text-white/80"}`}
-          >
-            {status === "done" || status === "error" ? message : ""}
+        <div className="mt-12 flex flex-col gap-3 border-t border-line pt-6 text-sm text-faint md:flex-row md:justify-between">
+          <p>© {new Date().getFullYear()} Byro Ticketing Solutions. All rights reserved.</p>
+          <p className="flex gap-[18px] font-semibold">
+            {socials.map((s) => (
+              <a
+                key={s.label}
+                href={s.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-muted transition-colors hover:text-ink"
+              >
+                {s.label}
+              </a>
+            ))}
           </p>
         </div>
       </div>
-    </div>
-
-    <div className="border-t border-white/10">
-      <div className="mx-auto max-w-7xl px-6 py-6 text-sm text-white/50 lg:px-8">
-        <p>© {new Date().getFullYear()} Byro Technologies. Lagos, Nigeria.</p>
-      </div>
-    </div>
-  </footer>
+    </footer>
   );
 };
 
