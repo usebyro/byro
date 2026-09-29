@@ -25,6 +25,7 @@ export default function PublicProfileClient({ username }) {
   const [error, setError] = useState("");
   const [tab, setTab] = useState("upcoming");
   const [followers, setFollowers] = useState(0);
+  const [page, setPage] = useState("events"); // events | merch
 
   useEffect(() => {
     if (!username) return;
@@ -234,20 +235,39 @@ export default function PublicProfileClient({ username }) {
         </section>
 
         {merchItems.length > 0 && (
-          <nav aria-label="Sections" className="mx-auto mt-10 max-w-[1440px] px-4 md:mt-11 md:px-12 xl:px-24">
-            <div className="flex gap-1.5 border-b border-hairline">
-              <a href="#events" className="-mb-px flex h-[52px] items-center border-b-[3px] border-brand px-[18px] text-base font-bold text-ink">
-                Events
-              </a>
-              <a href="#merch" className="flex h-[52px] items-center px-[18px] text-base font-bold text-faint hover:text-ink">
-                Merch
-              </a>
+          <div className="mx-auto mt-10 max-w-[1440px] px-4 md:mt-11 md:px-12 xl:px-24">
+            <div role="tablist" aria-label="Community sections" className="flex gap-1.5 border-b border-hairline">
+              {[
+                { id: "events", label: "Events" },
+                { id: "merch", label: `Merch · ${merchItems.length}` },
+              ].map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  role="tab"
+                  id={`tab-${t.id}`}
+                  aria-selected={page === t.id}
+                  aria-controls={`panel-${t.id}`}
+                  onClick={() => setPage(t.id)}
+                  className={`-mb-px flex h-[52px] items-center border-b-[3px] px-[18px] text-base font-bold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
+                    page === t.id ? "border-brand text-ink" : "border-transparent text-muted hover:text-ink"
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
             </div>
-          </nav>
+          </div>
         )}
 
         {/* Events */}
-        <section id="events" className="mx-auto flex max-w-[1440px] scroll-mt-28 flex-col gap-5 px-4 pt-10 md:px-12 md:pt-9 xl:px-24">
+        {page === "events" && (
+        <section
+          id="panel-events"
+          role={merchItems.length > 0 ? "tabpanel" : undefined}
+          aria-labelledby={merchItems.length > 0 ? "tab-events" : undefined}
+          className="mx-auto flex max-w-[1440px] flex-col gap-5 px-4 pt-10 md:px-12 md:pt-9 xl:px-24"
+        >
           <div className="flex flex-wrap items-center gap-5">
             <h2 className="font-display text-[30px] font-bold tracking-[-0.02em]">Events</h2>
             <div role="group" aria-label="Show events" className="flex gap-0.5 rounded-full bg-mist p-1">
@@ -315,9 +335,15 @@ export default function PublicProfileClient({ username }) {
               <EmptyState message="No past events yet." />
             ))}
         </section>
+        )}
 
-        {merchItems.length > 0 && (
-          <section id="merch" className="mx-auto flex max-w-[1440px] scroll-mt-28 flex-col gap-5 px-4 pt-14 md:px-12 md:pt-16 xl:px-24">
+        {merchItems.length > 0 && page === "merch" && (
+          <section
+            id="panel-merch"
+            role="tabpanel"
+            aria-labelledby="tab-merch"
+            className="mx-auto flex max-w-[1440px] flex-col gap-5 px-4 pt-9 md:px-12 xl:px-24"
+          >
             <div className="flex items-baseline gap-3.5">
               <h2 className="font-display text-[30px] font-bold tracking-[-0.02em]">Merch</h2>
               <span className="text-sm text-muted">Sold by {name}</span>
