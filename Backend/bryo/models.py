@@ -727,6 +727,27 @@ class PayoutRequest(models.Model):
         return f"PayoutRequest #{self.pk} — {self.user.email} — {self.status}"
 
 
+class Follow(models.Model):
+    """A user following an organiser's community page (/u/<handle>)."""
+    follower = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='following_links',
+    )
+    following = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='follower_links',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['follower', 'following'], name='unique_follow'),
+            models.CheckConstraint(condition=~models.Q(follower=models.F('following')), name='no_self_follow'),
+        ]
+        indexes = [models.Index(fields=['following', '-created_at'])]
+
+    def __str__(self):
+        return f"{self.follower_id} follows {self.following_id}"
+
+
 # ---------------------------------------------------------------------------
 # Signals
 # ---------------------------------------------------------------------------

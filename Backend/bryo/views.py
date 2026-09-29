@@ -28,7 +28,7 @@ from django.contrib.auth import get_user_model
 from .models import (
     WaitList, Event, Ticket, TicketTransfer,
     EventCoHost, Payment, UserProfile, EventFormQuestion, EventFormAnswer,
-    TicketTier, PayoutRequest, PromoCode,
+    TicketTier, PayoutRequest, PromoCode, Follow,
 )
 from .pricing import calculate_ticket_fees
 from django.urls import reverse
@@ -300,6 +300,20 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                 {'error': 'event_slug, customer_email, and customer_name are required'},
                 status=status.HTTP_400_BAD_REQUEST
             )
+
+        # Bot gate: the checkout's Cloudflare Turnstile token. Enforced whenever a
+        # secret is configured, so environments without one keep working.
+        if getattr(settings, 'TURNSTILE_SECRET_KEY', ''):
+            from .services.turnstile import verify_turnstile_token
+            client_ip = (
+                request.META.get('HTTP_X_FORWARDED_FOR', '').split(',')[0].strip()
+                or request.META.get('REMOTE_ADDR')
+            )
+            if not verify_turnstile_token(request.data.get('turnstile_token'), remote_ip=client_ip):
+                return Response(
+                    {'error': 'Verification failed. Tick "Verify you are human" and try again.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
         # Get event
         event = get_object_or_404(Event, slug=event_slug, is_active=True)
@@ -705,6 +719,9 @@ class ProfileViewSet(viewsets.GenericViewSet):
     """
     serializer_class = UserProfileSerializer
     parser_classes = (JSONParser, MultiPartParser, FormParser)
+    # Declared so the follow action can set it (DRF rejects action kwargs that
+    # are not already attributes on the viewset).
+    throttle_scope = None
 
     def get_permissions(self):
         if self.action == 'public':
@@ -755,6 +772,33 @@ class ProfileViewSet(viewsets.GenericViewSet):
         data = serializer.data
         data.pop('auth_provider', None)
         return Response(data)
+
+    @action(detail=False, methods=['POST', 'DELETE'], url_path=r'(?P<handle>[^/.]+)/follow',
+            throttle_scope='follow')
+    def follow(self, request, handle=None):
+        """
+        POST   /api/profile/<handle>/follow/   follow this organiser
+        DELETE /api/profile/<handle>/follow/   unfollow
+
+        Both are idempotent, so a double tap or a retry never errors.
+        """
+        try:
+            target = UserProfile.objects.select_related('user').get(handle=handle)
+        except UserProfile.DoesNotExist:
+            return Response({'error': 'Profile not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if target.user_id == request.user.pk:
+            return Response({'error': "You can't follow yourself."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if request.method == 'POST':
+            Follow.objects.get_or_create(follower=request.user, following=target.user)
+        else:
+            Follow.objects.filter(follower=request.user, following=target.user).delete()
+
+        return Response({
+            'following': request.method == 'POST',
+            'followers_count': target.user.follower_links.count(),
+        })
 
 
 # ---------------------------------------------------------------------------
