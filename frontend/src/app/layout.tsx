@@ -46,7 +46,7 @@ export const metadata: Metadata = {
       "Create communities. Discover events. Create memories. Byro is the community events platform built for organisers and attendees.",
     images: [
       {
-        url: "/assets/waitlist.png",
+        url: "/og-image.png",
         width: 1200,
         height: 630,
         alt: "Byro. Community Events Platform",
@@ -58,7 +58,7 @@ export const metadata: Metadata = {
     title: "Byro. Build Communities and Discover Events",
     description:
       "Create communities. Discover events. Create memories. Byro is the community events platform built for organisers and attendees.",
-    images: ["/assets/waitlist.png"],
+    images: ["/og-image.png"],
     creator: "@byroafrica",
   },
   robots: {
