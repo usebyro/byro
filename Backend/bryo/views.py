@@ -464,6 +464,50 @@ def _attendees_from_payment(payment):
     )
 
 
+def _fulfil_payment(payment, ticket_user):
+    """
+    Atomically fulfil a successful payment: mark it successful, redeem promo,
+    create missing tickets. Returns (newly_created_tickets, all_tickets).
+    Must be called inside a view that has already verified the payment with Paystack.
+    """
+    from django.db import transaction
+    from django.db.models import F
+
+    with transaction.atomic():
+        # Lock the payment row so only one caller (verify or webhook) does the work
+        payment = Payment.objects.select_for_update().get(pk=payment.pk)
+
+        if payment.status == 'successful':
+            # Already fulfilled by a concurrent caller
+            existing_tickets = list(payment.tickets_purchased.all())
+            return [], existing_tickets
+
+        # Mark payment successful
+        payment.status = 'successful'
+        payment.paid_at = timezone.now()
+        payment.save(update_fields=['status', 'paid_at'])
+
+        # Redeem promo code
+        if payment.promo_code_id:
+            PromoCode.objects.filter(pk=payment.promo_code_id).update(
+                redeemed_count=F('redeemed_count') + 1
+            )
+
+        # Create missing tickets
+        existing_tickets = list(payment.tickets_purchased.all())
+        attendees = _attendees_from_payment(payment)
+        missing = attendees[len(existing_tickets):]
+        new_tickets = []
+        if missing:
+            new_tickets = _create_tickets(
+                payment.event, payment.tier, missing,
+                payment_status='paid', payment=payment, user=ticket_user,
+            )
+
+        all_tickets = existing_tickets + new_tickets
+        return new_tickets, all_tickets
+
+
 class PaystackPaymentViewSet(viewsets.ViewSet):
     """
     ViewSet for handling Paystack payment operations for event tickets
@@ -605,8 +649,8 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
         paystack_secret_key = settings.PAYSTACK_SECRET_KEY.strip()
         paystack_url = 'https://api.paystack.co/transaction/initialize'
         
-        # Generate unique reference
-        reference = f"EVT-{event.slug}-{timezone.now().strftime('%Y%m%d%H%M%S')}"
+        # Generate unique reference with random suffix to prevent collisions
+        reference = f"EVT-{event.slug}-{timezone.now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:8]}"
         
         # Prepare payment data
         payment_data = {
@@ -749,17 +793,8 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                         ticket_user = User.objects.filter(pk=stored_uid).first()
 
                 if payment.status == 'successful':
-                    # Recover any missing tickets (e.g. due to a prior bug,
-                    # or a partial failure on an earlier verify/webhook call).
-                    # Fill the remaining seats from the stored attendee list.
+                    # Already fulfilled (possibly by webhook)
                     existing_tickets = list(payment.tickets_purchased.all())
-                    attendees = _attendees_from_payment(payment)
-                    missing = attendees[len(existing_tickets):]
-                    if missing:
-                        existing_tickets.extend(_create_tickets(
-                            payment.event, payment.tier, missing,
-                            payment_status='paid', payment=payment, user=ticket_user,
-                        ))
                     return Response({
                         'status': 'success',
                         'message': 'Payment already verified',
@@ -767,51 +802,71 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                         'payment': PaymentSerializer(payment).data,
                     }, status=status.HTTP_200_OK)
 
-                if transaction_data['status'] == 'success':
-                    # Update payment record
-                    payment.status = 'successful'
-                    payment.channel = transaction_data.get('channel')
-                    payment.paid_at = timezone.now()
-                    payment.save()
-                    if payment.promo_code_id:
-                        PromoCode.objects.filter(pk=payment.promo_code_id).update(
-                            redeemed_count=F('redeemed_count') + 1
-                        )
+                txn_status = transaction_data.get('status')
+                paid_amount_kobo = transaction_data.get('amount', 0)
 
-                    # Create one ticket per attendee (each its own QR)
-                    tickets = _create_tickets(
-                        payment.event, payment.tier, _attendees_from_payment(payment),
-                        payment_status='paid', payment=payment, user=ticket_user,
+                # Amount check: Paystack amount (in kobo) must match our recorded amount
+                expected_amount_kobo = int(payment.amount * 100)
+                if paid_amount_kobo != expected_amount_kobo:
+                    logger.error(
+                        "Amount mismatch for payment %s: Paystack=%d kobo, expected=%d kobo",
+                        reference, paid_amount_kobo, expected_amount_kobo
                     )
+                    return Response({
+                        'error': 'Amount mismatch',
+                        'details': 'Paid amount does not match expected amount'
+                    }, status=status.HTTP_400_BAD_REQUEST)
 
-                    # Send each ticket to its attendee
-                    _email_tickets(tickets, payment.event)
+                if txn_status == 'success':
+                    # Fulfil payment atomically
+                    new_tickets, all_tickets = _fulfil_payment(payment, ticket_user)
 
-                    if apps.posthog_client is not None:
-                        apps.posthog_client.capture(
-                            'payment_completed',
-                            properties={
-                                'amount': float(payment.amount),
-                                'currency': payment.currency,
-                                'ticket_count': len(tickets),
-                                'payment_channel': payment.channel or 'unknown',
-                            },
-                        )
+                    # _fulfil_payment re-fetches the row under lock, so refresh
+                    # our instance before serializing it (status/paid_at changed).
+                    payment.refresh_from_db()
+
+                    # Update channel on the payment (outside the atomic block to avoid
+                    # holding the lock longer than needed; payment is already 'successful')
+                    payment.channel = transaction_data.get('channel')
+                    payment.save(update_fields=['channel'])
+
+                    # Send emails and PostHog events for newly created tickets only
+                    def _post_commit():
+                        if new_tickets:
+                            _email_tickets(new_tickets, payment.event)
+                        if apps.posthog_client is not None:
+                            apps.posthog_client.capture(
+                                'payment_completed',
+                                properties={
+                                    'amount': float(payment.amount),
+                                    'currency': payment.currency,
+                                    'ticket_count': len(new_tickets),
+                                    'payment_channel': payment.channel or 'unknown',
+                                },
+                            )
+                    transaction.on_commit(_post_commit)
 
                     return Response({
                         'status': 'success',
                         'message': 'Payment verified successfully',
-                        'tickets': TicketSerializer(tickets, many=True).data,
+                        'tickets': TicketSerializer(all_tickets, many=True).data,
                         'payment': PaymentSerializer(payment).data
                     }, status=status.HTTP_200_OK)
-                else:
+                elif txn_status in ('failed', 'reversed'):
+                    # Only terminal failure states
                     payment.status = 'failed'
-                    payment.save()
+                    payment.save(update_fields=['status'])
                     
                     return Response({
                         'status': 'failed',
                         'message': 'Payment was not successful'
                     }, status=status.HTTP_400_BAD_REQUEST)
+                else:
+                    # pending, abandoned, ongoing — leave payment pending
+                    return Response({
+                        'status': 'processing',
+                        'message': f'Payment status is {txn_status}. Please try again later.'
+                    }, status=status.HTTP_202_ACCEPTED)
             else:
                 return Response({
                     'error': 'Failed to verify payment',
@@ -860,33 +915,49 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
             try:
                 payment = Payment.objects.get(paystack_reference=reference)
                 
-                if payment.status != 'successful':
-                    payment.status = 'successful'
-                    payment.channel = data.get('channel')
-                    payment.paid_at = timezone.now()
-                    payment.save()
-                    if payment.promo_code_id:
-                        PromoCode.objects.filter(pk=payment.promo_code_id).update(
-                            redeemed_count=F('redeemed_count') + 1
-                        )
+                if payment.status == 'successful':
+                    # Already fulfilled
+                    return Response({'status': 'success'}, status=status.HTTP_200_OK)
 
-                existing_count = payment.tickets_purchased.count()
-                attendees = _attendees_from_payment(payment)
-                if existing_count < len(attendees):
-                    stored_uid = payment.metadata.get('user_id')
-                    webhook_user = None
-                    if stored_uid:
-                        from django.contrib.auth import get_user_model
-                        User = get_user_model()
-                        webhook_user = User.objects.filter(pk=stored_uid).first()
-
-                    # Create only the still-missing seats, and email just those
-                    missing = attendees[existing_count:]
-                    new_tickets = _create_tickets(
-                        payment.event, payment.tier, missing,
-                        payment_status='paid', payment=payment, user=webhook_user,
+                paid_amount_kobo = data.get('amount', 0)
+                expected_amount_kobo = int(payment.amount * 100)
+                if paid_amount_kobo != expected_amount_kobo:
+                    logger.error(
+                        "Webhook amount mismatch for payment %s: Paystack=%d kobo, expected=%d kobo",
+                        reference, paid_amount_kobo, expected_amount_kobo
                     )
-                    _email_tickets(new_tickets, payment.event)
+                    return Response({'status': 'success'}, status=status.HTTP_200_OK)
+
+                # Resolve user from stored metadata
+                stored_uid = payment.metadata.get('user_id')
+                webhook_user = None
+                if stored_uid:
+                    from django.contrib.auth import get_user_model
+                    User = get_user_model()
+                    webhook_user = User.objects.filter(pk=stored_uid).first()
+
+                # Fulfil payment atomically
+                new_tickets, all_tickets = _fulfil_payment(payment, webhook_user)
+
+                # Update channel on the payment
+                payment.channel = data.get('channel')
+                payment.save(update_fields=['channel'])
+
+                # Send emails and PostHog events for newly created tickets only
+                def _post_commit():
+                    if new_tickets:
+                        _email_tickets(new_tickets, payment.event)
+                    if apps.posthog_client is not None:
+                        apps.posthog_client.capture(
+                            'payment_completed',
+                            properties={
+                                'amount': float(payment.amount),
+                                'currency': payment.currency,
+                                'ticket_count': len(new_tickets),
+                                'payment_channel': payment.channel or 'unknown',
+                            },
+                        )
+                transaction.on_commit(_post_commit)
 
             except Payment.DoesNotExist:
                 pass  # Ignore if payment doesn't exist
