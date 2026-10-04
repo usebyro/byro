@@ -966,6 +966,48 @@ class AdminAction(models.Model):
         return f"{self.action} {self.target_type}:{self.target_id}"
 
 
+class ActivityLog(models.Model):
+    """What users did: a trail of meaningful actions, not every request.
+
+    Separate from AdminAction, which is staff accountability. Rows keep the
+    actor's email so they survive account deletion, and are pruned after a
+    retention window (see the `prune_activity` command).
+    """
+
+    ACTION_CHOICES = [
+        ('auth.sign_in', 'Signed in'),
+        ('event.created', 'Event created'),
+        ('event.updated', 'Event edited'),
+        ('event.deleted', 'Event deleted'),
+        ('ticket.purchased', 'Tickets purchased'),
+        ('ticket.claimed', 'Free tickets claimed'),
+        ('ticket.transfer_started', 'Ticket transfer started'),
+        ('ticket.transfer_completed', 'Ticket transfer accepted'),
+        ('ticket.checked_in', 'Attendee checked in'),
+        ('payout.requested', 'Payout requested'),
+    ]
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='activity',
+    )
+    actor_email = models.EmailField(blank=True, db_index=True)
+    action = models.CharField(max_length=32, choices=ACTION_CHOICES, db_index=True)
+    target_type = models.CharField(max_length=16, blank=True)  # event | ticket | payout
+    target_id = models.CharField(max_length=64, blank=True)
+    target_label = models.CharField(max_length=255, blank=True)
+    detail = models.CharField(max_length=255, blank=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [models.Index(fields=['target_type', 'target_id', '-created_at'])]
+
+    def __str__(self):
+        return f"{self.actor_email or 'anonymous'} {self.action}"
+
+
 # ---------------------------------------------------------------------------
 # Signals
 # ---------------------------------------------------------------------------

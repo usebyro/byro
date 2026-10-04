@@ -27,6 +27,7 @@ from .views import (
     AdminPromosListView,
     AdminAuditLogView,
     AdminMeView,
+    AdminActivityView,
     AdminTeamView,
     AdminTeamDetailView,
 )
@@ -118,6 +119,7 @@ urlpatterns = [
     path('api/admin/me/', AdminMeView.as_view(), name='admin-me'),
     path('api/admin/team/', AdminTeamView.as_view(), name='admin-team'),
     path('api/admin/team/<int:pk>/', AdminTeamDetailView.as_view(), name='admin-team-detail'),
+    path('api/admin/activity/', AdminActivityView.as_view(), name='admin-activity'),
     path('api/admin/audit-log/', AdminAuditLogView.as_view(), name='admin-audit-log'),
 
     # Public short-URL for events (must be last — catch-all slug)

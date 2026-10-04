@@ -12,6 +12,7 @@ import {
   CreditCardIcon,
   Coupon01Icon,
   Clock01Icon,
+  Activity01Icon,
   UserMultipleIcon,
   UserGroupIcon,
   Menu01Icon,
@@ -28,6 +29,7 @@ const navItems = [
   { label: "Payments", href: "/payments", icon: CreditCardIcon },
   { label: "Promo codes", href: "/promos", icon: Coupon01Icon },
   { label: "Payouts", href: "/payouts", icon: Wallet01Icon },
+  { label: "Activity", href: "/activity", icon: Activity01Icon },
   { label: "Audit log", href: "/audit-log", icon: Clock01Icon },
   { label: "Team", href: "/team", icon: UserGroupIcon },
 ];

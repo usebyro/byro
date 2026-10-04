@@ -37,6 +37,7 @@ from . import apps
 from .models import EventCoHost, UserProfile
 from .services import workos_api
 from .services.turnstile import check_and_remember_verification
+from .activity import log_activity
 from .services.workos_api import WorkOSAPIError
 
 logger = logging.getLogger(__name__)
@@ -228,7 +229,7 @@ def _identify_posthog_user(user, profile):
     )
 
 
-def complete_sign_in(auth_response):
+def complete_sign_in(auth_response, request=None):
     """
     Turn a successful WorkOS authentication into a Byro session response.
 
@@ -241,6 +242,7 @@ def complete_sign_in(auth_response):
     _backfill_display_name(profile, auth_response.user)
     _identify_posthog_user(user, profile)
     claimed = claim_pending_cohost_invites(user)
+    log_activity('auth.sign_in', request=request, user=user, detail=user.auth_provider or '')
 
     if apps.posthog_client is not None:
         apps.posthog_client.capture(
@@ -329,7 +331,7 @@ class MagicAuthVerifyView(_AuthEndpoint):
             return Response({'error': str(e), 'code': e.code}, status=status.HTTP_401_UNAUTHORIZED)
 
         try:
-            return Response(complete_sign_in(auth_response))
+            return Response(complete_sign_in(auth_response, request))
         except ValueError as e:
             logger.error("Magic auth succeeded but the local user could not be built: %s", e)
             return Response({'error': str(e)}, status=status.HTTP_502_BAD_GATEWAY)
@@ -403,7 +405,7 @@ class OAuthCallbackView(_AuthEndpoint):
             return Response({'error': str(e), 'code': e.code}, status=status.HTTP_401_UNAUTHORIZED)
 
         try:
-            return Response(complete_sign_in(auth_response))
+            return Response(complete_sign_in(auth_response, request))
         except ValueError as e:
             logger.error("OAuth succeeded but the local user could not be built: %s", e)
             return Response({'error': str(e)}, status=status.HTTP_502_BAD_GATEWAY)

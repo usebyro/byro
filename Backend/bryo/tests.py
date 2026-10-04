@@ -780,3 +780,65 @@ class AdminRolePermissionTests(TestCase):
         with override_settings(ADMIN_BOOTSTRAP_EMAILS={'owner@example.com'}):
             self.assertEqual(self._as('nobody').get('/api/admin/me/').status_code, 403)
             self.assertEqual(self._as('owner').get('/api/admin/me/').json()['role'], 'owner')
+
+
+class ActivityLogTests(TestCase):
+    """User actions are recorded, readable by admins, and never break the action."""
+
+    def setUp(self):
+        from .models import AdminMember
+
+        User = get_user_model()
+        self.user = User.objects.create_user(email='u@example.com', password='x')
+        self.admin = User.objects.create_user(email='a@example.com', password='x')
+        AdminMember.objects.create(email='a@example.com', role='viewer')
+
+    def test_log_activity_records_actor_ip_and_target(self):
+        from rest_framework.test import APIRequestFactory
+
+        from .activity import log_activity
+        from .models import ActivityLog
+
+        req = APIRequestFactory().get('/', HTTP_X_FORWARDED_FOR='1.2.3.4, 5.6.7.8')
+        req.user = self.user
+        log_activity('event.created', request=req, target_type='event', target_id=7, target_label='Party')
+        row = ActivityLog.objects.get()
+        self.assertEqual((row.actor_email, row.ip_address, row.target_id, row.user), ('u@example.com', '1.2.3.4', '7', self.user))
+
+    def test_guest_actor_uses_email_and_failure_is_swallowed(self):
+        from .activity import log_activity
+        from .models import ActivityLog
+
+        log_activity('ticket.purchased', email='guest@example.com')
+        self.assertEqual(ActivityLog.objects.get().actor_email, 'guest@example.com')
+        log_activity('not-a-real-action' * 10, email='x@example.com')  # too long for the column? must not raise
+
+    def test_admin_can_read_and_filter_but_users_cannot(self):
+        from .activity import log_activity
+
+        log_activity('event.created', user=self.user, target_type='event', target_id=1, target_label='Party')
+        log_activity('ticket.checked_in', user=self.user, target_type='event', target_id=1, target_label='Party')
+        c = APIClient()
+        c.force_authenticate(self.admin)
+        r = c.get('/api/admin/activity/?action=event.created')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual([a['action'] for a in r.json()['results']], ['event.created'])
+        self.assertEqual(len(c.get('/api/admin/activity/?search=u@example').json()['results']), 2)
+        c.force_authenticate(self.user)
+        self.assertEqual(c.get('/api/admin/activity/').status_code, 403)
+
+    def test_prune_deletes_only_old_rows(self):
+        from datetime import timedelta
+
+        from django.core.management import call_command
+
+        from .activity import log_activity
+        from .models import ActivityLog
+
+        log_activity('auth.sign_in', user=self.user)
+        log_activity('auth.sign_in', user=self.user)
+        ActivityLog.objects.filter(pk=ActivityLog.objects.last().pk).update(
+            created_at=timezone.now() - timedelta(days=400)
+        )
+        call_command('prune_activity', days=365)
+        self.assertEqual(ActivityLog.objects.count(), 1)

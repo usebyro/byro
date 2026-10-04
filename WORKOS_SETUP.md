@@ -314,6 +314,17 @@ or someone else may sign in first. After that, owners add people from
 `AdminAction` row including `actor_email`. Read it at `/admin/audit-log`,
 `GET /api/admin/audit-log/`, or in Django admin (read-only).
 
+**User activity.** Separate from the admin audit log, `ActivityLog` records what
+users did: sign-in, event created/edited/deleted, free tickets claimed, tickets
+purchased, ticket transfer started/accepted, attendee check-in and payout
+requests. Rows are written by `log_activity()` (`Backend/bryo/activity.py`),
+which never raises, and keep the actor's email so they survive account
+deletion. Guests and webhooks are logged by email. Each row stores the client
+IP (from `X-Forwarded-For`), which is personal data: mention it in the privacy
+policy. Read it at `/admin/activity` or `GET /api/admin/activity/`. Prune with
+`python manage.py prune_activity --days 365` — schedule it (cron or a Render
+job) or the table grows without bound.
+
 **Cleanup.** Delete `ADMIN_SECRET` from the backend and frontend environments.
 
 ## 10. Known follow-ups

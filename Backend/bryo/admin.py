@@ -1,6 +1,7 @@
 from django.contrib import admin
 
 from .models import (
+    ActivityLog,
     AdminAction,
     AdminMember,
     CustomUser,
@@ -134,3 +135,17 @@ class AdminMemberAdmin(admin.ModelAdmin):
     list_display = ('email', 'role', 'added_by_email', 'created_at')
     list_filter = ('role',)
     search_fields = ('email',)
+
+
+@admin.register(ActivityLog)
+class ActivityLogAdmin(admin.ModelAdmin):
+    list_display = ('created_at', 'actor_email', 'action', 'target_type', 'target_label', 'ip_address')
+    list_filter = ('action', 'target_type')
+    search_fields = ('actor_email', 'target_label', 'target_id', 'detail')
+    readonly_fields = [f.name for f in ActivityLog._meta.fields]
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False

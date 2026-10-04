@@ -29,8 +29,9 @@ from django.contrib.auth import get_user_model
 from .models import (
     WaitList, Event, Ticket, TicketTransfer,
     EventCoHost, Payment, UserProfile, EventFormQuestion, EventFormAnswer,
-    TicketTier, PayoutRequest, PromoCode, MerchItem, Follow, AdminAction, AdminMember,
+    TicketTier, PayoutRequest, PromoCode, MerchItem, Follow, AdminAction, AdminMember, ActivityLog,
 )
+from .activity import log_activity
 from .pricing import calculate_ticket_fees, FEE_RATE
 from django.urls import reverse
 from .serializers import EventSerializer, TicketSerializer, PaymentSerializer, TicketTierSerializer, PromoCodeSerializer, MerchItemSerializer
@@ -630,6 +631,13 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
             # Send each free ticket to its own attendee
             _email_tickets(tickets, event)
 
+            log_activity(
+                'ticket.claimed', request=request,
+                email=tickets[0].current_owner_email if tickets else '',
+                target_type='event', target_id=event.pk, target_label=event.name,
+                detail=f"{len(tickets)} ticket(s)",
+            )
+
             if apps.posthog_client is not None:
                 apps.posthog_client.capture(
                     'free_ticket_claimed',
@@ -834,6 +842,12 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                     def _post_commit():
                         if new_tickets:
                             _email_tickets(new_tickets, payment.event)
+                            log_activity(
+                                'ticket.purchased', request=request, email=payment.customer_email,
+                                target_type='event', target_id=payment.event_id,
+                                target_label=payment.event.name,
+                                detail=f"{len(new_tickets)} ticket(s), {payment.currency} {payment.amount}",
+                            )
                         if apps.posthog_client is not None:
                             apps.posthog_client.capture(
                                 'payment_completed',
@@ -947,6 +961,12 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                 def _post_commit():
                     if new_tickets:
                         _email_tickets(new_tickets, payment.event)
+                        log_activity(
+                            'ticket.purchased', email=payment.customer_email,
+                            target_type='event', target_id=payment.event_id,
+                            target_label=payment.event.name,
+                            detail=f"{len(new_tickets)} ticket(s), {payment.currency} {payment.amount}",
+                        )
                     if apps.posthog_client is not None:
                         apps.posthog_client.capture(
                             'payment_completed',
@@ -1689,6 +1709,11 @@ class EventViewSet(viewsets.ModelViewSet):
 
         self.perform_create(serializer)
 
+        log_activity(
+            'event.created', request=request, target_type='event',
+            target_id=serializer.instance.pk, target_label=serializer.instance.name,
+        )
+
         if apps.posthog_client is not None:
             apps.posthog_client.capture(
                 'event_created',
@@ -1720,6 +1745,10 @@ class EventViewSet(viewsets.ModelViewSet):
         """Delete the event image from Supabase Storage before removing the row."""
         if instance.event_image:
             instance.event_image.delete(save=False)
+        log_activity(
+            'event.deleted', request=self.request, target_type='event',
+            target_id=instance.pk, target_label=instance.name,
+        )
         instance.delete()
         if apps.posthog_client is not None:
             apps.posthog_client.capture('event_deleted')
@@ -1747,6 +1776,11 @@ class EventViewSet(viewsets.ModelViewSet):
         new_image = serializer.instance.event_image.name if serializer.instance.event_image else None
         if old_image and old_image != new_image:
             serializer.instance.event_image.storage.delete(old_image)
+
+        log_activity(
+            'event.updated', request=request, target_type='event',
+            target_id=serializer.instance.pk, target_label=serializer.instance.name,
+        )
 
         if apps.posthog_client is not None:
             apps.posthog_client.capture('event_updated')
@@ -2136,6 +2170,11 @@ class EventViewSet(viewsets.ModelViewSet):
         ticket.checked_in_at = timezone.now()
         ticket.save(update_fields=['checked_in', 'checked_in_at'])
 
+        log_activity(
+            'ticket.checked_in', request=request, target_type='event',
+            target_id=event.pk, target_label=event.name, detail=ticket.current_owner_email,
+        )
+
         if apps.posthog_client is not None:
             apps.posthog_client.capture('attendee_checked_in')
 
@@ -2448,6 +2487,11 @@ class TicketViewSet(viewsets.ModelViewSet):
             transfer_url = request.build_absolute_uri(
                 reverse('accept-transfer', args=[str(transfer.transfer_key)])
             )
+            log_activity(
+                'ticket.transfer_started', request=request, email=ticket.current_owner_email,
+                target_type='ticket', target_id=ticket.ticket_id,
+                target_label=ticket.event.name, detail=f"to {transfer.to_user_email}",
+            )
             
             return Response({
                 "transfer_id": transfer.id,
@@ -2522,6 +2566,12 @@ class TicketTransferViewSet(viewsets.ModelViewSet):
         
         transfer.is_accepted = True
         transfer.save()
+
+        log_activity(
+            'ticket.transfer_completed', request=request, email=transfer.to_user_email,
+            target_type='ticket', target_id=ticket.ticket_id,
+            target_label=ticket.event.name, detail=f"from {transfer.from_user_email}",
+        )
 
         if apps.posthog_client is not None:
             apps.posthog_client.capture('ticket_transfer_completed')
@@ -2709,6 +2759,12 @@ class PayoutRequestView(APIView):
             )
         except Exception as e:
             logger.error(f"Failed to send payout request email for payout {payout.pk}: {e}")
+
+        log_activity(
+            'payout.requested', request=request, target_type='payout',
+            target_id=payout.pk, target_label=payout.event.name if payout.event else '',
+            detail=f"{payout.amount} via {payout.method}",
+        )
 
         if apps.posthog_client is not None:
             apps.posthog_client.capture(
@@ -3372,3 +3428,40 @@ class AdminTeamDetailView(APIView):
         _log_admin_action(request, AdminAction.ACTION_TEAM_REMOVED, 'member', m.pk, m.email, m.role)
         m.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class AdminActivityView(APIView):
+    """GET /api/admin/activity/?search=&action=&target_type=&target_id=&limit=100
+
+    What users did (sign-ins, events, tickets, payouts), newest first. Search
+    matches the actor's email or the target's label.
+    """
+    permission_classes = [IsAdminMember]
+
+    def get(self, request):
+        qs = ActivityLog.objects.all()
+        search = (request.query_params.get('search') or '').strip()
+        action = (request.query_params.get('action') or '').strip()
+        target_type = (request.query_params.get('target_type') or '').strip()
+        target_id = (request.query_params.get('target_id') or '').strip()
+        if search:
+            qs = qs.filter(Q(actor_email__icontains=search) | Q(target_label__icontains=search))
+        if action:
+            qs = qs.filter(action=action)
+        if target_type:
+            qs = qs.filter(target_type=target_type)
+        if target_id:
+            qs = qs.filter(target_id=target_id)
+        try:
+            limit = min(max(int(request.query_params.get('limit', 100)), 1), 300)
+        except ValueError:
+            limit = 100
+        return Response({
+            'actions': [{'value': v, 'label': l} for v, l in ActivityLog.ACTION_CHOICES],
+            'results': [{
+                'id': a.pk, 'action': a.action, 'actor_email': a.actor_email,
+                'target_type': a.target_type, 'target_id': a.target_id,
+                'target_label': a.target_label, 'detail': a.detail,
+                'ip_address': a.ip_address, 'created_at': a.created_at,
+            } for a in qs[:limit]],
+        })
