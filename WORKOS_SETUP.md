@@ -28,6 +28,7 @@ deploy together. The contract the frontend needs to implement is in §8.
 | `WORKOS_ISSUER` | no | Pins the `iss` claim tokens must carry — your hosted AuthKit domain, **not** a name you choose. Run `check_workos` to discover it. Per-environment. See §4. |
 | `WORKOS_OAUTH_REDIRECT_URI` | for Google/Apple | Where WorkOS returns the browser after social sign-in. Must match a Redirect URI registered in the dashboard. Defaults to `{FRONTEND_URL}/auth/callback`. Never taken from the request — a client-supplied redirect would be an open redirect. |
 | `WORKOS_API_BASE_URL` | no | Defaults to `https://api.workos.com`. Override only for tests. |
+| `ADMIN_BOOTSTRAP_EMAILS` | **recommended in prod** | Comma-separated emails allowed to claim the admin panel when its team is empty, and always treated as owners. If unset, the **first person to sign in at `/admin/login` becomes the owner** — fine locally, risky on a public deploy where anyone can create an account. See §9. |
 
 Now unused, safe to delete: `PRIVY_APP_ID`, `PRIVY_APP_SECRET`,
 `PRIVY_VERIFICATION_KEY`, `WEB3AUTH_CLIENT_ID`, `WEB3AUTH_JWKS_URL`.
@@ -266,13 +267,63 @@ else changed — all existing endpoints, permissions and payloads are the same.
   and `POST /api/events/<slug>/register/` are both still `AllowAny`.
 - `/api/auth/privy/` and `/api/auth/social/` are **deleted** and now 404.
 
-## 9. Known follow-ups
+## 9. Admin panel: sign-in and roles
+
+The admin panel no longer uses a shared password (`ADMIN_SECRET`, the
+`admin_token` cookie and `X-Admin-Token` are gone). Admins sign in with WorkOS
+like everyone else; whether they may use the panel is decided by our own
+`AdminMember` table.
+
+**Sign-in.** `/admin/login` takes an email, passes Turnstile, and Django sends
+a WorkOS magic code (`POST /api/admin-auth/send` relays to
+`/api/auth/magic/send/`). `POST /api/admin-auth` verifies the code through
+`/api/auth/magic/verify/`, then calls `GET /api/admin/me/` with the new access
+token. Only if that succeeds are the tokens kept, as httpOnly cookies
+(`admin_access`, `admin_refresh`). Someone who signs in fine but isn't on the
+team gets "This account doesn't have admin access" and no cookies.
+
+**Requests.** Every `/api/admin/*` Next route goes through `adminProxy`
+(`frontend/src/lib/adminProxy.ts`), which sends the access token as a Bearer
+header and refreshes once on a 401. Middleware only checks that a cookie
+exists; Django verifies the token and the role on every call, so a forged
+cookie gets an empty shell and nothing else.
+
+**Identity.** A signed-in user is matched to an `AdminMember` by email (WorkOS
+has verified it). There is no separate admin account.
+
+**Roles** (ordered: viewer < admin < owner), enforced by `IsAdminMember` in
+`Backend/bryo/permissions.py`:
+
+| Role | Can |
+|---|---|
+| `viewer` | Read everything: events, users, payments, promos, payouts, audit log. |
+| `admin` | Also suspend/reactivate events and users, and process or reject payouts. |
+| `owner` | Also delete events and payouts, change user roles, and manage the team. |
+
+Views declare `min_role` and, where a method needs more, `method_roles`. The UI
+hides what a role can't do (`useAdminMe`), but the API is what refuses it.
+Owners can't demote or remove themselves, so a team always has an owner.
+
+**Bootstrapping.** While `AdminMember` is empty, the first person to reach the
+panel becomes an owner. If `ADMIN_BOOTSTRAP_EMAILS` is set, only those emails
+can claim that slot, and they stay owners afterwards. **Set it before deploying**,
+or someone else may sign in first. After that, owners add people from
+`/admin/team`.
+
+**Audit log.** Every moderation, payout, role and team action writes an
+`AdminAction` row including `actor_email`. Read it at `/admin/audit-log`,
+`GET /api/admin/audit-log/`, or in Django admin (read-only).
+
+**Cleanup.** Delete `ADMIN_SECRET` from the backend and frontend environments.
+
+## 10. Known follow-ups
 
 - **`PrivyUser` and the `privy_id` / `external_id` / `auth_provider` columns are
   intentionally still present.** Dropping tables in the same deploy that logs
   everyone out would leave no way to diagnose a mis-linked account. Drop them in
   a follow-up migration once the cutover is verified.
 - Set `WORKOS_ISSUER` once confirmed (§4).
+- Set `ADMIN_BOOTSTRAP_EMAILS` before the first production deploy of the admin panel (§9).
 - **Apple sign-in needs dashboard setup** before the Apple button works: an
   Apple developer account, a Service ID and a signing key configured in WorkOS.
   Google is much simpler. The backend supports both already.
@@ -283,17 +334,17 @@ else changed — all existing endpoints, permissions and payloads are the same.
   Worth removing from the repo separately.
 - `BACKEND_AND_AUTH.md` proposes building our own email OTP auth. Superseded.
 
-## 10. Tests
+## 11. Tests
 
 ```bash
 cd Backend && python manage.py test bryo
 ```
 
-49 tests, all passing, fully offline — they generate an RSA keypair and sign
+The suite (91 tests at the time of writing) passes fully offline — they generate an RSA keypair and sign
 WorkOS-shaped tokens locally, so the real verification path (signature, issuer,
 expiry, required claims) runs without network. Coverage: token verification and
 its failure modes, issuer pinning on and off, the authentication class, magic
 auth send/verify including enumeration safety, OAuth authorize/callback
 including the open-redirect guard, refresh and `me`, account linking on
 migration, co-host invite claiming including the unverified-email case, and
-send throttling.
+send throttling, and admin role enforcement (viewer/admin/owner limits, actor recorded on audit entries, self-demotion guard, first-sign-in bootstrap).
