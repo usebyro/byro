@@ -292,7 +292,10 @@ SUPABASE_URL = os.getenv('SUPABASE_URL', '')
 SUPABASE_KEY = os.getenv('SUPABASE_KEY', '')
 SUPABASE_STORAGE_BUCKET = os.getenv('SUPABASE_STORAGE_BUCKET', 'event-images')
 
-ADMIN_SECRET = os.getenv('ADMIN_SECRET', '')
+# Emails that are admin-panel owners from their first sign-in (comma-separated).
+ADMIN_BOOTSTRAP_EMAILS = {
+    e.strip().lower() for e in os.getenv('ADMIN_BOOTSTRAP_EMAILS', '').split(',') if e.strip()
+}
 
 # Cloudinary — primary media backend. django-cloudinary-storage reads these.
 CLOUDINARY_CLOUD_NAME = os.getenv('CLOUDINARY_CLOUD_NAME', '')

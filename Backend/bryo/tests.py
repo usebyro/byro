@@ -701,3 +701,82 @@ class FollowTests(WorkOSAuthTestCase):
         Follow.objects.create(follower=self.fan, following=self.host)
         self.fan.delete()
         self.assertEqual(Follow.objects.count(), 0)
+
+
+class AdminRolePermissionTests(TestCase):
+    """Admin panel access is by AdminMember role: viewer < admin < owner."""
+
+    def setUp(self):
+        from rest_framework.test import APIClient
+        from .models import AdminMember
+
+        User = get_user_model()
+        self.client_cls = APIClient
+        self.users = {
+            role: User.objects.create_user(email=f'{role}@example.com', password='x')
+            for role in ('viewer', 'admin', 'owner', 'nobody')
+        }
+        for role in ('viewer', 'admin', 'owner'):
+            AdminMember.objects.create(email=f'{role}@example.com', role=role)
+
+    def _as(self, role):
+        c = self.client_cls()
+        c.force_authenticate(self.users[role])
+        return c
+
+    def test_non_member_is_refused_even_for_reads(self):
+        self.assertEqual(self._as('nobody').get('/api/admin/payments/').status_code, 403)
+
+    def test_viewer_reads_but_cannot_act(self):
+        c = self._as('viewer')
+        self.assertEqual(c.get('/api/admin/payments/').status_code, 200)
+        self.assertEqual(c.patch('/api/admin/users/%d/' % self.users['nobody'].pk, {'is_active': False}, format='json').status_code, 403)
+
+    def test_admin_can_suspend_but_not_change_role_or_manage_team(self):
+        c = self._as('admin')
+        pk = self.users['nobody'].pk
+        self.assertEqual(c.patch(f'/api/admin/users/{pk}/', {'is_active': False}, format='json').status_code, 200)
+        self.assertEqual(c.patch(f'/api/admin/users/{pk}/', {'role': 'organizer'}, format='json').status_code, 403)
+        self.assertEqual(c.post('/api/admin/team/', {'email': 'x@example.com'}, format='json').status_code, 403)
+
+    def test_owner_manages_team_and_actions_record_actor(self):
+        from .models import AdminAction
+
+        c = self._as('owner')
+        pk = self.users['nobody'].pk
+        self.assertEqual(c.patch(f'/api/admin/users/{pk}/', {'role': 'organizer'}, format='json').status_code, 200)
+        self.assertEqual(AdminAction.objects.get(action='user.role_changed').actor_email, 'owner@example.com')
+        self.assertEqual(c.post('/api/admin/team/', {'email': 'New@Example.com', 'role': 'admin'}, format='json').status_code, 201)
+
+    def test_owner_cannot_remove_or_demote_self(self):
+        from .models import AdminMember
+
+        c = self._as('owner')
+        me = AdminMember.objects.get(email='owner@example.com')
+        self.assertEqual(c.delete(f'/api/admin/team/{me.pk}/').status_code, 400)
+        self.assertEqual(c.patch(f'/api/admin/team/{me.pk}/', {'role': 'viewer'}, format='json').status_code, 400)
+
+    def test_bootstrap_email_becomes_owner(self):
+        from django.test import override_settings
+
+        with override_settings(ADMIN_BOOTSTRAP_EMAILS={'nobody@example.com'}):
+            r = self._as('nobody').get('/api/admin/me/')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json()['role'], 'owner')
+
+    def test_first_person_in_claims_ownership_only_when_team_is_empty(self):
+        from .models import AdminMember
+
+        AdminMember.objects.all().delete()
+        first = self._as('nobody').get('/api/admin/me/')
+        self.assertEqual((first.status_code, first.json()['role']), (200, 'owner'))
+        # The team is no longer empty, so the next stranger gets nothing.
+        self.assertEqual(self._as('viewer').get('/api/admin/me/').status_code, 403)
+
+    def test_bootstrap_list_blocks_other_first_comers(self):
+        from .models import AdminMember
+
+        AdminMember.objects.all().delete()
+        with override_settings(ADMIN_BOOTSTRAP_EMAILS={'owner@example.com'}):
+            self.assertEqual(self._as('nobody').get('/api/admin/me/').status_code, 403)
+            self.assertEqual(self._as('owner').get('/api/admin/me/').json()['role'], 'owner')

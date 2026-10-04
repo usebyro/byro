@@ -886,6 +886,86 @@ class Follow(models.Model):
         return f"{self.follower_id} follows {self.following_id}"
 
 
+class AdminMember(models.Model):
+    """Who may use the admin panel, and what they may do there.
+
+    Matched to a signed-in user by email (WorkOS has verified it). Roles are
+    ordered: viewer < admin < owner.
+    """
+
+    ROLE_VIEWER = 'viewer'
+    ROLE_ADMIN = 'admin'
+    ROLE_OWNER = 'owner'
+    ROLE_CHOICES = [
+        (ROLE_VIEWER, 'Viewer — read only'),
+        (ROLE_ADMIN, 'Admin — moderate events and users, process payouts'),
+        (ROLE_OWNER, 'Owner — everything, incl. deletes, roles and team'),
+    ]
+    ROLE_RANK = {ROLE_VIEWER: 1, ROLE_ADMIN: 2, ROLE_OWNER: 3}
+
+    email = models.EmailField(unique=True)
+    role = models.CharField(max_length=10, choices=ROLE_CHOICES, default=ROLE_VIEWER)
+    added_by_email = models.EmailField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['created_at']
+
+    def save(self, *args, **kwargs):
+        self.email = (self.email or '').strip().lower()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.email} ({self.role})"
+
+
+class AdminAction(models.Model):
+    """Audit trail for platform-admin actions (suspend/delete event, user status, payouts)."""
+
+    ACTION_EVENT_SUSPENDED = 'event.suspended'
+    ACTION_EVENT_REACTIVATED = 'event.reactivated'
+    ACTION_EVENT_DELETED = 'event.deleted'
+    ACTION_USER_SUSPENDED = 'user.suspended'
+    ACTION_USER_REACTIVATED = 'user.reactivated'
+    ACTION_USER_ROLE_CHANGED = 'user.role_changed'
+    ACTION_PAYOUT_PROCESSED = 'payout.processed'
+    ACTION_PAYOUT_REJECTED = 'payout.rejected'
+    ACTION_PAYOUT_DELETED = 'payout.deleted'
+    ACTION_TEAM_ADDED = 'team.added'
+    ACTION_TEAM_ROLE_CHANGED = 'team.role_changed'
+    ACTION_TEAM_REMOVED = 'team.removed'
+
+    ACTION_CHOICES = [
+        (ACTION_EVENT_SUSPENDED, 'Event suspended'),
+        (ACTION_EVENT_REACTIVATED, 'Event reactivated'),
+        (ACTION_EVENT_DELETED, 'Event deleted'),
+        (ACTION_USER_SUSPENDED, 'User suspended'),
+        (ACTION_USER_REACTIVATED, 'User reactivated'),
+        (ACTION_USER_ROLE_CHANGED, 'User role changed'),
+        (ACTION_PAYOUT_PROCESSED, 'Payout processed'),
+        (ACTION_PAYOUT_REJECTED, 'Payout rejected'),
+        (ACTION_PAYOUT_DELETED, 'Payout deleted'),
+        (ACTION_TEAM_ADDED, 'Team member added'),
+        (ACTION_TEAM_ROLE_CHANGED, 'Team role changed'),
+        (ACTION_TEAM_REMOVED, 'Team member removed'),
+    ]
+
+    action = models.CharField(max_length=32, choices=ACTION_CHOICES, db_index=True)
+    target_type = models.CharField(max_length=16)  # event | user | payout | member
+    target_id = models.CharField(max_length=64)
+    target_label = models.CharField(max_length=255, blank=True)
+    detail = models.CharField(max_length=255, blank=True)
+    actor_email = models.EmailField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [models.Index(fields=['target_type', 'target_id', '-created_at'])]
+
+    def __str__(self):
+        return f"{self.action} {self.target_type}:{self.target_id}"
+
+
 # ---------------------------------------------------------------------------
 # Signals
 # ---------------------------------------------------------------------------

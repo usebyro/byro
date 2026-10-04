@@ -21,6 +21,14 @@ from .views import (
     AdminAnalyticsSummaryView,
     AdminAnalyticsRevenueTrendView,
     AdminUsersListView,
+    AdminUserDetailView,
+    AdminEventsOverviewView,
+    AdminPaymentsListView,
+    AdminPromosListView,
+    AdminAuditLogView,
+    AdminMeView,
+    AdminTeamView,
+    AdminTeamDetailView,
 )
 from .newsletter_views import NewsletterSubscribeView
 from .auth_views import (
@@ -101,6 +109,16 @@ urlpatterns = [
 
     # Admin — users
     path('api/admin/users/', AdminUsersListView.as_view(), name='admin-users-list'),
+    path('api/admin/users/<int:pk>/', AdminUserDetailView.as_view(), name='admin-users-detail'),
+
+    # Admin — events overview, payments, promos, audit log
+    path('api/admin/events/overview/', AdminEventsOverviewView.as_view(), name='admin-events-overview'),
+    path('api/admin/payments/', AdminPaymentsListView.as_view(), name='admin-payments-list'),
+    path('api/admin/promos/', AdminPromosListView.as_view(), name='admin-promos-list'),
+    path('api/admin/me/', AdminMeView.as_view(), name='admin-me'),
+    path('api/admin/team/', AdminTeamView.as_view(), name='admin-team'),
+    path('api/admin/team/<int:pk>/', AdminTeamDetailView.as_view(), name='admin-team-detail'),
+    path('api/admin/audit-log/', AdminAuditLogView.as_view(), name='admin-audit-log'),
 
     # Public short-URL for events (must be last — catch-all slug)
     path('<slug:slug>/', EventViewSet.as_view({'get': 'retrieve'}), name='event-short-url'),

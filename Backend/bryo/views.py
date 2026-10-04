@@ -29,12 +29,12 @@ from django.contrib.auth import get_user_model
 from .models import (
     WaitList, Event, Ticket, TicketTransfer,
     EventCoHost, Payment, UserProfile, EventFormQuestion, EventFormAnswer,
-    TicketTier, PayoutRequest, PromoCode, MerchItem, Follow,
+    TicketTier, PayoutRequest, PromoCode, MerchItem, Follow, AdminAction, AdminMember,
 )
 from .pricing import calculate_ticket_fees, FEE_RATE
 from django.urls import reverse
 from .serializers import EventSerializer, TicketSerializer, PaymentSerializer, TicketTierSerializer, PromoCodeSerializer, MerchItemSerializer
-from .permissions import IsEventOwnerOrCoHost, IsEventOwner, IsAdminSecret
+from .permissions import IsEventOwnerOrCoHost, IsEventOwner, IsAdminMember, get_admin_member
 from django.db import transaction, IntegrityError
 from django.db import models
 from django.db.models import Q, Min, OuterRef, Subquery, Sum, Count, F
@@ -2756,8 +2756,11 @@ class AdminPayoutView(APIView):
     real one — deleting a 'processed' row does NOT reverse any real-world
     transfer, it only stops that amount being subtracted from the
     organiser's available balance here.
+
+    Viewers read; admins process/reject; only owners delete.
     """
-    permission_classes = [IsAdminSecret]
+    permission_classes = [IsAdminMember]
+    method_roles = {'PATCH': 'admin', 'DELETE': 'owner'}
 
     def get(self, request):
         qs = PayoutRequest.objects.select_related('user', 'event').all()
@@ -2765,9 +2768,13 @@ class AdminPayoutView(APIView):
 
     def delete(self, request, pk):
         try:
-            payout = PayoutRequest.objects.get(pk=pk)
+            payout = PayoutRequest.objects.select_related('user').get(pk=pk)
         except PayoutRequest.DoesNotExist:
             return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+        _log_admin_action(
+            request, AdminAction.ACTION_PAYOUT_DELETED, 'payout', payout.pk,
+            payout.user.email if payout.user_id else '', str(payout.amount),
+        )
         payout.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -2785,6 +2792,11 @@ class AdminPayoutView(APIView):
         if new_status == 'processed':
             payout.processed_at = timezone.now()
         payout.save(update_fields=['status', 'processed_at'])
+        _log_admin_action(
+            request, AdminAction.ACTION_PAYOUT_PROCESSED if new_status == 'processed' else AdminAction.ACTION_PAYOUT_REJECTED,
+            'payout', payout.pk,
+            payout.user.email if payout.user_id else '', str(payout.amount),
+        )
 
         if new_status == 'processed':
             try:
@@ -2862,7 +2874,7 @@ class PaystackResolveAccountView(APIView):
 
 class AdminAnalyticsSummaryView(APIView):
     """GET /api/admin/analytics/summary/"""
-    permission_classes = [IsAdminSecret]
+    permission_classes = [IsAdminMember]
 
     def get(self, request):
         total_tickets = Ticket.objects.filter(payment_status__in=['paid', 'free']).count()
@@ -2892,10 +2904,12 @@ class AdminEventDetailView(APIView):
     DELETE /api/admin/events/<pk>/
 
     Not the owner-facing EventViewSet: no ownership check, gated only by the
-    admin secret. The admin panel's suspend/reactivate/delete buttons need
-    this for events the platform admin doesn't personally own.
+    admin role. The admin panel's suspend/reactivate/delete buttons need
+    this for events the platform admin doesn't personally own. Admins can
+    suspend/reactivate; only owners can delete.
     """
-    permission_classes = [IsAdminSecret]
+    permission_classes = [IsAdminMember]
+    method_roles = {'PATCH': 'admin', 'DELETE': 'owner'}
 
     def _get_event(self, pk):
         try:
@@ -2908,15 +2922,20 @@ class AdminEventDetailView(APIView):
         if event is None:
             return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
         is_active = request.data.get('is_active')
-        if is_active is not None:
+        if is_active is not None and bool(is_active) != event.is_active:
             event.is_active = bool(is_active)
             event.save(update_fields=['is_active'])
+            _log_admin_action(
+                request, AdminAction.ACTION_EVENT_REACTIVATED if event.is_active else AdminAction.ACTION_EVENT_SUSPENDED,
+                'event', event.pk, event.name, '',
+            )
         return Response(EventSerializer(event, context={'request': request}).data)
 
     def delete(self, request, pk):
         event = self._get_event(pk)
         if event is None:
             return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+        _log_admin_action(request, AdminAction.ACTION_EVENT_DELETED, 'event', event.pk, event.name, '')
         event.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -2929,7 +2948,7 @@ class AdminEventAttendeesView(APIView):
     instead of event ownership — the admin panel needs to see attendees for
     any event, not just ones the platform admin happens to own or co-host.
     """
-    permission_classes = [IsAdminSecret]
+    permission_classes = [IsAdminMember]
 
     def get(self, request, slug):
         try:
@@ -2968,7 +2987,7 @@ class AdminUsersListView(APIView):
     how many events they've created. ?role=organizer|attendee filters to
     that self-reported role; omit it to list everyone.
     """
-    permission_classes = [IsAdminSecret]
+    permission_classes = [IsAdminMember]
 
     def get(self, request):
         role = (request.query_params.get('role') or '').strip()
@@ -2997,7 +3016,7 @@ class AdminUsersListView(APIView):
 
 class AdminAnalyticsRevenueTrendView(APIView):
     """GET /api/admin/analytics/revenue-trend/?days=30"""
-    permission_classes = [IsAdminSecret]
+    permission_classes = [IsAdminMember]
 
     def get(self, request):
         try:
@@ -3016,3 +3035,340 @@ class AdminAnalyticsRevenueTrendView(APIView):
         )
         data = [{'date': str(r['date']), 'revenue': r['revenue']} for r in rows]
         return Response(data)
+
+
+def _log_admin_action(request, action, target_type, target_id, target_label='', detail=''):
+    member = getattr(request, 'admin_member', None)
+    try:
+        AdminAction.objects.create(
+            actor_email=member.email if member else '',
+            action=action, target_type=target_type,
+            target_id=str(target_id), target_label=target_label or '',
+            detail=detail or '',
+        )
+    except Exception as e:
+        logger.error(f"Failed to log admin action {action}: {e}")
+
+
+class AdminEventsOverviewView(APIView):
+    """GET /api/admin/events/overview/ — one row per event with money + inventory.
+
+    Replaces the frontend's N+1 per-event attendee fetches. Per event:
+    tickets sold, revenue (successful payments), ticket lifecycle counts
+    (paid/free/pending/transferred/checked-in), per-tier sold/remaining,
+    promo redemptions, and is_free (base 0 and no paid tier).
+    """
+    permission_classes = [IsAdminMember]
+
+    def get(self, request):
+        events = list(Event.objects.select_related('owner').prefetch_related('tiers').order_by('-created_at'))
+        if not events:
+            return Response([])
+
+        event_ids = [e.pk for e in events]
+        paid_tier_event_ids = set(
+            TicketTier.objects.filter(event_id__in=event_ids, price__gt=0)
+            .values_list('event_id', flat=True)
+        )
+
+        sold_by_event = dict(
+            Ticket.objects.filter(event_id__in=event_ids, payment_status__in=['paid', 'free'])
+            .values_list('event_id').annotate(n=Count('id')).values_list('event_id', 'n')
+        )
+        revenue_by_event = dict(
+            Payment.objects.filter(event_id__in=event_ids, status='successful')
+            .values_list('event_id').annotate(t=Sum('amount')).values_list('event_id', 't')
+        )
+        lifecycle_rows = (
+            Ticket.objects.filter(event_id__in=event_ids)
+            .values('event_id', 'payment_status')
+            .annotate(n=Count('id'))
+        )
+        lifecycle = {}
+        for r in lifecycle_rows:
+            lifecycle.setdefault(r['event_id'], {})[r['payment_status']] = r['n']
+        transferred_by_event = dict(
+            Ticket.objects.filter(event_id__in=event_ids, is_transferred=True)
+            .values_list('event_id').annotate(n=Count('id')).values_list('event_id', 'n')
+        )
+        checked_in_by_event = dict(
+            Ticket.objects.filter(event_id__in=event_ids, payment_status__in=['paid', 'free'], checked_in=True)
+            .values_list('event_id').annotate(n=Count('id')).values_list('event_id', 'n')
+        )
+        sold_by_tier = dict(
+            Ticket.objects.filter(event_id__in=event_ids, payment_status__in=['paid', 'free'], tier__isnull=False)
+            .values_list('tier_id').annotate(n=Count('id')).values_list('tier_id', 'n')
+        )
+        promo_by_event = dict(
+            PromoCode.objects.filter(event_id__in=event_ids)
+            .values_list('event_id').annotate(n=Sum('redeemed_count')).values_list('event_id', 'n')
+        )
+
+        out = []
+        for e in events:
+            tiers = list(e.tiers.all())
+            tier_rows = [
+                {
+                    'id': t.pk, 'name': t.name, 'price': str(t.price),
+                    'capacity': t.capacity, 'sold': sold_by_tier.get(t.pk, 0),
+                    'remaining': (
+                        None if t.capacity is None
+                        else max(t.capacity - sold_by_tier.get(t.pk, 0), 0)
+                    ),
+                }
+                for t in tiers
+            ]
+            prices = sorted({float(t.price) for t in tiers}) if tiers else [float(e.ticket_price)]
+            lc = lifecycle.get(e.pk, {})
+            sold = sold_by_event.get(e.pk, 0)
+            out.append({
+                'id': e.pk, 'slug': e.slug, 'name': e.name,
+                'category': e.category, 'day': str(e.day),
+                'location': e.location, 'ticket_price': str(e.ticket_price),
+                'is_active': e.is_active, 'created_at': e.created_at,
+                'owner_email': e.owner.email if e.owner else None,
+                'tiers': [{'id': t.pk, 'name': t.name, 'price': str(t.price)} for t in tiers],
+                'price_min': str(min(prices)) if prices else str(e.ticket_price),
+                'price_max': str(max(prices)) if prices else str(e.ticket_price),
+                'is_free': float(e.ticket_price) == 0 and e.pk not in paid_tier_event_ids,
+                'tickets_sold': sold,
+                'revenue': str(revenue_by_event.get(e.pk) or 0),
+                'paid': lc.get('paid', 0), 'free': lc.get('free', 0),
+                'pending': lc.get('pending', 0), 'failed': lc.get('failed', 0),
+                'transferred': transferred_by_event.get(e.pk, 0),
+                'checked_in': checked_in_by_event.get(e.pk, 0),
+                'tier_breakdown': tier_rows,
+                'promo_redemptions': promo_by_event.get(e.pk) or 0,
+                'capacity': e.capacity or (
+                    sum(t.capacity for t in tiers)
+                    if tiers and all(t.capacity is not None for t in tiers) else None
+                ),
+            })
+        return Response(out)
+
+
+class AdminPaymentsListView(APIView):
+    """GET /api/admin/payments/?status=&search=&limit=100 — platform-wide payments."""
+    permission_classes = [IsAdminMember]
+
+    def get(self, request):
+        status_filter = (request.query_params.get('status') or '').strip()
+        search = (request.query_params.get('search') or '').strip()
+        try:
+            limit = min(max(int(request.query_params.get('limit', 100)), 1), 500)
+        except ValueError:
+            limit = 100
+
+        qs = (
+            Payment.objects.select_related('event', 'tier', 'promo_code')
+            .annotate(ticket_count=Count('tickets_purchased'))
+            .order_by('-created_at')
+        )
+        if status_filter:
+            qs = qs.filter(status=status_filter)
+        if search:
+            qs = qs.filter(
+                Q(customer_email__icontains=search) | Q(customer_name__icontains=search)
+                | Q(paystack_reference__icontains=search) | Q(event__name__icontains=search)
+            )
+
+        rows = []
+        for p in qs[:limit]:
+            rows.append({
+                'id': str(p.pk), 'paystack_reference': p.paystack_reference,
+                'event_slug': p.event.slug if p.event_id else None,
+                'event_name': p.event.name if p.event_id else None,
+                'tier_name': p.tier.name if p.tier_id else None,
+                'promo_code': p.promo_code.code if p.promo_code_id else None,
+                'customer_name': p.customer_name, 'customer_email': p.customer_email,
+                'amount': str(p.amount), 'currency': p.currency,
+                'status': p.status, 'channel': p.channel,
+                'tickets': p.ticket_count,
+                'paid_at': p.paid_at, 'created_at': p.created_at,
+            })
+        return Response({'count': qs.count(), 'payments': rows})
+
+
+class AdminPromosListView(APIView):
+    """GET /api/admin/promos/?search= — every promo code with usage."""
+    permission_classes = [IsAdminMember]
+
+    def get(self, request):
+        search = (request.query_params.get('search') or '').strip()
+        qs = PromoCode.objects.select_related('event').order_by('-created_at')
+        if search:
+            qs = qs.filter(Q(code__icontains=search) | Q(event__name__icontains=search))
+        return Response([{
+            'id': p.pk, 'code': p.code, 'event_slug': p.event.slug,
+            'event_name': p.event.name, 'discount_type': p.discount_type,
+            'amount': str(p.amount), 'redeemed_count': p.redeemed_count,
+            'max_redemptions': p.max_redemptions, 'active': p.active,
+            'is_valid': p.is_valid(), 'expires_at': p.expires_at,
+        } for p in qs[:300]])
+
+
+class AdminAuditLogView(APIView):
+    """GET /api/admin/audit-log/?target_type=event&target_id=3&limit=50"""
+    permission_classes = [IsAdminMember]
+
+    def get(self, request):
+        qs = AdminAction.objects.all()
+        target_type = (request.query_params.get('target_type') or '').strip()
+        target_id = (request.query_params.get('target_id') or '').strip()
+        if target_type:
+            qs = qs.filter(target_type=target_type)
+        if target_id:
+            qs = qs.filter(target_id=str(target_id))
+        try:
+            limit = min(max(int(request.query_params.get('limit', 50)), 1), 200)
+        except ValueError:
+            limit = 50
+        return Response([{
+            'id': a.pk, 'action': a.action, 'target_type': a.target_type,
+            'target_id': a.target_id, 'target_label': a.target_label,
+            'detail': a.detail, 'actor_email': a.actor_email, 'created_at': a.created_at,
+        } for a in qs[:limit]])
+
+
+class AdminUserDetailView(APIView):
+    """PATCH /api/admin/users/<pk>/ — { role, is_active }.
+
+    Admins can suspend/reactivate; changing a user's role needs an owner.
+    """
+    permission_classes = [IsAdminMember]
+    min_role = 'admin'
+    User = get_user_model()
+
+    def patch(self, request, pk):
+        try:
+            user = self.User.objects.select_related('profile').get(pk=pk)
+        except self.User.DoesNotExist:
+            return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        profile = getattr(user, 'profile', None)
+        if profile is None:
+            profile = UserProfile.objects.create(user=user)
+
+        if 'role' in request.data:
+            if AdminMember.ROLE_RANK[request.admin_member.role] < AdminMember.ROLE_RANK['owner']:
+                return Response({'error': 'Only owners can change user roles'}, status=status.HTTP_403_FORBIDDEN)
+            role = request.data.get('role') or ''
+            if role and role not in dict(UserProfile.ROLE_CHOICES):
+                return Response({'error': 'Invalid role'}, status=status.HTTP_400_BAD_REQUEST)
+            if role != profile.role:
+                profile.role = role
+                profile.save(update_fields=['role'])
+                _log_admin_action(
+                    request, AdminAction.ACTION_USER_ROLE_CHANGED, 'user', user.pk,
+                    user.email, f"role -> {role or 'unspecified'}",
+                )
+
+        if 'is_active' in request.data:
+            is_active = bool(request.data.get('is_active'))
+            if is_active != user.is_active:
+                user.is_active = is_active
+                user.save(update_fields=['is_active'])
+                _log_admin_action(
+                    request, AdminAction.ACTION_USER_SUSPENDED if not is_active else AdminAction.ACTION_USER_REACTIVATED,
+                    'user', user.pk, user.email, '',
+                )
+
+        return Response({
+            'id': user.pk, 'email': user.email, 'role': profile.role,
+            'is_active': user.is_active,
+        })
+
+
+class AdminMeView(APIView):
+    """GET /api/admin/me/ — the signed-in admin's role and what it allows."""
+    permission_classes = [IsAdminMember]
+
+    def get(self, request):
+        m = request.admin_member
+        rank = AdminMember.ROLE_RANK[m.role]
+        return Response({
+            'email': m.email, 'role': m.role,
+            'can': {
+                'moderate': rank >= AdminMember.ROLE_RANK['admin'],
+                'payouts': rank >= AdminMember.ROLE_RANK['admin'],
+                'delete': rank >= AdminMember.ROLE_RANK['owner'],
+                'manage_roles': rank >= AdminMember.ROLE_RANK['owner'],
+                'manage_team': rank >= AdminMember.ROLE_RANK['owner'],
+            },
+        })
+
+
+def _member_payload(m):
+    user = get_user_model().objects.filter(email__iexact=m.email).select_related('profile').first()
+    profile = getattr(user, 'profile', None) if user else None
+    return {
+        'id': m.pk, 'email': m.email, 'role': m.role, 'added_at': m.created_at,
+        'display_name': (profile.display_name if profile else '') or '',
+        'handle': (profile.handle if profile else None),
+        'avatar_url': profile.avatar.url if profile and profile.avatar else None,
+        'last_seen': user.last_login if user else None,
+        'signed_up': user is not None,
+    }
+
+
+class AdminTeamView(APIView):
+    """GET/POST /api/admin/team/ — list (admin+) and add (owner) team members."""
+    permission_classes = [IsAdminMember]
+    min_role = 'admin'
+    method_roles = {'POST': 'owner'}
+
+    def get(self, request):
+        return Response([_member_payload(m) for m in AdminMember.objects.all()])
+
+    def post(self, request):
+        email = (request.data.get('email') or '').strip().lower()
+        role = request.data.get('role') or AdminMember.ROLE_VIEWER
+        if not email or '@' not in email:
+            return Response({'error': 'A valid email is required'}, status=status.HTTP_400_BAD_REQUEST)
+        if role not in AdminMember.ROLE_RANK:
+            return Response({'error': 'Invalid role'}, status=status.HTTP_400_BAD_REQUEST)
+        if AdminMember.objects.filter(email=email).exists():
+            return Response({'error': 'Already on the team'}, status=status.HTTP_409_CONFLICT)
+        m = AdminMember.objects.create(
+            email=email, role=role, added_by_email=request.admin_member.email,
+        )
+        _log_admin_action(request, AdminAction.ACTION_TEAM_ADDED, 'member', m.pk, m.email, role)
+        return Response(_member_payload(m), status=status.HTTP_201_CREATED)
+
+
+class AdminTeamDetailView(APIView):
+    """PATCH {role} / DELETE /api/admin/team/<pk>/ — owner only.
+
+    An owner can't demote or remove themselves, so the team can never be
+    left without one.
+    """
+    permission_classes = [IsAdminMember]
+    min_role = 'owner'
+
+    def _get(self, pk):
+        return AdminMember.objects.filter(pk=pk).first()
+
+    def patch(self, request, pk):
+        m = self._get(pk)
+        if m is None:
+            return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+        role = request.data.get('role')
+        if role not in AdminMember.ROLE_RANK:
+            return Response({'error': 'Invalid role'}, status=status.HTTP_400_BAD_REQUEST)
+        if m.pk == request.admin_member.pk and role != m.role:
+            return Response({'error': "You can't change your own role"}, status=status.HTTP_400_BAD_REQUEST)
+        if role != m.role:
+            m.role = role
+            m.save(update_fields=['role'])
+            _log_admin_action(request, AdminAction.ACTION_TEAM_ROLE_CHANGED, 'member', m.pk, m.email, role)
+        return Response(_member_payload(m))
+
+    def delete(self, request, pk):
+        m = self._get(pk)
+        if m is None:
+            return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+        if m.pk == request.admin_member.pk:
+            return Response({'error': "You can't remove yourself"}, status=status.HTTP_400_BAD_REQUEST)
+        _log_admin_action(request, AdminAction.ACTION_TEAM_REMOVED, 'member', m.pk, m.email, m.role)
+        m.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)

@@ -2,14 +2,57 @@ from rest_framework.permissions import BasePermission
 from django.conf import settings
 
 
-class IsAdminSecret(BasePermission):
-    """Checks X-Admin-Token header against ADMIN_SECRET env var."""
+def get_admin_member(user):
+    """The AdminMember for a signed-in user, or None.
+
+    Bootstrapping: while the team is empty, the first person to reach the admin
+    panel becomes its owner. If ADMIN_BOOTSTRAP_EMAILS is set, only those
+    emails may claim that first slot (and they are owners even once the team
+    exists, so there is always a way back in).
+    """
+    from django.db import transaction
+
+    from .models import AdminMember
+
+    if not user or not user.is_authenticated or not user.email:
+        return None
+    email = user.email.strip().lower()
+    member = AdminMember.objects.filter(email=email).first()
+    if member is not None:
+        return member
+
+    allowed = settings.ADMIN_BOOTSTRAP_EMAILS
+    if allowed and email not in allowed:
+        return None
+    with transaction.atomic():
+        if allowed or not AdminMember.objects.exists():
+            return AdminMember.objects.create(
+                email=email, role=AdminMember.ROLE_OWNER, added_by_email='bootstrap',
+            )
+    return None
+
+
+class IsAdminMember(BasePermission):
+    """Signed-in admin team member whose role is high enough for this request.
+
+    Views set `min_role` (default viewer) and may raise it for specific
+    methods with `method_roles = {'DELETE': 'owner'}`. The resolved member is
+    left on `request.admin_member`.
+    """
 
     def has_permission(self, request, view):
-        secret = getattr(settings, 'ADMIN_SECRET', None)
-        if not secret:
+        from .models import AdminMember
+
+        member = get_admin_member(request.user)
+        if member is None:
             return False
-        return request.headers.get('X-Admin-Token') == secret
+        required = getattr(view, 'method_roles', {}).get(
+            request.method, getattr(view, 'min_role', AdminMember.ROLE_VIEWER)
+        )
+        if AdminMember.ROLE_RANK[member.role] < AdminMember.ROLE_RANK[required]:
+            return False
+        request.admin_member = member
+        return True
 
 
 class IsEventOwner(BasePermission):
