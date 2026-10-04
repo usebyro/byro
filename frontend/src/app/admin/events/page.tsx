@@ -2,6 +2,14 @@
 
 import { useEffect, useState } from "react";
 import axiosInstance from "@/utils/axios";
+import { formatNaira, isPaidEvent, priceLabel } from "@/lib/eventFormat";
+import { useAdminMe } from "@/components/admin/AdminMe";
+
+interface EventTier {
+  id?: number;
+  name?: string;
+  price: number | string;
+}
 
 interface Event {
   id: number;
@@ -11,11 +19,38 @@ interface Event {
   day: string;
   time_from: string;
   location: string;
-  ticket_price: number;
+  ticket_price: number | string;
+  tiers?: EventTier[];
   is_active: boolean;
   hosted_by?: string;
   created_at?: string;
   owner_email?: string;
+}
+
+interface TierRow {
+  id: number;
+  name: string;
+  price: string;
+  capacity: number | null;
+  sold: number;
+  remaining: number | null;
+}
+
+interface OverviewRow {
+  id: number;
+  slug: string;
+  tickets_sold: number;
+  revenue: string;
+  paid: number;
+  free: number;
+  pending: number;
+  failed: number;
+  transferred: number;
+  checked_in: number;
+  capacity: number | null;
+  promo_redemptions: number;
+  tier_breakdown: TierRow[];
+  is_free: boolean;
 }
 
 interface Attendee {
@@ -83,12 +118,12 @@ function StatusBadge({ status }: { status: "active" | "inactive" | "ended" }) {
 function EventTable({
   events,
   emptyText,
-  ticketCounts,
+  overview,
   onSelect,
 }: {
   events: Event[];
   emptyText: string;
-  ticketCounts: Record<number, number | null>;
+  overview: Record<number, OverviewRow>;
   onSelect: (event: Event) => void;
 }) {
   if (events.length === 0) {
@@ -109,6 +144,7 @@ function EventTable({
             <th className="pb-3 pr-6 text-xs text-gray-500 font-medium">Price</th>
             <th className="pb-3 pr-6 text-xs text-gray-500 font-medium">Created</th>
             <th className="pb-3 pr-6 text-xs text-gray-500 font-medium">Tickets sold</th>
+            <th className="pb-3 pr-6 text-xs text-gray-500 font-medium">Revenue</th>
             <th className="pb-3 text-xs text-gray-500 font-medium">Status</th>
           </tr>
         </thead>
@@ -140,17 +176,16 @@ function EventTable({
                 {event.category?.replace(/_/g, " ") || "—"}
               </td>
               <td className="py-3 pr-6 text-gray-300 whitespace-nowrap tabular-nums">
-                {event.ticket_price > 0
-                  ? `₦${Number(event.ticket_price).toLocaleString()}`
-                  : "Free"}
+                {priceLabel(event)}
               </td>
               <td className="py-3 pr-6 text-gray-400 whitespace-nowrap">
                 {formatDateTime(event.created_at)}
               </td>
               <td className="py-3 pr-6 text-gray-300 whitespace-nowrap tabular-nums">
-                {ticketCounts[event.id] === null || ticketCounts[event.id] === undefined
-                  ? "—"
-                  : ticketCounts[event.id]}
+                {overview[event.id]?.tickets_sold ?? "—"}
+              </td>
+              <td className="py-3 pr-6 text-gray-300 whitespace-nowrap tabular-nums">
+                {overview[event.id] ? formatNaira(Number(overview[event.id].revenue)) : "—"}
               </td>
               <td className="py-3">
                 <StatusBadge status={getEventStatus(event)} />
@@ -196,8 +231,9 @@ function downloadAttendeesCsv(event: Event | null, attendees: Attendee[]) {
 }
 
 export default function AdminEventsPage() {
+  const { can } = useAdminMe();
   const [events, setEvents] = useState<Event[]>([]);
-  const [ticketCounts, setTicketCounts] = useState<Record<number, number | null>>({});
+  const [overview, setOverview] = useState<Record<number, OverviewRow>>({});
   const [totalTicketsSold, setTotalTicketsSold] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -240,30 +276,18 @@ export default function AdminEventsPage() {
         if (cancelled) return;
         setEvents(data);
 
-        // Per-event attendee counts, via the admin-secret-authenticated proxy
-        // so this works for every event, not just ones the admin also owns.
-        const counts: Record<number, number | null> = {};
-        data.forEach((e) => { counts[e.id] = null; });
-
-        await Promise.allSettled(
-          data.map((event) =>
-            fetch(`/api/admin/events/${event.slug}/attendees`)
-              .then((res) => (res.ok ? res.json() : null))
-              .then((r) => {
-                counts[event.id] = r?.count ?? null;
-              })
-              .catch(() => {
-                counts[event.id] = null;
-              })
-          )
-        );
-
-        if (!cancelled) {
-          setTicketCounts({ ...counts });
-        }
       })
       .catch(() => setError("Failed to load events."))
       .finally(() => { if (!cancelled) setLoading(false); });
+
+    // One aggregated call: revenue, tier breakdown, check-ins per event.
+    fetch("/api/admin/events/overview")
+      .then((res) => (res.ok ? res.json() : []))
+      .then((rows: OverviewRow[]) => {
+        if (cancelled) return;
+        setOverview(Object.fromEntries(rows.map((r) => [r.id, r])));
+      })
+      .catch(() => {});
 
     // Platform-wide tickets-sold total, from the same admin-authorized endpoint
     // the Dashboard uses — avoids the per-event 403s skewing this number.
@@ -312,6 +336,8 @@ export default function AdminEventsPage() {
     }
   };
 
+  const selectedOverview = selected ? overview[selected.id] : undefined;
+
   const [search, setSearch] = useState("");
   const q = search.trim().toLowerCase();
   const matchesSearch = (e: Event) =>
@@ -321,8 +347,8 @@ export default function AdminEventsPage() {
     (e.hosted_by ?? "").toLowerCase().includes(q);
 
   // Stats stay platform-wide; only the tables below narrow with the search box.
-  const freeEvents = events.filter((e) => Number(e.ticket_price) === 0);
-  const paidEvents = events.filter((e) => Number(e.ticket_price) > 0);
+  const freeEvents = events.filter((e) => !isPaidEvent(e));
+  const paidEvents = events.filter(isPaidEvent);
   const visibleFreeEvents = freeEvents.filter(matchesSearch);
   const visiblePaidEvents = paidEvents.filter(matchesSearch);
 
@@ -377,7 +403,7 @@ export default function AdminEventsPage() {
           <EventTable
             events={visibleFreeEvents}
             emptyText={search ? "No free events match your search." : "No free events yet."}
-            ticketCounts={ticketCounts}
+            overview={overview}
             onSelect={openEvent}
           />
         )}
@@ -396,7 +422,7 @@ export default function AdminEventsPage() {
           <EventTable
             events={visiblePaidEvents}
             emptyText={search ? "No paid events match your search." : "No paid events yet."}
-            ticketCounts={ticketCounts}
+            overview={overview}
             onSelect={openEvent}
           />
         )}
@@ -433,7 +459,7 @@ export default function AdminEventsPage() {
                 <div className="bg-white/5 rounded-lg px-3 py-2.5">
                   <p className="text-gray-500 text-[11px] mb-0.5">Price</p>
                   <p className="text-white text-sm tabular-nums">
-                    {selected.ticket_price > 0 ? `₦${Number(selected.ticket_price).toLocaleString()}` : "Free"}
+                    {priceLabel(selected)}
                   </p>
                 </div>
                 <div className="bg-white/5 rounded-lg px-3 py-2.5">
@@ -446,6 +472,53 @@ export default function AdminEventsPage() {
                 </div>
               </div>
 
+              {selectedOverview && (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      { label: "Revenue", value: formatNaira(Number(selectedOverview.revenue)) },
+                      { label: "Tickets sold", value: selectedOverview.tickets_sold },
+                      {
+                        label: "Checked in",
+                        value: `${selectedOverview.checked_in} / ${selectedOverview.tickets_sold}`,
+                      },
+                      { label: "Promo redemptions", value: selectedOverview.promo_redemptions },
+                      { label: "Pending", value: selectedOverview.pending },
+                      { label: "Transferred", value: selectedOverview.transferred },
+                    ].map((s) => (
+                      <div key={s.label} className="bg-white/5 rounded-lg px-3 py-2.5">
+                        <p className="text-gray-500 text-[11px] mb-0.5">{s.label}</p>
+                        <p className="text-white text-sm tabular-nums">{s.value}</p>
+                      </div>
+                    ))}
+                  </div>
+                  {selectedOverview.tier_breakdown.length > 0 && (
+                    <div>
+                      <h4 className="text-white text-sm font-semibold mb-2">Tiers</h4>
+                      <div className="space-y-2">
+                        {selectedOverview.tier_breakdown.map((t) => (
+                          <div
+                            key={t.id}
+                            className="flex items-center justify-between gap-2 bg-white/5 rounded-lg px-3 py-2"
+                          >
+                            <div className="min-w-0">
+                              <p className="text-white text-xs font-medium truncate">{t.name}</p>
+                              <p className="text-gray-500 text-[11px] tabular-nums">
+                                {Number(t.price) > 0 ? formatNaira(Number(t.price)) : "Free"}
+                              </p>
+                            </div>
+                            <p className="shrink-0 text-gray-300 text-xs tabular-nums">
+                              {t.sold} sold
+                              {t.remaining !== null ? ` · ${t.remaining} left` : ""}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <a
                 href={`/discover/${selected.slug}`}
                 target="_blank"
@@ -455,11 +528,11 @@ export default function AdminEventsPage() {
                 View public event page
               </a>
 
-              <div>
+              {(can.moderate || can.delete) && <div>
                 <h4 className="text-white text-sm font-semibold mb-2">Moderation</h4>
                 {actionError && <p className="text-red-400 text-xs mb-2">{actionError}</p>}
                 <div className="flex items-center gap-2 flex-wrap">
-                  <button
+                  {can.moderate && <button
                     onClick={() =>
                       setConfirming({
                         event: selected,
@@ -474,16 +547,16 @@ export default function AdminEventsPage() {
                     }`}
                   >
                     {selected.is_active ? "Suspend event" : "Reactivate event"}
-                  </button>
-                  <button
+                  </button>}
+                  {can.delete && <button
                     onClick={() => setConfirming({ event: selected, action: "delete" })}
                     disabled={updatingId === selected.id}
                     className="text-xs font-semibold text-red-400 bg-red-500/10 hover:bg-red-500/20 disabled:opacity-50 px-3 py-2 rounded-lg transition-colors"
                   >
                     Delete event
-                  </button>
+                  </button>}
                 </div>
-              </div>
+              </div>}
 
               <div>
                 <div className="flex items-center justify-between mb-3">

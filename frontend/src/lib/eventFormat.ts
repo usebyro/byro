@@ -42,6 +42,12 @@ export function priceLabel(event: Pick<EventLike, "ticket_price" | "tiers">): st
   return prices.size > 1 ? `From ${formatNaira(low)}` : formatNaira(low);
 }
 
+/** True if the base price or any tier costs money. */
+export function isPaidEvent(e: Pick<EventLike, "ticket_price" | "tiers">): boolean {
+  if (Number(e.ticket_price) > 0) return true;
+  return (e.tiers ?? []).some((t) => Number(t.price) > 0);
+}
+
 /** Parses YYYY-MM-DD without the timezone shift `new Date("YYYY-MM-DD")` causes. */
 export function parseDay(day: string): Date | null {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(day || "");

@@ -16,11 +16,17 @@ import {
 } from "recharts";
 import axiosInstance from "@/utils/axios";
 import { resolveAdminHref } from "@/lib/adminNav";
+import { isPaidEvent } from "@/lib/eventFormat";
+
+interface EventTier {
+  price: number | string;
+}
 
 interface Event {
   id: number;
   category: string;
-  ticket_price: number;
+  ticket_price: number | string;
+  tiers?: EventTier[];
   is_active: boolean;
   created_at: string;
 }
@@ -191,7 +197,7 @@ export default function AdminDashboardPage() {
 
   const totalEvents = summary?.total_events ?? events.length;
   const activeEvents = summary?.active_events ?? events.filter((e) => e.is_active).length;
-  const paidEvents = events.filter((e) => Number(e.ticket_price) > 0).length;
+  const paidEvents = events.filter(isPaidEvent).length;
 
   return (
     <div className="p-5 md:p-8">
