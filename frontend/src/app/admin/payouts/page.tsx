@@ -1,5 +1,6 @@
 "use client";
 
+import { useAdminMe } from "@/components/admin/AdminMe";
 import { useEffect, useState, useCallback } from "react";
 
 type PayoutStatus = "pending" | "processed" | "rejected";
@@ -57,6 +58,7 @@ function StatusBadge({ status }: { status: PayoutStatus }) {
 }
 
 export default function AdminPayoutsPage() {
+  const { can } = useAdminMe();
   const [payouts, setPayouts] = useState<PayoutRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -196,7 +198,7 @@ export default function AdminPayoutsPage() {
                     </td>
                     <td className="py-3">
                       <div className="flex items-center gap-2">
-                        {p.status === "pending" && (
+                        {p.status === "pending" && can.payouts && (
                           <>
                             <button
                               onClick={() => setConfirming({ payout: p, action: "processed" })}
@@ -217,14 +219,14 @@ export default function AdminPayoutsPage() {
                         {/* Delete — for bad/test data on any row. Not an "undo": deleting
                             a processed row doesn't reverse a real transfer, it only
                             stops it counting against the organiser's balance here. */}
-                        <button
+                        {can.delete && <button
                           onClick={() => setConfirming({ payout: p, action: "delete" })}
                           disabled={updatingId === p.id}
                           title="Delete this payout request"
                           className="text-xs font-semibold text-gray-500 hover:text-red-400 hover:bg-red-500/10 disabled:opacity-50 px-2 py-1.5 rounded-lg transition-colors whitespace-nowrap"
                         >
                           Delete
-                        </button>
+                        </button>}
                       </div>
                     </td>
                   </tr>

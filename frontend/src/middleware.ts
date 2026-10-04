@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-// A valid admin session is the httpOnly `admin_token` cookie whose value
-// matches ADMIN_SECRET (set by POST /api/admin-auth after a correct password).
+// Admin pages need the httpOnly WorkOS cookies set by POST /api/admin-auth.
+// This only checks they exist — Django verifies the token and the admin role
+// on every API call, so a forged cookie opens an empty shell at most.
 function isAuthed(request: NextRequest) {
-  const token = request.cookies.get("admin_token")?.value;
-  const secret = process.env.ADMIN_SECRET;
-  return Boolean(secret) && token === secret;
+  return Boolean(
+    request.cookies.get("admin_access")?.value || request.cookies.get("admin_refresh")?.value,
+  );
 }
 
 export function middleware(request: NextRequest) {

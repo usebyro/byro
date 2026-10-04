@@ -1,5 +1,6 @@
 "use client";
 
+import { useAdminMe } from "@/components/admin/AdminMe";
 import { useEffect, useMemo, useState, useCallback } from "react";
 
 interface AdminUser {
@@ -88,6 +89,7 @@ function StatusBadge({ isActive }: { isActive: boolean }) {
 }
 
 export default function AdminUsersPage() {
+  const { can } = useAdminMe();
   const [summary, setSummary] = useState<AnalyticsSummary | null>(null);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [filter, setFilter] = useState<(typeof FILTERS)[number]["value"]>("");
@@ -353,11 +355,14 @@ export default function AdminUsersPage() {
 
               <div>
                 <h4 className="text-white text-sm font-semibold mb-2">Role</h4>
+                {!can.manage_roles && (
+                  <p className="text-gray-500 text-xs mb-2">Only owners can change a user&apos;s role.</p>
+                )}
                 <div className="flex items-center gap-1 bg-white/5 rounded-lg p-1 w-fit">
                   {ROLE_OPTIONS.map((opt) => (
                     <button
                       key={opt.value}
-                      disabled={savingRole}
+                      disabled={savingRole || !can.manage_roles}
                       onClick={() => changeRole(selected, opt.value)}
                       className={`text-xs font-semibold px-3 py-1.5 rounded-md transition-colors disabled:opacity-50 ${
                         selected.role === opt.value
@@ -379,7 +384,7 @@ export default function AdminUsersPage() {
                     ? "This account can sign in and use Byro normally."
                     : "This account is suspended and cannot sign in."}
                 </p>
-                <button
+                {can.moderate ? <button
                   onClick={() =>
                     setConfirming({
                       user: selected,
@@ -394,7 +399,7 @@ export default function AdminUsersPage() {
                   }`}
                 >
                   {selected.is_active !== false ? "Suspend account" : "Reactivate account"}
-                </button>
+                </button> : <p className="text-gray-500 text-xs">Your role can&apos;t change account access.</p>}
                 {statusError && <p className="text-red-400 text-xs mt-2">{statusError}</p>}
               </div>
             </div>

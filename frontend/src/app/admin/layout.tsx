@@ -3,12 +3,15 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Calendar03Icon,
   DashboardSquare01Icon,
   Wallet01Icon,
+  CreditCardIcon,
+  Coupon01Icon,
+  Clock01Icon,
   UserMultipleIcon,
   UserGroupIcon,
   Menu01Icon,
@@ -16,12 +19,16 @@ import {
 } from "@hugeicons/core-free-icons";
 import { resolveAdminHref } from "@/lib/adminNav";
 import NotificationBell from "@/components/admin/NotificationBell";
+import { AdminMeContext, ROLE_LABEL, type AdminMe } from "@/components/admin/AdminMe";
 
 const navItems = [
   { label: "Dashboard", href: "/", icon: DashboardSquare01Icon },
   { label: "Events", href: "/events", icon: Calendar03Icon },
   { label: "Users", href: "/users", icon: UserMultipleIcon },
+  { label: "Payments", href: "/payments", icon: CreditCardIcon },
+  { label: "Promo codes", href: "/promos", icon: Coupon01Icon },
   { label: "Payouts", href: "/payouts", icon: Wallet01Icon },
+  { label: "Audit log", href: "/audit-log", icon: Clock01Icon },
   { label: "Team", href: "/team", icon: UserGroupIcon },
 ];
 
@@ -32,6 +39,8 @@ function isActive(pathname: string, href: string) {
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const [me, setMe] = useState<AdminMe | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
   const isLoginPage = pathname === "/admin/login" || pathname === "/login";
 
@@ -41,6 +50,29 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     setPrevPathname(pathname);
     setMobileOpen(false);
   }
+
+  // Who is signed in and what their role allows. Anyone who isn't on the admin
+  // team (or whose session has ended) goes back to the sign-in page.
+  useEffect(() => {
+    if (isLoginPage) return;
+    let cancelled = false;
+    fetch("/api/admin/me")
+      .then(async (res) => {
+        if (res.ok) {
+          if (!cancelled) setMe(await res.json());
+          return;
+        }
+        await fetch("/api/admin-auth", { method: "DELETE" });
+        router.replace(resolveAdminHref(pathname, "/login"));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [isLoginPage, pathname, router]);
+
+  const signOut = async () => {
+    await fetch("/api/admin-auth", { method: "DELETE" });
+    router.replace(resolveAdminHref(pathname, "/login"));
+  };
 
   // Reflect the current admin section in the browser tab title
   useEffect(() => {
@@ -84,6 +116,20 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           );
         })}
       </nav>
+
+      {me && (
+        <div className="px-4 py-4 border-t border-white/10">
+          <p className="text-gray-300 text-xs truncate" title={me.email}>{me.email}</p>
+          <div className="flex items-center justify-between mt-1.5">
+            <span className="text-[11px] text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full">
+              {ROLE_LABEL[me.role]}
+            </span>
+            <button onClick={signOut} className="text-[11px] text-gray-500 hover:text-white">
+              Sign out
+            </button>
+          </div>
+        </div>
+      )}
     </>
   );
 
@@ -154,7 +200,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
       {/* Main content */}
       <main className="flex-1 overflow-y-auto min-w-0 pt-14">
-        {children}
+        <AdminMeContext.Provider value={me}>{children}</AdminMeContext.Provider>
       </main>
     </div>
   );
