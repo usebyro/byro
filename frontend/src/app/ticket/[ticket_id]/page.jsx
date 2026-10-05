@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
+import Image from "next/image";
 import { useParams, notFound } from "next/navigation";
 import TicketCard from "@/components/tickets/TicketCard";
 import API from "@/services/api";
@@ -21,8 +23,8 @@ export default function TicketPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-white">
-        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-blue-600" />
+      <div className="flex min-h-screen items-center justify-center bg-[#F7F9FC]">
+        <div className="h-10 w-10 animate-spin rounded-full border-b-2 border-t-2 border-[#3669F6]" />
       </div>
     );
   }
@@ -30,16 +32,30 @@ export default function TicketPage() {
   if (error || !ticket) return notFound();
 
   return (
-    <div className="min-h-screen bg-white flex flex-col">
-      <main className="flex-1 flex items-start justify-center px-4 py-10 sm:py-16">
-        <div className="w-full max-w-md">
-          <p className="text-center text-xs font-bold tracking-widest text-blue-600 uppercase mb-2">
-            {ticket.checked_in ? "Checked in" : "Your Ticket"}
-          </p>
-          <h1 className="text-center text-2xl font-bold text-gray-900 mb-8">
-            {ticket.current_owner_name}
-          </h1>
+    <div
+      className="flex min-h-screen flex-col bg-[#F7F9FC] text-[#14161C]"
+      style={{ fontFamily: "var(--font-body), sans-serif" }}
+    >
+      <header className="flex h-[60px] items-center justify-between border-b border-[#EDF0F5] px-4 sm:h-[84px] sm:px-16">
+        <Link href="/" aria-label="Byro home">
+          <Image
+            src="/assets/images/logo.svg"
+            alt="Byro"
+            width={60}
+            height={34}
+            className="h-7 w-auto sm:h-[34px]"
+          />
+        </Link>
+        <Link href="/dashboard/events" className="text-sm font-bold text-[#14161C] sm:text-[15px]">
+          Your events
+        </Link>
+      </header>
 
+      <main className="flex flex-1 justify-center px-4 pb-10 pt-6 sm:pt-9">
+        <div className="w-full max-w-[480px]">
+          <p className="mb-4 text-center text-xs font-extrabold tracking-[0.12em] text-[#2451D6]">
+            YOUR TICKET
+          </p>
           <TicketCard ticket={ticket} />
         </div>
       </main>

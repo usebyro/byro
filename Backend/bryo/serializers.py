@@ -385,11 +385,13 @@ class TicketSerializer(serializers.ModelSerializer):
     form_answers = EventFormAnswerSerializer(many=True, read_only=True)
     tier_name = serializers.CharField(source='tier.name', read_only=True, default=None)
     tier_price = serializers.DecimalField(source='tier.price', max_digits=10, decimal_places=2, read_only=True, default=None)
+    event_hosted_by = serializers.CharField(source='event.hosted_by', read_only=True)
+    ticket_price = serializers.SerializerMethodField()
 
     class Meta:
         model = Ticket
         fields = [
-            'ticket_id', 'event', 'event_name', 'event_slug',
+            'ticket_id', 'event', 'event_name', 'event_slug', 'event_hosted_by', 'ticket_price',
             'event_date', 'event_time', 'event_location', 'event_image_url',
             'tier', 'tier_name', 'tier_price',
             'original_owner_name', 'original_owner_email',
@@ -404,6 +406,7 @@ class TicketSerializer(serializers.ModelSerializer):
             'checked_in', 'checked_in_at', 'qr_token',
             'event_name', 'event_slug', 'event_date', 'event_time',
             'event_location', 'event_image_url', 'tier_name', 'tier_price',
+            'event_hosted_by', 'ticket_price',
         ]
 
     def get_event_image_url(self, obj):
@@ -412,6 +415,11 @@ class TicketSerializer(serializers.ModelSerializer):
             if request:
                 return request.build_absolute_uri(obj.event.event_image.url)
         return None
+
+    def get_ticket_price(self, obj):
+        """What this ticket cost: its tier's price, else the event's flat price."""
+        price = obj.tier.price if obj.tier_id else obj.event.ticket_price
+        return str(price)
 
 class TicketTransferSerializer(serializers.ModelSerializer):
     ticket_details = TicketSerializer(source='ticket', read_only=True)
