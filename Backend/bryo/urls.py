@@ -90,7 +90,7 @@ urlpatterns = [
          TicketTransferViewSet.as_view({'post': 'accept'}),
          name='accept-transfer'),
 
-    # Payouts (organizer)
+    # Payouts (organiser)
     path('api/payouts/', PayoutRequestView.as_view(), name='payout-list-create'),
     path('api/payouts/balance/', PayoutBalanceView.as_view(), name='payout-balance'),
 

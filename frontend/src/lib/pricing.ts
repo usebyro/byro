@@ -51,9 +51,9 @@ function round2(n: number): number {
 }
 
 /**
- * When `passFeeToAttendee` is false, the organizer absorbs Byro's service
+ * When `passFeeToAttendee` is false, the organiser absorbs Byro's service
  * fee: `serviceFee` is still reported (so it can be shown as deducted from
- * the organizer's payout), but it is NOT added to `total` / `displayTotal` -
+ * the organiser's payout), but it is NOT added to `total` / `displayTotal` -
  * the attendee only pays the subtotal (plus Paystack's own fee).
  */
 export function calculateTicketFees(subtotal: number, passFeeToAttendee: boolean = true): TicketFees {

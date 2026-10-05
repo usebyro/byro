@@ -47,7 +47,7 @@ function FallbackArticle() {
       <section>
         <h2 className="mb-3 font-serif text-[29px] font-black leading-tight text-[#10182f]">Start with three, never five</h2>
         <p>
-          Most first-time organizers over-segment. Five tiers feels generous; in practice it paralyzes buyers.
+          Most first-time organisers over-segment. Five tiers feels generous; in practice it paralyses buyers.
           Three is the sweet spot: an accessible General Admission, an aspirational VIP, and a premium Table or
           Box for groups who want to be seen.
         </p>

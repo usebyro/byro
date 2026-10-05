@@ -29,12 +29,12 @@ export default function TermsPage() {
           <section>
             <h2 className="text-lg font-semibold text-gray-900 mb-2">2. Use of the Platform</h2>
             <p>
-              Byro is a platform that enables event organizers to create and manage events, and allows
+              Byro is a platform that enables event organisers to create and manage events, and allows
               attendees to discover and register for events. You agree to use the Platform only for lawful
               purposes and in accordance with these Terms.
             </p>
             <ul className="list-disc pl-5 space-y-1 mt-2">
-              <li>You must be at least 18 years old to create an organizer account.</li>
+              <li>You must be at least 18 years old to create an organiser account.</li>
               <li>You are responsible for maintaining the confidentiality of your account credentials.</li>
               <li>You must not use the Platform to post false, misleading, or fraudulent event information.</li>
               <li>You must not attempt to disrupt or interfere with the Platform&apos;s security or functionality.</li>
@@ -42,14 +42,14 @@ export default function TermsPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-gray-900 mb-2">3. Organizer Responsibilities</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-2">3. Organiser Responsibilities</h2>
             <p>
-              Event organizers are solely responsible for the accuracy of event details, including date,
+              Event organisers are solely responsible for the accuracy of event details, including date,
               time, location, ticket pricing, and event description. Byro acts as a platform and is not
-              responsible for the conduct of organizers or attendees at events.
+              responsible for the conduct of organisers or attendees at events.
             </p>
             <p className="mt-2">
-              Organizers agree not to misuse attendee personal data collected through the Platform for
+              Organisers agree not to misuse attendee personal data collected through the Platform for
               any purpose other than event management.
             </p>
           </section>
@@ -86,7 +86,7 @@ export default function TermsPage() {
             <h2 className="text-lg font-semibold text-gray-900 mb-2">7. Termination</h2>
             <p>
               Byro reserves the right to suspend or terminate your account at any time if you violate
-              these Terms or engage in conduct that is harmful to other users, organizers, or the
+              these Terms or engage in conduct that is harmful to other users, organisers, or the
               Platform itself.
             </p>
           </section>

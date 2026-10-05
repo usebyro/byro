@@ -21,28 +21,28 @@ export default function RefundPolicyPage() {
             <h2 className="text-lg font-semibold text-gray-900 mb-2">1. Overview</h2>
             <p>
               This Refund Policy explains how ticket refunds are handled on the Byro platform.
-              Refund eligibility depends on the event organizer&apos;s refund settings and the
+              Refund eligibility depends on the event organiser&apos;s refund settings and the
               circumstances of the request.
             </p>
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-gray-900 mb-2">2. Organizer-Controlled Refunds</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-2">2. Organiser-Controlled Refunds</h2>
             <p>
-              Each event on Byro is independently managed by its organizer. Refund availability,
-              deadlines, and conditions are set by the organizer at the time of event creation.
+              Each event on Byro is independently managed by its organiser. Refund availability,
+              deadlines, and conditions are set by the organiser at the time of event creation.
               Before purchasing a ticket, we encourage you to review the event&apos;s refund terms.
             </p>
             <p className="mt-2">
-              If an organizer offers refunds, you may request one through the Platform up until
-              the organizer&apos;s stated deadline. After this deadline, refunds may no longer be available.
+              If an organiser offers refunds, you may request one through the Platform up until
+              the organiser&apos;s stated deadline. After this deadline, refunds may no longer be available.
             </p>
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-gray-900 mb-2">3. Event Cancellation by Organizer</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-2">3. Event Cancellation by Organiser</h2>
             <p>
-              If an event is cancelled by the organizer, all attendees are entitled to a full refund
+              If an event is cancelled by the organiser, all attendees are entitled to a full refund
               of the ticket price paid. Service fees may be non-refundable depending on the payment
               provider&apos;s policy. Byro will notify attendees of cancellations via email.
             </p>
@@ -51,9 +51,9 @@ export default function RefundPolicyPage() {
           <section>
             <h2 className="text-lg font-semibold text-gray-900 mb-2">4. Event Postponement or Rescheduling</h2>
             <p>
-              If an event is postponed or rescheduled, the organizer will communicate the new date
-              to attendees. If you cannot attend the rescheduled event, please contact the organizer
-              directly. Refunds for rescheduled events are at the organizer&apos;s discretion.
+              If an event is postponed or rescheduled, the organiser will communicate the new date
+              to attendees. If you cannot attend the rescheduled event, please contact the organiser
+              directly. Refunds for rescheduled events are at the organiser&apos;s discretion.
             </p>
           </section>
 
@@ -71,21 +71,21 @@ export default function RefundPolicyPage() {
             <p>Refunds will not be issued in the following situations:</p>
             <ul className="list-disc pl-5 space-y-1 mt-2">
               <li>You were unable to attend an event that was not cancelled.</li>
-              <li>The refund request is made after the organizer&apos;s stated deadline.</li>
+              <li>The refund request is made after the organiser&apos;s stated deadline.</li>
               <li>The ticket was purchased using a promotional code or discount that explicitly excluded refunds.</li>
-              <li>The event occurred and you were denied entry due to a violation of the organizer&apos;s rules.</li>
+              <li>The event occurred and you were denied entry due to a violation of the organiser&apos;s rules.</li>
             </ul>
           </section>
 
           <section>
             <h2 className="text-lg font-semibold text-gray-900 mb-2">7. How to Request a Refund</h2>
             <p>
-              To request a refund, contact the event organizer directly or reach out to Byro support
+              To request a refund, contact the event organiser directly or reach out to Byro support
               at{" "}
               <a href="mailto:support@usebyro.com" className="text-blue-600 hover:underline">
                 support@usebyro.com
               </a>{" "}
-              with your ticket ID and reason for the refund. We will work with the organizer to
+              with your ticket ID and reason for the refund. We will work with the organiser to
               resolve your request as quickly as possible.
             </p>
           </section>

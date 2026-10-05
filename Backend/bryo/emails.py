@@ -289,16 +289,16 @@ def event_reminder_email(name, event_name, date, time, location, ticket_url=None
 
 def organizer_event_reminder_email(name, event_name, date, time, tickets_sold, dashboard_url=None):
     """
-    Organizer heads-up email — sent ~24h before the event starts, same run
+    Organiser heads-up email — sent ~24h before the event starts, same run
     as the attendee reminder.
 
     Args:
-        name (str): Organizer's/co-host's name.
+        name (str): Organiser's/co-host's name.
         event_name (str): Event name.
         date (str): Formatted event date.
         time (str): Formatted start time.
         tickets_sold (int): Total paid + free tickets issued so far.
-        dashboard_url (str, optional): Link to the event's organizer dashboard.
+        dashboard_url (str, optional): Link to the event's organiser dashboard.
     """
     view_dashboard_url = dashboard_url or "https://usebyro.com"
     ticket_word = "ticket" if tickets_sold == 1 else "tickets"
@@ -340,15 +340,15 @@ def organizer_event_reminder_email(name, event_name, date, time, tickets_sold, d
 
 def milestone_reached_email(name, event_name, milestone, tickets_sold, dashboard_url=None):
     """
-    Organizer milestone email — sent when total tickets sold for an event
+    Organiser milestone email — sent when total tickets sold for an event
     crosses a threshold (1st sale, 10, 25, 50, 100, then every 100).
 
     Args:
-        name (str): Organizer's/co-host's name.
+        name (str): Organiser's/co-host's name.
         event_name (str): Event name.
         milestone (int): The threshold just crossed.
         tickets_sold (int): Total paid + free tickets issued right now.
-        dashboard_url (str, optional): Link to the event's organizer dashboard.
+        dashboard_url (str, optional): Link to the event's organiser dashboard.
     """
     view_dashboard_url = dashboard_url or "https://usebyro.com"
     headline = "Your first ticket just sold!" if milestone == 1 else f"You've hit {milestone} tickets sold!"
@@ -386,14 +386,14 @@ def milestone_reached_email(name, event_name, milestone, tickets_sold, dashboard
 
 def event_published_email(name, event_name, date, time, location, event_url, share_cta_url=None, is_first_event=True):
     """
-    Event published email — sent to the organizer right after an event goes live.
+    Event published email — sent to the organiser right after an event goes live.
 
     Two variants share the same layout: a first-timer gets a more instructive
-    push ("do this first"), a returning organizer gets a shorter one that
+    push ("do this first"), a returning organiser gets a shorter one that
     assumes they already know the playbook.
 
     Args:
-        name (str): Organizer's name.
+        name (str): Organiser's name.
         event_name (str): Event name.
         date (str): Formatted event date e.g. "Saturday, July 5, 2026".
         time (str): Formatted start time e.g. "6:00 PM".
@@ -402,7 +402,7 @@ def event_published_email(name, event_name, date, time, location, event_url, sha
         share_cta_url (str, optional): Link for the primary share CTA — opens
             the in-app share options (WhatsApp, X, copy link, etc). Falls
             back to event_url if not given.
-        is_first_event (bool): True if this is the organizer's first-ever
+        is_first_event (bool): True if this is the organiser's first-ever
             published event.
     """
     primary_url = share_cta_url or event_url
@@ -564,10 +564,10 @@ def cohost_invite_email(event_name, inviter_name, event_url, is_new_user=False, 
 
 def payout_requested_email(name, amount, bank_name, account_number, event_name=None):
     """
-    Payout requested email — sent when organizer submits a payout request.
+    Payout requested email — sent when organiser submits a payout request.
 
     Args:
-        name (str): Organizer's name.
+        name (str): Organiser's name.
         amount (decimal): Payout amount.
         bank_name (str): Bank name.
         account_number (str): Account number.
@@ -631,7 +631,7 @@ def payout_completed_email(name, amount, bank_name, account_number, event_name=N
     Payout completed email — sent when admin marks payout as processed.
 
     Args:
-        name (str): Organizer's name.
+        name (str): Organiser's name.
         amount (decimal): Payout amount.
         bank_name (str): Bank name.
         account_number (str): Account number.

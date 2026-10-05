@@ -23,19 +23,19 @@ const eventManagementFeatures = [
     icon: FiClock,
     title: "Flexible payout frequencies",
     description:
-      "Choose how and when you receive your earnings with customizable payout schedules that fit your cash flow needs.",
+      "Choose how and when you receive your earnings with customisable payout schedules that fit your cash flow needs.",
   },
   {
     icon: FiBarChart2,
     title: "Event analytics",
     description:
-      "Track ticket sales and attendee engagement in real time to optimize pricing and sell more.",
+      "Track ticket sales and attendee engagement in real time to optimise pricing and sell more.",
   },
   {
     icon: FiZap,
     title: "Easy event creation",
     description:
-      "Set up your event in minutes, including customizable ticket types and pricing.",
+      "Set up your event in minutes, including customisable ticket types and pricing.",
   },
   {
     icon: FiUserPlus,
