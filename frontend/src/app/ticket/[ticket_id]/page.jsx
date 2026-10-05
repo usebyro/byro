@@ -46,7 +46,7 @@ export default function TicketPage() {
             className="h-7 w-auto sm:h-[34px]"
           />
         </Link>
-        <Link href="/dashboard/events" className="text-sm font-bold text-[#14161C] sm:text-[15px]">
+        <Link href="/home" className="text-sm font-bold text-[#14161C] sm:text-[15px]">
           Your events
         </Link>
       </header>
