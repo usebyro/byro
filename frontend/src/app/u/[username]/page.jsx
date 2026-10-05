@@ -27,7 +27,7 @@ export async function generateMetadata({ params }) {
     return { title: "Profile not found | Byro" };
   }
 
-  const name = profile.display_name || profile.handle || "Organizer";
+  const name = profile.display_name || profile.handle || "Organiser";
   const bio = profile.bio ? profile.bio.slice(0, 160) : `Check out ${name}'s public profile on Byro.`;
   const imageUrl = profile.avatar_url;
   const pageUrl = `${SITE_URL}/u/${username}`;

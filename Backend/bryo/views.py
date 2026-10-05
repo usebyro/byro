@@ -245,7 +245,7 @@ def send_cohost_invite_email(email, event, inviter, is_new_user=False, role='man
 
 def _send_event_published_email(event):
     """
-    Congratulate the organizer on publishing and nudge them to share.
+    Congratulate the organiser on publishing and nudge them to share.
 
     Best-effort: a mail failure must not affect event creation, which has
     already committed by the time this runs.
@@ -408,7 +408,7 @@ def _organizer_recipients(event):
 
 
 def _check_and_notify_milestones(event):
-    """Email the organizer/co-hosts once when total tickets sold crosses a
+    """Email the organiser/co-hosts once when total tickets sold crosses a
     milestone (1st sale, 10, 25, 50, then every 100). Best-effort — a mail
     failure here must not affect ticket issuance."""
     try:
@@ -2622,13 +2622,13 @@ class TicketTransferViewSet(mixins.RetrieveModelMixin, viewsets.GenericViewSet):
 
 def ticket_net_price_expr():
     """
-    What the organizer earns from one paid ticket.
+    What the organiser earns from one paid ticket.
 
     Starts from the tier price (or the event's flat ticket_price), then takes
     off this ticket's share of any promo-code discount. Checkout records the
     discount for a whole purchase on Payment.metadata['discount_amount'], and a
     purchase can produce several tickets, so each ticket carries an equal share.
-    If the organizer absorbs Byro's service fee (`pass_fee_to_attendee=False`),
+    If the organiser absorbs Byro's service fee (`pass_fee_to_attendee=False`),
     that fee is 5% of the DISCOUNTED price and is deducted here.
 
     Shared by the payout balance and the dashboard analytics so both agree.
@@ -2640,7 +2640,7 @@ def ticket_net_price_expr():
     )
     # Discounts are whole naira. Split them in whole naira, rounding each
     # ticket's share UP, so an uneven split can only ever under-credit the
-    # organizer by a few naira, never over-credit. Plain integer arithmetic
+    # organiser by a few naira, never over-credit. Plain integer arithmetic
     # keeps this identical on SQLite and Postgres.
     discount = Coalesce(
         Cast(Cast(KeyTextTransform('discount_amount', 'payment__metadata'), money), whole),
@@ -2681,7 +2681,7 @@ def ticket_net_price_expr():
 
 def compute_available_balance(user, event=None):
     """
-    Funds an organizer can currently withdraw.
+    Funds an organiser can currently withdraw.
 
     = ticket revenue on events they OWN. Co-hosts help run an event but the
       money belongs to its owner, so co-hosting earns nothing here.
@@ -2693,9 +2693,9 @@ def compute_available_balance(user, event=None):
 
     Revenue is taken from tickets actually sold, not from Payment.amount,
     since the payment total also includes the service fee that never
-    belongs to the organizer.
+    belongs to the organiser.
 
-    For events where the organizer has chosen to absorb Byro's service fee
+    For events where the organiser has chosen to absorb Byro's service fee
     (`pass_fee_to_attendee=False`), that fee is deducted from the ticket
     price here instead of being added to what the attendee paid.
 
@@ -2726,8 +2726,8 @@ def compute_available_balance(user, event=None):
 
 class PayoutRequestView(APIView):
     """
-    GET  /api/payouts/  — organizer's own payout history
-    POST /api/payouts/  — organizer submits a new payout request
+    GET  /api/payouts/  — organiser's own payout history
+    POST /api/payouts/  — organiser submits a new payout request
     """
     permission_classes = [IsAuthenticated]
 
@@ -2810,7 +2810,7 @@ class PayoutRequestView(APIView):
 
 
 class PayoutBalanceView(APIView):
-    """GET /api/payouts/balance/ — organizer's available/paid-out/pending totals."""
+    """GET /api/payouts/balance/ — organiser's available/paid-out/pending totals."""
     permission_classes = [IsAuthenticated]
 
     def get(self, request):

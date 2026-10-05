@@ -53,7 +53,7 @@ const TOPICS = [
   {
     icon: Store01Icon,
     color: "bg-rose-50 text-rose-500",
-    title: "For organizers",
+    title: "For organisers",
     desc: "Listing, payouts, verification",
   },
   {

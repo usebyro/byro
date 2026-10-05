@@ -43,7 +43,7 @@ const HeroPage = () => {
 
         <div className="max-w-3xl mx-auto px-4">
           <p className="font-medium text-base sm:text-lg md:text-xl lg:text-2xl text-[#444444] leading-[140%]">
-            Set up your event page, customize ticket options, and keep track of
+            Set up your event page, customise ticket options, and keep track of
             every guest, all in one place and in record time.
           </p>
         </div>

@@ -132,7 +132,7 @@ export default function AdminPayoutsPage() {
     <div className="p-5 md:p-8">
       <div className="mb-6">
         <h1 className="text-white text-xl font-bold">Payouts</h1>
-        <p className="text-gray-400 text-sm mt-1">Review and process organizer withdrawal requests</p>
+        <p className="text-gray-400 text-sm mt-1">Review and process organiser withdrawal requests</p>
       </div>
 
       {error && (
@@ -174,7 +174,7 @@ export default function AdminPayoutsPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-white/5 text-left">
-                  <th className="pb-3 pr-6 text-xs text-gray-500 font-medium whitespace-nowrap">Organizer</th>
+                  <th className="pb-3 pr-6 text-xs text-gray-500 font-medium whitespace-nowrap">Organiser</th>
                   <th className="pb-3 pr-6 text-xs text-gray-500 font-medium whitespace-nowrap">Event</th>
                   <th className="pb-3 pr-6 text-xs text-gray-500 font-medium whitespace-nowrap">Amount</th>
                   <th className="pb-3 pr-6 text-xs text-gray-500 font-medium whitespace-nowrap">Destination</th>
@@ -260,7 +260,7 @@ export default function AdminPayoutsPage() {
               {confirming.action === "processed"
                 ? "This confirms the funds have already been sent outside Byro. This cannot be undone here."
                 : confirming.action === "rejected"
-                  ? "The organizer will need to submit a new request. This cannot be undone here."
+                  ? "The organiser will need to submit a new request. This cannot be undone here."
                   : "Permanently removes this request — for bad or test data, not for undoing a real payout. If it was already processed, deleting it does not reverse any real transfer; it only stops this amount counting against the organiser's balance."}
             </p>
             <div className="flex items-center justify-end gap-2">
