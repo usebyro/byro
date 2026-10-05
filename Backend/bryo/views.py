@@ -1,4 +1,4 @@
-from rest_framework import viewsets, status
+from rest_framework import mixins, viewsets, status
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -2433,11 +2433,22 @@ class EventViewSet(viewsets.ModelViewSet):
             )
 
 
-class TicketViewSet(viewsets.ModelViewSet):
+class TicketViewSet(
+    mixins.RetrieveModelMixin,
+    mixins.DestroyModelMixin,
+    viewsets.GenericViewSet,
+):
     """
     ViewSet for Ticket operations (User facing)
-    retrieve: Get ticket details
-    transfer: Initiate ticket transfer
+    retrieve: Get one ticket by its id
+    destroy: Cancel a free registration
+    transfer / qr / calendar: ticket actions
+
+    Deliberately NOT a ModelViewSet. This viewset is unauthenticated: the
+    ticket id is the only credential. Listing, creating or editing tickets here
+    would let anyone read every attendee's details and ticket ids, mint paid
+    tickets for free, or mark a pending ticket paid. Tickets are created by the
+    payment and registration flows only.
     """
     queryset = Ticket.objects.all()
     serializer_class = TicketSerializer
@@ -2552,11 +2563,15 @@ class TicketViewSet(viewsets.ModelViewSet):
         response['Content-Disposition'] = f'attachment; filename="{filename}.ics"'
         return response
 
-class TicketTransferViewSet(viewsets.ModelViewSet):
+class TicketTransferViewSet(mixins.RetrieveModelMixin, viewsets.GenericViewSet):
     """
     ViewSet for Ticket Transfer operations
-    retrieve: Get transfer details
+    retrieve: Get transfer details (by its key)
     accept: Accept a transfer
+
+    Not a ModelViewSet: any signed-in user could otherwise list every transfer
+    (including each one's secret key and the attendee details) or create and edit
+    transfers. Transfers are started from the ticket's own transfer action.
     """
     queryset = TicketTransfer.objects.all()
     serializer_class = TicketTransferSerializer

@@ -907,3 +907,48 @@ class CancelRegistrationTests(TestCase):
         t = self._ticket('paid')
         self.assertEqual(APIClient().delete(f'/api/tickets/{t.ticket_id}/').status_code, 403)
         self.assertTrue(Ticket.objects.filter(pk=t.pk).exists())
+
+
+class TicketEndpointLockdownTests(TestCase):
+    """The ticket id is the only credential, so the ticket endpoints must not
+    list, create or edit tickets, or expose every transfer."""
+
+    def setUp(self):
+        from .models import Ticket
+
+        User = get_user_model()
+        self.owner = User.objects.create_user(email='o@example.com', password='x')
+        self.event = Event.objects.create(
+            owner=self.owner, name='E', slug='e', day='2030-01-01', time_from='10:00',
+            time_to='12:00', location='Lagos', ticket_price=5000,
+        )
+        self.ticket = Ticket.objects.create(
+            event=self.event, original_owner_name='V', original_owner_email='v@example.com',
+            current_owner_name='V', current_owner_email='v@example.com', payment_status='pending',
+        )
+
+    def test_cannot_list_create_or_edit_tickets(self):
+        from .models import Ticket
+
+        c = APIClient()
+        self.assertEqual(c.get('/api/tickets/').status_code, 404)
+        self.assertEqual(
+            c.post('/api/tickets/', {'event': self.event.pk, 'payment_status': 'paid'}, format='json').status_code, 404,
+        )
+        for method in (c.patch, c.put):
+            r = method(f'/api/tickets/{self.ticket.ticket_id}/', {'payment_status': 'paid'}, format='json')
+            self.assertEqual(r.status_code, 405)
+        self.ticket.refresh_from_db()
+        self.assertEqual(self.ticket.payment_status, 'pending')
+        self.assertEqual(Ticket.objects.count(), 1)
+
+    def test_ticket_page_data_still_loads_by_id(self):
+        r = APIClient().get(f'/api/tickets/{self.ticket.ticket_id}/')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json()['current_owner_email'], 'v@example.com')
+
+    def test_signed_in_user_cannot_list_transfers(self):
+        c = APIClient()
+        c.force_authenticate(self.owner)
+        self.assertEqual(c.get('/api/transfers/').status_code, 404)
+        self.assertEqual(c.post('/api/transfers/', {}, format='json').status_code, 404)

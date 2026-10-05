@@ -365,15 +365,6 @@ const API = {
     }
   },
 
-  getMyTickets: async () => {
-    try {
-      const response = await axiosInstance.get("tickets/");
-      return response.data;
-    } catch (error) {
-      throw handleApiError(error);
-    }
-  },
-
   // Privy Authentication
   /**
    * Authenticate user with Privy token
