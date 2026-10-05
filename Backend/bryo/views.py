@@ -2459,6 +2459,21 @@ class TicketViewSet(viewsets.ModelViewSet):
             print(f"Current tickets in DB: {list(Ticket.objects.values_list('ticket_id', flat=True))}")
             raise
     
+    def destroy(self, request, *args, **kwargs):
+        """Cancel a registration. Free tickets only.
+
+        This endpoint is open to anyone holding the ticket id, so it must never
+        delete a ticket someone paid for: that would drop the ticket with no
+        refund. Paid tickets are refused here.
+        """
+        ticket = self.get_object()
+        if ticket.payment_status != 'free':
+            return Response(
+                {'error': "Paid tickets can't be cancelled here."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        return super().destroy(request, *args, **kwargs)
+
     @action(detail=True, methods=['post'])
     def transfer(self, request, pk=None,  *args, **kwargs):  
         ticket = self.get_object()

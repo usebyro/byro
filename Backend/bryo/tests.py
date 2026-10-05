@@ -873,3 +873,37 @@ class AdminSeesEveryEventTests(TestCase):
         self.assertEqual(
             (summary['total_events'], summary['private_events'], summary['draft_events']), (4, 1, 1)
         )
+
+
+class CancelRegistrationTests(TestCase):
+    """DELETE /api/tickets/<id>/ is unauthenticated, so it may only cancel free tickets."""
+
+    def setUp(self):
+        User = get_user_model()
+        owner = User.objects.create_user(email='o@example.com', password='x')
+        self.event = Event.objects.create(
+            owner=owner, name='E', slug='e', day='2030-01-01', time_from='10:00',
+            time_to='12:00', location='Lagos', ticket_price=0,
+        )
+
+    def _ticket(self, status):
+        from .models import Ticket
+
+        return Ticket.objects.create(
+            event=self.event, original_owner_name='A', original_owner_email='a@example.com',
+            current_owner_name='A', current_owner_email='a@example.com', payment_status=status,
+        )
+
+    def test_free_ticket_can_be_cancelled(self):
+        from .models import Ticket
+
+        t = self._ticket('free')
+        self.assertEqual(APIClient().delete(f'/api/tickets/{t.ticket_id}/').status_code, 204)
+        self.assertFalse(Ticket.objects.filter(pk=t.pk).exists())
+
+    def test_paid_ticket_cannot_be_cancelled(self):
+        from .models import Ticket
+
+        t = self._ticket('paid')
+        self.assertEqual(APIClient().delete(f'/api/tickets/{t.ticket_id}/').status_code, 403)
+        self.assertTrue(Ticket.objects.filter(pk=t.pk).exists())

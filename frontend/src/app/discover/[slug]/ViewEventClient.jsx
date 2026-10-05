@@ -496,13 +496,15 @@ export default function ViewEventClient({ slug }) {
                   >
                     View ticket
                   </button>
-                  <button
-                    type="button"
-                    onClick={handleCancelRegistration}
-                    className="h-12 rounded-full border border-red-200 text-sm font-bold text-red-600 transition-colors hover:bg-red-50"
-                  >
-                    Cancel registration
-                  </button>
+                  {isFree && (
+                    <button
+                      type="button"
+                      onClick={handleCancelRegistration}
+                      className="h-12 rounded-full border border-red-200 text-sm font-bold text-red-600 transition-colors hover:bg-red-50"
+                    >
+                      Cancel registration
+                    </button>
+                  )}
                 </div>
               ) : (
                 <>
