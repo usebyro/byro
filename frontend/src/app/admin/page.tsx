@@ -14,7 +14,6 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import axiosInstance from "@/utils/axios";
 import { resolveAdminHref } from "@/lib/adminNav";
 import { isPaidEvent } from "@/lib/eventFormat";
 
@@ -36,6 +35,8 @@ interface AnalyticsSummary {
   total_revenue: number;
   total_events: number;
   active_events: number;
+  private_events?: number;
+  draft_events?: number;
 }
 
 interface RevenueTrendPoint {
@@ -134,12 +135,14 @@ export default function AdminDashboardPage() {
   // Events power the "Events by category" chart; summary powers the stat cards.
   useEffect(() => {
     Promise.all([
-      axiosInstance
-        .get("events/")
+      // The admin overview lists every event; the public events/ list hides
+      // private, draft and suspended ones.
+      fetch("/api/admin/events/overview")
         .then((res) => {
-          const data: Event[] = Array.isArray(res.data) ? res.data : res.data?.results ?? [];
-          setEvents(data);
-        }),
+          if (!res.ok) throw new Error("events");
+          return res.json();
+        })
+        .then((data: Event[]) => setEvents(Array.isArray(data) ? data : [])),
       fetch("/api/admin/analytics/summary")
         .then((res) => {
           if (!res.ok) throw new Error("summary");
@@ -211,7 +214,7 @@ export default function AdminDashboardPage() {
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <StatCard label="Total Events" value={loading ? "—" : totalEvents} sublabel={`${loading ? "—" : activeEvents} active`} />
+        <StatCard label="Total Events" value={loading ? "—" : totalEvents} sublabel={`${loading ? "—" : activeEvents} active · ${summary?.private_events ?? 0} private · ${summary?.draft_events ?? 0} drafts`} />
         <StatCard label="Paid Events" value={loading ? "—" : paidEvents} sublabel={`${loading ? "—" : events.length - paidEvents} free`} />
         <StatCard
           label="Tickets Sold"

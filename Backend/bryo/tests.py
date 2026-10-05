@@ -842,3 +842,34 @@ class ActivityLogTests(TestCase):
         )
         call_command('prune_activity', days=365)
         self.assertEqual(ActivityLog.objects.count(), 1)
+
+
+class AdminSeesEveryEventTests(TestCase):
+    """The public listing hides private, draft and suspended events; admin must not."""
+
+    def setUp(self):
+        from .models import AdminMember
+
+        User = get_user_model()
+        self.admin = User.objects.create_user(email='a@example.com', password='x')
+        AdminMember.objects.create(email='a@example.com', role='viewer')
+        owner = User.objects.create_user(email='o@example.com', password='x')
+        base = dict(owner=owner, day='2030-01-01', time_from='10:00', time_to='12:00',
+                    location='Lagos', ticket_price=0)
+        Event.objects.create(name='Public', slug='pub', **base)
+        Event.objects.create(name='Private', slug='priv', visibility='private', **base)
+        Event.objects.create(name='Draft', slug='draft', is_draft=True, **base)
+        Event.objects.create(name='Suspended', slug='susp', is_active=False, **base)
+
+    def test_overview_and_summary_include_all_of_them(self):
+        c = APIClient()
+        c.force_authenticate(self.admin)
+        rows = {r['slug']: r for r in c.get('/api/admin/events/overview/').json()}
+        self.assertEqual(set(rows), {'pub', 'priv', 'draft', 'susp'})
+        self.assertEqual(rows['priv']['visibility'], 'private')
+        self.assertTrue(rows['draft']['is_draft'])
+        self.assertFalse(rows['susp']['is_active'])
+        summary = c.get('/api/admin/analytics/summary/').json()
+        self.assertEqual(
+            (summary['total_events'], summary['private_events'], summary['draft_events']), (4, 1, 1)
+        )

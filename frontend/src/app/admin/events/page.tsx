@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import axiosInstance from "@/utils/axios";
 import { formatNaira, isPaidEvent, priceLabel } from "@/lib/eventFormat";
 import { useAdminMe } from "@/components/admin/AdminMe";
 
@@ -23,6 +22,8 @@ interface Event {
   tiers?: EventTier[];
   is_active: boolean;
   hosted_by?: string;
+  visibility?: "public" | "private";
+  is_draft?: boolean;
   created_at?: string;
   owner_email?: string;
 }
@@ -165,6 +166,16 @@ function EventTable({
                 >
                   {event.name}
                 </a>
+                {(event.visibility === "private" || event.is_draft) && (
+                  <span className="mt-1 flex gap-1">
+                    {event.visibility === "private" && (
+                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-300">Private</span>
+                    )}
+                    {event.is_draft && (
+                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-yellow-500/10 text-yellow-300">Draft</span>
+                    )}
+                  </span>
+                )}
               </td>
               <td className="py-3 pr-6 text-gray-400 whitespace-nowrap">
                 {formatDate(event.day)}
@@ -267,27 +278,21 @@ export default function AdminEventsPage() {
   useEffect(() => {
     let cancelled = false;
 
-    axiosInstance
-      .get("events/")
-      .then(async (res) => {
-        const data: Event[] = Array.isArray(res.data)
-          ? res.data
-          : res.data?.results ?? [];
-        if (cancelled) return;
-        setEvents(data);
-
-      })
-      .catch(() => setError("Failed to load events."))
-      .finally(() => { if (!cancelled) setLoading(false); });
-
-    // One aggregated call: revenue, tier breakdown, check-ins per event.
+    // One call for every event, including private, draft and suspended ones
+    // (the public events/ list hides those), with revenue, tier breakdown and
+    // check-ins per event.
     fetch("/api/admin/events/overview")
-      .then((res) => (res.ok ? res.json() : []))
-      .then((rows: OverviewRow[]) => {
+      .then((res) => {
+        if (!res.ok) throw new Error("overview");
+        return res.json();
+      })
+      .then((rows: (Event & OverviewRow)[]) => {
         if (cancelled) return;
+        setEvents(rows);
         setOverview(Object.fromEntries(rows.map((r) => [r.id, r])));
       })
-      .catch(() => {});
+      .catch(() => { if (!cancelled) setError("Failed to load events."); })
+      .finally(() => { if (!cancelled) setLoading(false); });
 
     // Platform-wide tickets-sold total, from the same admin-authorized endpoint
     // the Dashboard uses — avoids the per-event 403s skewing this number.
@@ -339,12 +344,17 @@ export default function AdminEventsPage() {
   const selectedOverview = selected ? overview[selected.id] : undefined;
 
   const [search, setSearch] = useState("");
+  const [visibilityFilter, setVisibilityFilter] = useState<"" | "public" | "private" | "draft">("");
   const q = search.trim().toLowerCase();
+  const matchesVisibility = (e: Event) =>
+    !visibilityFilter ||
+    (visibilityFilter === "draft" ? Boolean(e.is_draft) : e.visibility === visibilityFilter && !e.is_draft);
   const matchesSearch = (e: Event) =>
+    matchesVisibility(e) && (
     !q ||
     e.name.toLowerCase().includes(q) ||
     (e.location ?? "").toLowerCase().includes(q) ||
-    (e.hosted_by ?? "").toLowerCase().includes(q);
+    (e.hosted_by ?? "").toLowerCase().includes(q));
 
   // Stats stay platform-wide; only the tables below narrow with the search box.
   const freeEvents = events.filter((e) => !isPaidEvent(e));
@@ -364,8 +374,19 @@ export default function AdminEventsPage() {
         value={search}
         onChange={(e) => setSearch(e.target.value)}
         placeholder="Search by event name, location, or host…"
-        className="w-full sm:w-80 mb-8 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500/50"
+        className="w-full sm:w-80 mb-8 mr-3 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500/50"
       />
+      <select
+        value={visibilityFilter}
+        onChange={(e) => setVisibilityFilter(e.target.value as typeof visibilityFilter)}
+        aria-label="Filter by visibility"
+        className="mb-8 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none"
+      >
+        <option value="" className="bg-[#1a1d27]">All events</option>
+        <option value="public" className="bg-[#1a1d27]">Public</option>
+        <option value="private" className="bg-[#1a1d27]">Private</option>
+        <option value="draft" className="bg-[#1a1d27]">Drafts</option>
+      </select>
 
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-8">
         {[

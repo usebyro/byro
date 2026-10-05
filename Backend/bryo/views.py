@@ -2939,6 +2939,8 @@ class AdminAnalyticsSummaryView(APIView):
         )['total'] or 0
         total_events = Event.objects.count()
         active_events = Event.objects.filter(is_active=True).count()
+        private_events = Event.objects.filter(visibility='private').count()
+        draft_events = Event.objects.filter(is_draft=True).count()
         total_users = User.objects.count()
         total_organizers = UserProfile.objects.filter(role='organizer').count()
         total_attendees = UserProfile.objects.filter(role='attendee').count()
@@ -2948,6 +2950,8 @@ class AdminAnalyticsSummaryView(APIView):
             'total_revenue': total_revenue,
             'total_events': total_events,
             'active_events': active_events,
+            'private_events': private_events,
+            'draft_events': draft_events,
             'total_users': total_users,
             'total_organizers': total_organizers,
             'total_attendees': total_attendees,
@@ -3179,8 +3183,9 @@ class AdminEventsOverviewView(APIView):
             sold = sold_by_event.get(e.pk, 0)
             out.append({
                 'id': e.pk, 'slug': e.slug, 'name': e.name,
-                'category': e.category, 'day': str(e.day),
+                'category': e.category, 'day': str(e.day), 'time_from': str(e.time_from),
                 'location': e.location, 'ticket_price': str(e.ticket_price),
+                'hosted_by': e.hosted_by, 'visibility': e.visibility, 'is_draft': e.is_draft,
                 'is_active': e.is_active, 'created_at': e.created_at,
                 'owner_email': e.owner.email if e.owner else None,
                 'tiers': [{'id': t.pk, 'name': t.name, 'price': str(t.price)} for t in tiers],
