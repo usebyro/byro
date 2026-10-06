@@ -223,6 +223,80 @@ class InitializePaymentTests(PaymentTestBase):
 
 
 # ---------------------------------------------------------------------------
+# initialize_payment — seats are reserved before Paystack is called
+# ---------------------------------------------------------------------------
+
+PAYSTACK_OK = {'status': True, 'data': {'authorization_url': 'https://checkout.paystack.com/abc', 'access_code': 'abc'}}
+
+
+@override_settings(**PAYMENT_SETTINGS)
+class SeatReservationTests(PaymentTestBase):
+    """The last seat must be held while the first buyer is still at Paystack."""
+
+    def setUp(self):
+        super().setUp()
+        self.event = make_event(self.owner, ticket_price=Decimal('5000.00'), capacity=1)
+
+    def _initialize(self, email='buyer@example.com'):
+        with patch('bryo.views.check_and_remember_verification', return_value=True):
+            return self.client.post(INITIALIZE_URL, {
+                'event_slug': self.event.slug, 'customer_email': email,
+                'customer_name': 'Buyer', 'quantity': 1,
+            }, format='json')
+
+    def test_seat_is_held_while_the_first_buyer_is_still_at_paystack(self):
+        seen = {}
+
+        def paystack_call(*args, **kwargs):
+            # The first buyer's request is "in flight" at Paystack right now.
+            if 'second' not in seen:
+                seen['pending_during_call'] = Payment.objects.filter(
+                    event=self.event, status='pending').count()
+                seen['second'] = self._initialize('second@example.com')
+            return FakeResponse(PAYSTACK_OK)
+
+        with patch('bryo.views.requests.post', side_effect=paystack_call):
+            first = self._initialize('first@example.com')
+
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(seen['pending_during_call'], 1, "the seat must already be reserved")
+        self.assertEqual(seen['second'].status_code, 400, "second buyer must be turned away")
+        self.assertEqual(Payment.objects.filter(event=self.event).count(), 1)
+
+    def test_paystack_details_are_stored_on_the_reserved_payment(self):
+        with patch('bryo.views.requests.post', return_value=FakeResponse(PAYSTACK_OK)):
+            r = self._initialize()
+        self.assertEqual(r.status_code, 200)
+        payment = Payment.objects.get(event=self.event)
+        self.assertEqual(payment.status, 'pending')
+        self.assertEqual(payment.paystack_access_code, 'abc')
+        self.assertEqual(payment.paystack_authorization_url, 'https://checkout.paystack.com/abc')
+        self.assertEqual(payment.paystack_reference, r.json()['data']['reference'])
+
+    def test_seat_is_released_when_paystack_refuses_the_order(self):
+        refused = FakeResponse({'status': False, 'message': 'Invalid key'}, status_code=400)
+        with patch('bryo.views.requests.post', return_value=refused):
+            first = self._initialize('first@example.com')
+        self.assertEqual(first.status_code, 400)
+        self.assertEqual(Payment.objects.get(event=self.event).status, 'failed')
+
+        with patch('bryo.views.requests.post', return_value=FakeResponse(PAYSTACK_OK)):
+            second = self._initialize('second@example.com')
+        self.assertEqual(second.status_code, 200, "the seat should be free again")
+
+    def test_seat_is_released_when_paystack_is_unreachable(self):
+        import requests as _requests
+
+        with patch('bryo.views.requests.post', side_effect=_requests.exceptions.ConnectionError('down')):
+            first = self._initialize('first@example.com')
+        self.assertEqual(first.status_code, 503)
+        self.assertEqual(Payment.objects.get(event=self.event).status, 'failed')
+
+        with patch('bryo.views.requests.post', return_value=FakeResponse(PAYSTACK_OK)):
+            self.assertEqual(self._initialize('second@example.com').status_code, 200)
+
+
+# ---------------------------------------------------------------------------
 # verify + webhook — idempotent fulfilment
 # ---------------------------------------------------------------------------
 
