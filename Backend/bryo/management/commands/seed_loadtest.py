@@ -24,6 +24,7 @@ from django.utils import timezone
 from bryo.models import Event, Ticket, TicketTier
 
 SLUG_PREFIX = 'lt-'
+FLASH_SLUG = 'lt-flash'
 EMAIL_DOMAIN = 'loadtest.invalid'
 OUT = Path(settings.BASE_DIR) / 'loadtest' / 'data.json'
 MAX_TICKET_IDS = 5000
@@ -35,6 +36,10 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument('--events', type=int, default=200)
         parser.add_argument('--tickets-per-event', type=int, default=50)
+        parser.add_argument('--flash', action='store_true',
+                            help="Seed ONE event for a flash-sale test instead (see --capacity, --price).")
+        parser.add_argument('--capacity', type=int, default=200, help="Seats for the --flash event.")
+        parser.add_argument('--price', type=int, default=5000, help="Ticket price (naira) for the --flash event; 0 = free.")
         parser.add_argument('--clean', action='store_true', help="Delete previously seeded data and exit.")
         parser.add_argument('--force', action='store_true', help="Allow running when DEBUG is off.")
 
@@ -57,6 +62,27 @@ class Command(BaseCommand):
             email=f'owner@{EMAIL_DOMAIN}', defaults={'username': 'loadtest-owner'},
         )
         day = (timezone.now() + timedelta(days=30)).date()
+
+        if opts['flash']:
+            Event.objects.filter(slug=FLASH_SLUG).delete()
+            event = Event.objects.create(
+                owner=owner, name='Load test flash sale', slug=FLASH_SLUG, day=day,
+                time_from='18:00', time_to='22:00', location='Lagos',
+                ticket_price=opts['price'], capacity=opts['capacity'],
+                visibility='public', is_active=True, is_draft=False,
+            )
+            tier = TicketTier.objects.create(
+                event=event, name='General', price=opts['price'], capacity=opts['capacity'],
+                max_tickets_per_person=1,
+            )
+            OUT.parent.mkdir(exist_ok=True)
+            OUT.write_text(json.dumps({'flash': {
+                'slug': event.slug, 'tier_id': tier.pk, 'capacity': opts['capacity'], 'price': opts['price'],
+            }}))
+            self.stdout.write(
+                f"Seeded flash-sale event '{event.slug}': {opts['capacity']} seats at N{opts['price']}. Wrote {OUT}."
+            )
+            return
 
         Event.objects.bulk_create([
             Event(

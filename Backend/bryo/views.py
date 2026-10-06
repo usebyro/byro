@@ -655,7 +655,7 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
 
         # Initialize Paystack payment
         paystack_secret_key = settings.PAYSTACK_SECRET_KEY.strip()
-        paystack_url = 'https://api.paystack.co/transaction/initialize'
+        paystack_url = f'{settings.PAYSTACK_API_BASE}/transaction/initialize'
         
         # Generate unique reference with random suffix to prevent collisions
         reference = f"EVT-{event.slug}-{timezone.now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:8]}"
@@ -769,7 +769,7 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
         Verify a Paystack payment and create ticket(s) if successful
         """
         paystack_secret_key = settings.PAYSTACK_SECRET_KEY.strip()
-        paystack_url = f'https://api.paystack.co/transaction/verify/{reference}'
+        paystack_url = f'{settings.PAYSTACK_API_BASE}/transaction/verify/{reference}'
         
         headers = {
             'Authorization': f'Bearer {paystack_secret_key}',

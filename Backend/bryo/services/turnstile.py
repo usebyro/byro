@@ -37,6 +37,9 @@ def verify_turnstile_token(token, remote_ip=None):
     Fails closed: any missing config, network error, or non-success response
     from Cloudflare is treated as a failed verification.
     """
+    if getattr(settings, "LOADTEST_MODE", False):
+        return True  # DEBUG-only switch for load tests; see loadtest/README.md
+
     secret = getattr(settings, "TURNSTILE_SECRET_KEY", "")
     if not secret:
         logger.error("TURNSTILE_SECRET_KEY is not configured; rejecting request")
