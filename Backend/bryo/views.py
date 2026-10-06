@@ -84,6 +84,13 @@ def _pending_reservation_count(payments_qs):
     return sum(p.metadata.get('seats', p.metadata.get('quantity', 1)) for p in pending)
 
 
+def _release_reservation(payment):
+    """Give a reserved payment's seats back (Paystack never took the order).
+
+    Only pending payments hold seats, so marking it failed frees them."""
+    Payment.objects.filter(pk=payment.pk, status='pending').update(status='failed')
+
+
 def lock_and_check_capacity(event, tier_id, quantity):
     """
     Must be called inside transaction.atomic(). Locks the event row and then the
@@ -653,13 +660,49 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                 'tickets': TicketSerializer(tickets, many=True).data
             }, status=status.HTTP_201_CREATED)
 
+        # Generate unique reference with random suffix to prevent collisions
+        reference = f"EVT-{event.slug}-{timezone.now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:8]}"
+
+        # Reserve the seats BEFORE calling Paystack. The pending payment is what
+        # holds them: lock_and_check_capacity counts pending payments as taken.
+        # If it were only created after Paystack answered, every buyer in flight
+        # at that moment would pass the capacity check for the same last seats
+        # and all of them could pay. So the check and the reservation happen in
+        # one locked step, and nothing slow (the Paystack call) runs inside it.
+        try:
+            with transaction.atomic():
+                lock_and_check_capacity(event, tier_id, quantity)
+                payment = Payment.objects.create(
+                    event=event,
+                    tier=tier,
+                    promo_code=promo,
+                    customer_email=customer_email,
+                    customer_name=customer_name,
+                    amount=amount,
+                    currency='NGN',
+                    paystack_reference=reference,
+                    status='pending',
+                    ip_address=self.get_client_ip(request),
+                    metadata={
+                        'quantity': quantity,
+                        'seats': seats,
+                        'attendees': attendees,
+                        'user_id': linked_user.id if linked_user else None,
+                        'tier_id': tier.id if tier is not None else None,
+                        'subtotal': str(fees['subtotal']),
+                        'service_fee': str(fees['service_fee']),
+                        'paystack_fee': str(fees['paystack_fee']),
+                        'display_total': str(fees['display_total']),
+                        'discount_amount': str(discount_amount),
+                    }
+                )
+        except InsufficientCapacityError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
         # Initialize Paystack payment
         paystack_secret_key = settings.PAYSTACK_SECRET_KEY.strip()
         paystack_url = f'{settings.PAYSTACK_API_BASE}/transaction/initialize'
-        
-        # Generate unique reference with random suffix to prevent collisions
-        reference = f"EVT-{event.slug}-{timezone.now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:8]}"
-        
+
         # Prepare payment data
         payment_data = {
             'email': customer_email,
@@ -698,33 +741,9 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
             response_data = response.json()
             
             if response.status_code == 200 and response_data.get('status'):
-                # Create Payment record
-                payment = Payment.objects.create(
-                    event=event,
-                    tier=tier,
-                    promo_code=promo,
-                    customer_email=customer_email,
-                    customer_name=customer_name,
-                    amount=amount,
-                    currency='NGN',
-                    paystack_reference=reference,
-                    paystack_access_code=response_data['data'].get('access_code'),
-                    paystack_authorization_url=response_data['data'].get('authorization_url'),
-                    status='pending',
-                    ip_address=self.get_client_ip(request),
-                    metadata={
-                        'quantity': quantity,
-                        'seats': seats,
-                        'attendees': attendees,
-                        'user_id': linked_user.id if linked_user else None,
-                        'tier_id': tier.id if tier is not None else None,
-                        'subtotal': str(fees['subtotal']),
-                        'service_fee': str(fees['service_fee']),
-                        'paystack_fee': str(fees['paystack_fee']),
-                        'display_total': str(fees['display_total']),
-                        'discount_amount': str(discount_amount),
-                    }
-                )
+                payment.paystack_access_code = response_data['data'].get('access_code')
+                payment.paystack_authorization_url = response_data['data'].get('authorization_url')
+                payment.save(update_fields=['paystack_access_code', 'paystack_authorization_url', 'updated_at'])
 
                 if apps.posthog_client is not None:
                     apps.posthog_client.capture(
@@ -752,12 +771,14 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                     }
                 }, status=status.HTTP_200_OK)
             else:
+                _release_reservation(payment)
                 return Response({
                     'error': 'Failed to initialize payment',
                     'details': response_data.get('message', 'Unknown error')
                 }, status=status.HTTP_400_BAD_REQUEST)
                 
         except requests.exceptions.RequestException as e:
+            _release_reservation(payment)
             return Response({
                 'error': 'Payment gateway error',
                 'details': str(e)
