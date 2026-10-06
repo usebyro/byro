@@ -72,14 +72,20 @@ class InsufficientCapacityError(Exception):
     pass
 
 
+# How long a buyer's seats are held while they pay. After this a pending
+# payment stops counting against capacity and the seats go back on sale.
+RESERVATION_MINUTES = 10
+
+
 def _pending_reservation_count(payments_qs):
     """
     Sum the ticket quantity of recent pending payments (not yet verified).
     These haven't produced a Ticket row yet but represent reserved slots —
     counting them prevents two concurrent checkouts from both reserving the
-    last spot while payment is in flight at Paystack.
+    last spot while payment is in flight at Paystack. A hold lasts
+    RESERVATION_MINUTES.
     """
-    cutoff = timezone.now() - timedelta(minutes=30)
+    cutoff = timezone.now() - timedelta(minutes=RESERVATION_MINUTES)
     pending = payments_qs.filter(status='pending', created_at__gte=cutoff)
     return sum(p.metadata.get('seats', p.metadata.get('quantity', 1)) for p in pending)
 
