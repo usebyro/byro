@@ -68,6 +68,11 @@ def _cell(label, value, mono=False, colspan=None):
     </td>"""
 
 
+def _logo_url():
+    from django.conf import settings
+    return f"{getattr(settings, 'SITE_URL', 'https://usebyro.com').rstrip('/')}/assets/images/logo-email.png"
+
+
 def _shell(badge_html, headline, body_html, footer_text):
     return f"""
 <div style="background-color:{PAGE_BG};padding:24px 16px 32px;font-family:{FONT_STACK};color:{INK};">
@@ -77,7 +82,7 @@ def _shell(badge_html, headline, body_html, footer_text):
         <table cellpadding="0" cellspacing="0" style="width:100%;">
           <tr>
             <td style="height:72px;padding:0 32px;border-bottom:1px solid {HAIRLINE};">
-              <span style="font-family:{DISPLAY_STACK};font-size:26px;font-weight:800;letter-spacing:-0.03em;color:{INK};">byro</span>
+              <img src="{_logo_url()}" alt="byro" width="67" height="32" style="display:block;height:32px;width:67px;border:0;">
             </td>
           </tr>
           <tr>
