@@ -105,6 +105,15 @@ type TurnstileApi = {
 };
 const getTurnstile = () => (window as unknown as { turnstile?: TurnstileApi }).turnstile;
 
+interface FormQuestion {
+  id: number;
+  question: string;
+  question_type: "text" | "textarea" | "select" | "radio" | "checkbox" | "yesno";
+  options: string[];
+  required: boolean;
+}
+type Answer = string | string[];
+
 interface Props {
   event: Event;
   onClose: () => void;
@@ -206,6 +215,31 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
   const [guests, setGuests] = useState<{ name: string; email: string }[]>([]);
   const [agreed, setAgreed] = useState(false);
 
+  /* ── The organiser's questions: asked once per order, on the details step ── */
+  const [formQuestions, setFormQuestions] = useState<FormQuestion[]>([]);
+  const [answers, setAnswers] = useState<Record<number, Answer>>({});
+  useEffect(() => {
+    let live = true;
+    API.getFormQuestions(event.slug)
+      .then((data: FormQuestion[]) => { if (live && Array.isArray(data)) setFormQuestions(data); })
+      .catch(() => {}); // no questions is the same as none asked
+    return () => { live = false; };
+  }, [event.slug]);
+
+  const setAnswer = (id: number, value: Answer) => setAnswers((a) => ({ ...a, [id]: value }));
+  const toggleChoice = (id: number, option: string) =>
+    setAnswers((a) => {
+      const current = Array.isArray(a[id]) ? (a[id] as string[]) : [];
+      return { ...a, [id]: current.includes(option) ? current.filter((o) => o !== option) : [...current, option] };
+    });
+  const buildAnswers = () =>
+    formQuestions
+      .filter((q) => {
+        const a = answers[q.id];
+        return Array.isArray(a) ? a.length > 0 : !!a && a.trim() !== "";
+      })
+      .map((q) => ({ question_id: q.id, answer: answers[q.id] }));
+
   /* ── Payment ── */
   const [payMethod, setPayMethod] = useState("paystack");
 
@@ -274,6 +308,11 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
     }
     if (!isValidEmail(email)) {
       return "Please enter a valid email address.";
+    }
+    for (const q of formQuestions) {
+      const a = answers[q.id];
+      const empty = Array.isArray(a) ? a.length === 0 : !a || a.trim() === "";
+      if (q.required && empty) return `Please answer: ${q.question}`;
     }
     for (let i = 0; i < recipientCount; i++) {
       const g = guests[i];
@@ -360,6 +399,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
           attendees,
           promo_code: appliedPromo?.code,
           turnstile_token: tsToken || undefined,
+          form_answers: buildAnswers(),
         });
         const ticket = result.tickets?.[0];
         const ticketData = {
@@ -394,6 +434,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
         attendees,
         promo_code: appliedPromo?.code,
         turnstile_token: tsToken || undefined,
+        form_answers: buildAnswers(),
       });
 
       if (result?.data?.authorization_url) {
@@ -848,6 +889,54 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                           )}
                         </div>
                       ))}
+                    </div>
+                  )}
+
+                  {/* Organiser's questions */}
+                  {formQuestions.length > 0 && (
+                    <div className="space-y-5 pt-2">
+                      <h2 className="font-display text-xl font-bold text-ink">A few questions</h2>
+                      {formQuestions.map((q) => {
+                        const a = answers[q.id];
+                        const choiceCls = "flex items-center gap-3 border border-[#D5DBE5] rounded-[14px] px-4 py-3 text-sm text-ink cursor-pointer has-[:checked]:border-brand has-[:checked]:bg-[#EEF3FF] focus-within:ring-2 focus-within:ring-brand";
+                        return (
+                          <fieldset key={q.id} className="min-w-0">
+                            <legend className="text-sm font-bold text-ink mb-2">
+                              {q.question}
+                              {!q.required && <span className="font-normal text-muted"> · optional</span>}
+                            </legend>
+                            {(q.question_type === "radio" || q.question_type === "select" || q.question_type === "yesno") && (
+                              <div className={q.question_type === "yesno" ? "grid grid-cols-2 gap-2" : "space-y-2"}>
+                                {q.options.map((opt) => (
+                                  <label key={opt} className={choiceCls}>
+                                    <input type="radio" name={`q-${q.id}`} checked={a === opt} onChange={() => setAnswer(q.id, opt)} className="w-4 h-4 accent-[#3669F6]" />
+                                    {opt}
+                                  </label>
+                                ))}
+                              </div>
+                            )}
+                            {q.question_type === "checkbox" && (
+                              <div className="space-y-2">
+                                {q.options.map((opt) => (
+                                  <label key={opt} className={choiceCls}>
+                                    <input type="checkbox" checked={Array.isArray(a) && a.includes(opt)} onChange={() => toggleChoice(q.id, opt)} className="w-4 h-4 accent-[#3669F6]" />
+                                    {opt}
+                                  </label>
+                                ))}
+                              </div>
+                            )}
+                            {(q.question_type === "textarea" || q.question_type === "text") && (
+                              <textarea
+                                rows={q.question_type === "textarea" ? 4 : 2}
+                                maxLength={q.question_type === "textarea" ? 2000 : 255}
+                                value={typeof a === "string" ? a : ""}
+                                onChange={(e) => setAnswer(q.id, e.target.value)}
+                                className="w-full border border-[#D5DBE5] text-ink rounded-[14px] px-4 py-3 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand resize-none"
+                              />
+                            )}
+                          </fieldset>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
