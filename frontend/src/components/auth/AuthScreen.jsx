@@ -158,6 +158,26 @@ export default function AuthScreen() {
     }
   };
 
+  // Google: WorkOS hosts the sign-in and sends the browser back to /auth/callback.
+  // The page we were heading for is kept across that trip in sessionStorage.
+  const [isStartingGoogle, setIsStartingGoogle] = useState(false);
+  const handleGoogle = async () => {
+    if (isStartingGoogle) return;
+    setError("");
+    setIsStartingGoogle(true);
+    try {
+      try {
+        if (redirectTo) sessionStorage.setItem("authRedirect", redirectTo);
+        else sessionStorage.removeItem("authRedirect");
+      } catch {}
+      const { data } = await axiosInstance.post("auth/oauth/authorize/", { provider: "google" });
+      window.location.href = data.authorization_url;
+    } catch (err) {
+      setError(err.response?.data?.error || "Couldn't start Google sign-in. Please try again.");
+      setIsStartingGoogle(false);
+    }
+  };
+
   const applyDigits = (digits) => {
     const chars = digits.replace(/\D/g, "").slice(0, OTP_LENGTH).split("");
     const next = Array(OTP_LENGTH).fill("");
@@ -293,13 +313,12 @@ export default function AuthScreen() {
                 <div className="flex gap-3">
                   <button
                     type="button"
-                    disabled
-                    title="Coming soon"
-                    aria-disabled="true"
-                    className="flex-1 flex items-center justify-center gap-2 border border-gray-200 rounded-full py-3 text-sm font-medium text-gray-400 opacity-60 cursor-not-allowed"
+                    onClick={handleGoogle}
+                    disabled={isStartingGoogle}
+                    className="flex-1 flex items-center justify-center gap-2 border border-gray-200 rounded-full py-3 text-sm font-medium text-gray-900 hover:bg-gray-50 transition-colors disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                   >
                     <FcGoogle size={18} />
-                    Google
+                    {isStartingGoogle ? "Opening Google..." : "Google"}
                   </button>
                   <button
                     type="button"
