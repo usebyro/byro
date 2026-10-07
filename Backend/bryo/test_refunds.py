@@ -549,3 +549,22 @@ class DeleteGuardTests(RefundTestBase):
         self.client.force_authenticate(owner_admin)
         res = self.client.delete(f'/api/admin/events/{self.event.pk}/')
         self.assertEqual(res.status_code, 409)
+
+
+class TicketRefundVisibilityTests(RefundTestBase):
+
+    def test_the_buyer_sees_their_refund_but_a_person_given_a_ticket_does_not(self):
+        payment = paid_order(self.event, seats=2)
+        gifted = payment.tickets_purchased.first()
+        gifted.current_owner_email = 'friend@example.com'
+        gifted.save()
+        own = payment.tickets_purchased.exclude(pk=gifted.pk).first()
+        own.current_owner_email = 'buyer@example.com'
+        own.save()
+        self.run_with(FakePaystack())
+        self.client.force_authenticate(None)
+        mine = self.client.get(f'/api/tickets/{own.ticket_id}/').json()
+        theirs = self.client.get(f'/api/tickets/{gifted.ticket_id}/').json()
+        self.assertEqual(Decimal(mine['refund']['amount']), Decimal('5000.00'))
+        self.assertIsNone(theirs['refund'])
+        self.assertIsNotNone(theirs['event_cancelled_at'])

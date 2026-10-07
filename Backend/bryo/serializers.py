@@ -448,6 +448,9 @@ class TicketSerializer(serializers.ModelSerializer):
         refund = getattr(obj.payment, 'refund', None) if obj.payment_id else None
         if refund is None:
             return None
+        # The money is the buyer's. Someone who was given a ticket sees the cancellation, not the refund.
+        if obj.current_owner_email.strip().lower() != obj.payment.customer_email.strip().lower():
+            return None
         return {'amount': refund.amount, 'status': refund.status}
 
     def get_event_image_url(self, obj):
