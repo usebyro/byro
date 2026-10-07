@@ -3,14 +3,14 @@
     python manage.py send_test_emails you@example.com
     python manage.py send_test_emails --preview-dir /tmp/emails    # write HTML files, send nothing
 
-Needs RESEND_API_KEY (or BREVO_SMTP_KEY) in the environment to actually send.
+Needs RESEND_API_KEY, or BREVO_SMTP_KEY with --via brevo, to actually send.
 """
 from pathlib import Path
 
 from django.core.management.base import BaseCommand
 
 from bryo import emails
-from bryo.mailer import send_email
+from bryo.mailer import _send_via_brevo, send_email
 
 SITE = "https://usebyro.com"
 
@@ -39,9 +39,11 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument("to", nargs="?", help="Address to send the samples to")
+        parser.add_argument("--via", choices=["resend", "brevo"], default="resend",
+                            help="Which provider to send through (default: resend)")
         parser.add_argument("--preview-dir", help="Write each email as an HTML file here instead of sending")
 
-    def handle(self, *args, to=None, preview_dir=None, **opts):
+    def handle(self, *args, to=None, preview_dir=None, via="resend", **opts):
         if not to and not preview_dir:
             self.stderr.write("Give an address to send to, or --preview-dir.")
             return
@@ -53,5 +55,6 @@ class Command(BaseCommand):
                 (out / f"{name}.html").write_text(mail["html"])
                 self.stdout.write(f"wrote {out / f'{name}.html'}")
             else:
-                send_email(to, f"[Test] {mail['subject']}", mail["html"], mail.get("text"))
+                send = _send_via_brevo if via == "brevo" else send_email
+                send(to, f"[Test] {mail['subject']}", mail["html"], mail.get("text"))
                 self.stdout.write(f"sent {name}: {mail['subject']}")
