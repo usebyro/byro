@@ -155,6 +155,25 @@ const API = {
     }
   },
 
+  getFormQuestions: async (slug) => {
+    try {
+      const response = await axiosInstance.get(`events/${slug}/form-questions/`);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  /** Replace the event's whole question list: [{id?, question, question_type, options, required}] */
+  saveFormQuestions: async (slug, questions) => {
+    try {
+      const response = await axiosInstance.put(`events/${slug}/form-questions/`, { questions });
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
   createTier: async (slug, tierData) => {
     try {
       const response = await axiosInstance.post(`events/${slug}/tiers/`, tierData);

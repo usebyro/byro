@@ -159,6 +159,41 @@ const formatDateForServer = (d) => {
   return d;
 };
 
+/* ── Attendee questions ──
+   The form offers three kinds. "Multiple choice" is stored as a single-answer
+   choice, or as a pick-several (checkbox) when "Allow several" is on. */
+const QUESTION_KINDS = [
+  { id: "choice", label: "Multiple choice" },
+  { id: "yesno", label: "Yes or no" },
+  { id: "textarea", label: "Long answer" },
+];
+const QUESTION_SUGGESTIONS = [
+  { question: "Dietary needs", kind: "choice", options: ["None", "Vegetarian", "Vegan", "Allergies"] },
+  { question: "Is this your first time at one of our events?", kind: "yesno", options: [] },
+  { question: "Anything we should know?", kind: "textarea", options: [] },
+];
+let questionKey = 0;
+const newQuestion = (over = {}) => ({
+  key: `q_${++questionKey}`, id: null, question: "", kind: "choice", several: false,
+  options: ["", ""], required: false, ...over,
+});
+const questionFromServer = (q) => ({
+  key: `q_${++questionKey}`,
+  id: q.id,
+  question: q.question,
+  kind: q.question_type === "yesno" ? "yesno" : q.question_type === "textarea" ? "textarea" : "choice",
+  several: q.question_type === "checkbox",
+  options: q.question_type === "yesno" || q.question_type === "textarea" || q.question_type === "text" ? ["", ""] : q.options,
+  required: q.required,
+});
+const questionToServer = (q) => ({
+  ...(q.id ? { id: q.id } : {}),
+  question: q.question.trim(),
+  question_type: q.kind === "choice" ? (q.several ? "checkbox" : "radio") : q.kind,
+  options: q.kind === "choice" ? q.options.map((o) => o.trim()).filter(Boolean) : [],
+  required: q.required,
+});
+
 /* ── Default tiers ── */
 const DEFAULT_TIERS = [];
 
@@ -200,6 +235,8 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
   const [isImageLoading, setIsImageLoading] = useState(false);
 
   /* ticket tiers (UI only — we submit the first tier's price to the API) */
+  const [questions, setQuestions] = useState([]);
+  const [originalQuestions, setOriginalQuestions] = useState("[]"); // JSON snapshot of the saved list, to skip no-op saves
   const [tiers, setTiers] = useState(DEFAULT_TIERS);
   const [originalTiers, setOriginalTiers] = useState([]); // snapshot of saved tiers, for edit diffing
   const [editingTierId, setEditingTierId] = useState(null);
@@ -219,10 +256,10 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
   }, []);
 
   /* which cards are expanded (Settings starts collapsed: the defaults suit most events) */
-  const [open, setOpen] = useState({ details: true, date: false, tiers: false, cover: true, settings: false });
+  const [open, setOpen] = useState({ details: true, date: false, tiers: false, questions: false, cover: true, settings: false });
   const toggle = (key) => setOpen((o) => ({ ...o, [key]: !o[key] }));
   /* The three numbered steps work as an accordion: opening one closes the others */
-  const toggleStep = (key) => setOpen((o) => ({ ...o, details: false, date: false, tiers: false, [key]: !o[key] }));
+  const toggleStep = (key) => setOpen((o) => ({ ...o, details: false, date: false, tiers: false, questions: false, [key]: !o[key] }));
 
   /* what "Ready to publish" counts */
   const checklist = [
@@ -259,6 +296,22 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
       setImagePreview(imgUrl);
     }
   }, [initialData]);
+
+  /* Load existing attendee questions when editing */
+  useEffect(() => {
+    if (!editSlug) return;
+    API.getFormQuestions(editSlug)
+      .then((data) => {
+        if (!Array.isArray(data)) return;
+        const mapped = data.map(questionFromServer);
+        setQuestions(mapped);
+        setOriginalQuestions(JSON.stringify(mapped.map(questionToServer)));
+      })
+      .catch(() => {});
+  }, [editSlug]);
+
+  const updateQuestion = (key, patch) => setQuestions((list) => list.map((q) => (q.key === key ? { ...q, ...patch } : q)));
+  const removeQuestion = (key) => setQuestions((list) => list.filter((q) => q.key !== key));
 
   /* Load existing tiers when editing */
   useEffect(() => {
@@ -367,6 +420,15 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
 
     const formattedDate = formatDateForServer(date);
     if (!formattedDate) return;
+
+    for (const q of questions) {
+      const filled = q.options.map((o) => o.trim()).filter(Boolean);
+      if (!q.question.trim() || (q.kind === "choice" && filled.length < 2)) {
+        setOpen((o) => ({ ...o, details: false, date: false, tiers: false, questions: true }));
+        toast.error(!q.question.trim() ? "Write each attendee question, or remove the empty one" : `"${q.question.trim()}" needs at least two choices`);
+        return;
+      }
+    }
 
     /* Set auth token */
     if (token) {
@@ -491,6 +553,15 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
           const failures = results.filter((r) => r.status === "rejected");
           if (failures.length > 0) {
             toast.error(`Event saved but ${failures.length} tier change(s) failed: ${failures[0]?.reason?.message || "unknown error"}`);
+          }
+        }
+
+        const questionPayload = questions.map(questionToServer);
+        if (JSON.stringify(questionPayload) !== originalQuestions) {
+          try {
+            await API.saveFormQuestions(slug, questionPayload);
+          } catch (qErr) {
+            toast.error(`Event saved but the attendee questions weren't: ${qErr?.message || "unknown error"}`);
           }
         }
 
@@ -770,7 +841,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
             action={
               <button
                 type="button"
-                onClick={() => { setOpen((o) => ({ ...o, details: false, date: false, tiers: true })); addTier(); }}
+                onClick={() => { setOpen((o) => ({ ...o, details: false, date: false, questions: false, tiers: true })); addTier(); }}
                 className="flex items-center gap-1.5 min-h-[44px] md:min-h-0 px-2 text-blue-600 text-sm font-semibold hover:text-blue-700 transition-colors"
               >
                 <HugeiconsIcon icon={Add01Icon} size={15} color="#2563eb" />
@@ -978,6 +1049,116 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
             <p className="text-xs text-gray-400 mt-4">
               Free event? Skip this section. For paid events, add at least one tier with a price, the first tier&apos;s price becomes the event ticket price.
             </p>
+          </Collapsible>
+
+          <Collapsible
+            id="sec-questions"
+            title="Questions for attendees"
+            summary={questions.length ? `${questions.length} question${questions.length === 1 ? "" : "s"}` : "None yet. Skip if you don't need any"}
+            open={open.questions}
+            onToggle={() => toggleStep("questions")}
+            step={4}
+            done={questions.length > 0}
+          >
+            <p className="text-sm text-[#5B6272] mb-4">Name and email are always collected. Add only what you really need. Each buyer answers once per order.</p>
+            <div className="space-y-3">
+              {questions.map((q, qi) => (
+                <div key={q.key} className="rounded-2xl border border-[#E3E8F0] p-4 space-y-3">
+                  <div className="flex items-start gap-2">
+                    <label className="flex-1 min-w-0">
+                      <span className="sr-only">Question {qi + 1}</span>
+                      <input
+                        type="text"
+                        value={q.question}
+                        onChange={(e) => updateQuestion(q.key, { question: e.target.value })}
+                        placeholder="Type your question"
+                        maxLength={255}
+                        className="w-full border border-gray-200 rounded-xl px-4 py-3 min-h-[46px] text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </label>
+                    <button type="button" onClick={() => removeQuestion(q.key)} aria-label={`Remove question ${qi + 1}`} className="min-h-[46px] px-3 text-sm font-semibold text-[#5B6272] hover:text-[#14161C]">
+                      Remove
+                    </button>
+                  </div>
+
+                  <div className="p-1 rounded-xl bg-[#F3F6FB] flex gap-0.5" role="group" aria-label="Answer type">
+                    {QUESTION_KINDS.map((k) => (
+                      <button
+                        key={k.id}
+                        type="button"
+                        aria-pressed={q.kind === k.id}
+                        onClick={() => updateQuestion(q.key, { kind: k.id })}
+                        className={`flex-1 min-h-[38px] rounded-[9px] text-[13px] md:text-sm font-bold text-[#14161C] ${q.kind === k.id ? "bg-white shadow-[0_2px_8px_rgba(20,22,28,0.10)]" : ""}`}
+                      >
+                        {k.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {q.kind === "choice" && (
+                    <div className="space-y-2">
+                      {q.options.map((opt, oi) => (
+                        <div key={oi} className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={opt}
+                            onChange={(e) => updateQuestion(q.key, { options: q.options.map((o, i) => (i === oi ? e.target.value : o)) })}
+                            placeholder={`Choice ${oi + 1}`}
+                            maxLength={100}
+                            aria-label={`Choice ${oi + 1} for question ${qi + 1}`}
+                            className="flex-1 min-w-0 border border-gray-200 rounded-xl px-4 py-2.5 min-h-[44px] text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          />
+                          {q.options.length > 2 && (
+                            <button
+                              type="button"
+                              onClick={() => updateQuestion(q.key, { options: q.options.filter((_, i) => i !== oi) })}
+                              aria-label={`Remove choice ${oi + 1}`}
+                              className="min-h-[44px] px-2 text-sm text-[#5B6272] hover:text-[#14161C]"
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                      {q.options.length < 20 && (
+                        <button type="button" onClick={() => updateQuestion(q.key, { options: [...q.options, ""] })} className="text-sm font-extrabold text-[#2451D6] min-h-[40px]">
+                          + Add choice
+                        </button>
+                      )}
+                      <label className="flex items-center gap-2 text-sm text-[#3B4252]">
+                        <input type="checkbox" checked={q.several} onChange={(e) => updateQuestion(q.key, { several: e.target.checked })} className="w-4 h-4" />
+                        Allow more than one answer
+                      </label>
+                    </div>
+                  )}
+                  {q.kind === "yesno" && <p className="text-sm text-[#5B6272]">Buyers choose Yes or No.</p>}
+                  {q.kind === "textarea" && <p className="text-sm text-[#5B6272]">Buyers type their own answer.</p>}
+
+                  <label className="flex items-center gap-2 text-sm font-bold text-[#14161C]">
+                    <input type="checkbox" checked={q.required} onChange={(e) => updateQuestion(q.key, { required: e.target.checked })} className="w-4 h-4" />
+                    Required
+                  </label>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex flex-wrap gap-2 mt-4">
+              {questions.length < 20 && (
+                <button type="button" onClick={() => setQuestions((l) => [...l, newQuestion()])} className="h-9 px-4 rounded-full bg-[#3669F6] text-white text-[13px] font-bold">
+                  + Add question
+                </button>
+              )}
+              {QUESTION_SUGGESTIONS.filter((sg) => !questions.some((q) => q.question === sg.question)).map((sg) => (
+                <button
+                  key={sg.question}
+                  type="button"
+                  onClick={() => setQuestions((l) => [...l, newQuestion({ question: sg.question, kind: sg.kind, options: sg.options.length ? sg.options : ["", ""] })])}
+                  className="h-9 px-3 rounded-full border border-dashed border-[#C9D0DC] bg-white text-[13px] font-bold text-[#14161C]"
+                >
+                  + {sg.question.length > 28 ? `${sg.question.slice(0, 26)}…` : sg.question}
+                </button>
+              ))}
+            </div>
           </Collapsible>
         </div>
 
