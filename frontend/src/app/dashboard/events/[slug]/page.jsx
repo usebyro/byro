@@ -31,6 +31,8 @@ import API from "@/services/api";
 import ShareMenu from "@/components/ShareMenu";
 import EventPublishedModal from "@/components/events/EventPublishedModal";
 import CohostsDialog from "@/components/events/CohostsDialog";
+import CancelEventDialog from "@/components/events/CancelEventDialog";
+import CancelledPanel from "@/components/events/CancelledPanel";
 import SharedAvatar from "@/components/ui/Avatar";
 import EventImageFallback from "@/components/ui/EventImageFallback";
 
@@ -121,6 +123,7 @@ export default function StudioEventPage() {
   const [checkInValue, setCheckInValue] = useState("");
   const [checkingIn, setCheckingIn] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
+  const [showCancel, setShowCancel] = useState(false);
   const [showCohosts, setShowCohosts] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState("");
@@ -413,6 +416,7 @@ export default function StudioEventPage() {
 
   const img = event ? getImageUrl(event) : null;
   const isDraft = Boolean(event?.is_draft);
+  const isCancelled = Boolean(event?.cancelled_at);
   // What this person may do here: owners run everything, co-hosts depend on their permission.
   const role = event?.role || {};
   const isOwner = Boolean(role.is_owner);
@@ -421,7 +425,10 @@ export default function StudioEventPage() {
   const TAB_LABELS = { attendees: "Attendees", tiers: "Tiers", discounts: "Discounts" };
   const visibleTabs = ["attendees", ...(canEdit ? ["tiers", "discounts"] : [])];
   const currentTab = visibleTabs.includes(activeTab) ? activeTab : "attendees";
-  const isLive = event?.is_active && !isDraft && new Date(event.day) >= new Date();
+  const isLive = event?.is_active && !isDraft && !isCancelled && new Date(event.day) >= new Date();
+  // Compare calendar days so an event happening today can still be cancelled.
+  const todayIso = new Date().toLocaleDateString('en-CA');
+  const canCancel = isOwner && !isDraft && !isCancelled && Boolean(event?.day) && event.day >= todayIso;
 
   const tierCounts = attendees.reduce((m, a) => {
     m[a.tier] = (m[a.tier] || 0) + 1;
@@ -459,6 +466,8 @@ export default function StudioEventPage() {
         </Link>
       </div>
 
+      {isCancelled && <CancelledPanel slug={slug} reason={event.cancel_reason} />}
+
       {/* The banner itself must not clip (the Share menu opens below it): only the image layer is clipped. */}
       <div className="relative rounded-xl shadow-sm bg-gray-950" style={{ minHeight: 130 }}>
         <div className="absolute inset-0 overflow-hidden rounded-xl">
@@ -479,6 +488,12 @@ export default function StudioEventPage() {
                 DRAFT · NOT PUBLIC
               </span>
             )}
+            {isCancelled && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-extrabold bg-white/15 backdrop-blur-sm text-white px-2 py-0.5 rounded uppercase tracking-wider mb-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
+                CANCELLED
+              </span>
+            )}
             {isLive && (
               <span className="inline-flex items-center gap-1 text-[11px] font-extrabold bg-white/15 backdrop-blur-sm text-white px-2 py-0.5 rounded uppercase tracking-wider mb-2">
                 <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
@@ -495,7 +510,7 @@ export default function StudioEventPage() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2 shrink-0 w-full md:w-auto md:flex-nowrap">
-            {!isDraft && (
+            {!isDraft && !isCancelled && (
               <button
                 type="button"
                 onClick={() => { setCheckInMode("scan"); setCheckInModal(true); }}
@@ -505,7 +520,7 @@ export default function StudioEventPage() {
                 Check in
               </button>
             )}
-            {!isDraft && <ShareMenu
+            {!isDraft && !isCancelled && <ShareMenu
               url={typeof window !== "undefined" ? `${window.location.origin}/discover/${slug}` : ""}
               title={event?.name || ""}
               campaign="event_share"
@@ -528,7 +543,7 @@ export default function StudioEventPage() {
                 )}
               </button>
             )}
-            {canEdit && <Link
+            {canEdit && !isCancelled && <Link
               href={`/dashboard/events/${slug}/edit`}
               className={`flex-1 basis-[calc(50%-4px)] md:basis-auto md:flex-initial flex items-center justify-center gap-1 min-h-[40px] md:min-h-0 text-white text-xs font-semibold px-3 py-2 rounded-lg transition-colors whitespace-nowrap ${
                 isDraft
@@ -931,6 +946,15 @@ export default function StudioEventPage() {
         </div>
       )}
 
+      {canCancel && <div className="mt-4 flex justify-end">
+        <button
+          onClick={() => setShowCancel(true)}
+          className="flex items-center gap-1.5 text-red-500 hover:text-red-700 text-xs font-bold transition-colors"
+        >
+          Cancel event
+        </button>
+      </div>}
+
       {canDelete && <div className="mt-4 flex justify-end">
         <button
           onClick={() => setShowDelete(true)}
@@ -940,6 +964,20 @@ export default function StudioEventPage() {
           Delete event
         </button>
       </div>}
+
+      {canCancel && (
+        <CancelEventDialog
+          open={showCancel}
+          onClose={() => setShowCancel(false)}
+          slug={slug}
+          eventName={event?.name || ""}
+          onCancelled={() => {
+            setShowCancel(false);
+            API.getEvent(slug).then(setEvent).catch(() => {});
+            loadAttendees();
+          }}
+        />
+      )}
 
       {isOwner && (
         <CohostsDialog
