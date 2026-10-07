@@ -396,16 +396,29 @@ class PaymentFulfilmentTests(PaymentTestBase):
         self.assertEqual(res.status_code, 400)
         self.assertEqual(Ticket.objects.count(), 0)
 
-    def test_verify_amount_mismatch_is_not_fulfilled(self):
-        res = self.verify(amount_kobo=self.amount_kobo + 10000)
+    def test_verify_accepts_amount_with_paystack_fee_on_top(self):
+        # Paystack adds its fee to what we send, so it reports more than we stored.
+        res = self.verify(amount_kobo=self.amount_kobo + 7900)
+        self.assertEqual(res.status_code, 200)
+        self.payment.refresh_from_db()
+        self.assertEqual(self.payment.status, 'successful')
+
+    def test_webhook_accepts_amount_with_paystack_fee_on_top(self):
+        res = self.webhook(amount_kobo=self.amount_kobo + 7900)
+        self.assertEqual(res.status_code, 200)
+        self.payment.refresh_from_db()
+        self.assertEqual(self.payment.status, 'successful')
+
+    def test_verify_underpayment_is_not_fulfilled(self):
+        res = self.verify(amount_kobo=self.amount_kobo - 100)
         self.assertEqual(res.status_code, 400)
         self.payment.refresh_from_db()
         self.assertEqual(self.payment.status, 'pending')
         self.assertEqual(Ticket.objects.count(), 0)
         self.assertEqual(self.ticket_email.call_count, 0)
 
-    def test_webhook_amount_mismatch_is_not_fulfilled(self):
-        res = self.webhook(amount_kobo=self.amount_kobo + 10000)
+    def test_webhook_amount_above_fee_cap_is_not_fulfilled(self):
+        res = self.webhook(amount_kobo=self.amount_kobo + 200100)
         # 200 so Paystack stops retrying, but nothing is fulfilled.
         self.assertEqual(res.status_code, 200)
         self.payment.refresh_from_db()

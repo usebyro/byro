@@ -32,7 +32,7 @@ from .models import (
     TicketTier, PayoutRequest, PromoCode, MerchItem, Follow, AdminAction, AdminMember, ActivityLog,
 )
 from .activity import log_activity
-from .pricing import calculate_ticket_fees, FEE_RATE
+from .pricing import calculate_ticket_fees, FEE_RATE, PAYSTACK_FEE_CAP
 from django.urls import reverse
 from .serializers import EventSerializer, TicketSerializer, PaymentSerializer, TicketTierSerializer, PromoCodeSerializer, MerchItemSerializer
 from .permissions import IsEventOwnerOrCoHost, IsEventOwner, IsAdminMember, get_admin_member
@@ -75,6 +75,17 @@ class InsufficientCapacityError(Exception):
 # How long a buyer's seats are held while they pay. After this a pending
 # payment stops counting against capacity and the seats go back on sale.
 RESERVATION_MINUTES = 10
+
+
+def _paid_amount_ok(paid_kobo, expected_kobo):
+    """True if Paystack's reported amount covers what we asked it to charge.
+
+    We send Paystack `total`; Paystack adds its own fee on top (fees borne by
+    the customer), so the amount it reports is `total` plus that fee. An exact
+    match would reject every real payment. Underpayment is still rejected, and
+    so is anything above the fee cap (NGN 2,000).
+    """
+    return expected_kobo <= paid_kobo <= expected_kobo + int(PAYSTACK_FEE_CAP * 100)
 
 
 def _pending_reservation_count(payments_qs):
@@ -842,7 +853,7 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
 
                 # Amount check: Paystack amount (in kobo) must match our recorded amount
                 expected_amount_kobo = int(payment.amount * 100)
-                if paid_amount_kobo != expected_amount_kobo:
+                if not _paid_amount_ok(paid_amount_kobo, expected_amount_kobo):
                     logger.error(
                         "Amount mismatch for payment %s: Paystack=%d kobo, expected=%d kobo",
                         reference, paid_amount_kobo, expected_amount_kobo
@@ -962,7 +973,7 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
 
                 paid_amount_kobo = data.get('amount', 0)
                 expected_amount_kobo = int(payment.amount * 100)
-                if paid_amount_kobo != expected_amount_kobo:
+                if not _paid_amount_ok(paid_amount_kobo, expected_amount_kobo):
                     logger.error(
                         "Webhook amount mismatch for payment %s: Paystack=%d kobo, expected=%d kobo",
                         reference, paid_amount_kobo, expected_amount_kobo
