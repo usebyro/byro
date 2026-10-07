@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useSelector } from "react-redux";
 import { toast } from "sonner";
@@ -10,7 +10,9 @@ import API from "@/services/api";
  * Follow / Following for an organiser's community page.
  *
  * Signed-out visitors are sent to login (which also creates accounts) and come
- * straight back to the page they were on. Signed-in visitors follow instantly,
+ * straight back to the page they were on, where the follow they asked for is
+ * completed for them (nothing counts until they are signed in). Signed-in
+ * visitors follow instantly,
  * with the button updating first and rolling back if the request fails.
  * Your own page never shows the button.
  */
@@ -21,9 +23,31 @@ export default function FollowButton({ handle, initialFollowing = false, onChang
   const { token, user } = useSelector((state) => state.auth);
   const [following, setFollowing] = useState(initialFollowing);
   const [busy, setBusy] = useState(false);
+  const resumed = useRef(false);
 
   // The server value arrives after the page loads, and again when the visitor signs in.
   useEffect(() => setFollowing(initialFollowing), [initialFollowing]);
+
+  // Back from login with a follow waiting: do it once, then clean the URL.
+  const pending = searchParams.get("follow");
+  useEffect(() => {
+    if (resumed.current || !token || !pending) return;
+    if (pending.toLowerCase() !== String(handle).toLowerCase()) return;
+    resumed.current = true;
+
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("follow");
+    const query = params.toString();
+    router.replace(`${pathname}${query ? `?${query}` : ""}`, { scroll: false });
+
+    API.followProfile(handle)
+      .then((data) => {
+        setFollowing(data.following);
+        onChange?.(data.followers_count, data.following);
+      })
+      .catch((err) => toast.error(err?.message || "Couldn't follow. Try again."));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, pending, handle]);
 
   if (user?.handle && user.handle.toLowerCase() === String(handle).toLowerCase()) return null;
 
@@ -31,8 +55,9 @@ export default function FollowButton({ handle, initialFollowing = false, onChang
     if (busy) return;
 
     if (!token) {
-      const query = searchParams.toString();
-      const back = `${pathname}${query ? `?${query}` : ""}`;
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("follow", handle);
+      const back = `${pathname}?${params.toString()}`;
       router.push(`/login?redirect=${encodeURIComponent(back)}`);
       return;
     }
