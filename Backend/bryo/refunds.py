@@ -139,6 +139,9 @@ def cancel_event(event, reason):
         for payment in _paid_orders(locked).filter(refund__isnull=True):
             Refund.objects.create(payment=payment, event=locked, amount=refundable_amount(payment), currency=payment.currency)
 
+        # Payouts not yet paid for this event are void: the money now belongs to the buyers.
+        locked.payout_requests.filter(status='pending').update(status='rejected')
+
         locked.tickets.filter(payment_status='paid').update(payment_status='refunded')
         locked.tickets.filter(payment_status__in=['free', 'pending', 'failed']).update(payment_status='cancelled')
 

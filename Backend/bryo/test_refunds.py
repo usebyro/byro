@@ -473,3 +473,46 @@ class LatePaymentTests(RefundTestBase):
         self.assertEqual(refund.status, Refund.STATUS_AWAITING)
         self.assertEqual(refund.amount, Decimal('5000.00'))
         self.assertIn('buyer@example.com', self.recipients(), 'the buyer is told straight away')
+
+
+class WithdrawalAfterCancellationTests(RefundTestBase):
+    """An organiser already paid for an event that is then cancelled cannot withdraw until they have made it up."""
+
+    def payout_post(self, event, amount):
+        return self.client.post('/api/payouts/', {
+            'event': event.pk, 'amount': str(amount), 'method': 'bank',
+            'bank_name': 'GTBank', 'account_number': '0123456789', 'account_name': 'Test Owner',
+        }, format='json')
+
+    def test_waiting_payouts_for_the_cancelled_event_are_voided(self):
+        from .models import PayoutRequest
+        paid_order(self.event, subtotal='5000.00', fee='250.00', seats=1)
+        waiting = PayoutRequest.objects.create(
+            user=self.owner, event=self.event, amount=Decimal('4000'), method='bank', status='pending',
+        )
+        self.run_with(FakePaystack())
+        waiting.refresh_from_db()
+        self.assertEqual(waiting.status, 'rejected')
+
+    def test_withdrawals_are_held_back_until_later_sales_cover_what_was_already_paid_out(self):
+        from .models import PayoutRequest
+        paid_order(self.event, subtotal='5000.00', fee='250.00', seats=1)
+        PayoutRequest.objects.create(
+            user=self.owner, event=self.event, amount=Decimal('5000'), method='bank', status='processed',
+        )
+        self.run_with(FakePaystack())  # cancelled: the 5,000 already paid out is now owed back
+
+        other = make_event(self.owner, name='Next event', ticket_price=Decimal('5000.00'), capacity=100)
+        paid_order(other, subtotal='5000.00', fee='250.00', seats=1)
+        # the new event earned 5,000, but the cancelled one is 5,000 in the red
+        self.assertEqual(compute_available_balance(self.owner, event=other), Decimal('5000.00'))
+        self.assertEqual(compute_available_balance(self.owner), Decimal('0'))
+        blocked = self.payout_post(other, 3000)
+        self.assertEqual(blocked.status_code, 400, blocked.content)
+        self.assertIn('cancelled', blocked.json()['error'])
+
+        paid_order(other, subtotal='5000.00', fee='250.00', seats=1)  # more sales on the new event
+        ok = self.payout_post(other, 3000)
+        self.assertEqual(ok.status_code, 201, ok.content)
+        too_much = self.payout_post(other, 6000)
+        self.assertEqual(too_much.status_code, 400)

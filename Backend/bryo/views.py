@@ -2991,6 +2991,21 @@ class PayoutRequestView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        # If a cancelled event's money was already paid out to this organiser, Byro
+        # refunded its buyers anyway, so that event sits in the red. Their balance
+        # across ALL events has to cover the request, which holds back withdrawals
+        # until later ticket sales have made up the difference.
+        overall = compute_available_balance(request.user)
+        if overall < available and (amount is None or amount > overall):
+            return Response(
+                {'error': (
+                    'You cannot withdraw this yet. Money already paid out for an event that was '
+                    'cancelled has been refunded to its buyers, and it is being taken out of your '
+                    f'ticket sales first. Your balance across all events is {overall}.'
+                )},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         payout = serializer.save(user=request.user)
 
         # Persist bank details to user profile for pre-fill next time
