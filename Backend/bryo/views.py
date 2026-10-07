@@ -34,8 +34,8 @@ from .models import (
 from .activity import log_activity
 from .pricing import calculate_ticket_fees, FEE_RATE, PAYSTACK_FEE_CAP
 from .refunds import (
-    EventCancellationError, apply_refund_webhook, cancel_event, cancellation_preview,
-    process_event_refunds, refund_progress, refundable_amount, submit_refund,
+    EventCancellationError, apply_refund_webhook, authorise_refunds, cancel_event, cancellation_preview,
+    paystack_balance, process_event_refunds, refund_progress, refundable_amount, send_arranged_notice,
 )
 from django.urls import reverse
 from .serializers import EventSerializer, TicketSerializer, PaymentSerializer, TicketTierSerializer, PromoCodeSerializer, MerchItemSerializer
@@ -554,11 +554,11 @@ def _save_answers(tickets, clean):
             )
 
 
-def _submit_late_refund(refund_pk):
+def _notice_late_refund(refund_pk):
     try:
-        submit_refund(Refund.objects.select_related('payment', 'event').get(pk=refund_pk))
+        send_arranged_notice(Refund.objects.select_related('payment', 'event').get(pk=refund_pk))
     except Exception:
-        logger.exception('Could not send the refund for a payment made after cancellation')
+        logger.exception('Could not email a buyer who paid after cancellation')
 
 
 def _fulfil_payment(payment, ticket_user):
@@ -586,12 +586,13 @@ def _fulfil_payment(payment, ticket_user):
 
         if payment.event.cancelled_at:
             # The event was cancelled while this buyer was still at Paystack. Take no
-            # ticket, redeem no promo: just return the ticket price once this commits.
+            # ticket, redeem no promo: record the refund and tell the buyer. A Byro admin
+            # sends the money with the rest of this event's refunds.
             refund, _ = Refund.objects.get_or_create(
                 payment=payment,
                 defaults={'event': payment.event, 'amount': refundable_amount(payment), 'currency': payment.currency},
             )
-            transaction.on_commit(lambda: _submit_late_refund(refund.pk))
+            transaction.on_commit(lambda: _notice_late_refund(refund.pk))
             return [], []
 
         # Redeem promo code
@@ -2457,26 +2458,28 @@ class EventViewSet(viewsets.ModelViewSet):
             'event.cancelled', request=request, target_type='event', target_id=event.pk,
             target_label=event.name, detail=f"{summary['paid_orders']} refunds, NGN {summary['refund_total']}",
         )
+        if summary['paid_orders']:
+            _alert_byro_of_refunds(event, summary)
         try:
-            progress = process_event_refunds(event)  # the first batch now; the dashboard finishes the rest
+            progress = process_event_refunds(event)  # sends the first emails; no money moves
         except Exception:
-            logger.exception('First refund batch failed for event %s', event.pk)
+            logger.exception('First notices failed for event %s', event.pk)
             progress = refund_progress(event)
         return Response({'cancelled': True, 'summary': summary, 'progress': progress})
 
-    @action(detail=True, methods=['GET', 'POST'], url_path='refunds',
+    @action(detail=True, methods=['GET'], url_path='refunds',
             permission_classes=[IsAuthenticated, IsEventOwner])
     def refunds(self, request, slug=None):
         """
-        GET  /api/events/<slug>/refunds/   progress of the refunds for a cancelled event
-        POST /api/events/<slug>/refunds/   send the next batch ({"retry_failed": true} retries failures)
+        GET /api/events/<slug>/refunds/   where the refunds for a cancelled event have got to
+
+        Read-only. Money is sent by a Byro admin from the admin panel, because the
+        Paystack balance the refunds come out of belongs to Byro.
         """
         event = self.get_object()
         if not event.cancelled_at:
             return Response({'error': 'This event has not been cancelled.'}, status=status.HTTP_400_BAD_REQUEST)
-        if request.method == 'GET':
-            return Response(refund_progress(event))
-        return Response(process_event_refunds(event, retry_failed=bool(request.data.get('retry_failed'))))
+        return Response(refund_progress(event))
 
     @action(detail=True, methods=['POST'], permission_classes=[IsAuthenticated, IsEventOwner],
             throttle_classes=[ScopedRateThrottle], throttle_scope='cohost_invite')
@@ -3057,6 +3060,103 @@ class PayoutBalanceView(APIView):
             'pending': str(pending),
             'currency': 'NGN',
         })
+
+
+def _alert_byro_of_refunds(event, summary):
+    """Email the Byro team that refunds are waiting to be sent. Never blocks the cancellation."""
+    try:
+        from .emails import refunds_awaiting_email
+        from .mailer import send_email
+        mail = refunds_awaiting_email(
+            event.name, event.owner.email, summary['paid_orders'], summary['refund_total'],
+            f"{settings.SITE_URL}/admin/refunds",
+        )
+        send_email(getattr(settings, 'REFUND_ALERT_EMAIL', 'support@usebyro.com'), mail['subject'], mail['html'], mail['text'])
+    except Exception:
+        logger.exception('Could not alert Byro about refunds for event %s', event.pk)
+
+
+class AdminRefundsView(APIView):
+    """
+    GET /api/admin/refunds/ — every cancelled event that has refunds, how far each has got,
+    and Byro's Paystack balance so an admin can check the money is there before sending.
+    """
+    permission_classes = [IsAdminMember]
+
+    def get(self, request):
+        events = (
+            Event.objects.filter(refunds__isnull=False).distinct()
+            .select_related('owner').order_by('-cancelled_at')
+        )
+        rows = []
+        for event in events:
+            problems = [
+                {
+                    'refund_id': r.pk, 'email': r.payment.customer_email, 'name': r.payment.customer_name,
+                    'amount': r.amount, 'status': r.status, 'reason': r.failure_reason,
+                    'reference': r.payment.paystack_reference,
+                }
+                for r in event.refunds.filter(
+                    status__in=[Refund.STATUS_FAILED, Refund.STATUS_NEEDS_ATTENTION]
+                ).select_related('payment')
+            ]
+            rows.append({
+                'event_id': event.pk, 'name': event.name, 'slug': event.slug,
+                'owner_email': event.owner.email, 'progress': refund_progress(event), 'problems': problems,
+            })
+        balance = paystack_balance()
+        return Response({
+            'paystack_balance': balance,  # None when Paystack could not be reached
+            'awaiting_total': sum((r['progress']['awaiting_amount'] for r in rows), Decimal('0')),
+            'events': rows,
+        })
+
+
+class AdminEventRefundsView(APIView):
+    """
+    POST /api/admin/events/<id>/refunds/   {"action": "send" | "continue" | "retry"}
+
+    send     approve every refund still awaiting approval, and send the first batch.
+             Refuses (409) when Byro's Paystack balance looks too low unless
+             {"confirm_low_balance": true}: refunds can also come out of a pending payout.
+    continue send the next batch of approved refunds.
+    retry    put failed refunds back in the queue and send a batch.
+
+    Money moves here, so it needs the admin role, and each send is audit-logged.
+    """
+    permission_classes = [IsAdminMember]
+    method_roles = {'POST': 'admin'}
+
+    def post(self, request, pk):
+        event = get_object_or_404(Event, pk=pk, cancelled_at__isnull=False)
+        action = request.data.get('action')
+
+        if action == 'send':
+            progress = refund_progress(event)
+            needed = progress['awaiting_amount']
+            if needed <= 0 and not progress['waiting']:
+                return Response({'error': 'There are no refunds waiting to be sent.'}, status=status.HTTP_400_BAD_REQUEST)
+            balance = paystack_balance()
+            if balance is not None and balance < needed and not request.data.get('confirm_low_balance'):
+                return Response({
+                    'error': f'Your Paystack balance (₦{balance:,.2f}) is less than the ₦{needed:,.2f} to refund.',
+                    'code': 'low_balance', 'balance': balance, 'needed': needed,
+                }, status=status.HTTP_409_CONFLICT)
+            count = authorise_refunds(event)
+            _log_admin_action(
+                request, AdminAction.ACTION_REFUNDS_SENT, 'event', event.pk, event.name,
+                f'{count} refunds, NGN {needed}',
+            )
+            return Response(process_event_refunds(event))
+
+        if action == 'continue':
+            return Response(process_event_refunds(event))
+
+        if action == 'retry':
+            _log_admin_action(request, AdminAction.ACTION_REFUNDS_RETRIED, 'event', event.pk, event.name, '')
+            return Response(process_event_refunds(event, retry_failed=True))
+
+        return Response({'error': "action must be 'send', 'continue' or 'retry'"}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class AdminPayoutView(APIView):

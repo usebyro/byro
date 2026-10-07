@@ -243,13 +243,15 @@ class Refund(models.Model):
     promo discount. Byro's service fee and the payment processor's charge are
     never refunded (see bryo/refunds.py for the arithmetic).
     """
-    STATUS_PENDING = 'pending'            # created, not yet sent to Paystack
+    STATUS_AWAITING = 'awaiting'          # recorded when the event was cancelled; waits for a Byro admin to send it
+    STATUS_PENDING = 'pending'            # approved by an admin, queued to send to Paystack
     STATUS_SUBMITTING = 'submitting'      # being sent right now
     STATUS_PROCESSING = 'processing'      # Paystack accepted it and is returning the money
     STATUS_PROCESSED = 'processed'        # the money has gone back
     STATUS_FAILED = 'failed'              # Paystack could not refund it
     STATUS_NEEDS_ATTENTION = 'needs_attention'  # needs a person (Paystack or us)
     STATUS_CHOICES = [
+        (STATUS_AWAITING, 'Awaiting approval'),
         (STATUS_PENDING, 'Pending'),
         (STATUS_SUBMITTING, 'Submitting'),
         (STATUS_PROCESSING, 'Processing'),
@@ -262,12 +264,13 @@ class Refund(models.Model):
     event = models.ForeignKey('Event', on_delete=models.CASCADE, related_name='refunds')
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     currency = models.CharField(max_length=3, default='NGN')
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_AWAITING)
     paystack_refund_id = models.CharField(max_length=64, blank=True, default='')
     failure_reason = models.CharField(max_length=500, blank=True, default='')
     attempts = models.PositiveIntegerField(default=0)
     last_attempt_at = models.DateTimeField(null=True, blank=True)
-    notified_at = models.DateTimeField(null=True, blank=True)
+    arranged_notified_at = models.DateTimeField(null=True, blank=True)  # told: the event is cancelled and a refund is being arranged
+    notified_at = models.DateTimeField(null=True, blank=True)           # told: the refund has been sent
     processed_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -989,6 +992,8 @@ class AdminAction(models.Model):
     ACTION_PAYOUT_PROCESSED = 'payout.processed'
     ACTION_PAYOUT_REJECTED = 'payout.rejected'
     ACTION_PAYOUT_DELETED = 'payout.deleted'
+    ACTION_REFUNDS_SENT = 'refunds.sent'
+    ACTION_REFUNDS_RETRIED = 'refunds.retried'
     ACTION_TEAM_ADDED = 'team.added'
     ACTION_TEAM_ROLE_CHANGED = 'team.role_changed'
     ACTION_TEAM_REMOVED = 'team.removed'
@@ -1003,6 +1008,8 @@ class AdminAction(models.Model):
         (ACTION_PAYOUT_PROCESSED, 'Payout processed'),
         (ACTION_PAYOUT_REJECTED, 'Payout rejected'),
         (ACTION_PAYOUT_DELETED, 'Payout deleted'),
+        (ACTION_REFUNDS_SENT, 'Refunds sent'),
+        (ACTION_REFUNDS_RETRIED, 'Refunds retried'),
         (ACTION_TEAM_ADDED, 'Team member added'),
         (ACTION_TEAM_ROLE_CHANGED, 'Team role changed'),
         (ACTION_TEAM_REMOVED, 'Team member removed'),

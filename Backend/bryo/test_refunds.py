@@ -16,7 +16,7 @@ from django.contrib.auth import get_user_model
 from django.test import override_settings
 from django.utils import timezone
 
-from .models import Refund, Ticket
+from .models import AdminMember, Refund, Ticket
 from .refunds import MAX_ATTEMPTS, refundable_amount
 from .test_payments import (
     PAYMENT_SETTINGS, TEST_SECRET, WEBHOOK_URL, FakeResponse, PaymentTestBase, make_event, make_payment,
@@ -44,7 +44,9 @@ def paid_order(event, *, subtotal='5000.00', fee='250.00', seats=2, **kw):
 class FakePaystack:
     """Stands in for Paystack's /refund endpoints and records what we sent."""
 
-    def __init__(self, existing=None, post_status='pending', fail_with=None, unreachable=False):
+    def __init__(self, existing=None, post_status='pending', fail_with=None, unreachable=False,
+                 balance=Decimal('10000000')):
+        self.balance = balance
         self.existing = existing or []
         self.post_status = post_status
         self.fail_with = fail_with
@@ -56,6 +58,8 @@ class FakePaystack:
         if self.unreachable:
             import requests
             raise requests.ConnectionError('network down')
+        if method == 'GET' and url.endswith('/balance'):
+            return FakeResponse({'status': True, 'data': [{'currency': 'NGN', 'balance': int(self.balance * 100)}]})
         if method == 'GET':
             return FakeResponse({'status': True, 'data': self.existing})
         self.posts.append(kw['json'])
@@ -72,13 +76,34 @@ class RefundTestBase(PaymentTestBase):
         self.sent = patch('bryo.mailer.send_email').start()
         self.client.force_authenticate(self.owner)
         self.cancel_url = f'/api/events/{self.event.slug}/cancel/'
+        # A Byro admin, who alone can send refunds. (Created first, so nobody
+        # else is bootstrapped into the admin team by reaching an admin URL.)
+        self.admin = User.objects.create_user(email='admin@byro.test')
+        AdminMember.objects.create(email='admin@byro.test', role='admin', added_by_email='test')
+
+    @property
+    def admin_url(self):
+        return f'/api/admin/events/{self.event.pk}/refunds/'
 
     def cancel(self, reason='The venue fell through'):
         return self.client.post(self.cancel_url, {'reason': reason}, format='json')
 
+    def as_admin(self, post=None, **body):
+        """Call the admin refunds endpoint as the Byro admin."""
+        self.client.force_authenticate(self.admin)
+        res = self.client.post(self.admin_url, body, format='json')
+        self.client.force_authenticate(self.owner)
+        return res
+
     def run_with(self, paystack, fn=None):
         with patch('bryo.refunds.requests.request', side_effect=paystack):
             return (fn or self.cancel)()
+
+    def cancel_and_send(self, paystack, **send):
+        """Cancel, then have a Byro admin approve and send the refunds."""
+        with patch('bryo.refunds.requests.request', side_effect=paystack):
+            self.cancel()
+            return self.as_admin(action='send', **send)
 
     def recipients(self):
         return [c.args[0] for c in self.sent.call_args_list]
@@ -138,13 +163,14 @@ class CancelEventTests(RefundTestBase):
         self.event.refresh_from_db()
         self.assertIsNone(self.event.cancelled_at)
 
-    def test_cancelling_voids_tickets_and_records_what_is_owed(self):
+    def test_cancelling_voids_tickets_and_records_what_is_owed_but_moves_no_money(self):
         paid_order(self.event, subtotal='5000.00', fee='250.00')
         free = Ticket.objects.create(
             event=self.event, original_owner_name='Free Fan', original_owner_email='free@example.com',
             current_owner_name='Free Fan', current_owner_email='free@example.com', payment_status='free',
         )
-        res = self.run_with(FakePaystack())
+        paystack = FakePaystack()
+        res = self.run_with(paystack)
         self.assertEqual(res.status_code, 200)
         self.event.refresh_from_db()
         self.assertIsNotNone(self.event.cancelled_at)
@@ -152,7 +178,26 @@ class CancelEventTests(RefundTestBase):
         self.assertEqual(set(self.event.tickets.values_list('payment_status', flat=True)), {'refunded', 'cancelled'})
         free.refresh_from_db()
         self.assertEqual(free.payment_status, 'cancelled')
-        self.assertEqual(self.event.refunds.get().amount, Decimal('5000.00'))
+        refund = self.event.refunds.get()
+        self.assertEqual(refund.amount, Decimal('5000.00'))
+        self.assertEqual(refund.status, Refund.STATUS_AWAITING)
+        self.assertEqual(paystack.posts, [], 'cancelling must not move any money')
+        self.assertEqual(res.json()['progress']['awaiting'], 1)
+
+    def test_buyers_are_told_the_event_is_off_and_a_refund_is_being_arranged_not_that_it_was_sent(self):
+        paid_order(self.event, subtotal='5000.00', fee='250.00')
+        self.run_with(FakePaystack())
+        self.assertEqual(self.recipients().count('buyer@example.com'), 1)
+        mail = next(c for c in self.sent.call_args_list if c.args[0] == 'buyer@example.com')
+        self.assertIn('being arranged', mail.args[2])
+        self.assertNotIn('Refund sent', mail.args[2])
+        self.assertNotIn('is on its way', mail.args[2])
+        self.assertNotIn('sent', mail.args[1])  # the subject does not claim it was sent
+
+    def test_byro_is_alerted_when_there_is_money_to_refund(self):
+        paid_order(self.event)
+        self.run_with(FakePaystack())
+        self.assertIn('support@usebyro.com', self.recipients())
 
     def test_cancelled_tickets_leave_the_organisers_balance(self):
         paid_order(self.event, subtotal='5000.00', fee='250.00', seats=1)
@@ -206,13 +251,79 @@ class CancelEventTests(RefundTestBase):
         self.assertEqual(res.status_code, 400)
         self.assertIn('cancelled', res.json()['error'])
 
+    def test_the_organiser_can_watch_progress_but_not_send_money(self):
+        paid_order(self.event)
+        self.run_with(FakePaystack())
+        url = f'/api/events/{self.event.slug}/refunds/'
+        self.assertEqual(self.client.get(url).status_code, 200)
+        self.assertEqual(self.client.post(url).status_code, 405)
+
+
+class AdminSendingTests(RefundTestBase):
+    """Only a Byro admin can send refunds, and only after the balance check."""
+
+    def setUp(self):
+        super().setUp()
+        paid_order(self.event, subtotal='5000.00', fee='250.00')
+
+    def test_the_organiser_cannot_send_refunds(self):
+        paystack = FakePaystack()
+        with patch('bryo.refunds.requests.request', side_effect=paystack):
+            self.cancel()
+            self.client.force_authenticate(self.owner)
+            res = self.client.post(self.admin_url, {'action': 'send'}, format='json')
+        self.assertEqual(res.status_code, 403)
+        self.assertEqual(paystack.posts, [])
+
+    def test_a_read_only_team_member_cannot_send_refunds(self):
+        viewer = User.objects.create_user(email='viewer@byro.test')
+        AdminMember.objects.create(email='viewer@byro.test', role='viewer', added_by_email='test')
+        paystack = FakePaystack()
+        with patch('bryo.refunds.requests.request', side_effect=paystack):
+            self.cancel()
+            self.client.force_authenticate(viewer)
+            res = self.client.post(self.admin_url, {'action': 'send'}, format='json')
+        self.assertEqual(res.status_code, 403)
+        self.assertEqual(paystack.posts, [])
+
+    def test_an_admin_sends_and_it_is_audit_logged(self):
+        from .models import AdminAction
+        res = self.cancel_and_send(FakePaystack())
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(Refund.objects.get().status, Refund.STATUS_PROCESSING)
+        log = AdminAction.objects.get(action=AdminAction.ACTION_REFUNDS_SENT)
+        self.assertEqual(log.actor_email, 'admin@byro.test')
+
+    def test_a_low_paystack_balance_stops_the_send_unless_the_admin_confirms(self):
+        low = FakePaystack(balance=Decimal('1000'))
+        res = self.cancel_and_send(low)
+        self.assertEqual(res.status_code, 409)
+        self.assertEqual(res.json()['code'], 'low_balance')
+        self.assertEqual(low.posts, [])
+        self.assertEqual(Refund.objects.get().status, Refund.STATUS_AWAITING)
+        with patch('bryo.refunds.requests.request', side_effect=low):
+            ok = self.as_admin(action='send', confirm_low_balance=True)
+        self.assertEqual(ok.status_code, 200)
+        self.assertEqual(len(low.posts), 1)
+
+    def test_the_admin_list_shows_balance_and_what_is_waiting(self):
+        self.run_with(FakePaystack())
+        self.client.force_authenticate(self.admin)
+        with patch('bryo.refunds.requests.request', side_effect=FakePaystack(balance=Decimal('250000'))):
+            res = self.client.get('/api/admin/refunds/')
+        self.assertEqual(res.status_code, 200)
+        body = res.json()
+        self.assertEqual(Decimal(body['paystack_balance']), Decimal('250000'))
+        self.assertEqual(Decimal(body['awaiting_total']), Decimal('5000'))
+        self.assertEqual(body['events'][0]['progress']['awaiting'], 1)
+
 
 class SendingRefundTests(RefundTestBase):
 
-    def test_paystack_is_asked_for_the_ticket_price_only_and_the_buyer_is_told(self):
+    def test_paystack_is_asked_for_the_ticket_price_only_and_the_buyer_is_told_it_was_sent(self):
         payment = paid_order(self.event, subtotal='5000.00', fee='250.00')
         paystack = FakePaystack()
-        self.run_with(paystack)
+        self.cancel_and_send(paystack)
 
         self.assertEqual(len(paystack.posts), 1)
         sent = paystack.posts[0]
@@ -222,54 +333,61 @@ class SendingRefundTests(RefundTestBase):
         refund.refresh_from_db()
         self.assertEqual(refund.status, Refund.STATUS_PROCESSING)
         self.assertTrue(refund.paystack_refund_id)
-        self.assertEqual(self.recipients().count('buyer@example.com'), 1)
-        body = self.sent.call_args_list[0].args[2]
-        self.assertIn('5,000', body)
-        self.assertIn('cannot be refunded', body)
+        # two emails: "being arranged" at cancellation, "sent" now
+        buyer_mails = [c for c in self.sent.call_args_list if c.args[0] == 'buyer@example.com']
+        self.assertEqual(len(buyer_mails), 2)
+        sent_mail = buyer_mails[1]
+        self.assertIn('has been sent', sent_mail.args[1])
+        self.assertIn('5,000', sent_mail.args[2])
+        self.assertIn('cannot be refunded', sent_mail.args[2])
 
     def test_a_retry_adopts_the_refund_paystack_already_has(self):
         payment = paid_order(self.event)
         paystack = FakePaystack(existing=[{'id': 55, 'status': 'processing'}])
-        self.run_with(paystack)
+        self.cancel_and_send(paystack)
         self.assertEqual(paystack.posts, [], 'must not create a second refund')
         self.assertEqual(payment.refund.paystack_refund_id, '55')
 
     def test_a_refund_paystack_refuses_is_marked_failed_with_the_reason(self):
         payment = paid_order(self.event)
-        self.run_with(FakePaystack(fail_with='Transaction has been fully reversed'))
+        self.cancel_and_send(FakePaystack(fail_with='Transaction has been fully reversed'))
         refund = Refund.objects.get(payment=payment)
         self.assertEqual(refund.status, Refund.STATUS_FAILED)
         self.assertIn('fully reversed', refund.failure_reason)
-        self.assertNotIn('buyer@example.com', self.recipients())  # not told it is coming if it is not
+        buyer_mails = [c for c in self.sent.call_args_list if c.args[0] == 'buyer@example.com']
+        self.assertEqual(len(buyer_mails), 1, 'only the "being arranged" notice, never "sent"')
 
     def test_when_paystack_is_unreachable_the_refund_waits_and_then_asks_for_help(self):
         payment = paid_order(self.event)
         down = FakePaystack(unreachable=True)
-        self.run_with(down)
+        # the balance check cannot reach Paystack either, which must not block an admin who confirms
+        self.cancel_and_send(down, confirm_low_balance=True)
         refund = Refund.objects.get(payment=payment)
         self.assertEqual(refund.status, Refund.STATUS_PENDING)
-        for _ in range(MAX_ATTEMPTS):
-            self.run_with(down, lambda: self.client.post(f'/api/events/{self.event.slug}/refunds/'))
+        with patch('bryo.refunds.requests.request', side_effect=down):
+            for _ in range(MAX_ATTEMPTS):
+                self.as_admin(action='continue')
         refund.refresh_from_db()
         self.assertEqual(refund.status, Refund.STATUS_NEEDS_ATTENTION)
 
-    def test_failed_refunds_can_be_retried(self):
+    def test_failed_refunds_can_be_retried_by_an_admin(self):
         payment = paid_order(self.event)
-        self.run_with(FakePaystack(fail_with='Insufficient balance'))
+        self.cancel_and_send(FakePaystack(fail_with='Insufficient balance'))
         ok = FakePaystack()
-        self.run_with(ok, lambda: self.client.post(
-            f'/api/events/{self.event.slug}/refunds/', {'retry_failed': True}, format='json'))
+        with patch('bryo.refunds.requests.request', side_effect=ok):
+            self.as_admin(action='retry')
         self.assertEqual(Refund.objects.get(payment=payment).status, Refund.STATUS_PROCESSING)
 
     def test_refunds_go_out_in_batches_until_none_are_left(self):
         for _ in range(12):
             paid_order(self.event, seats=1)
         paystack = FakePaystack()
-        first = self.run_with(paystack).json()['progress']
+        first = self.cancel_and_send(paystack).json()
         self.assertEqual(first['total_refunds'], 12)
         self.assertEqual(first['waiting'], 2)
         self.assertFalse(first['done'])
-        second = self.run_with(paystack, lambda: self.client.post(f'/api/events/{self.event.slug}/refunds/')).json()
+        with patch('bryo.refunds.requests.request', side_effect=paystack):
+            second = self.as_admin(action='continue').json()
         self.assertEqual(second['waiting'], 0)
         self.assertTrue(second['done'])
         self.assertEqual(len(paystack.posts), 12)
@@ -281,7 +399,8 @@ class SendingRefundTests(RefundTestBase):
         )
         self.run_with(FakePaystack())
         self.assertEqual(self.recipients(), ['free@example.com'])
-        self.run_with(FakePaystack(), lambda: self.client.post(f'/api/events/{self.event.slug}/refunds/'))
+        with patch('bryo.refunds.requests.request', side_effect=FakePaystack()):
+            self.as_admin(action='continue')
         self.assertEqual(self.recipients(), ['free@example.com'], 'no second email')
         self.assertNotIn('refund of', self.sent.call_args_list[0].args[1])
 
@@ -300,7 +419,8 @@ class SendingRefundTests(RefundTestBase):
     def test_the_organiser_reason_cannot_inject_html_into_the_email(self):
         paid_order(self.event)
         self.run_with(FakePaystack(), lambda: self.cancel(reason='<script>alert(1)</script> sorry'))
-        self.assertNotIn('<script>', self.sent.call_args_list[0].args[2])
+        for call in self.sent.call_args_list:
+            self.assertNotIn('<script>', call.args[2])
 
 
 class PaystackRefundWebhookTests(RefundTestBase):
@@ -313,7 +433,7 @@ class PaystackRefundWebhookTests(RefundTestBase):
 
     def test_processed_and_failed_updates_reach_the_refund(self):
         payment = paid_order(self.event)
-        self.run_with(FakePaystack())
+        self.cancel_and_send(FakePaystack())
         res = self.webhook('refund.processed', {'status': 'processed', 'transaction_reference': payment.paystack_reference})
         self.assertEqual(res.status_code, 200)
         refund = Refund.objects.get(payment=payment)
@@ -326,7 +446,7 @@ class PaystackRefundWebhookTests(RefundTestBase):
 
     def test_a_failed_refund_is_recorded(self):
         payment = paid_order(self.event)
-        self.run_with(FakePaystack())
+        self.cancel_and_send(FakePaystack())
         self.webhook('refund.failed', {'status': 'failed', 'transaction_reference': payment.paystack_reference})
         self.assertEqual(Refund.objects.get(payment=payment).status, Refund.STATUS_FAILED)
 
@@ -337,7 +457,7 @@ class PaystackRefundWebhookTests(RefundTestBase):
 
 class LatePaymentTests(RefundTestBase):
 
-    def test_a_buyer_who_pays_after_the_event_was_cancelled_gets_no_ticket_and_is_refunded(self):
+    def test_a_buyer_who_pays_after_the_event_was_cancelled_gets_no_ticket_and_a_refund_is_recorded(self):
         payment = make_payment(
             self.event, reference='EVT-late-1', amount='5250.00', seats=1,
             metadata={'subtotal': '5000.00', 'service_fee': '250.00'},
@@ -348,5 +468,8 @@ class LatePaymentTests(RefundTestBase):
             tickets, all_tickets = _fulfil_payment(payment, None)
         self.assertEqual((tickets, all_tickets), ([], []))
         self.assertEqual(Ticket.objects.filter(payment=payment).count(), 0)
-        self.assertEqual(paystack.posts[0]['amount'], 500000)
-        self.assertEqual(Refund.objects.get(payment=payment).status, Refund.STATUS_PROCESSING)
+        self.assertEqual(paystack.posts, [], 'no money moves until a Byro admin approves')
+        refund = Refund.objects.get(payment=payment)
+        self.assertEqual(refund.status, Refund.STATUS_AWAITING)
+        self.assertEqual(refund.amount, Decimal('5000.00'))
+        self.assertIn('buyer@example.com', self.recipients(), 'the buyer is told straight away')

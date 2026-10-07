@@ -14,11 +14,12 @@ The rules, which are product decisions, not accidents:
   counts 'paid' and 'free', so cancelled tickets drop out of all of it with
   no extra bookkeeping.
 
-Sending the money is slow (one Paystack call per order), so cancelling only
-records what is owed (Refund rows, status 'pending'). `process_event_refunds`
-then sends them in small batches: the cancel request runs the first batch, the
-dashboard keeps calling it until nothing is left, and
-`manage.py process_refunds` finishes anything a closed tab left behind.
+Cancelling only RECORDS what is owed (Refund rows, status 'awaiting') and tells
+everyone. It moves no money: the Paystack balance is Byro's, so a Byro admin
+checks it and approves the send (`authorise_refunds`) from the admin panel.
+Approved refunds then go out in small batches (one Paystack call per order is
+slow): `process_event_refunds` is called repeatedly while the admin has the
+screen open, and `manage.py process_refunds` finishes anything left behind.
 """
 import logging
 from datetime import timedelta
@@ -218,7 +219,7 @@ def _mail(to, mail):
         return False
 
 
-def _event_mail(event, name, refund_amount=None):
+def _event_mail(event, name, refund_amount=None, state='arranged'):
     from .views import _event_page_url  # lazy: views imports this module
     return event_cancelled_email(
         name=name,
@@ -228,6 +229,7 @@ def _event_mail(event, name, refund_amount=None):
         location=event.location,
         reason=event.cancel_reason,
         refund_amount=refund_amount,
+        refund_state=state,
         event_url=_event_page_url(event),
     )
 
@@ -280,31 +282,57 @@ def submit_refund(refund):
 
 
 def _notify_refund(refund):
-    """Tell the buyer their refund is on its way (once), and other ticket holders the event is off."""
-    if refund.status in (Refund.STATUS_FAILED, Refund.STATUS_NEEDS_ATTENTION, Refund.STATUS_PENDING):
+    """Tell the buyer their refund has gone to Paystack (once)."""
+    if refund.status in (Refund.STATUS_AWAITING, Refund.STATUS_PENDING, Refund.STATUS_SUBMITTING,
+                         Refund.STATUS_FAILED, Refund.STATUS_NEEDS_ATTENTION):
         return
-    event = refund.event
+    if refund.notified_at:
+        return
     payment = refund.payment
-    if not refund.notified_at:
-        if _mail(payment.customer_email, _event_mail(event, payment.customer_name, refund.amount)):
-            Refund.objects.filter(pk=refund.pk).update(notified_at=timezone.now())
+    if _mail(payment.customer_email, _event_mail(refund.event, payment.customer_name, refund.amount, 'sent')):
+        Refund.objects.filter(pk=refund.pk).update(notified_at=timezone.now())
 
-    # Tickets bought as gifts go to other people. They get the cancellation, not the money details.
-    buyer = payment.customer_email.strip().lower()
-    for ticket in payment.tickets_purchased.filter(cancellation_notified_at__isnull=True):
-        if ticket.current_owner_email.strip().lower() != buyer:
-            _mail(ticket.current_owner_email, _event_mail(event, ticket.current_owner_name))
-        Ticket.objects.filter(pk=ticket.pk).update(cancellation_notified_at=timezone.now())
+
+def send_arranged_notice(refund):
+    """Tell a buyer the event is cancelled and their refund is being arranged (once)."""
+    if refund.arranged_notified_at:
+        return
+    payment = refund.payment
+    if _mail(payment.customer_email, _event_mail(refund.event, payment.customer_name, refund.amount, 'arranged')):
+        Refund.objects.filter(pk=refund.pk).update(arranged_notified_at=timezone.now())
 
 
 def send_cancellation_notices(event, limit=NOTICE_BATCH):
-    """Email holders of tickets that carry no money (free or unpaid)."""
+    """
+    Tell everyone the event is off, at most `limit` emails per call.
+
+    Buyers hear about their refund. Everyone else (free tickets, tickets that
+    were bought for them by someone else) hears about the cancellation only.
+    """
     sent = 0
-    for ticket in event.tickets.filter(payment_status='cancelled', cancellation_notified_at__isnull=True)[:limit]:
-        _mail(ticket.current_owner_email, _event_mail(event, ticket.current_owner_name))
+    for refund in event.refunds.filter(arranged_notified_at__isnull=True).select_related('payment', 'event')[:limit]:
+        send_arranged_notice(refund)
+        sent += 1
+
+    for ticket in event.tickets.filter(
+        payment_status__in=['cancelled', 'refunded'], cancellation_notified_at__isnull=True,
+    ).select_related('payment')[: max(limit - sent, 0)]:
+        payment = ticket.payment
+        buyer_already_told = (
+            payment is not None
+            and Refund.objects.filter(payment=payment).exists()
+            and ticket.current_owner_email.strip().lower() == payment.customer_email.strip().lower()
+        )
+        if not buyer_already_told:
+            _mail(ticket.current_owner_email, _event_mail(event, ticket.current_owner_name))
         Ticket.objects.filter(pk=ticket.pk).update(cancellation_notified_at=timezone.now())
         sent += 1
     return sent
+
+
+def authorise_refunds(event):
+    """A Byro admin approves sending: awaiting refunds become pending. Returns how many."""
+    return event.refunds.filter(status=Refund.STATUS_AWAITING).update(status=Refund.STATUS_PENDING)
 
 
 def process_event_refunds(event, refund_limit=REFUND_BATCH, notice_limit=NOTICE_BATCH, retry_failed=False):
@@ -334,13 +362,20 @@ def refund_progress(event):
     def total(*statuses, key='count'):
         return sum((by_status.get(s, {}).get(key, 0) for s in statuses), 0 if key == 'count' else Decimal('0'))
 
-    waiting_notices = event.tickets.filter(payment_status='cancelled', cancellation_notified_at__isnull=True).count()
+    waiting_notices = (
+        event.tickets.filter(
+            payment_status__in=['cancelled', 'refunded'], cancellation_notified_at__isnull=True,
+        ).count()
+        + event.refunds.filter(arranged_notified_at__isnull=True).count()
+    )
     open_states = (Refund.STATUS_PENDING, Refund.STATUS_SUBMITTING)
     return {
         'cancelled_at': event.cancelled_at,
         'reason': event.cancel_reason,
         'total_refunds': total(*[s for s, _ in Refund.STATUS_CHOICES]),
         'total_amount': total(*[s for s, _ in Refund.STATUS_CHOICES], key='amount'),
+        'awaiting': total(Refund.STATUS_AWAITING),
+        'awaiting_amount': total(Refund.STATUS_AWAITING, key='amount'),
         'waiting': total(*open_states),
         'processing': total(Refund.STATUS_PROCESSING),
         'processed': total(Refund.STATUS_PROCESSED),
@@ -349,6 +384,20 @@ def refund_progress(event):
         'waiting_notices': waiting_notices,
         'done': total(*open_states) == 0 and waiting_notices == 0,
     }
+
+
+def paystack_balance():
+    """Byro's Paystack balance in naira, or None if Paystack cannot be reached."""
+    try:
+        status, body = _paystack('GET', '/balance')
+    except PaystackUnavailable:
+        return None
+    if status != 200 or not body.get('status'):
+        return None
+    for row in body.get('data') or []:
+        if row.get('currency') == 'NGN':
+            return (Decimal(str(row.get('balance', 0))) / 100).quantize(Decimal('0.01'))
+    return Decimal('0.00')
 
 
 def models_count():
