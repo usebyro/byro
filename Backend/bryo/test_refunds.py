@@ -1,0 +1,352 @@
+"""
+Refunds when an event is cancelled.
+
+The rules under test: nobody can ask for a refund, cancelling an event is the
+only trigger, and a buyer gets back the ticket price only, never Byro's service
+fee or the payment charge. Paystack is faked throughout.
+"""
+import datetime
+import hashlib
+import hmac
+import json
+from decimal import Decimal
+from unittest.mock import patch
+
+from django.contrib.auth import get_user_model
+from django.test import override_settings
+from django.utils import timezone
+
+from .models import Refund, Ticket
+from .refunds import MAX_ATTEMPTS, refundable_amount
+from .test_payments import (
+    PAYMENT_SETTINGS, TEST_SECRET, WEBHOOK_URL, FakeResponse, PaymentTestBase, make_event, make_payment,
+)
+from .views import _fulfil_payment, compute_available_balance
+
+User = get_user_model()
+
+_ref = iter(range(1000, 9999))
+
+
+def paid_order(event, *, subtotal='5000.00', fee='250.00', seats=2, **kw):
+    """A fulfilled order: the buyer paid ticket price + service fee, and got `seats` tickets."""
+    n = next(_ref)
+    total = Decimal(subtotal) + Decimal(fee)
+    payment = make_payment(
+        event, reference=f'EVT-test-{n}', amount=str(total), seats=seats,
+        metadata={'subtotal': subtotal, 'service_fee': fee, **kw.pop('metadata', {})}, **kw,
+    )
+    _fulfil_payment(payment, None)
+    payment.refresh_from_db()
+    return payment
+
+
+class FakePaystack:
+    """Stands in for Paystack's /refund endpoints and records what we sent."""
+
+    def __init__(self, existing=None, post_status='pending', fail_with=None, unreachable=False):
+        self.existing = existing or []
+        self.post_status = post_status
+        self.fail_with = fail_with
+        self.unreachable = unreachable
+        self.posts = []
+        self.next_id = 100
+
+    def __call__(self, method, url, **kw):
+        if self.unreachable:
+            import requests
+            raise requests.ConnectionError('network down')
+        if method == 'GET':
+            return FakeResponse({'status': True, 'data': self.existing})
+        self.posts.append(kw['json'])
+        if self.fail_with:
+            return FakeResponse({'status': False, 'message': self.fail_with}, status_code=400)
+        self.next_id += 1
+        return FakeResponse({'status': True, 'data': {'id': self.next_id, 'status': self.post_status}})
+
+
+@override_settings(**PAYMENT_SETTINGS)
+class RefundTestBase(PaymentTestBase):
+    def setUp(self):
+        super().setUp()
+        self.sent = patch('bryo.mailer.send_email').start()
+        self.client.force_authenticate(self.owner)
+        self.cancel_url = f'/api/events/{self.event.slug}/cancel/'
+
+    def cancel(self, reason='The venue fell through'):
+        return self.client.post(self.cancel_url, {'reason': reason}, format='json')
+
+    def run_with(self, paystack, fn=None):
+        with patch('bryo.refunds.requests.request', side_effect=paystack):
+            return (fn or self.cancel)()
+
+    def recipients(self):
+        return [c.args[0] for c in self.sent.call_args_list]
+
+
+class RefundAmountTests(RefundTestBase):
+    """The buyer gets the ticket price, not the fees that were added on top."""
+
+    def test_service_fee_is_not_refunded(self):
+        payment = paid_order(self.event, subtotal='5000.00', fee='250.00')
+        self.assertEqual(payment.amount, Decimal('5250.00'))
+        self.assertEqual(refundable_amount(payment), Decimal('5000.00'))
+
+    def test_a_promo_discount_is_respected(self):
+        # 2 tickets at 5,000 with 1,000 off: the buyer paid 9,000 + 5% fee
+        payment = paid_order(self.event, subtotal='9000.00', fee='450.00')
+        self.assertEqual(refundable_amount(payment), Decimal('9000.00'))
+
+    def test_payments_from_before_we_stored_the_subtotal_still_work(self):
+        payment = paid_order(self.event, subtotal='5000.00', fee='250.00')
+        payment.metadata = {}
+        self.assertEqual(refundable_amount(payment), Decimal('5000.00'))  # 5,250 / 1.05
+
+    def test_legacy_payment_when_the_organiser_absorbed_the_fee(self):
+        self.event.pass_fee_to_attendee = False
+        self.event.save()
+        payment = paid_order(self.event, subtotal='5000.00', fee='0.00')
+        payment.metadata = {}
+        self.assertEqual(refundable_amount(payment), Decimal('5000.00'))
+
+
+class CancelEventTests(RefundTestBase):
+
+    def test_only_the_owner_can_cancel(self):
+        self.client.force_authenticate(None)
+        self.assertEqual(self.cancel().status_code, 401)
+        stranger = User.objects.create_user(email='stranger@example.com')
+        self.client.force_authenticate(stranger)
+        self.assertEqual(self.cancel().status_code, 403)
+        self.event.refresh_from_db()
+        self.assertIsNone(self.event.cancelled_at)
+
+    def test_a_reason_is_required(self):
+        self.assertEqual(self.cancel(reason='  ').status_code, 400)
+        self.event.refresh_from_db()
+        self.assertIsNone(self.event.cancelled_at)
+
+    def test_preview_changes_nothing_and_shows_the_refund_total(self):
+        paid_order(self.event, subtotal='5000.00', fee='250.00')
+        paid_order(self.event, subtotal='3000.00', fee='150.00', seats=1)
+        res = self.client.get(self.cancel_url)
+        self.assertEqual(res.status_code, 200)
+        preview = res.json()['preview']
+        self.assertEqual(preview['paid_orders'], 2)
+        self.assertEqual(preview['paid_tickets'], 3)
+        self.assertEqual(Decimal(preview['refund_total']), Decimal('8000.00'))
+        self.event.refresh_from_db()
+        self.assertIsNone(self.event.cancelled_at)
+
+    def test_cancelling_voids_tickets_and_records_what_is_owed(self):
+        paid_order(self.event, subtotal='5000.00', fee='250.00')
+        free = Ticket.objects.create(
+            event=self.event, original_owner_name='Free Fan', original_owner_email='free@example.com',
+            current_owner_name='Free Fan', current_owner_email='free@example.com', payment_status='free',
+        )
+        res = self.run_with(FakePaystack())
+        self.assertEqual(res.status_code, 200)
+        self.event.refresh_from_db()
+        self.assertIsNotNone(self.event.cancelled_at)
+        self.assertEqual(self.event.cancel_reason, 'The venue fell through')
+        self.assertEqual(set(self.event.tickets.values_list('payment_status', flat=True)), {'refunded', 'cancelled'})
+        free.refresh_from_db()
+        self.assertEqual(free.payment_status, 'cancelled')
+        self.assertEqual(self.event.refunds.get().amount, Decimal('5000.00'))
+
+    def test_cancelled_tickets_leave_the_organisers_balance(self):
+        paid_order(self.event, subtotal='5000.00', fee='250.00', seats=1)
+        self.assertEqual(compute_available_balance(self.owner), Decimal('5000.00'))
+        self.run_with(FakePaystack())
+        self.assertEqual(compute_available_balance(self.owner), Decimal('0'))
+
+    def test_cannot_cancel_twice(self):
+        self.run_with(FakePaystack())
+        self.assertEqual(self.run_with(FakePaystack()).status_code, 400)
+
+    def test_a_draft_or_past_event_cannot_be_cancelled(self):
+        self.event.day = timezone.now().date() - datetime.timedelta(days=1)
+        self.event.save()
+        self.assertEqual(self.cancel().status_code, 400)
+        self.event.day = timezone.now().date() + datetime.timedelta(days=3)
+        self.event.is_draft = True
+        self.event.save()
+        self.assertEqual(self.cancel().status_code, 400)
+
+    def test_organisers_cannot_set_the_cancelled_flag_by_editing(self):
+        res = self.client.patch(f'/api/events/{self.event.slug}/', {'cancelled_at': '2026-01-01T00:00:00Z'}, format='json')
+        self.event.refresh_from_db()
+        self.assertIsNone(self.event.cancelled_at, res.content)
+
+    def test_a_cancelled_event_stops_selling_and_leaves_the_listings(self):
+        self.run_with(FakePaystack())
+        self.client.force_authenticate(None)
+        with patch('bryo.views.check_and_remember_verification', return_value=True):
+            res = self.client.post('/api/payments/initialize/', {
+                'event_slug': self.event.slug, 'customer_email': 'late@example.com',
+                'customer_name': 'Late Buyer', 'quantity': 1,
+            }, format='json')
+        self.assertEqual(res.status_code, 400)
+        self.assertIn('cancelled', res.json()['error'])
+        reg = self.client.post(f'/api/events/{self.event.slug}/register/', {'name': 'X', 'email': 'x@example.com'}, format='json')
+        self.assertEqual(reg.status_code, 400)
+        listing = self.client.get('/api/events/')
+        slugs = [e['slug'] for e in (listing.json().get('results') if isinstance(listing.json(), dict) else listing.json())]
+        self.assertNotIn(self.event.slug, slugs)
+        # ...but the page itself still opens, so people can see why
+        page = self.client.get(f'/api/events/{self.event.slug}/')
+        self.assertEqual(page.status_code, 200)
+        self.assertIsNotNone(page.json()['cancelled_at'])
+
+    def test_a_cancelled_ticket_cannot_be_checked_in(self):
+        paid_order(self.event)
+        self.run_with(FakePaystack())
+        qr = self.event.tickets.first().qr_token
+        res = self.client.post(f'/api/events/{self.event.slug}/checkin/', {'qr_token': str(qr)}, format='json')
+        self.assertEqual(res.status_code, 400)
+        self.assertIn('cancelled', res.json()['error'])
+
+
+class SendingRefundTests(RefundTestBase):
+
+    def test_paystack_is_asked_for_the_ticket_price_only_and_the_buyer_is_told(self):
+        payment = paid_order(self.event, subtotal='5000.00', fee='250.00')
+        paystack = FakePaystack()
+        self.run_with(paystack)
+
+        self.assertEqual(len(paystack.posts), 1)
+        sent = paystack.posts[0]
+        self.assertEqual(sent['transaction'], payment.paystack_reference)
+        self.assertEqual(sent['amount'], 500000)  # NGN 5,000.00 in kobo, not the 5,250 that was charged
+        refund = payment.refund
+        refund.refresh_from_db()
+        self.assertEqual(refund.status, Refund.STATUS_PROCESSING)
+        self.assertTrue(refund.paystack_refund_id)
+        self.assertEqual(self.recipients().count('buyer@example.com'), 1)
+        body = self.sent.call_args_list[0].args[2]
+        self.assertIn('5,000', body)
+        self.assertIn('cannot be refunded', body)
+
+    def test_a_retry_adopts_the_refund_paystack_already_has(self):
+        payment = paid_order(self.event)
+        paystack = FakePaystack(existing=[{'id': 55, 'status': 'processing'}])
+        self.run_with(paystack)
+        self.assertEqual(paystack.posts, [], 'must not create a second refund')
+        self.assertEqual(payment.refund.paystack_refund_id, '55')
+
+    def test_a_refund_paystack_refuses_is_marked_failed_with_the_reason(self):
+        payment = paid_order(self.event)
+        self.run_with(FakePaystack(fail_with='Transaction has been fully reversed'))
+        refund = Refund.objects.get(payment=payment)
+        self.assertEqual(refund.status, Refund.STATUS_FAILED)
+        self.assertIn('fully reversed', refund.failure_reason)
+        self.assertNotIn('buyer@example.com', self.recipients())  # not told it is coming if it is not
+
+    def test_when_paystack_is_unreachable_the_refund_waits_and_then_asks_for_help(self):
+        payment = paid_order(self.event)
+        down = FakePaystack(unreachable=True)
+        self.run_with(down)
+        refund = Refund.objects.get(payment=payment)
+        self.assertEqual(refund.status, Refund.STATUS_PENDING)
+        for _ in range(MAX_ATTEMPTS):
+            self.run_with(down, lambda: self.client.post(f'/api/events/{self.event.slug}/refunds/'))
+        refund.refresh_from_db()
+        self.assertEqual(refund.status, Refund.STATUS_NEEDS_ATTENTION)
+
+    def test_failed_refunds_can_be_retried(self):
+        payment = paid_order(self.event)
+        self.run_with(FakePaystack(fail_with='Insufficient balance'))
+        ok = FakePaystack()
+        self.run_with(ok, lambda: self.client.post(
+            f'/api/events/{self.event.slug}/refunds/', {'retry_failed': True}, format='json'))
+        self.assertEqual(Refund.objects.get(payment=payment).status, Refund.STATUS_PROCESSING)
+
+    def test_refunds_go_out_in_batches_until_none_are_left(self):
+        for _ in range(12):
+            paid_order(self.event, seats=1)
+        paystack = FakePaystack()
+        first = self.run_with(paystack).json()['progress']
+        self.assertEqual(first['total_refunds'], 12)
+        self.assertEqual(first['waiting'], 2)
+        self.assertFalse(first['done'])
+        second = self.run_with(paystack, lambda: self.client.post(f'/api/events/{self.event.slug}/refunds/')).json()
+        self.assertEqual(second['waiting'], 0)
+        self.assertTrue(second['done'])
+        self.assertEqual(len(paystack.posts), 12)
+
+    def test_free_ticket_holders_are_told_once_and_get_no_money_details(self):
+        Ticket.objects.create(
+            event=self.event, original_owner_name='Free Fan', original_owner_email='free@example.com',
+            current_owner_name='Free Fan', current_owner_email='free@example.com', payment_status='free',
+        )
+        self.run_with(FakePaystack())
+        self.assertEqual(self.recipients(), ['free@example.com'])
+        self.run_with(FakePaystack(), lambda: self.client.post(f'/api/events/{self.event.slug}/refunds/'))
+        self.assertEqual(self.recipients(), ['free@example.com'], 'no second email')
+        self.assertNotIn('refund of', self.sent.call_args_list[0].args[1])
+
+    def test_a_gifted_ticket_holder_hears_about_the_cancellation_but_not_the_money(self):
+        payment = paid_order(self.event, seats=2)
+        gift = payment.tickets_purchased.first()
+        gift.current_owner_email = 'friend@example.com'
+        gift.save()
+        self.run_with(FakePaystack())
+        recipients = self.recipients()
+        self.assertEqual(recipients.count('buyer@example.com'), 1)
+        self.assertEqual(recipients.count('friend@example.com'), 1)
+        friend_mail = next(c for c in self.sent.call_args_list if c.args[0] == 'friend@example.com')
+        self.assertNotIn('Your refund', friend_mail.args[2])
+
+    def test_the_organiser_reason_cannot_inject_html_into_the_email(self):
+        paid_order(self.event)
+        self.run_with(FakePaystack(), lambda: self.cancel(reason='<script>alert(1)</script> sorry'))
+        self.assertNotIn('<script>', self.sent.call_args_list[0].args[2])
+
+
+class PaystackRefundWebhookTests(RefundTestBase):
+
+    def webhook(self, event_type, data):
+        body = json.dumps({'event': event_type, 'data': data}).encode()
+        sig = hmac.new(TEST_SECRET.encode(), body, hashlib.sha512).hexdigest()
+        self.client.force_authenticate(None)
+        return self.client.post(WEBHOOK_URL, body, content_type='application/json', HTTP_X_PAYSTACK_SIGNATURE=sig)
+
+    def test_processed_and_failed_updates_reach_the_refund(self):
+        payment = paid_order(self.event)
+        self.run_with(FakePaystack())
+        res = self.webhook('refund.processed', {'status': 'processed', 'transaction_reference': payment.paystack_reference})
+        self.assertEqual(res.status_code, 200)
+        refund = Refund.objects.get(payment=payment)
+        self.assertEqual(refund.status, Refund.STATUS_PROCESSED)
+        self.assertIsNotNone(refund.processed_at)
+        # a late, stale "failed" must not undo a finished refund
+        self.webhook('refund.failed', {'status': 'failed', 'transaction_reference': payment.paystack_reference})
+        refund.refresh_from_db()
+        self.assertEqual(refund.status, Refund.STATUS_PROCESSED)
+
+    def test_a_failed_refund_is_recorded(self):
+        payment = paid_order(self.event)
+        self.run_with(FakePaystack())
+        self.webhook('refund.failed', {'status': 'failed', 'transaction_reference': payment.paystack_reference})
+        self.assertEqual(Refund.objects.get(payment=payment).status, Refund.STATUS_FAILED)
+
+    def test_an_unknown_reference_is_ignored_politely(self):
+        res = self.webhook('refund.processed', {'status': 'processed', 'transaction_reference': 'nope'})
+        self.assertEqual(res.status_code, 200)
+
+
+class LatePaymentTests(RefundTestBase):
+
+    def test_a_buyer_who_pays_after_the_event_was_cancelled_gets_no_ticket_and_is_refunded(self):
+        payment = make_payment(
+            self.event, reference='EVT-late-1', amount='5250.00', seats=1,
+            metadata={'subtotal': '5000.00', 'service_fee': '250.00'},
+        )
+        self.run_with(FakePaystack())  # cancel while this order is still waiting on Paystack
+        paystack = FakePaystack()
+        with patch('bryo.refunds.requests.request', side_effect=paystack), self.captureOnCommitCallbacks(execute=True):
+            tickets, all_tickets = _fulfil_payment(payment, None)
+        self.assertEqual((tickets, all_tickets), ([], []))
+        self.assertEqual(Ticket.objects.filter(payment=payment).count(), 0)
+        self.assertEqual(paystack.posts[0]['amount'], 500000)
+        self.assertEqual(Refund.objects.get(payment=payment).status, Refund.STATUS_PROCESSING)

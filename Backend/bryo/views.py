@@ -28,11 +28,15 @@ from django.http import JsonResponse
 from django.contrib.auth import get_user_model
 from .models import (
     WaitList, Event, Ticket, TicketTransfer,
-    EventCoHost, Payment, UserProfile, EventFormQuestion, EventFormAnswer,
+    EventCoHost, Payment, Refund, UserProfile, EventFormQuestion, EventFormAnswer,
     TicketTier, PayoutRequest, PromoCode, MerchItem, Follow, AdminAction, AdminMember, ActivityLog,
 )
 from .activity import log_activity
 from .pricing import calculate_ticket_fees, FEE_RATE, PAYSTACK_FEE_CAP
+from .refunds import (
+    EventCancellationError, apply_refund_webhook, cancel_event, cancellation_preview,
+    process_event_refunds, refund_progress, refundable_amount, submit_refund,
+)
 from django.urls import reverse
 from .serializers import EventSerializer, TicketSerializer, PaymentSerializer, TicketTierSerializer, PromoCodeSerializer, MerchItemSerializer
 from .permissions import IsEventOwnerOrCoHost, IsEventOwner, IsAdminMember, get_admin_member
@@ -143,6 +147,11 @@ def lock_and_check_capacity(event, tier_id, quantity):
             raise InsufficientCapacityError("Not enough tickets available in this tier")
 
     return tier
+
+
+def _event_page_url(event):
+    """Public page for an event."""
+    return f"{settings.SITE_URL}/discover/{event.slug}"
 
 
 def send_ticket_confirmation_email(ticket, customer_name, customer_email, event):
@@ -545,6 +554,13 @@ def _save_answers(tickets, clean):
             )
 
 
+def _submit_late_refund(refund_pk):
+    try:
+        submit_refund(Refund.objects.select_related('payment', 'event').get(pk=refund_pk))
+    except Exception:
+        logger.exception('Could not send the refund for a payment made after cancellation')
+
+
 def _fulfil_payment(payment, ticket_user):
     """
     Atomically fulfil a successful payment: mark it successful, redeem promo,
@@ -567,6 +583,16 @@ def _fulfil_payment(payment, ticket_user):
         payment.status = 'successful'
         payment.paid_at = timezone.now()
         payment.save(update_fields=['status', 'paid_at'])
+
+        if payment.event.cancelled_at:
+            # The event was cancelled while this buyer was still at Paystack. Take no
+            # ticket, redeem no promo: just return the ticket price once this commits.
+            refund, _ = Refund.objects.get_or_create(
+                payment=payment,
+                defaults={'event': payment.event, 'amount': refundable_amount(payment), 'currency': payment.currency},
+            )
+            transaction.on_commit(lambda: _submit_late_refund(refund.pk))
+            return [], []
 
         # Redeem promo code
         if payment.promo_code_id:
@@ -648,6 +674,8 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
 
         # Get event
         event = get_object_or_404(Event, slug=event_slug, is_active=True, is_draft=False)
+        if event.cancelled_at:
+            return Response({'error': 'This event has been cancelled and is no longer selling tickets.'}, status=status.HTTP_400_BAD_REQUEST)
 
         # The organiser decides how many tickets one order may contain. Each tier
         # sets its own limit (empty = no limit); an event without tiers uses the
@@ -967,6 +995,12 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                             )
                     transaction.on_commit(_post_commit)
 
+                    if payment.event.cancelled_at:
+                        return Response({
+                            'status': 'event_cancelled',
+                            'message': 'This event was cancelled before your payment went through. No ticket was issued, and the ticket price will be refunded to you.',
+                        }, status=status.HTTP_200_OK)
+
                     return Response({
                         'status': 'success',
                         'message': 'Payment verified successfully',
@@ -1030,6 +1064,10 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
         event_type = request.data.get('event')
         data = request.data.get('data', {})
         
+        if event_type and event_type.startswith('refund.'):
+            apply_refund_webhook(event_type, data)
+            return Response({'status': 'success'}, status=status.HTTP_200_OK)
+
         if event_type == 'charge.success':
             reference = data.get('reference')
             
@@ -1555,7 +1593,7 @@ class EventViewSet(viewsets.ModelViewSet):
             permission_classes = [IsAuthenticated]
         elif self.action in ['update', 'partial_update']:
             permission_classes = [IsAuthenticated, IsEventOwnerOrCoHost]
-        elif self.action in ['destroy', 'add_cohost', 'update_cohost', 'remove_cohost']:
+        elif self.action in ['destroy', 'add_cohost', 'update_cohost', 'remove_cohost', 'cancel', 'refunds']:
             permission_classes = [IsAuthenticated, IsEventOwner]
         else:
             permission_classes = [IsAuthenticated]
@@ -1679,6 +1717,8 @@ class EventViewSet(viewsets.ModelViewSet):
                 else Q(is_active=True, is_draft=False)
             )
             queryset = queryset.filter(visible | own)
+        if is_listing:
+            queryset = queryset.filter(cancelled_at__isnull=True)
         queryset = queryset.distinct()
 
         sort = self.request.query_params.get('sort', 'newest')
@@ -2046,6 +2086,11 @@ class EventViewSet(viewsets.ModelViewSet):
         """
         try:
             event = self.get_object()
+            if event.cancelled_at:
+                return Response(
+                    {"error": "This event has been cancelled."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
             if event.is_draft:
                 return Response(
                     {"error": "This event is not open for registration yet."},
@@ -2246,6 +2291,12 @@ class EventViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
+        if ticket.payment_status in ('refunded', 'cancelled'):
+            return Response(
+                {'error': 'This ticket was cancelled because the event was cancelled.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         if ticket.checked_in:
             return Response({
                 'already_checked_in': True,
@@ -2374,6 +2425,59 @@ class EventViewSet(viewsets.ModelViewSet):
         serializer.save(event=event)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
     
+    @action(detail=True, methods=['GET', 'POST'], url_path='cancel',
+            permission_classes=[IsAuthenticated, IsEventOwner])
+    def cancel(self, request, slug=None):
+        """
+        Cancel an event and refund its paid tickets. Owner only.
+
+        GET  /api/events/<slug>/cancel/   what cancelling would do (nothing changes)
+        POST /api/events/<slug>/cancel/   {"reason": "..."}  cancel it
+
+        Buyers cannot ask for refunds; this is the only way money goes back.
+        Each buyer is refunded the ticket price they paid. Byro's service fee
+        and the payment charge are not refundable.
+        """
+        event = self.get_object()
+
+        if request.method == 'GET':
+            if event.cancelled_at:
+                return Response({'cancelled': True, 'progress': refund_progress(event)})
+            return Response({'cancelled': False, 'preview': cancellation_preview(event)})
+
+        reason = (request.data.get('reason') or '').strip()
+        if len(reason) < 3:
+            return Response({'error': 'Tell your attendees why the event is cancelled.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            summary = cancel_event(event, reason)
+        except EventCancellationError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        log_activity(
+            'event.cancelled', request=request, target_type='event', target_id=event.pk,
+            target_label=event.name, detail=f"{summary['paid_orders']} refunds, NGN {summary['refund_total']}",
+        )
+        try:
+            progress = process_event_refunds(event)  # the first batch now; the dashboard finishes the rest
+        except Exception:
+            logger.exception('First refund batch failed for event %s', event.pk)
+            progress = refund_progress(event)
+        return Response({'cancelled': True, 'summary': summary, 'progress': progress})
+
+    @action(detail=True, methods=['GET', 'POST'], url_path='refunds',
+            permission_classes=[IsAuthenticated, IsEventOwner])
+    def refunds(self, request, slug=None):
+        """
+        GET  /api/events/<slug>/refunds/   progress of the refunds for a cancelled event
+        POST /api/events/<slug>/refunds/   send the next batch ({"retry_failed": true} retries failures)
+        """
+        event = self.get_object()
+        if not event.cancelled_at:
+            return Response({'error': 'This event has not been cancelled.'}, status=status.HTTP_400_BAD_REQUEST)
+        if request.method == 'GET':
+            return Response(refund_progress(event))
+        return Response(process_event_refunds(event, retry_failed=bool(request.data.get('retry_failed'))))
+
     @action(detail=True, methods=['POST'], permission_classes=[IsAuthenticated, IsEventOwner],
             throttle_classes=[ScopedRateThrottle], throttle_scope='cohost_invite')
     def add_cohost(self, request, slug=None):

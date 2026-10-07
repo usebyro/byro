@@ -702,3 +702,83 @@ def payout_completed_email(name, amount, bank_name, account_number, event_name=N
         "html": html,
         "text": plain_text,
     }
+
+
+def event_cancelled_email(name, event_name, date, time, location, reason, refund_amount=None, event_url=None):
+    """
+    Sent to everyone holding a ticket when an organiser cancels an event.
+
+    `refund_amount` is the ticket price being returned to this person (a
+    Decimal), or None for free tickets and for people who did not pay. Byro's
+    service fee and the payment charge are not refundable, and the email says so.
+    The organiser's reason is free text, so it is escaped here.
+    """
+    from html import escape
+
+    safe_name = escape(name or "there")
+    safe_event = escape(event_name)
+    safe_reason = escape(reason or "").strip()
+    page_url = event_url or "https://usebyro.com"
+
+    when = ", ".join(part for part in [date, time] if part)
+    where = f" at {escape(location)}" if location else ""
+
+    reason_html = (
+        f"""<p style="color:{BODY};font-size:15px;line-height:1.6;margin:0 0 20px;"><strong style="color:{INK};">Reason from the organiser:</strong> {safe_reason}</p>"""
+        if safe_reason else ""
+    )
+
+    if refund_amount is not None:
+        amount = f"₦{refund_amount:,.2f}".replace(".00", "")
+        money_html = f"""
+        <table cellpadding="0" cellspacing="0" style="width:100%;background:{SURFACE};border:1px solid {BORDER};border-radius:18px;margin:0 0 20px;">
+          <tr>{_cell("Your refund", amount, colspan=2)}</tr>
+        </table>
+        <p style="color:{BODY};font-size:14px;line-height:1.6;margin:0 0 24px;">
+          That is the ticket price you paid, after any discount code. Byro&#8217;s service fee and the
+          payment processing charge cannot be refunded. The money goes back to the card or account you
+          paid with, and it usually shows up within 5&#8211;10 business days, depending on your bank.
+        </p>"""
+        money_text = (
+            f"Your refund: {amount}\n"
+            "That is the ticket price you paid, after any discount code. Byro's service fee and the payment "
+            "processing charge cannot be refunded. The money goes back to the card or account you paid with "
+            "and usually shows up within 5-10 business days.\n\n"
+        )
+        headline = f"{event_name} was cancelled. Your refund is on its way."
+        subject = f"{event_name} has been cancelled: your refund of {amount}"
+    else:
+        money_html = f"""<p style="color:{BODY};font-size:14px;line-height:1.6;margin:0 0 24px;">
+          Your ticket is no longer valid and nothing further is needed from you.
+        </p>"""
+        money_text = "Your ticket is no longer valid and nothing further is needed from you.\n\n"
+        headline = f"{event_name} has been cancelled."
+        subject = f"{event_name} has been cancelled"
+
+    body_html = f"""
+        <p style="color:{BODY};font-size:15px;line-height:1.6;margin:0 0 20px;">
+          Hi {safe_name}, we&#8217;re sorry: the organiser has cancelled <strong style="color:{INK};">{safe_event}</strong>
+          ({escape(when)}{where}).
+        </p>
+        {reason_html}
+        {money_html}
+        {_text_link(page_url, "See the event page")}
+    """
+
+    html = _shell(
+        _badge("Cancelled", "#8A1C1C", "#FDECEC"),
+        escape(headline),
+        body_html,
+        "You&#8217;re getting this because you held a ticket for this event on Byro.",
+    )
+
+    text = (
+        f"Hi {name or 'there'},\n\n"
+        f"We're sorry: the organiser has cancelled {event_name} ({when}{' at ' + location if location else ''}).\n\n"
+        + (f"Reason from the organiser: {reason}\n\n" if reason else "")
+        + money_text
+        + f"Event page: {page_url}\n\n"
+        "Byro Team\nsupport@usebyro.com"
+    )
+
+    return {"subject": subject, "html": html, "text": text}

@@ -235,6 +235,51 @@ class Payment(models.Model):
 
 
 
+class Refund(models.Model):
+    """
+    Money returned to a buyer because their event was cancelled.
+
+    One per payment. The amount is the ticket price the buyer paid, after any
+    promo discount. Byro's service fee and the payment processor's charge are
+    never refunded (see bryo/refunds.py for the arithmetic).
+    """
+    STATUS_PENDING = 'pending'            # created, not yet sent to Paystack
+    STATUS_SUBMITTING = 'submitting'      # being sent right now
+    STATUS_PROCESSING = 'processing'      # Paystack accepted it and is returning the money
+    STATUS_PROCESSED = 'processed'        # the money has gone back
+    STATUS_FAILED = 'failed'              # Paystack could not refund it
+    STATUS_NEEDS_ATTENTION = 'needs_attention'  # needs a person (Paystack or us)
+    STATUS_CHOICES = [
+        (STATUS_PENDING, 'Pending'),
+        (STATUS_SUBMITTING, 'Submitting'),
+        (STATUS_PROCESSING, 'Processing'),
+        (STATUS_PROCESSED, 'Processed'),
+        (STATUS_FAILED, 'Failed'),
+        (STATUS_NEEDS_ATTENTION, 'Needs attention'),
+    ]
+
+    payment = models.OneToOneField('Payment', on_delete=models.CASCADE, related_name='refund')
+    event = models.ForeignKey('Event', on_delete=models.CASCADE, related_name='refunds')
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    currency = models.CharField(max_length=3, default='NGN')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)
+    paystack_refund_id = models.CharField(max_length=64, blank=True, default='')
+    failure_reason = models.CharField(max_length=500, blank=True, default='')
+    attempts = models.PositiveIntegerField(default=0)
+    last_attempt_at = models.DateTimeField(null=True, blank=True)
+    notified_at = models.DateTimeField(null=True, blank=True)
+    processed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['created_at']
+        indexes = [models.Index(fields=['event', 'status'])]
+
+    def __str__(self):
+        return f"Refund {self.amount} for {self.payment.paystack_reference} - {self.status}"
+
+
 class WaitList(models.Model):
     email = models.EmailField(unique=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -328,6 +373,11 @@ class Event(models.Model):
     # Distinct from visibility='private', which is unlisted but still purchasable
     # by anyone holding the link.
     is_draft = models.BooleanField(default=False)
+    # Set when the organiser cancels the event. Cancelling voids every ticket
+    # and refunds paid ones (see bryo/refunds.py). It is the only moment Byro
+    # refunds anyone: buyers cannot ask for refunds.
+    cancelled_at = models.DateTimeField(null=True, blank=True)
+    cancel_reason = models.CharField(max_length=500, blank=True, default='')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -780,9 +830,16 @@ class Ticket(models.Model):
             ('pending', 'Payment Pending'),
             ('paid', 'Paid'),
             ('failed', 'Payment Failed'),
+            # The event was cancelled. 'refunded' tickets were paid for (the
+            # money's progress lives on the payment's Refund); 'cancelled'
+            # tickets were free or unpaid.
+            ('refunded', 'Refunded (event cancelled)'),
+            ('cancelled', 'Cancelled (event cancelled)'),
         ],
         default='free',
     )
+    # When the holder was told the event was cancelled (so nobody is emailed twice).
+    cancellation_notified_at = models.DateTimeField(null=True, blank=True)
 
     # Check-in
     checked_in = models.BooleanField(default=False)
