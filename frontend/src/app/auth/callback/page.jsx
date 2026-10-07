@@ -6,6 +6,7 @@ import { useDispatch } from "react-redux";
 import axiosInstance from "@/utils/axios";
 import API from "@/services/api";
 import { authSuccess } from "@/redux/auth/authSlice";
+import { trackLogin, trackSignUp } from "@/lib/analytics";
 import Link from "next/link";
 
 function OAuthCallback() {
@@ -34,9 +35,22 @@ function OAuthCallback() {
     (async () => {
       try {
         const { data } = await axiosInstance.post("auth/oauth/callback/", { code });
+        if (data.is_new_user) trackSignUp("google");
+        else trackLogin("google");
         API.setAuthToken(data.tokens.access);
         dispatch(authSuccess({ user: data.user, token: data.tokens }));
-        router.replace(data.user.is_profile_complete ? "/home" : "/onboarding-preview");
+        // The page the visitor was heading for before they left for Google (same-site paths only).
+        let target = null;
+        try {
+          const saved = sessionStorage.getItem("authRedirect");
+          sessionStorage.removeItem("authRedirect");
+          if (saved && saved.startsWith("/") && !saved.startsWith("//")) target = saved;
+        } catch {}
+        if (!data.user.is_profile_complete) {
+          router.replace(target ? `/onboarding-preview?redirect=${encodeURIComponent(target)}` : "/onboarding-preview");
+        } else {
+          router.replace(target || "/home");
+        }
       } catch (err) {
         setError(err.response?.data?.error || "Could not complete sign-in. Please try again.");
       }

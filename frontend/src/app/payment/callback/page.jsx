@@ -2,6 +2,7 @@
 import { useEffect, useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import API from "@/services/api";
+import { trackPurchase } from "@/lib/analytics";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { BadgeCheckIcon, CircleXIcon } from "@hugeicons/core-free-icons";
 
@@ -21,6 +22,22 @@ function PaymentCallbackContent() {
           const ticket = data.tickets?.[0];
           const payment = data.payment;
           const event = payment?.event || {};
+
+          // Count the sale now that Paystack says it was paid. Once per payment, even if the page is reloaded.
+          try {
+            const key = `purchase_tracked_${reference}`;
+            if (!sessionStorage.getItem(key)) {
+              sessionStorage.setItem(key, "1");
+              trackPurchase({
+                transactionId: reference,
+                eventName: event?.name || ticket?.event_name || "",
+                eventSlug: event?.slug || "",
+                value: Number(payment?.amount) || 0,
+                quantity: data.tickets?.length || 1,
+                isFree: false,
+              });
+            }
+          } catch {}
 
           const ticketData = {
             attendeeName: payment?.customer_name || "",

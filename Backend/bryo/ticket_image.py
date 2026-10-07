@@ -1,5 +1,5 @@
 """Render a ticket as a single PNG, matching the web ticket card's layout:
-gradient header up top, event details in the middle, QR code centered at
+gradient header up top, event details in the middle, QR code centred at
 the bottom.
 
 Used to attach a scannable, self-contained ticket to confirmation emails
@@ -175,7 +175,7 @@ def generate_ticket_png(*, event_name, date_str, time_str, location, attendee_na
     attendee_text = _truncate(draw, attendee_name or "Guest", value_font, WIDTH - pad_x * 2)
     _draw_bold(draw, (pad_x, row_y), attendee_text, value_font, NAVY)
 
-    # ---- QR code, centered ----
+    # ---- QR code, centred ----
     row_y += 40
     qr_img = qrcode.make(qr_data, border=2).get_image().convert("RGB")
     qr_img = qr_img.resize((QR_SIZE, QR_SIZE), Image.NEAREST)

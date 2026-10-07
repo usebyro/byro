@@ -292,6 +292,15 @@ SUPABASE_URL = os.getenv('SUPABASE_URL', '')
 SUPABASE_KEY = os.getenv('SUPABASE_KEY', '')
 SUPABASE_STORAGE_BUCKET = os.getenv('SUPABASE_STORAGE_BUCKET', 'event-images')
 
+# Load testing (see loadtest/README.md). Both switches work only with DEBUG on,
+# so a misconfigured production environment can never skip Turnstile, silence
+# email or send Paystack calls (and the secret key) to another host.
+LOADTEST_MODE = DEBUG and os.getenv('LOADTEST_MODE') == '1'
+PAYSTACK_API_BASE = (
+    os.getenv('PAYSTACK_API_BASE', 'https://api.paystack.co').rstrip('/')
+    if DEBUG else 'https://api.paystack.co'
+)
+
 # Emails that are admin-panel owners from their first sign-in (comma-separated).
 ADMIN_BOOTSTRAP_EMAILS = {
     e.strip().lower() for e in os.getenv('ADMIN_BOOTSTRAP_EMAILS', '').split(',') if e.strip()

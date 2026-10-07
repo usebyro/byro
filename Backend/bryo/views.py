@@ -32,7 +32,7 @@ from .models import (
     TicketTier, PayoutRequest, PromoCode, MerchItem, Follow, AdminAction, AdminMember, ActivityLog,
 )
 from .activity import log_activity
-from .pricing import calculate_ticket_fees, FEE_RATE
+from .pricing import calculate_ticket_fees, FEE_RATE, PAYSTACK_FEE_CAP
 from django.urls import reverse
 from .serializers import EventSerializer, TicketSerializer, PaymentSerializer, TicketTierSerializer, PromoCodeSerializer, MerchItemSerializer
 from .permissions import IsEventOwnerOrCoHost, IsEventOwner, IsAdminMember, get_admin_member
@@ -72,16 +72,40 @@ class InsufficientCapacityError(Exception):
     pass
 
 
+# How long a buyer's seats are held while they pay. After this a pending
+# payment stops counting against capacity and the seats go back on sale.
+RESERVATION_MINUTES = 10
+
+
+def _paid_amount_ok(paid_kobo, expected_kobo):
+    """True if Paystack's reported amount covers what we asked it to charge.
+
+    We send Paystack `total`; Paystack adds its own fee on top (fees borne by
+    the customer), so the amount it reports is `total` plus that fee. An exact
+    match would reject every real payment. Underpayment is still rejected, and
+    so is anything above the fee cap (NGN 2,000).
+    """
+    return expected_kobo <= paid_kobo <= expected_kobo + int(PAYSTACK_FEE_CAP * 100)
+
+
 def _pending_reservation_count(payments_qs):
     """
     Sum the ticket quantity of recent pending payments (not yet verified).
     These haven't produced a Ticket row yet but represent reserved slots —
     counting them prevents two concurrent checkouts from both reserving the
-    last spot while payment is in flight at Paystack.
+    last spot while payment is in flight at Paystack. A hold lasts
+    RESERVATION_MINUTES.
     """
-    cutoff = timezone.now() - timedelta(minutes=30)
+    cutoff = timezone.now() - timedelta(minutes=RESERVATION_MINUTES)
     pending = payments_qs.filter(status='pending', created_at__gte=cutoff)
     return sum(p.metadata.get('seats', p.metadata.get('quantity', 1)) for p in pending)
+
+
+def _release_reservation(payment):
+    """Give a reserved payment's seats back (Paystack never took the order).
+
+    Only pending payments hold seats, so marking it failed frees them."""
+    Payment.objects.filter(pk=payment.pk, status='pending').update(status='failed')
 
 
 def lock_and_check_capacity(event, tier_id, quantity):
@@ -131,7 +155,7 @@ def send_ticket_confirmation_email(ticket, customer_name, customer_email, event)
     from .ics import generate_ics
 
     form_answers = [
-        {"question": a.question.question, "answer": str(a.answer)}
+        {"question": a.question.question, "answer": ", ".join(a.answer) if isinstance(a.answer, list) else str(a.answer)}
         for a in EventFormAnswer.objects.filter(ticket=ticket).select_related('question')
     ]
     ticket_url = f"{settings.SITE_URL}/ticket/{ticket.ticket_id}"
@@ -245,7 +269,7 @@ def send_cohost_invite_email(email, event, inviter, is_new_user=False, role='man
 
 def _send_event_published_email(event):
     """
-    Congratulate the organizer on publishing and nudge them to share.
+    Congratulate the organiser on publishing and nudge them to share.
 
     Best-effort: a mail failure must not affect event creation, which has
     already committed by the time this runs.
@@ -408,7 +432,7 @@ def _organizer_recipients(event):
 
 
 def _check_and_notify_milestones(event):
-    """Email the organizer/co-hosts once when total tickets sold crosses a
+    """Email the organiser/co-hosts once when total tickets sold crosses a
     milestone (1st sale, 10, 25, 50, then every 100). Best-effort — a mail
     failure here must not affect ticket issuance."""
     try:
@@ -465,6 +489,62 @@ def _attendees_from_payment(payment):
     )
 
 
+def _clean_answers(event, raw):
+    """Check an order's answers to the event's registration questions.
+
+    `raw` is [{"question_id": id, "answer": value}, ...]. Returns
+    (clean, error): `clean` is a list of (question, answer) for the answered
+    questions, `error` a message for the buyer (or None). Required questions
+    must be answered, choices must be ones the organiser listed, and nothing
+    else is stored.
+    """
+    questions = list(event.form_questions.all())
+    if not questions:
+        return [], None
+    given = {}
+    for item in raw if isinstance(raw, list) else []:
+        if isinstance(item, dict) and 'question_id' in item:
+            try:
+                given[int(item['question_id'])] = item.get('answer')
+            except (TypeError, ValueError):
+                continue
+
+    clean = []
+    for q in questions:
+        value = given.get(q.id)
+        empty = value is None or value == '' or value == []
+        if empty:
+            if q.required:
+                return None, f'Please answer: {q.question}'
+            continue
+        if q.question_type in ('text', 'textarea'):
+            if not isinstance(value, str):
+                return None, f'Check your answer to: {q.question}'
+            value = value.strip()[:2000 if q.question_type == 'textarea' else 255]
+            if not value:
+                if q.required:
+                    return None, f'Please answer: {q.question}'
+                continue
+        elif q.question_type == 'checkbox':
+            if not isinstance(value, list) or not all(isinstance(v, str) and v in q.options for v in value):
+                return None, f'Pick from the choices for: {q.question}'
+            value = [v for v in q.options if v in value]
+        else:  # select, radio, yesno: one of the listed choices
+            if not isinstance(value, str) or value not in q.options:
+                return None, f'Pick from the choices for: {q.question}'
+        clean.append((q, value))
+    return clean, None
+
+
+def _save_answers(tickets, clean):
+    """Store the order's answers on each of its tickets."""
+    for ticket in tickets:
+        for q, value in clean:
+            EventFormAnswer.objects.update_or_create(
+                ticket=ticket, question=q, defaults={'answer': value},
+            )
+
+
 def _fulfil_payment(payment, ticket_user):
     """
     Atomically fulfil a successful payment: mark it successful, redeem promo,
@@ -504,6 +584,13 @@ def _fulfil_payment(payment, ticket_user):
                 payment.event, payment.tier, missing,
                 payment_status='paid', payment=payment, user=ticket_user,
             )
+
+        if new_tickets:
+            stored = payment.metadata.get('form_answers') or []
+            by_id = {q.id: q for q in payment.event.form_questions.all()}
+            _save_answers(new_tickets, [
+                (by_id[a['question_id']], a['answer']) for a in stored if a.get('question_id') in by_id
+            ])
 
         all_tickets = existing_tickets + new_tickets
         return new_tickets, all_tickets
@@ -581,6 +668,10 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        answers, answers_error = _clean_answers(event, request.data.get('form_answers'))
+        if answers_error:
+            return Response({'error': answers_error}, status=status.HTTP_400_BAD_REQUEST)
+
         try:
             with transaction.atomic():
                 tier = lock_and_check_capacity(event, tier_id, quantity)
@@ -625,6 +716,7 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                     event, tier, attendees,
                     payment_status='free', user=linked_user,
                 )
+                _save_answers(tickets, answers)
                 if promo is not None:
                     PromoCode.objects.filter(pk=promo.pk).update(redeemed_count=F('redeemed_count') + 1)
 
@@ -653,13 +745,50 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                 'tickets': TicketSerializer(tickets, many=True).data
             }, status=status.HTTP_201_CREATED)
 
-        # Initialize Paystack payment
-        paystack_secret_key = settings.PAYSTACK_SECRET_KEY.strip()
-        paystack_url = 'https://api.paystack.co/transaction/initialize'
-        
         # Generate unique reference with random suffix to prevent collisions
         reference = f"EVT-{event.slug}-{timezone.now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:8]}"
-        
+
+        # Reserve the seats BEFORE calling Paystack. The pending payment is what
+        # holds them: lock_and_check_capacity counts pending payments as taken.
+        # If it were only created after Paystack answered, every buyer in flight
+        # at that moment would pass the capacity check for the same last seats
+        # and all of them could pay. So the check and the reservation happen in
+        # one locked step, and nothing slow (the Paystack call) runs inside it.
+        try:
+            with transaction.atomic():
+                lock_and_check_capacity(event, tier_id, quantity)
+                payment = Payment.objects.create(
+                    event=event,
+                    tier=tier,
+                    promo_code=promo,
+                    customer_email=customer_email,
+                    customer_name=customer_name,
+                    amount=amount,
+                    currency='NGN',
+                    paystack_reference=reference,
+                    status='pending',
+                    ip_address=self.get_client_ip(request),
+                    metadata={
+                        'quantity': quantity,
+                        'seats': seats,
+                        'attendees': attendees,
+                        'user_id': linked_user.id if linked_user else None,
+                        'tier_id': tier.id if tier is not None else None,
+                        'subtotal': str(fees['subtotal']),
+                        'service_fee': str(fees['service_fee']),
+                        'paystack_fee': str(fees['paystack_fee']),
+                        'display_total': str(fees['display_total']),
+                        'discount_amount': str(discount_amount),
+                        'form_answers': [{'question_id': q.id, 'answer': a} for q, a in answers],
+                    }
+                )
+        except InsufficientCapacityError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Initialize Paystack payment
+        paystack_secret_key = settings.PAYSTACK_SECRET_KEY.strip()
+        paystack_url = f'{settings.PAYSTACK_API_BASE}/transaction/initialize'
+
         # Prepare payment data
         payment_data = {
             'email': customer_email,
@@ -698,33 +827,9 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
             response_data = response.json()
             
             if response.status_code == 200 and response_data.get('status'):
-                # Create Payment record
-                payment = Payment.objects.create(
-                    event=event,
-                    tier=tier,
-                    promo_code=promo,
-                    customer_email=customer_email,
-                    customer_name=customer_name,
-                    amount=amount,
-                    currency='NGN',
-                    paystack_reference=reference,
-                    paystack_access_code=response_data['data'].get('access_code'),
-                    paystack_authorization_url=response_data['data'].get('authorization_url'),
-                    status='pending',
-                    ip_address=self.get_client_ip(request),
-                    metadata={
-                        'quantity': quantity,
-                        'seats': seats,
-                        'attendees': attendees,
-                        'user_id': linked_user.id if linked_user else None,
-                        'tier_id': tier.id if tier is not None else None,
-                        'subtotal': str(fees['subtotal']),
-                        'service_fee': str(fees['service_fee']),
-                        'paystack_fee': str(fees['paystack_fee']),
-                        'display_total': str(fees['display_total']),
-                        'discount_amount': str(discount_amount),
-                    }
-                )
+                payment.paystack_access_code = response_data['data'].get('access_code')
+                payment.paystack_authorization_url = response_data['data'].get('authorization_url')
+                payment.save(update_fields=['paystack_access_code', 'paystack_authorization_url', 'updated_at'])
 
                 if apps.posthog_client is not None:
                     apps.posthog_client.capture(
@@ -752,12 +857,14 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                     }
                 }, status=status.HTTP_200_OK)
             else:
+                _release_reservation(payment)
                 return Response({
                     'error': 'Failed to initialize payment',
                     'details': response_data.get('message', 'Unknown error')
                 }, status=status.HTTP_400_BAD_REQUEST)
                 
         except requests.exceptions.RequestException as e:
+            _release_reservation(payment)
             return Response({
                 'error': 'Payment gateway error',
                 'details': str(e)
@@ -769,7 +876,7 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
         Verify a Paystack payment and create ticket(s) if successful
         """
         paystack_secret_key = settings.PAYSTACK_SECRET_KEY.strip()
-        paystack_url = f'https://api.paystack.co/transaction/verify/{reference}'
+        paystack_url = f'{settings.PAYSTACK_API_BASE}/transaction/verify/{reference}'
         
         headers = {
             'Authorization': f'Bearer {paystack_secret_key}',
@@ -815,7 +922,7 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
 
                 # Amount check: Paystack amount (in kobo) must match our recorded amount
                 expected_amount_kobo = int(payment.amount * 100)
-                if paid_amount_kobo != expected_amount_kobo:
+                if not _paid_amount_ok(paid_amount_kobo, expected_amount_kobo):
                     logger.error(
                         "Amount mismatch for payment %s: Paystack=%d kobo, expected=%d kobo",
                         reference, paid_amount_kobo, expected_amount_kobo
@@ -935,7 +1042,7 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
 
                 paid_amount_kobo = data.get('amount', 0)
                 expected_amount_kobo = int(payment.amount * 100)
-                if paid_amount_kobo != expected_amount_kobo:
+                if not _paid_amount_ok(paid_amount_kobo, expected_amount_kobo):
                     logger.error(
                         "Webhook amount mismatch for payment %s: Paystack=%d kobo, expected=%d kobo",
                         reference, paid_amount_kobo, expected_amount_kobo
@@ -1442,7 +1549,7 @@ class EventViewSet(viewsets.ModelViewSet):
         - Create: Authenticated users only
         - Update, delete: Owner/co-host only (both can edit)
         """
-        if self.action in ['list', 'retrieve', 'register', 'categories', 'locations', 'tiers', 'tier_detail', 'validate_promo']:
+        if self.action in ['list', 'retrieve', 'register', 'categories', 'locations', 'tiers', 'tier_detail', 'validate_promo', 'form_questions']:
             permission_classes = [AllowAny]
         elif self.action in ['create']:
             permission_classes = [IsAuthenticated]
@@ -1964,16 +2071,9 @@ class EventViewSet(viewsets.ModelViewSet):
                 )
 
             # Validate required form questions
-            questions = list(event.form_questions.all())
-            required_ids = {q.id for q in questions if q.required}
-            answers_input = request.data.get('form_answers', [])
-            answered_ids = {a['question_id'] for a in answers_input if 'question_id' in a}
-            missing = required_ids - answered_ids
-            if missing:
-                return Response(
-                    {"error": "Missing answers for required questions", "question_ids": list(missing)},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
+            answers, answers_error = _clean_answers(event, request.data.get('form_answers'))
+            if answers_error:
+                return Response({"error": answers_error}, status=status.HTTP_400_BAD_REQUEST)
 
             reg_tier = TicketTier.objects.filter(pk=tier_id, event=event).first() if tier_id else None
             if reg_tier is not None and reg_tier.min_tickets_per_person > 1:
@@ -2002,17 +2102,7 @@ class EventViewSet(viewsets.ModelViewSet):
                         payment_status='free' if unit_price == 0 else 'pending',
                     )
 
-                    # Save form answers
-                    question_map = {q.id: q for q in questions}
-                    for item in answers_input:
-                        q_id = item.get('question_id')
-                        answer = item.get('answer')
-                        if q_id in question_map and answer is not None:
-                            EventFormAnswer.objects.create(
-                                ticket=ticket,
-                                question=question_map[q_id],
-                                answer=answer,
-                            )
+                    _save_answers([ticket], answers)
             except InsufficientCapacityError as e:
                 return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -2220,9 +2310,9 @@ class EventViewSet(viewsets.ModelViewSet):
 
     @action(
         detail=True,
-        methods=['GET', 'POST'],
+        methods=['GET', 'POST', 'PUT'],
         url_path='form-questions',
-        permission_classes=[IsAuthenticated],
+        permission_classes=[AllowAny],  # reading is public: buyers answer these at checkout
     )
     def form_questions(self, request, slug=None):
         """
@@ -2239,13 +2329,46 @@ class EventViewSet(viewsets.ModelViewSet):
             qs = event.form_questions.all()
             return Response(EventFormQuestionSerializer(qs, many=True).data)
 
-        # POST — only owner/cohost can add questions
-        role = event.get_user_role(request.user)
+        # POST / PUT — only owner/cohost can change questions
+        if not request.user.is_authenticated:
+            return Response({'error': 'Sign in to manage form questions'}, status=status.HTTP_401_UNAUTHORIZED)
         if not event.can_manage(request.user):
             return Response(
                 {'error': 'Only the event owner or co-hosts can manage form questions'},
                 status=status.HTTP_403_FORBIDDEN,
             )
+
+        if request.method == 'PUT':
+            # The whole list at once, in order: [{id?, question, question_type, options, required}, ...]
+            items = request.data if isinstance(request.data, list) else request.data.get('questions')
+            if not isinstance(items, list) or len(items) > 20:
+                return Response({'error': 'Send a list of up to 20 questions'}, status=status.HTTP_400_BAD_REQUEST)
+            existing = {q.id: q for q in event.form_questions.all()}
+            serializers_ = []
+            for index, item in enumerate(items):
+                if not isinstance(item, dict):
+                    return Response({'error': 'Each question must be an object'}, status=status.HTTP_400_BAD_REQUEST)
+                instance = existing.get(item.get('id'))
+                if item.get('id') is not None and instance is None:
+                    return Response({'error': 'Unknown question'}, status=status.HTTP_400_BAD_REQUEST)
+                ser = EventFormQuestionSerializer(instance, data={**item, 'order': index}, partial=instance is not None)
+                ser.is_valid(raise_exception=True)
+                serializers_.append(ser)
+
+            kept = {ser.instance.id for ser in serializers_ if ser.instance is not None}
+            removed = [q for qid, q in existing.items() if qid not in kept]
+            answered = [q.question for q in removed if EventFormAnswer.objects.filter(question=q).exists()]
+            if answered:
+                return Response(
+                    {'error': f'Guests already answered "{answered[0]}", so it can\'t be removed.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            with transaction.atomic():
+                for q in removed:
+                    q.delete()
+                saved = [ser.save(event=event) for ser in serializers_]
+            return Response(EventFormQuestionSerializer(saved, many=True).data)
+
         serializer = EventFormQuestionSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save(event=event)
@@ -2622,13 +2745,13 @@ class TicketTransferViewSet(mixins.RetrieveModelMixin, viewsets.GenericViewSet):
 
 def ticket_net_price_expr():
     """
-    What the organizer earns from one paid ticket.
+    What the organiser earns from one paid ticket.
 
     Starts from the tier price (or the event's flat ticket_price), then takes
     off this ticket's share of any promo-code discount. Checkout records the
     discount for a whole purchase on Payment.metadata['discount_amount'], and a
     purchase can produce several tickets, so each ticket carries an equal share.
-    If the organizer absorbs Byro's service fee (`pass_fee_to_attendee=False`),
+    If the organiser absorbs Byro's service fee (`pass_fee_to_attendee=False`),
     that fee is 5% of the DISCOUNTED price and is deducted here.
 
     Shared by the payout balance and the dashboard analytics so both agree.
@@ -2640,7 +2763,7 @@ def ticket_net_price_expr():
     )
     # Discounts are whole naira. Split them in whole naira, rounding each
     # ticket's share UP, so an uneven split can only ever under-credit the
-    # organizer by a few naira, never over-credit. Plain integer arithmetic
+    # organiser by a few naira, never over-credit. Plain integer arithmetic
     # keeps this identical on SQLite and Postgres.
     discount = Coalesce(
         Cast(Cast(KeyTextTransform('discount_amount', 'payment__metadata'), money), whole),
@@ -2681,7 +2804,7 @@ def ticket_net_price_expr():
 
 def compute_available_balance(user, event=None):
     """
-    Funds an organizer can currently withdraw.
+    Funds an organiser can currently withdraw.
 
     = ticket revenue on events they OWN. Co-hosts help run an event but the
       money belongs to its owner, so co-hosting earns nothing here.
@@ -2693,9 +2816,9 @@ def compute_available_balance(user, event=None):
 
     Revenue is taken from tickets actually sold, not from Payment.amount,
     since the payment total also includes the service fee that never
-    belongs to the organizer.
+    belongs to the organiser.
 
-    For events where the organizer has chosen to absorb Byro's service fee
+    For events where the organiser has chosen to absorb Byro's service fee
     (`pass_fee_to_attendee=False`), that fee is deducted from the ticket
     price here instead of being added to what the attendee paid.
 
@@ -2726,8 +2849,8 @@ def compute_available_balance(user, event=None):
 
 class PayoutRequestView(APIView):
     """
-    GET  /api/payouts/  — organizer's own payout history
-    POST /api/payouts/  — organizer submits a new payout request
+    GET  /api/payouts/  — organiser's own payout history
+    POST /api/payouts/  — organiser submits a new payout request
     """
     permission_classes = [IsAuthenticated]
 
@@ -2810,7 +2933,7 @@ class PayoutRequestView(APIView):
 
 
 class PayoutBalanceView(APIView):
-    """GET /api/payouts/balance/ — organizer's available/paid-out/pending totals."""
+    """GET /api/payouts/balance/ — organiser's available/paid-out/pending totals."""
     permission_classes = [IsAuthenticated]
 
     def get(self, request):

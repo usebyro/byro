@@ -9,45 +9,52 @@ active nav state across the app) for every status badge and primary
 button, instead of a color that varies per template.
 """
 
-INK = "#0f172a"
-BODY = "#64748b"
-MUTED = "#94a3b8"
-BORDER = "#e2e8f0"
-SURFACE = "#f8fafc"
-PAGE_BG = "#f1f5f9"
+INK = "#14161C"
+BODY = "#3B4252"
+MUTED = "#5B6272"
+BORDER = "#E3E8F0"
+SURFACE = "#F7F9FC"
+PAGE_BG = "#F3F6FB"
+HAIRLINE = "#EDF0F5"
 
-BRAND = "#4F6EF7"
-BRAND_BG = "#EEF2FF"
+BRAND = "#3669F6"
+BRAND_DARK = "#2451D6"
+BRAND_BG = "#EEF3FF"
 
-NEUTRAL = BRAND
+NEUTRAL = BRAND_DARK
 NEUTRAL_BG = BRAND_BG
-TIME = BRAND
-TIME_BG = BRAND_BG
-GROWTH = BRAND
+TIME = BRAND_DARK
+TIME_BG = "#FFF4CC"
+GROWTH = BRAND_DARK
 GROWTH_BG = BRAND_BG
-MONEY = BRAND
-MONEY_BG = BRAND_BG
+MONEY = BRAND_DARK
+MONEY_BG = "#E3F5EC"
 
-FONT_STACK = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif"
+# Badge text colours that are readable on their own tinted backgrounds.
+_BADGE_INK = {TIME_BG: "#6B4A08", MONEY_BG: "#1F6B47"}
+
+FONT_STACK = "'Nunito Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif"
+DISPLAY_STACK = "'Bricolage Grotesque','Nunito Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif"
 
 
 def _badge(label, color, bg):
+    color = _BADGE_INK.get(bg, color)
     return f"""<table cellpadding="0" cellspacing="0" style="margin:0 0 20px;">
       <tr>
-        <td style="background:{bg};border-radius:20px;padding:6px 14px;">
-          <span style="color:{color};font-size:12px;font-weight:700;">{label}</span>
+        <td style="background:{bg};border-radius:999px;padding:6px 12px;">
+          <span style="color:{color};font-size:12px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;">{label}</span>
         </td>
       </tr>
     </table>"""
 
 
 def _button(url, label, color):
-    return f"""<a href="{url}" style="display:block;background:{color};color:#ffffff;text-decoration:none;font-size:15px;font-weight:700;padding:16px 32px;border-radius:12px;text-align:center;">{label}</a>"""
+    return f"""<a href="{url}" style="display:block;background:{BRAND};color:#ffffff;text-decoration:none;font-size:16px;font-weight:700;padding:15px 26px;border-radius:999px;text-align:center;">{label}</a>"""
 
 
 def _text_link(url, label):
-    return f"""<p style="text-align:center;margin:16px 0 0;">
-      <a href="{url}" style="color:{BODY};font-size:14px;font-weight:600;text-decoration:underline;">{label}</a>
+    return f"""<p style="text-align:center;margin:12px 0 0;">
+      <a href="{url}" style="display:block;border:1px solid #D5DBE5;color:{INK};font-size:15px;font-weight:700;text-decoration:none;padding:14px 22px;border-radius:999px;">{label}</a>
     </p>"""
 
 
@@ -55,26 +62,44 @@ def _cell(label, value, mono=False, colspan=None):
     font = "font-family:'Courier New',Courier,monospace;letter-spacing:0.02em;" if mono else ""
     span = f' colspan="{colspan}"' if colspan else ""
     width = "" if colspan else "width:50%;"
-    return f"""<td{span} style="{width}padding-bottom:16px;vertical-align:top;">
-      <p style="color:{MUTED};font-size:11px;font-weight:700;letter-spacing:0.02em;margin:0 0 4px;">{label}</p>
-      <p style="color:{INK};font-size:14px;font-weight:600;margin:0;{font}">{value}</p>
+    return f"""<td{span} style="{width}padding:10px 18px;border-bottom:1px solid {HAIRLINE};vertical-align:top;">
+      <p style="color:{MUTED};font-size:13px;margin:0 0 3px;">{label}</p>
+      <p style="color:{INK};font-size:15px;font-weight:700;margin:0;{font}">{value}</p>
     </td>"""
+
+
+def _logo_url():
+    from django.conf import settings
+    return f"{getattr(settings, 'SITE_URL', 'https://usebyro.com').rstrip('/')}/assets/images/logo-email.png"
 
 
 def _shell(badge_html, headline, body_html, footer_text):
     return f"""
-<div style="background-color:{PAGE_BG};padding:40px 16px;font-family:{FONT_STACK};">
-  <table cellpadding="0" cellspacing="0" style="max-width:560px;margin:0 auto;width:100%;">
+<div style="background-color:{PAGE_BG};padding:24px 16px 32px;font-family:{FONT_STACK};color:{INK};">
+  <table cellpadding="0" cellspacing="0" style="max-width:600px;margin:0 auto;width:100%;">
     <tr>
-      <td style="background:#ffffff;border-radius:16px;padding:40px 32px 36px;box-shadow:0 2px 8px rgba(15,23,42,0.06);">
-        {badge_html}
-        <h1 style="margin:0 0 14px;font-size:26px;font-weight:700;color:{INK};line-height:1.3;">{headline}</h1>
-        {body_html}
+      <td style="background:#ffffff;border-radius:24px;overflow:hidden;">
+        <table cellpadding="0" cellspacing="0" style="width:100%;">
+          <tr>
+            <td style="height:72px;padding:0 32px;border-bottom:1px solid {HAIRLINE};">
+              <img src="{_logo_url()}" alt="byro" width="67" height="32" style="display:block;height:32px;width:67px;border:0;">
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:32px;">
+              {badge_html}
+              <h1 style="margin:0 0 16px;font-family:{DISPLAY_STACK};font-size:32px;font-weight:700;color:{INK};line-height:1.1;letter-spacing:-0.02em;">{headline}</h1>
+              {body_html}
+            </td>
+          </tr>
+        </table>
       </td>
     </tr>
     <tr>
-      <td style="text-align:center;padding:28px 16px;">
-        <p style="color:{MUTED};font-size:12px;line-height:1.6;margin:0;">{footer_text}</p>
+      <td style="text-align:center;padding:20px 8px 0;">
+        <p style="color:{MUTED};font-size:12px;line-height:1.6;margin:0 0 6px;">{footer_text}</p>
+        <p style="color:{MUTED};font-size:12px;line-height:1.6;margin:0 0 6px;">Questions? Reply to this email or write to <a href="mailto:support@usebyro.com" style="color:{BRAND_DARK};font-weight:700;text-decoration:none;">support@usebyro.com</a></p>
+        <p style="color:{BODY};font-size:12px;font-weight:700;line-height:1.6;margin:0;">byro &middot; Create communities. Discover events. Create memories.</p>
       </td>
     </tr>
   </table>
@@ -160,7 +185,7 @@ def ticket_confirmation_email(name, event_name, date, time, location, ticket_id,
 
         <table cellpadding="0" cellspacing="0" style="width:100%;border-collapse:separate;border-spacing:0;border-radius:16px;overflow:hidden;margin-bottom:24px;">
           <tr>
-            <td style="background:linear-gradient(135deg,#0f0a2e 0%,#4c1d95 50%,#a855f7 100%);padding:28px 24px 24px;border-radius:16px 16px 0 0;">
+            <td style="background:linear-gradient(135deg,#2451D6 0%,#3669F6 100%);padding:28px 24px 24px;border-radius:16px 16px 0 0;">
               <table cellpadding="0" cellspacing="0" style="margin-bottom:14px;">
                 <tr>
                   <td style="background:rgba(255,255,255,0.15);border-radius:20px;padding:4px 12px;">
@@ -289,16 +314,16 @@ def event_reminder_email(name, event_name, date, time, location, ticket_url=None
 
 def organizer_event_reminder_email(name, event_name, date, time, tickets_sold, dashboard_url=None):
     """
-    Organizer heads-up email — sent ~24h before the event starts, same run
+    Organiser heads-up email — sent ~24h before the event starts, same run
     as the attendee reminder.
 
     Args:
-        name (str): Organizer's/co-host's name.
+        name (str): Organiser's/co-host's name.
         event_name (str): Event name.
         date (str): Formatted event date.
         time (str): Formatted start time.
         tickets_sold (int): Total paid + free tickets issued so far.
-        dashboard_url (str, optional): Link to the event's organizer dashboard.
+        dashboard_url (str, optional): Link to the event's organiser dashboard.
     """
     view_dashboard_url = dashboard_url or "https://usebyro.com"
     ticket_word = "ticket" if tickets_sold == 1 else "tickets"
@@ -340,15 +365,15 @@ def organizer_event_reminder_email(name, event_name, date, time, tickets_sold, d
 
 def milestone_reached_email(name, event_name, milestone, tickets_sold, dashboard_url=None):
     """
-    Organizer milestone email — sent when total tickets sold for an event
+    Organiser milestone email — sent when total tickets sold for an event
     crosses a threshold (1st sale, 10, 25, 50, 100, then every 100).
 
     Args:
-        name (str): Organizer's/co-host's name.
+        name (str): Organiser's/co-host's name.
         event_name (str): Event name.
         milestone (int): The threshold just crossed.
         tickets_sold (int): Total paid + free tickets issued right now.
-        dashboard_url (str, optional): Link to the event's organizer dashboard.
+        dashboard_url (str, optional): Link to the event's organiser dashboard.
     """
     view_dashboard_url = dashboard_url or "https://usebyro.com"
     headline = "Your first ticket just sold!" if milestone == 1 else f"You've hit {milestone} tickets sold!"
@@ -386,14 +411,14 @@ def milestone_reached_email(name, event_name, milestone, tickets_sold, dashboard
 
 def event_published_email(name, event_name, date, time, location, event_url, share_cta_url=None, is_first_event=True):
     """
-    Event published email — sent to the organizer right after an event goes live.
+    Event published email — sent to the organiser right after an event goes live.
 
     Two variants share the same layout: a first-timer gets a more instructive
-    push ("do this first"), a returning organizer gets a shorter one that
+    push ("do this first"), a returning organiser gets a shorter one that
     assumes they already know the playbook.
 
     Args:
-        name (str): Organizer's name.
+        name (str): Organiser's name.
         event_name (str): Event name.
         date (str): Formatted event date e.g. "Saturday, July 5, 2026".
         time (str): Formatted start time e.g. "6:00 PM".
@@ -402,7 +427,7 @@ def event_published_email(name, event_name, date, time, location, event_url, sha
         share_cta_url (str, optional): Link for the primary share CTA — opens
             the in-app share options (WhatsApp, X, copy link, etc). Falls
             back to event_url if not given.
-        is_first_event (bool): True if this is the organizer's first-ever
+        is_first_event (bool): True if this is the organiser's first-ever
             published event.
     """
     primary_url = share_cta_url or event_url
@@ -564,10 +589,10 @@ def cohost_invite_email(event_name, inviter_name, event_url, is_new_user=False, 
 
 def payout_requested_email(name, amount, bank_name, account_number, event_name=None):
     """
-    Payout requested email — sent when organizer submits a payout request.
+    Payout requested email — sent when organiser submits a payout request.
 
     Args:
-        name (str): Organizer's name.
+        name (str): Organiser's name.
         amount (decimal): Payout amount.
         bank_name (str): Bank name.
         account_number (str): Account number.
@@ -631,7 +656,7 @@ def payout_completed_email(name, amount, bank_name, account_number, event_name=N
     Payout completed email — sent when admin marks payout as processed.
 
     Args:
-        name (str): Organizer's name.
+        name (str): Organiser's name.
         amount (decimal): Payout amount.
         bank_name (str): Bank name.
         account_number (str): Account number.

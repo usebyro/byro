@@ -1,5 +1,5 @@
 """
-Send the 24h-before reminder email to every attendee and organizer of events
+Send the 24h-before reminder email to every attendee and organiser of events
 happening tomorrow.
 
 Meant to run once a day via a scheduled job (e.g. a Railway cron service
@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 
 class Command(BaseCommand):
-    help = "Send 24h-before reminder emails to attendees and organizers for events happening tomorrow."
+    help = "Send 24h-before reminder emails to attendees and organisers for events happening tomorrow."
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -106,13 +106,13 @@ class Command(BaseCommand):
                         html=email_data['html'], text=email_data['text'],
                     )
                 except Exception as e:
-                    logger.error(f"Failed to send organizer reminder to {email} for event {event.pk}: {e}")
+                    logger.error(f"Failed to send organiser reminder to {email} for event {event.pk}: {e}")
 
             total_events += 1
             total_attendee_emails += attendee_count
             self.stdout.write(
                 f"{'[dry-run] ' if dry_run else ''}{event.name} ({event.slug}): "
-                f"{attendee_count} attendee email(s), {len(recipients)} organizer email(s)"
+                f"{attendee_count} attendee email(s), {len(recipients)} organiser email(s)"
             )
 
             if not dry_run:

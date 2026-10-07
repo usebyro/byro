@@ -233,7 +233,7 @@ export default function AdminDashboardPage() {
           <p className="text-white font-semibold text-sm">
             {pendingPayouts ?? "—"} pending payout{pendingPayouts === 1 ? "" : "s"}
           </p>
-          <p className="text-gray-400 text-xs mt-0.5">Organizers waiting for withdrawal approval</p>
+          <p className="text-gray-400 text-xs mt-0.5">Organisers waiting for withdrawal approval</p>
         </div>
         <Link
           href={resolveAdminHref(pathname, "/payouts")}

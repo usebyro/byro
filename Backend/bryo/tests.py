@@ -952,3 +952,32 @@ class TicketEndpointLockdownTests(TestCase):
         c.force_authenticate(self.owner)
         self.assertEqual(c.get('/api/transfers/').status_code, 404)
         self.assertEqual(c.post('/api/transfers/', {}, format='json').status_code, 404)
+
+
+class SeedLoadtestTests(TestCase):
+    """The load-test seeder must be removable and must not run against a real environment."""
+
+    def test_refuses_when_debug_is_off_without_force(self):
+        from django.core.management import call_command
+        from django.core.management.base import CommandError
+
+        with override_settings(DEBUG=False):
+            with self.assertRaises(CommandError):
+                call_command('seed_loadtest', events=1, tickets_per_event=1)
+        self.assertFalse(Event.objects.filter(slug__startswith='lt-').exists())
+
+    def test_seeds_then_cleans_up_everything(self):
+        from io import StringIO
+
+        from django.core.management import call_command
+
+        from .models import Ticket
+
+        with override_settings(DEBUG=True):
+            call_command('seed_loadtest', events=2, tickets_per_event=3, stdout=StringIO())
+            self.assertEqual(Event.objects.filter(slug__startswith='lt-').count(), 2)
+            self.assertEqual(Ticket.objects.filter(current_owner_email__endswith='@loadtest.invalid').count(), 6)
+            call_command('seed_loadtest', clean=True, stdout=StringIO())
+        self.assertFalse(Event.objects.filter(slug__startswith='lt-').exists())
+        self.assertFalse(Ticket.objects.filter(current_owner_email__endswith='@loadtest.invalid').exists())
+        self.assertFalse(get_user_model().objects.filter(email__endswith='@loadtest.invalid').exists())

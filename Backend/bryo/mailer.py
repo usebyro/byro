@@ -30,6 +30,9 @@ def send_email(to, subject, html, text=None, attachments=None):
         attachments (list[dict], optional): Each dict is
             {"filename": str, "content": bytes, "content_type": str}.
     """
+    if getattr(settings, "LOADTEST_MODE", False):
+        return {"provider": "loadtest", "id": None}  # DEBUG-only: send nothing
+
     resend.api_key = settings.RESEND_API_KEY
 
     try:

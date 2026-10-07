@@ -7,8 +7,7 @@ import * as Sentry from "@sentry/nextjs";
 Sentry.init({
   dsn: "https://ef3720d6bc5ec52a412a8c8417353314@o4511786643488768.ingest.de.sentry.io/4511786654826576",
 
-  // Add optional integrations for additional features
-  integrations: [Sentry.replayIntegration()],
+  // Session replay is added in lib/consent.ts once the visitor accepts analytics cookies.
 
   // Define how likely traces are sampled. Adjust this value in production, or use tracesSampler for greater control.
   tracesSampleRate: 1,

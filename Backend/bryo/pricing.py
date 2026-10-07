@@ -62,7 +62,7 @@ def _simulate_paystack_fee(amount):
 def calculate_ticket_fees(subtotal, pass_fee_to_attendee=True):
     """Return the fee breakdown for a ticket subtotal (price * quantity).
 
-    When `pass_fee_to_attendee` is False, the organizer has chosen to absorb
+    When `pass_fee_to_attendee` is False, the organiser has chosen to absorb
     Byro's service fee themselves: `service_fee` is still reported (so it can
     be deducted from their payout), but it is NOT added to `total` /
     `display_total` - the attendee is only charged the subtotal (plus
@@ -79,7 +79,7 @@ def calculate_ticket_fees(subtotal, pass_fee_to_attendee=True):
             'display_total': _ZERO,
         }
 
-    # Byro's service fee (always computed, even if organizer-absorbed).
+    # Byro's service fee (always computed, even if organiser-absorbed).
     service_fee = (subtotal * FEE_RATE).quantize(_NAIRA, rounding=ROUND_HALF_UP)
     # The raw amount we send to Paystack.
     total = subtotal + service_fee if pass_fee_to_attendee else subtotal

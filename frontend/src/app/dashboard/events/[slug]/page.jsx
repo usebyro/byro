@@ -203,6 +203,10 @@ export default function StudioEventPage() {
           ref: String(t.ticket_id || "").replace(/-/g, "").toUpperCase().slice(0, 12),
           tier: t.tier_name || "General admission",
           registeredAt: t.created_at || "",
+          answers: (t.form_answers || []).map((f) => ({
+            question: f.question_text,
+            answer: Array.isArray(f.answer) ? f.answer.join(", ") : String(f.answer ?? ""),
+          })),
         }));
         setAttendees(mapped);
         setCheckedInCount(res.checked_in_count || 0);
@@ -764,6 +768,16 @@ export default function StudioEventPage() {
                       <span className="text-xs text-gray-500">Not arrived</span>
                     )}
                   </div>
+                  {a.answers.length > 0 && (
+                    <dl className="col-span-12 mt-2 ml-[34px] space-y-0.5 text-xs">
+                      {a.answers.map((qa) => (
+                        <div key={qa.question} className="flex gap-1.5">
+                          <dt className="text-gray-400 shrink-0">{qa.question}</dt>
+                          <dd className="text-gray-700 font-medium break-words min-w-0">{qa.answer}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  )}
                 </div>
               ))}
             </div>

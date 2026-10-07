@@ -8,10 +8,10 @@ import type {BlogPost} from './blog-data'
 export const metadata: Metadata = {
   title: 'Blog',
   description:
-    'Stories from the scene — guides for organizers, what-is-on roundups, and the culture behind the events.',
+    'Stories from the scene — guides for organisers, what-is-on roundups, and the culture behind the events.',
 }
 
-const filters = ['All', 'For organizers', 'Music', 'Nightlife', 'Sports', 'Product']
+const filters = ['All', 'For organisers', 'Music', 'Nightlife', 'Sports', 'Product']
 
 function BlogImage({post, className = ''}: {post: BlogPost; className?: string}) {
   return (
@@ -94,7 +94,7 @@ export default async function BlogPage() {
             Stories from the <span className="italic text-[#4f84ff]">scene</span>
           </h1>
           <p className="mt-5 max-w-3xl text-[17px] leading-7 text-[#52607e]">
-            Guides for organizers, what is-on roundups, and the culture behind the events.
+            Guides for organisers, what is-on roundups, and the culture behind the events.
           </p>
         </section>
 
