@@ -6,6 +6,7 @@ import { useDispatch } from "react-redux";
 import axiosInstance from "@/utils/axios";
 import API from "@/services/api";
 import { authSuccess } from "@/redux/auth/authSlice";
+import { trackLogin, trackSignUp } from "@/lib/analytics";
 import Link from "next/link";
 
 function OAuthCallback() {
@@ -34,6 +35,8 @@ function OAuthCallback() {
     (async () => {
       try {
         const { data } = await axiosInstance.post("auth/oauth/callback/", { code });
+        if (data.is_new_user) trackSignUp("google");
+        else trackLogin("google");
         API.setAuthToken(data.tokens.access);
         dispatch(authSuccess({ user: data.user, token: data.tokens }));
         // The page the visitor was heading for before they left for Google (same-site paths only).

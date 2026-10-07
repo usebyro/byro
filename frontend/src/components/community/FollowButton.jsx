@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useSelector } from "react-redux";
 import { toast } from "sonner";
 import API from "@/services/api";
+import { trackFollow } from "@/lib/analytics";
 
 /**
  * Follow / Following for an organiser's community page.
@@ -43,6 +44,7 @@ export default function FollowButton({ handle, initialFollowing = false, onChang
     API.followProfile(handle)
       .then((data) => {
         setFollowing(data.following);
+        trackFollow({ handle, following: data.following });
         onChange?.(data.followers_count, data.following);
       })
       .catch((err) => toast.error(err?.message || "Couldn't follow. Try again."));
@@ -68,6 +70,7 @@ export default function FollowButton({ handle, initialFollowing = false, onChang
     try {
       const data = next ? await API.followProfile(handle) : await API.unfollowProfile(handle);
       setFollowing(data.following);
+      trackFollow({ handle, following: data.following });
       onChange?.(data.followers_count, data.following);
     } catch (err) {
       setFollowing(!next);

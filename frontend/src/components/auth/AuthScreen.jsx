@@ -11,6 +11,7 @@ import { FaApple } from "react-icons/fa";
 import axiosInstance from "@/utils/axios";
 import API from "@/services/api";
 import { authSuccess } from "@/redux/auth/authSlice";
+import { trackLogin, trackSignUp } from "@/lib/analytics";
 
 const OTP_LENGTH = 6;
 const RESEND_COOLDOWN_SECONDS = 60;
@@ -63,6 +64,8 @@ export default function AuthScreen() {
   const [turnstileReady, setTurnstileReady] = useState(false);
 
   const completeSignIn = (data) => {
+    if (data.is_new_user) trackSignUp("email");
+    else trackLogin("email");
     API.setAuthToken(data.tokens.access);
     dispatch(authSuccess({ user: data.user, token: data.tokens }));
     if (!data.user.is_profile_complete) {

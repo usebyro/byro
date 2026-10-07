@@ -15,6 +15,7 @@ import {
   DragDropVerticalIcon,
 } from "@hugeicons/core-free-icons";
 import { describeTicketLimits } from "@/lib/ticketLimits";
+import { trackCreateEvent } from "@/lib/analytics";
 import API from "../../services/api";
 import RichTextEditor from "./RichTextEditor";
 
@@ -563,6 +564,11 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
           } catch (qErr) {
             toast.error(`Event saved but the attendee questions weren't: ${qErr?.message || "unknown error"}`);
           }
+        }
+
+        // Count the event as created when it goes live (a new publish, or a draft being published).
+        if (!isDraft && (!editSlug || wasDraft)) {
+          trackCreateEvent({ eventName, category });
         }
 
         toast.success(editSlug ? "Event updated!" : isDraft ? "Draft saved!" : "Event published!");

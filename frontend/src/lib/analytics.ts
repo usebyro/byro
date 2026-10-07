@@ -144,6 +144,16 @@ export function trackSignUp(method: string) {
   gtag('event', 'sign_up', { method });
 }
 
+// ── Community ─────────────────────────────────────────────────────────────────
+
+/** Fired when someone follows or unfollows a community page. */
+export function trackFollow(params: { handle: string; following: boolean }) {
+  gtag('event', params.following ? 'follow' : 'unfollow', {
+    content_type: 'community',
+    item_id: params.handle,
+  });
+}
+
 // ── Organiser flow ────────────────────────────────────────────────────────────
 
 /** Fired when an organiser publishes a new event. */
