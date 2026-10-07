@@ -5,19 +5,16 @@ import { useSelector, useDispatch } from "react-redux";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { ArrowRight01Icon, Camera01Icon } from "@hugeicons/core-free-icons";
+import { Camera01Icon } from "@hugeicons/core-free-icons";
 import { FaGlobe, FaXTwitter, FaInstagram, FaLinkedinIn, FaTelegram } from "react-icons/fa6";
 import { authSuccess } from "@/redux/auth/authSlice";
 import API from "@/services/api";
 import { toast } from "sonner";
 import Avatar from "@/components/ui/Avatar";
 
-// The dashboard body falls back to Arial (globals.css). Geist is already
-// bundled by the root layout, so use it here without loading anything new.
-const FONT = { fontFamily: 'var(--font-geist-sans), system-ui, -apple-system, "Segoe UI", sans-serif' };
+// Body text uses the app's Nunito Sans (loaded in the root layout); headings use Bricolage via font-display.
+const FONT = { fontFamily: 'var(--font-body), system-ui, -apple-system, "Segoe UI", sans-serif' };
 
-// Flat placeholder for a missing cover (no gradients).
-const COVER_FLAT = "#E3E8FF";
 const BIO_MAX = 500;
 
 const SOCIALS = [
@@ -53,10 +50,10 @@ const toForm = (data) => ({
   is_public:    data?.is_public !== false,
 });
 
-// 16px on phones so iOS doesn't zoom on focus, taller for thumbs.
+// 16px on phones so iOS doesn't zoom on focus, 46px tall to match the rest of the redesign.
 const inputCls =
-  "w-full rounded-lg border border-gray-300 bg-white px-3.5 py-3 md:py-2.5 text-base md:text-[15px] text-gray-900 " +
-  "placeholder:text-gray-400 focus:outline-none focus:border-[#4F6EF7] focus:ring-2 focus:ring-[#4F6EF7]/25";
+  "w-full h-[46px] rounded-[14px] border border-line bg-white px-3.5 text-base md:text-[15px] text-ink " +
+  "placeholder:text-faint focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/25";
 
 function ProfilePageContent() {
   const router       = useRouter();
@@ -70,6 +67,7 @@ function ProfilePageContent() {
   const [form,      setForm]      = useState(EMPTY_FORM);
   const [savedForm, setSavedForm] = useState(EMPTY_FORM);
   const [errors,    setErrors]    = useState({});
+  const [showMoreLinks, setShowMoreLinks] = useState(false);
 
   const [avatarFile,        setAvatarFile]        = useState(null);
   const [avatarPreview,     setAvatarPreview]     = useState("");
@@ -244,28 +242,66 @@ function ProfilePageContent() {
   const coverSrc   = coverImagePreview || null;
   const publicPath = savedForm.handle ? `/u/${savedForm.handle}` : null;
 
+  const hasLinks = [...SOCIALS.map((x) => x.key), "website"].some((k) => form[k].trim());
+  const checks = [
+    { label: "Photo",       done: Boolean(avatarSrc) },
+    { label: "Bio",         done: Boolean(form.bio.trim()) },
+    { label: "Location",    done: Boolean(form.location.trim()) },
+    { label: "Links",       done: hasLinks },
+    { label: "Cover image", done: Boolean(coverSrc) },
+  ];
+
+  // X, Instagram and Website are always there; LinkedIn and Telegram appear when used or asked for.
+  const mainSocials  = SOCIALS.filter((x) => x.key === "twitter" || x.key === "instagram");
+  const extraSocials = SOCIALS.filter((x) => x.key === "linkedin" || x.key === "telegram");
+  const extrasVisible = showMoreLinks || extraSocials.some((x) => form[x.key].trim());
+
   return (
-    <div style={FONT} className="p-4 md:p-6 max-w-6xl mx-auto">
-      <header className="mb-6 md:mb-8 flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Profile</h1>
-          <p className="text-[15px] text-gray-600 mt-1">This is how people see you on Byro. Tap the photo or cover to change it.</p>
+    <div style={FONT} className="p-4 md:p-8 max-w-[1180px] mx-auto text-ink">
+      <header className="mb-6 md:mb-8 flex flex-wrap items-end gap-x-4 gap-y-3">
+        <div className="flex-1 min-w-[240px]">
+          <h1 className="font-display text-[32px] md:text-[40px] leading-tight font-bold tracking-[-0.03em]">Profile</h1>
+          <p className="text-base text-muted mt-1.5">This is your community page. Changes show on the right as you type.</p>
         </div>
-        {publicPath && (
-          <Link
-            href={publicPath}
-            target="_blank"
-            className="inline-flex items-center gap-1 min-h-[44px] md:min-h-0 text-sm font-semibold text-[#3B57D9] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4F6EF7] rounded"
+        <div className="flex flex-wrap items-center gap-2">
+          {publicPath && (
+            <Link
+              href={publicPath}
+              target="_blank"
+              className="inline-flex items-center h-[46px] px-[18px] rounded-full border border-line text-sm font-bold text-ink hover:bg-mist focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+            >
+              View public page
+            </Link>
+          )}
+          {dirty && (
+            <button
+              type="button"
+              onClick={handleDiscard}
+              disabled={isSaving}
+              className="h-[46px] px-4 rounded-full text-sm font-bold text-muted hover:text-ink hover:bg-mist disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+            >
+              Discard
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={!dirty || isSaving}
+            title="Save changes (Ctrl or Cmd + S)"
+            className="h-[46px] px-[22px] rounded-full bg-brand text-[15px] font-bold text-white hover:bg-brand-dark disabled:bg-line disabled:text-faint disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
           >
-            View public profile
-            <HugeiconsIcon icon={ArrowRight01Icon} size={14} />
-          </Link>
-        )}
+            {isSaving ? "Saving…" : "Save changes"}
+          </button>
+        </div>
       </header>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_380px] gap-x-12 gap-y-8">
-        {/* ── Preview (and the place to change photos): top on mobile, sticky on desktop ── */}
-        <aside className="lg:col-start-2 lg:row-start-1 lg:sticky lg:top-6 self-start">
+      <p className="sr-only" aria-live="polite">
+        {dirty ? `${changeCount} unsaved change${changeCount === 1 ? "" : "s"}` : ""}
+      </p>
+
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_420px] gap-7 items-start">
+        {/* ── Preview and profile strength: first on phones, sticky on desktop ── */}
+        <aside className="lg:col-start-2 lg:row-start-1 lg:sticky lg:top-6 flex flex-col gap-3.5">
           <ProfilePreview
             form={form}
             avatarSrc={avatarSrc}
@@ -273,25 +309,40 @@ function ProfilePageContent() {
             onAvatarChange={handleAvatarChange}
             onCoverChange={handleCoverImageChange}
           />
+          <ProfileStrength checks={checks} />
         </aside>
 
-        {/* ── Form: one card, each section is a title on the left and its fields on the right ── */}
-        <div className="lg:col-start-1 lg:row-start-1 min-w-0 self-start bg-white border border-gray-200 rounded-2xl divide-y divide-gray-200">
-          <Section title="About you" description="Who you are and where you are.">
-            <div className="grid gap-5">
-              <Field id="display_name" label="Display name" error={errors.display_name}>
-                <input
-                  id="display_name"
-                  type="text"
-                  value={form.display_name}
-                  maxLength={100}
-                  onChange={(e) => field("display_name", e.target.value)}
-                  aria-invalid={Boolean(errors.display_name)}
-                  className={inputCls}
-                  placeholder="Eko Live Entertainment"
-                  autoComplete="organization"
-                />
-              </Field>
+        {/* ── Form ── */}
+        <div className="lg:col-start-1 lg:row-start-1 min-w-0 flex flex-col gap-[18px]">
+          <Card title="About">
+            <div className="grid gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Field id="display_name" label="Display name" error={errors.display_name}>
+                  <input
+                    id="display_name"
+                    type="text"
+                    value={form.display_name}
+                    maxLength={100}
+                    onChange={(e) => field("display_name", e.target.value)}
+                    aria-invalid={Boolean(errors.display_name)}
+                    className={inputCls}
+                    placeholder="Eko Live Entertainment"
+                    autoComplete="organization"
+                  />
+                </Field>
+                <Field id="location" label="Location">
+                  <input
+                    id="location"
+                    type="text"
+                    value={form.location}
+                    maxLength={100}
+                    onChange={(e) => field("location", e.target.value)}
+                    className={inputCls}
+                    placeholder="Lagos, Nigeria"
+                    autoComplete="address-level2"
+                  />
+                </Field>
+              </div>
 
               <Field
                 id="handle"
@@ -316,60 +367,66 @@ function ProfilePageContent() {
                   value={form.bio}
                   maxLength={BIO_MAX}
                   onChange={(e) => field("bio", e.target.value)}
-                  rows={4}
-                  className={`${inputCls} resize-y leading-relaxed`}
+                  rows={3}
+                  className="w-full rounded-[14px] border border-line bg-white px-3.5 py-3 text-base md:text-[15px] text-ink leading-relaxed resize-none placeholder:text-faint focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/25"
                   placeholder="Lagos-based collective throwing rooftop parties and open-mic nights."
                 />
               </Field>
-
-              <Field id="location" label="Location">
-                <input
-                  id="location"
-                  type="text"
-                  value={form.location}
-                  maxLength={100}
-                  onChange={(e) => field("location", e.target.value)}
-                  className={inputCls}
-                  placeholder="Lagos, Nigeria"
-                  autoComplete="address-level2"
-                />
-              </Field>
             </div>
-          </Section>
+          </Card>
 
-          <Section title="Links" description="Leave any blank to hide it.">
-            <div className="rounded-lg border border-gray-300 bg-white divide-y divide-gray-200 overflow-hidden">
-              {SOCIALS.map((s) => (
-                <LinkRow
-                  key={s.key}
-                  id={s.key}
-                  name={s.label}
-                  icon={s.icon}
-                  prefix={s.prefix}
-                  value={form[s.key]}
-                  onChange={(v) => field(s.key, v)}
-                  placeholder={s.placeholder}
+          <Card title="Links" description="Leave any blank to hide it.">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {mainSocials.map((x) => (
+                <LinkInput
+                  key={x.key}
+                  id={x.key}
+                  name={x.label}
+                  icon={x.icon}
+                  value={form[x.key]}
+                  onChange={(v) => field(x.key, v)}
+                  placeholder={x.prefix + x.placeholder}
                 />
               ))}
-              <LinkRow
+              <LinkInput
                 id="website"
                 name="Website"
                 icon={FaGlobe}
-                prefix="Website"
                 value={form.website}
                 onChange={(v) => field("website", v)}
                 placeholder="https://example.com"
                 type="url"
                 inputMode="url"
               />
+              {extrasVisible &&
+                extraSocials.map((x) => (
+                  <LinkInput
+                    key={x.key}
+                    id={x.key}
+                    name={x.label}
+                    icon={x.icon}
+                    value={form[x.key]}
+                    onChange={(v) => field(x.key, v)}
+                    placeholder={x.prefix + x.placeholder}
+                  />
+                ))}
+              {!extrasVisible && (
+                <button
+                  type="button"
+                  onClick={() => setShowMoreLinks(true)}
+                  className="h-[46px] rounded-[14px] border border-dashed border-[#C9D0DC] bg-white text-sm font-bold text-[#3B4252] hover:bg-mist focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                >
+                  + Add LinkedIn or Telegram
+                </button>
+              )}
             </div>
-          </Section>
+          </Card>
 
-          <Section title="Visibility">
+          <Card title="Visibility">
             <label className="flex items-start justify-between gap-6 cursor-pointer min-h-[44px]">
               <span id="listing-label">
-                <span className="block text-[15px] font-semibold text-gray-900">List Community publicly</span>
-                <span className="block text-sm text-gray-600 mt-0.5">
+                <span className="block text-[15px] font-bold text-ink">List community publicly</span>
+                <span className="block text-sm text-muted mt-0.5">
                   Your profile will be publicly listed on the community page
                 </span>
               </span>
@@ -379,38 +436,36 @@ function ProfilePageContent() {
                 aria-checked={form.is_public}
                 aria-labelledby="listing-label"
                 onClick={() => field("is_public", !form.is_public)}
-                className={`shrink-0 mt-0.5 w-12 h-7 md:w-11 md:h-6 rounded-full transition-colors relative focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#4F6EF7] ${
-                  form.is_public ? "bg-[#4F6EF7]" : "bg-gray-300"
+                className={`shrink-0 mt-0.5 w-12 h-7 md:w-11 md:h-[26px] rounded-full transition-colors relative focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-brand ${
+                  form.is_public ? "bg-brand" : "bg-[#C9D0DC]"
                 }`}
               >
                 <span
-                  className={`absolute top-0.5 left-0.5 w-6 h-6 md:w-5 md:h-5 bg-white rounded-full shadow-sm transition-transform motion-reduce:transition-none ${
+                  className={`absolute top-0.5 left-0.5 w-6 h-6 md:w-5 md:h-5 md:top-[3px] md:left-[3px] bg-white rounded-full shadow-sm transition-transform motion-reduce:transition-none ${
                     form.is_public ? "translate-x-5" : "translate-x-0"
                   }`}
                 />
               </button>
             </label>
-          </Section>
+          </Card>
         </div>
       </div>
 
-      {/* ── Unsaved changes: a small pill, only when there is something to save ── */}
+      {/* ── Phones: the header buttons scroll away, so keep Save in reach while there is something to save ── */}
       {dirty && (
-        <div className="sticky bottom-3 md:bottom-5 z-20 mt-8 flex justify-center pointer-events-none">
+        <div className="md:hidden sticky bottom-3 z-20 mt-8 flex justify-center pointer-events-none">
           <div
             role="region"
             aria-label="Unsaved changes"
-            className="pointer-events-auto w-full md:w-auto inline-flex items-center justify-between gap-4 rounded-full bg-gray-900 text-white pl-5 pr-1.5 py-1.5 shadow-lg"
+            className="pointer-events-auto w-full inline-flex items-center justify-between gap-4 rounded-full bg-ink text-white pl-5 pr-1.5 py-1.5 shadow-lg"
           >
-            <p className="text-sm" aria-live="polite">
-              {changeCount} unsaved change{changeCount === 1 ? "" : "s"}
-            </p>
+            <p className="text-sm">{changeCount} unsaved change{changeCount === 1 ? "" : "s"}</p>
             <div className="flex items-center gap-1">
               <button
                 type="button"
                 onClick={handleDiscard}
                 disabled={isSaving}
-                className="h-10 md:h-9 px-3.5 rounded-full text-sm font-medium text-gray-300 hover:text-white hover:bg-white/10 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                className="h-10 px-3.5 rounded-full text-sm font-bold text-gray-300 hover:text-white disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
               >
                 Discard
               </button>
@@ -418,8 +473,7 @@ function ProfilePageContent() {
                 type="button"
                 onClick={handleSave}
                 disabled={isSaving}
-                title="Save changes (Ctrl or Cmd + S)"
-                className="inline-flex items-center gap-1.5 h-10 md:h-9 px-4 rounded-full bg-[#4F6EF7] text-sm font-semibold text-white hover:bg-[#3F5EE7] disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                className="h-10 px-4 rounded-full bg-brand text-sm font-bold text-white disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
               >
                 {isSaving ? "Saving…" : "Save"}
               </button>
@@ -444,141 +498,158 @@ function ProfilePreview({ form, avatarSrc, coverSrc, onAvatarChange, onCoverChan
   const name = form.display_name.trim();
 
   const links = [
-    ...SOCIALS.filter((s) => form[s.key].trim()).map((s) => ({ key: s.key, label: s.label, icon: s.icon })),
+    ...SOCIALS.filter((x) => form[x.key].trim()).map((x) => ({ key: x.key, label: x.label, icon: x.icon })),
     form.website.trim() && { key: "website", label: "Website", icon: FaGlobe },
   ].filter(Boolean);
 
-  const todo = [
-    !avatarSrc && "add a photo",
-    !coverSrc && "add a cover image",
-    !form.bio.trim() && "write a short bio",
-    !form.location.trim() && "add your city",
-    links.length === 0 && "add a link",
-  ].filter(Boolean);
-
   return (
-    <div>
-      <div className="rounded-2xl bg-white border border-gray-200 overflow-hidden shadow-sm">
-        {/* Cover */}
-        <div className="relative h-32 md:h-36" style={{ backgroundColor: COVER_FLAT }}>
-          {coverSrc && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={coverSrc} alt="" className="absolute inset-0 w-full h-full object-cover" />
-          )}
-          <label className="absolute right-3 bottom-3 inline-flex items-center gap-1.5 min-h-[44px] md:min-h-0 px-3 py-2 rounded-lg bg-white/95 border border-gray-200 text-sm font-semibold text-gray-800 shadow-sm cursor-pointer hover:bg-white focus-within:ring-2 focus-within:ring-[#4F6EF7]">
+    <div className="rounded-[26px] border border-line bg-white overflow-hidden">
+      {/* Cover: a dashed "add" button until there is one */}
+      {coverSrc ? (
+        <div className="relative h-[130px]">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={coverSrc} alt="" className="absolute inset-0 w-full h-full object-cover" />
+          <label className="absolute right-3 bottom-3 inline-flex items-center gap-1.5 h-9 px-3 rounded-full bg-white/95 text-[13px] font-bold text-ink shadow-sm cursor-pointer hover:bg-white focus-within:ring-2 focus-within:ring-brand">
             <HugeiconsIcon icon={Camera01Icon} size={14} color="currentColor" />
-            {coverSrc ? "Change cover" : "Add cover"}
+            Change cover
             <input type="file" accept="image/*" className="sr-only" onChange={onCoverChange} />
           </label>
         </div>
+      ) : (
+        <label className="flex h-[130px] w-full items-center justify-center border-b border-dashed border-[#C9D0DC] bg-paper text-sm font-bold text-[#3B4252] cursor-pointer hover:bg-mist focus-within:ring-2 focus-within:ring-inset focus-within:ring-brand">
+          + Add cover image · 1200×400
+          <input type="file" accept="image/*" className="sr-only" onChange={onCoverChange} />
+        </label>
+      )}
 
-        <div className="px-5 pb-5">
-          {/* Avatar with change badge */}
-          <div className="relative -mt-12 w-24 h-24">
-            <Avatar
-              src={avatarSrc}
-              name={name}
-              className="w-24 h-24 rounded-2xl ring-4 ring-white text-3xl"
-            />
-            <label className="absolute -right-1.5 -bottom-1.5 w-9 h-9 md:w-8 md:h-8 rounded-full bg-white border border-gray-300 shadow-sm flex items-center justify-center text-gray-800 cursor-pointer hover:bg-gray-50 focus-within:ring-2 focus-within:ring-[#4F6EF7]">
-              <HugeiconsIcon icon={Camera01Icon} size={15} color="currentColor" />
-              <span className="sr-only">{avatarSrc ? "Change profile photo" : "Add profile photo"}</span>
-              <input type="file" accept="image/*" className="sr-only" onChange={onAvatarChange} />
-            </label>
-          </div>
-
-          <h2 className={`mt-4 text-[26px] font-bold tracking-tight leading-tight break-words ${name ? "text-gray-900" : "text-gray-400"}`}>
-            {name || "Your name"}
-          </h2>
-          <p className="mt-1 text-sm text-gray-600 break-words">
-            {form.handle ? `@${form.handle}` : "Choose a handle"}
-            {form.location.trim() ? `, ${form.location.trim()}` : ""}
-          </p>
-
-          <p className={`mt-4 text-[15px] leading-relaxed break-words line-clamp-5 ${form.bio.trim() ? "text-gray-700" : "text-gray-400"}`}>
-            {form.bio.trim() || "Add a short bio so people know what you host."}
-          </p>
-
-          {links.length > 0 && (
-            <ul className="mt-4 flex flex-wrap gap-2">
-              {links.map(({ key, label, icon: Icon }) => (
-                <li
-                  key={key}
-                  title={label}
-                  className="w-9 h-9 rounded-full bg-gray-100 text-gray-700 flex items-center justify-center"
-                >
-                  <Icon className="w-4 h-4" aria-hidden="true" />
-                  <span className="sr-only">{label}</span>
-                </li>
-              ))}
-            </ul>
-          )}
+      <div className="px-[22px] pb-[22px] flex flex-col gap-2">
+        {/* Avatar with change badge */}
+        <div className="relative -mt-[42px] w-[84px] h-[84px]">
+          <Avatar
+            src={avatarSrc}
+            name={name}
+            className="w-[84px] h-[84px] rounded-full ring-4 ring-white shadow-[0_6px_20px_rgba(20,22,28,0.10)] text-3xl"
+          />
+          <label className="absolute -right-1 -bottom-1 w-9 h-9 md:w-8 md:h-8 rounded-full bg-white border border-line shadow-sm flex items-center justify-center text-ink cursor-pointer hover:bg-mist focus-within:ring-2 focus-within:ring-brand">
+            <HugeiconsIcon icon={Camera01Icon} size={15} color="currentColor" />
+            <span className="sr-only">{avatarSrc ? "Change profile photo" : "Add profile photo"}</span>
+            <input type="file" accept="image/*" className="sr-only" onChange={onAvatarChange} />
+          </label>
         </div>
 
-        <div className={`px-5 py-3 border-t text-sm font-medium flex items-center gap-2 ${
-          form.is_public ? "bg-emerald-50 border-emerald-100 text-emerald-800" : "bg-gray-50 border-gray-200 text-gray-600"
-        }`}>
-          <span className={`w-2 h-2 rounded-full shrink-0 ${form.is_public ? "bg-emerald-500" : "bg-gray-400"}`} />
-          {form.is_public ? "Listed on the community page" : "Not listed. Only people with your link can find you."}
-        </div>
+        <h2 className={`font-display text-[26px] font-bold leading-tight break-words ${name ? "text-ink" : "text-faint"}`}>
+          {name || "Your name"}
+        </h2>
+        <p className="text-sm text-muted break-words">
+          {form.handle ? `@${form.handle}` : "Choose a handle"}
+          {form.location.trim() ? ` · ${form.location.trim()}` : ""}
+        </p>
+        <p className={`text-[15px] leading-relaxed break-words line-clamp-5 ${form.bio.trim() ? "text-ink" : "text-faint"}`}>
+          {form.bio.trim() || "Add a short bio so people know what you host."}
+        </p>
+
+        {links.length > 0 && (
+          <ul className="mt-1 flex flex-wrap gap-2">
+            {links.map(({ key, label, icon: Icon }) => (
+              <li key={key} title={label} className="w-10 h-10 rounded-full border border-line text-ink flex items-center justify-center">
+                <Icon className="w-4 h-4" aria-hidden="true" />
+                <span className="sr-only">{label}</span>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
-      <p className="mt-3 text-sm text-gray-600">
-        {todo.length > 0
-          ? `To finish your profile: ${todo.join(", ")}.`
-          : "Your profile is complete."}
-      </p>
-      <p className="mt-1 text-sm text-gray-500">Photo: at least 200×200px. Cover: 1200×400px works best.</p>
+      <div className={`px-[22px] py-3 border-t text-sm font-semibold flex items-center gap-2 ${
+        form.is_public ? "bg-mint border-[#D3EEDF] text-[#1F6B47]" : "bg-paper border-line text-muted"
+      }`}>
+        <span className={`w-2 h-2 rounded-full shrink-0 ${form.is_public ? "bg-stamp-green" : "bg-faint"}`} />
+        {form.is_public ? "Listed on the community page" : "Not listed. Only people with your link can find you."}
+      </div>
     </div>
   );
 }
 
-function Section({ title, description, children }) {
+function ProfileStrength({ checks }) {
+  const done = checks.filter((c) => c.done).length;
   return (
-    <section className="p-4 md:p-6 md:grid md:grid-cols-[150px_minmax(0,1fr)] md:gap-x-8">
-      <div className="mb-4 md:mb-0">
-        <h2 className="text-[15px] font-semibold text-gray-900">{title}</h2>
-        {description && <p className="text-sm text-gray-500 mt-1">{description}</p>}
+    <div className="rounded-[22px] border border-line bg-white p-5 flex flex-col gap-2.5">
+      <div className="flex items-baseline justify-between">
+        <span className="text-[15px] font-extrabold">Profile strength</span>
+        <span className="text-sm font-extrabold text-brand-dark">{done} of {checks.length}</span>
       </div>
-      <div className="min-w-0">{children}</div>
+      <div
+        className="h-2 rounded-full bg-hairline overflow-hidden"
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={checks.length}
+        aria-valuenow={done}
+        aria-label="Profile strength"
+      >
+        <div className="h-2 bg-brand transition-[width] motion-reduce:transition-none" style={{ width: `${(done / checks.length) * 100}%` }} />
+      </div>
+      <ul className="flex flex-col gap-2.5 mt-1">
+        {checks.map((c) => (
+          <li key={c.label} className={`flex items-center gap-2.5 text-sm font-semibold ${c.done ? "text-muted" : "text-ink"}`}>
+            <span
+              aria-hidden="true"
+              className={`w-[18px] h-[18px] rounded-full border-[1.5px] flex items-center justify-center ${
+                c.done ? "border-stamp-green bg-stamp-green" : "border-[#C9D0DC] bg-white"
+              }`}
+            >
+              {c.done && (
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
+              )}
+            </span>
+            {c.label}
+            <span className="sr-only">{c.done ? " (done)" : " (to do)"}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function Card({ title, description, children }) {
+  return (
+    <section className="rounded-3xl border border-line bg-white p-5 md:p-6 flex flex-col gap-4">
+      <div>
+        <h2 className="font-display text-xl font-bold">{title}</h2>
+        {description && <p className="text-sm text-muted mt-1">{description}</p>}
+      </div>
+      {children}
     </section>
   );
 }
 
-function Field({ id, label, hint, error, counter, hideLabel = false, children }) {
+function Field({ id, label, hint, error, counter, children }) {
   return (
     <div className="min-w-0">
-      <label htmlFor={id} className={hideLabel ? "sr-only" : "block text-sm font-semibold text-gray-900 mb-1.5"}>{label}</label>
+      <label htmlFor={id} className="block text-sm font-bold text-ink mb-1.5">{label}</label>
       {children}
       {error ? (
         <p className="mt-1.5 text-sm text-red-600" role="alert">{error}</p>
       ) : hint ? (
-        <p className="mt-1.5 text-sm text-gray-500">{hint}</p>
+        <p className="mt-1.5 text-sm text-muted">{hint}</p>
       ) : null}
-      {counter && <p className="mt-1 text-xs text-gray-500 text-right">{counter}</p>}
+      {counter && <p className="mt-1 text-xs text-muted text-right">{counter}</p>}
     </div>
   );
 }
 
-function PrefixInput({ id, icon: Icon, prefix, value, onChange, placeholder, maxLength, invalid = false, type = "text", inputMode }) {
+function PrefixInput({ id, prefix, value, onChange, placeholder, maxLength, invalid = false }) {
   return (
     <div
-      className={`flex rounded-lg border bg-white overflow-hidden focus-within:ring-2 ${
-        invalid
-          ? "border-red-500 focus-within:ring-red-500/25"
-          : "border-gray-300 focus-within:border-[#4F6EF7] focus-within:ring-[#4F6EF7]/25"
+      className={`flex rounded-[14px] border bg-white overflow-hidden focus-within:ring-2 ${
+        invalid ? "border-red-500 focus-within:ring-red-500/25" : "border-line focus-within:border-brand focus-within:ring-brand/25"
       }`}
     >
-      {(Icon || prefix) && (
-        <span className="flex items-center gap-2 px-3 bg-gray-50 border-r border-gray-200 text-sm text-gray-500 whitespace-nowrap select-none">
-          {Icon && <Icon className="w-4 h-4 text-gray-700" aria-hidden="true" />}
-          {prefix}
-        </span>
-      )}
+      <span className="flex items-center px-3 bg-paper border-r border-line text-sm text-muted whitespace-nowrap select-none">
+        {prefix}
+      </span>
       <input
         id={id}
-        type={type}
-        inputMode={inputMode}
+        type="text"
         value={value}
         maxLength={maxLength}
         onChange={(e) => onChange(e.target.value)}
@@ -586,25 +657,22 @@ function PrefixInput({ id, icon: Icon, prefix, value, onChange, placeholder, max
         autoCapitalize="none"
         autoCorrect="off"
         spellCheck={false}
-        className="flex-1 min-w-0 px-3 py-3 md:py-2.5 text-base md:text-[15px] text-gray-900 placeholder:text-gray-400 focus:outline-none"
+        className="flex-1 min-w-0 h-[46px] px-3.5 text-base md:text-[15px] text-ink placeholder:text-faint focus:outline-none"
         placeholder={placeholder}
       />
     </div>
   );
 }
 
-// One row of the links list: brand icon and prefix in a fixed column, then the field.
-function LinkRow({ id, name, icon: Icon, prefix, value, onChange, placeholder, type = "text", inputMode }) {
+// A single link field: brand icon on the left, then the value. The icon is the label for screen readers.
+function LinkInput({ id, name, icon: Icon, value, onChange, placeholder, type = "text", inputMode }) {
   return (
-    <div className="flex items-stretch focus-within:bg-blue-50/40 focus-within:ring-2 focus-within:ring-inset focus-within:ring-[#4F6EF7]/40">
-      <label
-        htmlFor={id}
-        className="flex items-center gap-2.5 w-[168px] shrink-0 px-3 py-3 md:py-2.5 bg-gray-50 border-r border-gray-200 text-sm text-gray-600 whitespace-nowrap cursor-text"
-      >
-        <Icon className="w-4 h-4 shrink-0 text-gray-700" aria-hidden="true" />
-        <span aria-hidden="true">{prefix}</span>
-        <span className="sr-only">{name}</span>
-      </label>
+    <label
+      htmlFor={id}
+      className="h-[46px] px-3.5 rounded-[14px] border border-line bg-white flex items-center gap-2.5 focus-within:border-brand focus-within:ring-2 focus-within:ring-brand/25"
+    >
+      <Icon className="w-4 h-4 shrink-0 text-ink" aria-hidden="true" />
+      <span className="sr-only">{name}</span>
       <input
         id={id}
         type={type}
@@ -615,9 +683,9 @@ function LinkRow({ id, name, icon: Icon, prefix, value, onChange, placeholder, t
         autoCapitalize="none"
         autoCorrect="off"
         spellCheck={false}
-        className="flex-1 min-w-0 bg-transparent px-3 py-3 md:py-2.5 text-base md:text-[15px] text-gray-900 placeholder:text-gray-400 focus:outline-none"
+        className="w-full min-w-0 bg-transparent text-base md:text-[15px] text-ink placeholder:text-faint focus:outline-none"
         placeholder={placeholder}
       />
-    </div>
+    </label>
   );
 }

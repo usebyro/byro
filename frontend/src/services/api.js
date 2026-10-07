@@ -155,6 +155,25 @@ const API = {
     }
   },
 
+  getFormQuestions: async (slug) => {
+    try {
+      const response = await axiosInstance.get(`events/${slug}/form-questions/`);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  /** Replace the event's whole question list: [{id?, question, question_type, options, required}] */
+  saveFormQuestions: async (slug, questions) => {
+    try {
+      const response = await axiosInstance.put(`events/${slug}/form-questions/`, { questions });
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
   createTier: async (slug, tierData) => {
     try {
       const response = await axiosInstance.post(`events/${slug}/tiers/`, tierData);
@@ -409,9 +428,10 @@ const API = {
   },
 
   // ===== PAYMENTS =====
-  initializePayment: async ({ event_slug, customer_email, customer_name, quantity = 1, tier_id, attendees, promo_code, turnstile_token }) => {
+  initializePayment: async ({ event_slug, customer_email, customer_name, quantity = 1, tier_id, attendees, promo_code, turnstile_token, form_answers }) => {
     try {
       const body = { event_slug, customer_email, customer_name, quantity };
+      if (Array.isArray(form_answers) && form_answers.length > 0) body.form_answers = form_answers;
       if (tier_id !== undefined && tier_id !== null) body.tier_id = tier_id;
       if (Array.isArray(attendees) && attendees.length > 0) body.attendees = attendees;
       if (promo_code) body.promo_code = promo_code;

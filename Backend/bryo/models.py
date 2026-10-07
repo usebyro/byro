@@ -591,6 +591,7 @@ class EventFormQuestion(models.Model):
         ('select', 'Dropdown'),
         ('checkbox', 'Checkbox (multiple)'),
         ('radio', 'Radio (single)'),
+        ('yesno', 'Yes or no'),
     ]
 
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='form_questions')
