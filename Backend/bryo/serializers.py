@@ -121,11 +121,41 @@ class UserProfileSerializer(serializers.ModelSerializer):
 # Event Form Questions
 # ---------------------------------------------------------------------------
 
+CHOICE_TYPES = ('select', 'radio', 'checkbox')
+MAX_OPTIONS = 20
+
+
 class EventFormQuestionSerializer(serializers.ModelSerializer):
     class Meta:
         model = EventFormQuestion
         fields = ['id', 'question', 'question_type', 'options', 'required', 'order']
         read_only_fields = ['id']
+
+    def validate_question(self, value):
+        value = (value or '').strip()
+        if not value:
+            raise serializers.ValidationError("Write the question.")
+        return value
+
+    def validate(self, attrs):
+        qtype = attrs.get('question_type', getattr(self.instance, 'question_type', 'text'))
+        options = attrs.get('options', getattr(self.instance, 'options', []))
+        if qtype == 'yesno':
+            attrs['options'] = ['Yes', 'No']
+        elif qtype in CHOICE_TYPES:
+            cleaned = []
+            for opt in options or []:
+                opt = str(opt).strip()[:100]
+                if opt and opt not in cleaned:
+                    cleaned.append(opt)
+            if len(cleaned) < 2:
+                raise serializers.ValidationError({'options': "Add at least two choices."})
+            if len(cleaned) > MAX_OPTIONS:
+                raise serializers.ValidationError({'options': f"Up to {MAX_OPTIONS} choices."})
+            attrs['options'] = cleaned
+        else:
+            attrs['options'] = []
+        return attrs
 
 
 class EventFormAnswerSerializer(serializers.ModelSerializer):
