@@ -438,14 +438,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
       });
 
       if (result?.data?.authorization_url) {
-        trackPurchase({
-          transactionId: result?.data?.reference || event.slug,
-          eventName: event.name,
-          eventSlug: event.slug,
-          value: total,
-          quantity: totalQty,
-          isFree: false,
-        });
+        // The purchase is counted on /payment/callback, once Paystack confirms it was paid.
         window.location.href = result.data.authorization_url;
       } else {
         toast.error("Could not get payment link. Please try again.");
