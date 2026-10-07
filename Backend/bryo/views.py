@@ -2426,6 +2426,20 @@ class EventViewSet(viewsets.ModelViewSet):
         serializer.save(event=event)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
     
+    def destroy(self, request, *args, **kwargs):
+        """
+        Delete an event. Refused while buyers have paid for it or are owed a refund:
+        deleting would wipe their payments with no money going back. Cancel it instead.
+        """
+        event = self.get_object()
+        if event.tickets.filter(payment_status='paid').exists() or _refunds_unfinished(event):
+            return Response(
+                {'error': 'This event has paid tickets or refunds in progress, so it cannot be deleted. '
+                          'Cancel it instead and your buyers will be refunded.'},
+                status=status.HTTP_409_CONFLICT,
+            )
+        return super().destroy(request, *args, **kwargs)
+
     @action(detail=True, methods=['GET', 'POST'], url_path='cancel',
             permission_classes=[IsAuthenticated, IsEventOwner])
     def cancel(self, request, slug=None):
@@ -3077,6 +3091,11 @@ class PayoutBalanceView(APIView):
         })
 
 
+def _refunds_unfinished(event):
+    """Refunds for this event that have not reached the buyer yet. Deleting the event would erase them."""
+    return event.refunds.exclude(status=Refund.STATUS_PROCESSED).exists()
+
+
 def _alert_byro_of_refunds(event, summary):
     """Email the Byro team that refunds are waiting to be sent. Never blocks the cancellation."""
     try:
@@ -3367,6 +3386,11 @@ class AdminEventDetailView(APIView):
         event = self._get_event(pk)
         if event is None:
             return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+        if _refunds_unfinished(event):
+            return Response(
+                {'error': 'This event has refunds that have not been completed. Finish or resolve them before deleting it.'},
+                status=status.HTTP_409_CONFLICT,
+            )
         _log_admin_action(request, AdminAction.ACTION_EVENT_DELETED, 'event', event.pk, event.name, '')
         event.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)

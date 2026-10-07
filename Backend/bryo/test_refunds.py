@@ -516,3 +516,36 @@ class WithdrawalAfterCancellationTests(RefundTestBase):
         self.assertEqual(ok.status_code, 201, ok.content)
         too_much = self.payout_post(other, 6000)
         self.assertEqual(too_much.status_code, 400)
+
+
+class DeleteGuardTests(RefundTestBase):
+
+    def test_an_event_with_paid_tickets_cannot_be_deleted_only_cancelled(self):
+        from .models import Event
+        paid_order(self.event)
+        res = self.client.delete(f'/api/events/{self.event.slug}/')
+        self.assertEqual(res.status_code, 409)
+        self.assertIn('Cancel it instead', res.json()['error'])
+        self.assertTrue(Event.objects.filter(pk=self.event.pk).exists())
+
+    def test_a_cancelled_event_cannot_be_deleted_until_its_refunds_are_done(self):
+        from .models import Event
+        payment = paid_order(self.event)
+        self.cancel_and_send(FakePaystack())
+        self.assertEqual(self.client.delete(f'/api/events/{self.event.slug}/').status_code, 409)
+        Refund.objects.filter(payment=payment).update(status=Refund.STATUS_PROCESSED)
+        # tickets are 'refunded' now, so nothing is owed and the owner may delete it
+        self.assertEqual(self.client.delete(f'/api/events/{self.event.slug}/').status_code, 204)
+        self.assertFalse(Event.objects.filter(pk=self.event.pk).exists())
+
+    def test_an_event_with_no_sales_can_still_be_deleted(self):
+        self.assertEqual(self.client.delete(f'/api/events/{self.event.slug}/').status_code, 204)
+
+    def test_admins_cannot_delete_an_event_whose_refunds_are_unfinished(self):
+        paid_order(self.event)
+        self.run_with(FakePaystack())
+        owner_admin = User.objects.create_user(email='boss@byro.test')
+        AdminMember.objects.create(email='boss@byro.test', role='owner', added_by_email='test')
+        self.client.force_authenticate(owner_admin)
+        res = self.client.delete(f'/api/admin/events/{self.event.pk}/')
+        self.assertEqual(res.status_code, 409)
