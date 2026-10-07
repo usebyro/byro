@@ -1549,7 +1549,7 @@ class EventViewSet(viewsets.ModelViewSet):
         - Create: Authenticated users only
         - Update, delete: Owner/co-host only (both can edit)
         """
-        if self.action in ['list', 'retrieve', 'register', 'categories', 'locations', 'tiers', 'tier_detail', 'validate_promo']:
+        if self.action in ['list', 'retrieve', 'register', 'categories', 'locations', 'tiers', 'tier_detail', 'validate_promo', 'form_questions']:
             permission_classes = [AllowAny]
         elif self.action in ['create']:
             permission_classes = [IsAuthenticated]
@@ -2312,7 +2312,7 @@ class EventViewSet(viewsets.ModelViewSet):
         detail=True,
         methods=['GET', 'POST', 'PUT'],
         url_path='form-questions',
-        permission_classes=[IsAuthenticated],
+        permission_classes=[AllowAny],  # reading is public: buyers answer these at checkout
     )
     def form_questions(self, request, slug=None):
         """
@@ -2330,6 +2330,8 @@ class EventViewSet(viewsets.ModelViewSet):
             return Response(EventFormQuestionSerializer(qs, many=True).data)
 
         # POST / PUT — only owner/cohost can change questions
+        if not request.user.is_authenticated:
+            return Response({'error': 'Sign in to manage form questions'}, status=status.HTTP_401_UNAUTHORIZED)
         if not event.can_manage(request.user):
             return Response(
                 {'error': 'Only the event owner or co-hosts can manage form questions'},

@@ -6,6 +6,8 @@ answers on both free and paid orders.
 from decimal import Decimal
 from unittest.mock import patch
 
+from django.contrib.auth import get_user_model
+
 from django.test import override_settings
 
 from .models import EventFormAnswer, EventFormQuestion, Ticket
@@ -14,6 +16,9 @@ from .test_payments import (
     make_event, make_payment,
 )
 from .views import _fulfil_payment
+
+
+User = get_user_model()
 
 
 def question(event, text='Shirt size?', qtype='radio', options=('S', 'M', 'L'), required=False, order=0):
@@ -79,7 +84,17 @@ class QuestionSetupTests(PaymentTestBase):
 
     def test_only_people_who_manage_the_event_can_change_questions(self):
         self.client.force_authenticate(None)
-        self.assertIn(self.put([]).status_code, (401, 403))
+        self.assertEqual(self.put([]).status_code, 401)
+        stranger = User.objects.create_user(email='stranger@example.com')
+        self.client.force_authenticate(stranger)
+        self.assertEqual(self.put([]).status_code, 403)
+
+    def test_anyone_can_read_the_questions_so_buyers_can_answer_them(self):
+        question(self.event, 'Shirt size?')
+        self.client.force_authenticate(None)
+        res = self.client.get(self.url)
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual([q['question'] for q in res.json()], ['Shirt size?'])
 
 
 @override_settings(**PAYMENT_SETTINGS)
