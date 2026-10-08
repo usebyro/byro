@@ -150,7 +150,7 @@ class DesignTests(SimpleTestCase):
 
 class TicketImageTests(SimpleTestCase):
 
-    def test_the_ticket_image_is_a_valid_png_with_the_new_card_layout(self):
+    def test_the_ticket_image_is_a_valid_png_with_the_wide_card_layout(self):
         png = generate_ticket_png(
             event_name="Tech Meetup", date_str=DATE, time_str=TIME, location="Cafe One, Yaba",
             attendee_name="Tunde Bello", ticket_id="t", qr_data="00000000-0000-4000-8000-000000000001",
@@ -158,8 +158,8 @@ class TicketImageTests(SimpleTestCase):
         )
         img = Image.open(io.BytesIO(png))
         self.assertEqual(img.format, "PNG")
-        self.assertGreater(img.height, img.width)          # a portrait card
-        self.assertEqual(img.getpixel((2, 2)), (247, 249, 252))  # the #F7F9FC page behind the card
+        self.assertGreater(img.width, img.height)          # a wide ticket
+        self.assertEqual(img.getpixel((2, 2)), (243, 246, 251))  # the #F3F6FB page behind the card
 
     def test_very_long_names_still_render(self):
         png = generate_ticket_png(

@@ -1,33 +1,38 @@
-"""Render a ticket as a single PNG, matching the ticket card in the web app.
+"""Render a ticket as a single PNG, matching the "Ticket attachment" board in the design.
 
-The design: a white card with the event title and "Hosted by", a ticket row
-(type and price), date / time / venue / attendee, a dashed tear line with
-notches, then the QR code and a green "Valid" pill.
+A wide card: logo and ADMIT ONE pill, the event title and host, date / time / venue,
+then name and ticket type. A dashed tear line with notches separates the QR code
+and "Scan at the door".
 
 It is attached to confirmation emails (see views.send_ticket_confirmation_email)
 so the ticket works with no app and no internet at the door. Pillow's built-in
 scalable font is used so no font file has to be bundled or present on the host,
-so letterforms are plainer than the web page's Bricolage Grotesque / Nunito Sans.
+so letterforms are plainer than the design's Bricolage Grotesque / Nunito Sans.
 """
 import io
+import os
 
 import qrcode
 from PIL import Image, ImageDraw, ImageFont
 
 U = 2                      # draw at 2x so edges stay crisp
-CARD_W = 480
-MARGIN = 24
-PAD = 22                   # card padding, as in the design
+CANVAS_W = 760
+MARGIN = 20
+CARD_W = 720
+MIN_CARD_H = 300
+LEFT_W = 502               # the details side; the QR side is the rest
+PAD_X, PAD_Y = 28, 24
 
-BG = (247, 249, 252)       # #F7F9FC page behind the card
+BG = (243, 246, 251)       # #F3F6FB page behind the card
 WHITE = (255, 255, 255)
 LINE = (227, 232, 240)     # #E3E8F0
+DASH = (213, 219, 229)     # #D5DBE5
 INK = (20, 22, 28)         # #14161C
+BODY = (59, 66, 82)        # #3B4252
 MUTED = (91, 98, 114)      # #5B6272
-BLUE = (54, 105, 246)      # #3669F6
-GREEN_BG = (233, 247, 239)  # #E9F7EF
-GREEN_INK = (31, 122, 82)   # #1F7A52
-GREEN_DOT = (47, 158, 110)  # #2F9E6E
+LABEL = (138, 145, 160)    # #8A91A0
+
+LOGO_PATH = os.path.join(os.path.dirname(__file__), "assets", "logo-email.png")
 
 
 # Pillow's built-in font has no naira sign. Borrow one from the system if it has a font that does;
@@ -67,7 +72,8 @@ def _text(draw, x, y, text, size, fill=INK, bold=False, spacing=0.0):
     text = _prep(text)
     font = _font(size, symbols="₦" in text)
     px, py = x * U, y * U
-    for dx in ((0, 0.7) if bold else (0,)):
+    heavy = max(0.7, size * 0.045)
+    for dx in ((0, heavy / 2, heavy) if bold else (0,)):
         cx = px
         if spacing:
             for ch in text:
@@ -116,104 +122,103 @@ def _wrap(draw, text, size, max_w, max_lines):
 
 
 def _label(draw, x, y, text):
-    _text(draw, x, y, text, 11, MUTED, bold=True, spacing=1.1)
+    _text(draw, x, y, text, 10, LABEL, bold=True, spacing=1.0)
 
 
 def generate_ticket_png(*, event_name, date_str, time_str, location, attendee_name,
                         ticket_id, qr_data, tier_name=None, hosted_by="byro", price_label=None,
                         attendee_email=""):
     """Return the ticket as PNG bytes."""
-    inner_w = CARD_W - 2 * PAD
-    title_lines = _wrap(ImageDraw.Draw(Image.new("RGB", (1, 1))), event_name, 36, inner_w, 2)
+    scratch = ImageDraw.Draw(Image.new("RGB", (1, 1)))
+    inner_w = LEFT_W - 2 * PAD_X
+    title_lines = _wrap(scratch, event_name, 34, inner_w, 2)
 
-    # --- measure first, so the canvas is exactly as tall as the content ---
-    title_h = len(title_lines) * 38
-    top_h = 24 + title_h + 8 + 17           # padding, title, gap, "Hosted by"
-    ticket_row_h = 58
-    grid_row1_h = 33
-    grid_row2_h = 13 + 2 + 18 + 2 + 17      # label, value, link / email
-    body_h = top_h + 14 + ticket_row_h + 14 + grid_row1_h + 14 + grid_row2_h + 18
-    tear_h = 24
-    qr_block_h = 16 + 208 + 12 + 28 + 24
-    card_h = body_h + tear_h + qr_block_h
+    # The card is 300 tall in the design; a two-line title makes it taller.
+    title_h = len(title_lines) * 36
+    content_h = PAD_Y + 26 + 16 + title_h + 4 + 17 + 16 + 33 + 16 + 14 + 1 + 14 + 33 + PAD_Y
+    card_h = max(MIN_CARD_H, content_h)
 
-    img = Image.new("RGB", ((CARD_W + 2 * MARGIN) * U, (card_h + 2 * MARGIN) * U), BG)
+    img = Image.new("RGB", ((CANVAS_W) * U, (card_h + 2 * MARGIN) * U), BG)
     d = ImageDraw.Draw(img)
-    ox = oy = MARGIN                         # card origin
+    ox = oy = MARGIN
 
     def X(v):
-        return (ox + v) * U
+        return round((ox + v) * U)
 
     def Y(v):
-        return (oy + v) * U
+        return round((oy + v) * U)
 
-    d.rounded_rectangle([X(0), Y(0), X(CARD_W), Y(card_h)], radius=28 * U, fill=WHITE, outline=LINE, width=U)
+    d.rounded_rectangle([X(0), Y(0), X(CARD_W), Y(card_h)], radius=20 * U, fill=WHITE, outline=LINE, width=U)
+
+    # --- header: logo and ADMIT ONE ---
+    left = PAD_X
+    y = PAD_Y
+    try:
+        logo = Image.open(LOGO_PATH).convert("RGBA")
+        lh = 26 * U
+        logo = logo.resize((int(logo.width * lh / logo.height), lh), Image.LANCZOS)
+        img.paste(logo, (X(left), Y(y)), logo)
+    except OSError:
+        _text(d, ox + left, oy + y + 4, "byro", 20, INK, bold=True)
+    pill = "ADMIT ONE"
+    pw = _width(d, pill, 11, spacing=1.1) + 24
+    px = LEFT_W - PAD_X - pw
+    d.rounded_rectangle([X(px), Y(y), X(px + pw), Y(y + 26)], radius=13 * U, fill=INK)
+    _text(d, ox + px + 12, oy + y + 6, pill, 11, WHITE, bold=True, spacing=1.1)
+    y += 26 + 16
 
     # --- title and host ---
-    y = 24
     for ln in title_lines:
-        _text(d, ox + PAD, oy + y, ln, 36, INK, bold=True)
-        y += 38
-    _text(d, ox + PAD, oy + y + 8, f"Hosted by {_fit(d, hosted_by or 'byro', 14, inner_w - 70)}", 14, MUTED)
-    y = top_h + 14
+        _text(d, ox + left, oy + y, ln, 34, INK, bold=True)
+        y += 36
+    y += 4
+    host = _fit(d, hosted_by or "byro", 14, inner_w - 70)
+    _text(d, ox + left, oy + y, "Hosted by", 14, MUTED)
+    _text(d, ox + left + _width(d, "Hosted by ", 14), oy + y, host, 14, BODY, bold=True)
+    y += 17 + 16
 
-    # --- ticket row ---
-    d.rounded_rectangle([X(PAD), Y(y), X(CARD_W - PAD), Y(y + ticket_row_h)], radius=16 * U, outline=LINE, width=U)
-    _label(d, ox + PAD + 14, oy + y + 12, "TICKET")
-    tier = _fit(d, tier_name or "General admission", 16, inner_w - 28 - 90)
-    _text(d, ox + PAD + 14, oy + y + 28, tier, 16, INK, bold=True)
-    _text(d, ox + PAD + 14 + _width(d, tier, 16) + 6, oy + y + 28, "x 1", 16, MUTED, bold=True)
-    if price_label:
-        pw = _width(d, price_label, 16)
-        _text(d, ox + CARD_W - PAD - 14 - pw, oy + y + 20, price_label, 16, INK, bold=True)
-    y += ticket_row_h + 14
+    # --- date / time / venue ---
+    date_w, time_w = 150, 100
+    venue_w = inner_w - date_w - time_w - 2 * 22
+    cols = [("DATE", date_str, left, date_w), ("TIME", time_str, left + date_w + 22, time_w),
+            ("VENUE", location or "To be announced", left + date_w + time_w + 44, venue_w)]
+    for lab, val, cx, cw in cols:
+        _label(d, ox + cx, oy + y, lab)
+        _text(d, ox + cx, oy + y + 13, _fit(d, val, 14, cw), 14, INK, bold=True)
 
-    # --- date / time ---
-    col2 = PAD + inner_w // 2 + 6
-    col_w = inner_w // 2 - 12
-    _label(d, ox + PAD, oy + y, "DATE")
-    _text(d, ox + PAD, oy + y + 15, _fit(d, date_str, 15, col_w), 15, INK, bold=True)
-    _label(d, ox + col2, oy + y, "TIME")
-    _text(d, ox + col2, oy + y + 15, _fit(d, time_str, 15, col_w), 15, INK, bold=True)
-    y += grid_row1_h + 14
+    # --- name / ticket, under a dashed rule pinned to the bottom ---
+    by = card_h - PAD_Y - 33 - 14
+    x = left
+    while x < LEFT_W - PAD_X:
+        d.line([X(x), Y(by - 14), X(min(x + 3, LEFT_W - PAD_X)), Y(by - 14)], fill=DASH, width=U)
+        x += 6
+    half = (inner_w - 22) // 2
+    _label(d, ox + left, oy + by, "NAME")
+    _text(d, ox + left, oy + by + 13, _fit(d, attendee_name or "", 14, half), 14, INK, bold=True)
+    _label(d, ox + left + half + 22, oy + by, "TICKET")
+    _text(d, ox + left + half + 22, oy + by + 13, _fit(d, tier_name or "General admission", 14, half), 14, INK, bold=True)
 
-    # --- venue / attendee ---
-    _label(d, ox + PAD, oy + y, "VENUE")
-    _text(d, ox + PAD, oy + y + 15, _fit(d, location or "To be announced", 15, col_w), 15, INK, bold=True)
-    if location:
-        _text(d, ox + PAD, oy + y + 34, "Get directions", 13, BLUE, bold=True)
-    _label(d, ox + col2, oy + y, "ATTENDEE")
-    _text(d, ox + col2, oy + y + 15, _fit(d, attendee_name or "", 15, col_w), 15, INK, bold=True)
-    if attendee_email:
-        _text(d, ox + col2, oy + y + 34, _fit(d, attendee_email, 13, col_w), 13, MUTED)
+    # --- dashed tear line and notches ---
+    tx = LEFT_W - 1
+    yy = 18
+    while yy < card_h - 18:
+        d.line([X(tx), Y(yy), X(tx), Y(min(yy + 5, card_h - 18))], fill=DASH, width=2 * U)
+        yy += 9
+    for cy in (0, card_h):
+        d.ellipse([X(LEFT_W - 14), Y(cy - 14), X(LEFT_W + 14), Y(cy + 14)], fill=BG)
 
-    # --- tear line with notches ---
-    ty = body_h + tear_h // 2
-    x = PAD
-    while x < CARD_W - PAD:
-        d.line([X(x), Y(ty), X(min(x + 6, CARD_W - PAD)), Y(ty)], fill=LINE, width=2 * U)
-        x += 10
-    for side in (0, CARD_W):
-        d.ellipse([X(side - 12), Y(ty - 12), X(side + 12), Y(ty + 12)], fill=BG, outline=LINE, width=U)
-    # the notches overlap the card border; paint the half that sits outside the card in the page colour
-    d.rectangle([X(-13), Y(ty - 13), X(0) - 1, Y(ty + 13)], fill=BG)
-    d.rectangle([X(CARD_W) + 1, Y(ty - 13), X(CARD_W + 13), Y(ty + 13)], fill=BG)
-
-    # --- QR code ---
-    qy = body_h + tear_h + 16
-    qx = (CARD_W - 208) // 2
-    d.rounded_rectangle([X(qx), Y(qy), X(qx + 208), Y(qy + 208)], radius=18 * U, fill=WHITE, outline=LINE, width=U)
-    qr = qrcode.make(qr_data, border=0).get_image().convert("RGB").resize((188 * U, 188 * U), Image.NEAREST)
+    # --- QR side ---
+    right_cx = LEFT_W + (CARD_W - LEFT_W) / 2
+    qr_box = 156
+    block_h = qr_box + 12 + 15
+    qy = (card_h - block_h) / 2
+    qx = right_cx - qr_box / 2
+    d.rounded_rectangle([X(qx), Y(qy), X(qx + qr_box), Y(qy + qr_box)], radius=14 * U, fill=WHITE, outline=LINE, width=U)
+    qr_size = (qr_box - 20) * U
+    qr = qrcode.make(qr_data, border=0).get_image().convert("RGB").resize((qr_size, qr_size), Image.NEAREST)
     img.paste(qr, (X(qx + 10), Y(qy + 10)))
-
-    # --- "Valid" pill ---
-    label = "Valid · show this at the door"
-    pill_w = 12 + 7 + 6 + _width(d, label, 13) + 12
-    px = (CARD_W - pill_w) / 2
-    py = qy + 208 + 12
-    d.rounded_rectangle([X(px), Y(py), X(px + pill_w), Y(py + 28)], radius=14 * U, fill=GREEN_BG)
-    d.ellipse([X(px + 12), Y(py + 14 - 3.5), X(px + 12 + 7), Y(py + 14 + 3.5)], fill=GREEN_DOT)
-    _text(d, ox + px + 12 + 7 + 6, oy + py + 6, label, 13, GREEN_INK, bold=True)
+    cap = "Scan at the door"
+    _text(d, ox + right_cx - _width(d, cap, 12) / 2, oy + qy + qr_box + 12, cap, 12, MUTED, bold=True)
 
     buf = io.BytesIO()
     img.save(buf, format="PNG", optimize=True)
