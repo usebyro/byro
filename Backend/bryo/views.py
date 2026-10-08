@@ -154,6 +154,27 @@ def _event_page_url(event):
     return f"{settings.SITE_URL}/discover/{event.slug}"
 
 
+def _tickets_label(event):
+    """'General admission · Free' or '3 ticket types · from ₦3,000', for the published email."""
+    from .emails import _money
+    tiers = list(event.tiers.all())
+    if not tiers:
+        price = event.ticket_price or 0
+        return f"General admission · {_money(price) if price else 'Free'}"
+    lowest = min(t.price for t in tiers)
+    cost = _money(lowest) if lowest else "Free"
+    if len(tiers) == 1:
+        return f"{tiers[0].name} · {cost}"
+    return f"{len(tiers)} ticket types · from {cost}"
+
+
+def _event_revenue(event):
+    """What the organiser has earned from this event so far (ticket price after discounts)."""
+    return Ticket.objects.filter(event=event, payment_status='paid').aggregate(
+        total=Coalesce(Sum(ticket_net_price_expr()), Decimal('0'))
+    )['total']
+
+
 def send_ticket_confirmation_email(ticket, customer_name, customer_email, event):
     """Send the "you're in" email for a single ticket, with a ticket image (QR + event details) and a calendar invite attached."""
     from datetime import datetime, timedelta
@@ -167,9 +188,18 @@ def send_ticket_confirmation_email(ticket, customer_name, customer_email, event)
         {"question": a.question.question, "answer": ", ".join(a.answer) if isinstance(a.answer, list) else str(a.answer)}
         for a in EventFormAnswer.objects.filter(ticket=ticket).select_related('question')
     ]
+    from .emails import _money, format_event_date, format_event_time
     ticket_url = f"{settings.SITE_URL}/ticket/{ticket.ticket_id}"
-    date_str = event.day.strftime('%A, %B %d, %Y') if event.day else ''
-    time_str = event.time_from.strftime('%I:%M %p') if event.time_from else ''
+    date_str = format_event_date(event.day)
+    time_str = format_event_time(event.time_from, event.timezone)
+    tier_name = ticket.tier.name if ticket.tier else "General admission"
+    price = ticket.tier.price if ticket.tier else event.ticket_price
+    buyer = ticket.payment.customer_name if ticket.payment_id else ''
+    gifted_by = (
+        buyer if ticket.payment_id
+        and ticket.payment.customer_email.strip().lower() != ticket.current_owner_email.strip().lower()
+        else None
+    )
     email_data = ticket_confirmation_email(
         name=customer_name,
         event_name=event.name,
@@ -179,6 +209,9 @@ def send_ticket_confirmation_email(ticket, customer_name, customer_email, event)
         ticket_id=str(ticket.ticket_id),
         form_answers=form_answers,
         ticket_url=ticket_url,
+        tier_label=f"{tier_name} × 1",
+        holder_name=ticket.current_owner_name or customer_name,
+        bought_by=gifted_by,
     )
     ticket_png = generate_ticket_png(
         event_name=event.name,
@@ -189,6 +222,9 @@ def send_ticket_confirmation_email(ticket, customer_name, customer_email, event)
         ticket_id=str(ticket.ticket_id),
         qr_data=str(ticket.qr_token),
         tier_name=ticket.tier.name if ticket.tier else None,
+        hosted_by=event.hosted_by,
+        price_label=_money(price) if price else "Free",
+        attendee_email=ticket.current_owner_email,
     )
     start = datetime.combine(event.day, event.time_from)
     end = (
@@ -238,7 +274,7 @@ def send_cohost_invite_email(email, event, inviter, is_new_user=False, role='man
     committed by the time this runs. Mirrors send_ticket_confirmation_email's
     use of the Resend/Brevo mailer.
     """
-    from .emails import cohost_invite_email
+    from .emails import cohost_invite_email, format_event_date, format_event_time
     from .mailer import send_email
 
     try:
@@ -265,6 +301,9 @@ def send_cohost_invite_email(email, event, inviter, is_new_user=False, role='man
             is_new_user=is_new_user,
             role=role,
             invitee_email=email,
+            date=format_event_date(event.day),
+            time=format_event_time(event.time_from, event.timezone),
+            location=event.location or '',
         )
         send_email(
             to=email,
@@ -300,17 +339,18 @@ def _send_event_published_email(event):
         public_url = f"{frontend_url}/discover/{event.slug}"
         share_cta_url = f"{public_url}?share=1"
         is_first_event = Event.objects.filter(owner=event.owner, is_active=True).count() <= 1
-        date_str = event.day.strftime('%A, %B %d, %Y') if event.day else ''
-        time_str = event.time_from.strftime('%I:%M %p') if event.time_from else ''
+        from .emails import format_event_date, format_event_time
         email_data = event_published_email(
             name=owner_name,
             event_name=event.name,
-            date=date_str,
-            time=time_str,
+            date=format_event_date(event.day),
+            time=format_event_time(event.time_from, event.timezone),
             location=event.location or '',
             event_url=public_url,
             share_cta_url=share_cta_url,
             is_first_event=is_first_event,
+            tickets_label=_tickets_label(event),
+            manage_url=f"{frontend_url}/dashboard/events/{event.slug}",
         )
         send_email(
             to=event.owner.email,
@@ -469,6 +509,7 @@ def _check_and_notify_milestones(event):
                         milestone=milestone,
                         tickets_sold=total_sold,
                         dashboard_url=dashboard_url,
+                        share_url=f"{frontend_url}/discover/{event.slug}",
                     )
                     send_email(
                         to=email, subject=email_data['subject'],
@@ -3039,6 +3080,9 @@ class PayoutRequestView(APIView):
                 bank_name=payout.bank_name,
                 account_number=payout.account_number,
                 event_name=payout.event.name if payout.event else None,
+                requested_at=timezone.localtime(payout.requested_at).strftime('%-d %b %Y, %-I:%M %p'),
+                reference=f"PO-{payout.pk}",
+                payouts_url=f"{(settings.FRONTEND_URL or 'https://usebyro.com').rstrip('/')}/dashboard/payouts",
             )
             send_email(
                 to=request.user.email,
@@ -3255,6 +3299,9 @@ class AdminPayoutView(APIView):
                     bank_name=payout.bank_name,
                     account_number=payout.account_number,
                     event_name=payout.event.name if payout.event else None,
+                    paid_on=timezone.localtime(payout.processed_at).strftime('%-d %b %Y') if payout.processed_at else None,
+                    reference=f"PO-{payout.pk}",
+                    payouts_url=f"{(settings.FRONTEND_URL or 'https://usebyro.com').rstrip('/')}/dashboard/payouts",
                 )
                 send_email(
                     to=payout.user.email,

@@ -1,197 +1,220 @@
-"""Render a ticket as a single PNG, matching the web ticket card's layout:
-gradient header up top, event details in the middle, QR code centred at
-the bottom.
+"""Render a ticket as a single PNG, matching the ticket card in the web app.
 
-Used to attach a scannable, self-contained ticket to confirmation emails
-(see views.send_ticket_confirmation_email). Uses Pillow's built-in scalable
-font (PIL.ImageFont.load_default) so no font file needs to be bundled or
-present on the host.
+The design: a white card with the event title and "Hosted by", a ticket row
+(type and price), date / time / venue / attendee, a dashed tear line with
+notches, then the QR code and a green "Valid" pill.
+
+It is attached to confirmation emails (see views.send_ticket_confirmation_email)
+so the ticket works with no app and no internet at the door. Pillow's built-in
+scalable font is used so no font file has to be bundled or present on the host,
+so letterforms are plainer than the web page's Bricolage Grotesque / Nunito Sans.
 """
 import io
 
 import qrcode
 from PIL import Image, ImageDraw, ImageFont
 
-WIDTH = 700
-HEADER_HEIGHT = 190
-QR_SIZE = 240
-CORNER_RADIUS = 24
+U = 2                      # draw at 2x so edges stay crisp
+CARD_W = 480
+MARGIN = 24
+PAD = 22                   # card padding, as in the design
 
+BG = (247, 249, 252)       # #F7F9FC page behind the card
 WHITE = (255, 255, 255)
-BODY_BG = (248, 250, 252)      # #f8fafc
-BORDER = (226, 232, 240)       # #e2e8f0
-NAVY = (15, 23, 42)            # #0f172a (gray-900)
-LIGHT_GRAY = (148, 163, 184)   # #94a3b8 (gray-400)
-MUTED_GRAY = (107, 114, 128)   # #6b7280 (gray-500)
-
-PURPLE_START = (15, 10, 46)    # #0f0a2e
-PURPLE_MID = (76, 29, 149)     # #4c1d95
-PURPLE_END = (168, 85, 247)    # #a855f7
+LINE = (227, 232, 240)     # #E3E8F0
+INK = (20, 22, 28)         # #14161C
+MUTED = (91, 98, 114)      # #5B6272
+BLUE = (54, 105, 246)      # #3669F6
+GREEN_BG = (233, 247, 239)  # #E9F7EF
+GREEN_INK = (31, 122, 82)   # #1F7A52
+GREEN_DOT = (47, 158, 110)  # #2F9E6E
 
 
-def _lerp(a, b, t):
-    return tuple(int(a[i] + (b[i] - a[i]) * t) for i in range(3))
+# Pillow's built-in font has no naira sign. Borrow one from the system if it has a font that does;
+# otherwise print "NGN" rather than an empty box.
+_SYMBOL_FONTS = (
+    "/System/Library/Fonts/Supplemental/Arial.ttf",
+    "/Library/Fonts/Arial.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    "/usr/share/fonts/dejavu/DejaVuSans.ttf",
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+)
 
 
-def _gradient_color(t):
-    if t < 0.5:
-        return _lerp(PURPLE_START, PURPLE_MID, t / 0.5)
-    return _lerp(PURPLE_MID, PURPLE_END, (t - 0.5) / 0.5)
+def _symbol_font_path():
+    import os
+    return next((p for p in _SYMBOL_FONTS if os.path.exists(p)), None)
 
 
-def _font(size):
-    return ImageFont.load_default(size=size)
+def _font(size, symbols=False):
+    if symbols:
+        path = _symbol_font_path()
+        if path:
+            return ImageFont.truetype(path, int(size * U))
+    return ImageFont.load_default(size=int(size * U))
 
 
-def _draw_bold(draw, xy, text, font, fill):
-    # load_default() has no bold weight — fake it with a 1px double-draw.
-    x, y = xy
-    for dx in (0, 0.6):
-        draw.text((x + dx, y), text, font=font, fill=fill)
+def _prep(text):
+    """Swap characters the built-in font cannot draw."""
+    text = (text or "").replace("×", "x")
+    if "₦" in text and not _symbol_font_path():
+        text = text.replace("₦", "NGN ")
+    return text
 
 
-def _truncate(draw, text, font, max_width):
-    if draw.textlength(text, font=font) <= max_width:
+def _text(draw, x, y, text, size, fill=INK, bold=False, spacing=0.0):
+    """Draw text at design-unit coordinates. `spacing` is letter-spacing in px; bold fakes a heavier weight."""
+    text = _prep(text)
+    font = _font(size, symbols="₦" in text)
+    px, py = x * U, y * U
+    for dx in ((0, 0.7) if bold else (0,)):
+        cx = px
+        if spacing:
+            for ch in text:
+                draw.text((cx + dx, py), ch, font=font, fill=fill)
+                cx += draw.textlength(ch, font=font) + spacing * U
+        else:
+            draw.text((cx + dx, py), text, font=font, fill=fill)
+
+
+def _width(draw, text, size, spacing=0.0):
+    text = _prep(text)
+    font = _font(size, symbols="₦" in text)
+    return (draw.textlength(text, font=font) + spacing * U * len(text)) / U
+
+
+def _fit(draw, text, size, max_w):
+    """Shorten with an ellipsis so the text fits in max_w design units."""
+    text = text or ""
+    if _width(draw, text, size) <= max_w:
         return text
-    ellipsis = "…"
     lo, hi = 0, len(text)
     while lo < hi:
         mid = (lo + hi + 1) // 2
-        if draw.textlength(text[:mid] + ellipsis, font=font) <= max_width:
+        if _width(draw, text[:mid] + "…", size) <= max_w:
             lo = mid
         else:
             hi = mid - 1
-    return text[:lo] + ellipsis
+    return text[:lo].rstrip() + "…"
 
 
-def _rounded_top_mask(size, radius):
-    mask = Image.new("L", size, 0)
-    ImageDraw.Draw(mask).rounded_rectangle(
-        [0, 0, size[0] - 1, size[1] + radius], radius=radius, fill=255
-    )
-    return mask
+def _wrap(draw, text, size, max_w, max_lines):
+    """Break a title onto at most max_lines lines."""
+    words, lines, cur = (text or "").split(), [], ""
+    for w in words:
+        trial = f"{cur} {w}".strip()
+        if _width(draw, trial, size) <= max_w or not cur:
+            cur = trial
+        else:
+            lines.append(cur)
+            cur = w
+    lines.append(cur)
+    if len(lines) > max_lines:
+        lines = lines[:max_lines]
+        lines[-1] = _fit(draw, lines[-1] + "…", size, max_w)
+    return [_fit(draw, ln, size, max_w) for ln in lines]
+
+
+def _label(draw, x, y, text):
+    _text(draw, x, y, text, 11, MUTED, bold=True, spacing=1.1)
 
 
 def generate_ticket_png(*, event_name, date_str, time_str, location, attendee_name,
-                         ticket_id, qr_data, tier_name=None):
-    """Render the ticket. Returns PNG bytes.
+                        ticket_id, qr_data, tier_name=None, hosted_by="byro", price_label=None,
+                        attendee_email=""):
+    """Return the ticket as PNG bytes."""
+    inner_w = CARD_W - 2 * PAD
+    title_lines = _wrap(ImageDraw.Draw(Image.new("RGB", (1, 1))), event_name, 36, inner_w, 2)
 
-    Args:
-        event_name (str): Event name.
-        date_str (str): Formatted date, e.g. "Saturday, July 5, 2026".
-        time_str (str|None): Formatted start time, e.g. "6:00 PM".
-        location (str|None): Venue.
-        attendee_name (str): Ticket holder's name.
-        ticket_id (str): UUID of the ticket (not shown — carried in qr_data).
-        qr_data (str): Data encoded in the QR code (the ticket's check-in token).
-        tier_name (str|None): Ticket tier label shown under the event name.
-    """
-    pad_x = 36
-    col2_x = WIDTH // 2 + 12
+    # --- measure first, so the canvas is exactly as tall as the content ---
+    title_h = len(title_lines) * 38
+    top_h = 24 + title_h + 8 + 17           # padding, title, gap, "Hosted by"
+    ticket_row_h = 58
+    grid_row1_h = 33
+    grid_row2_h = 13 + 2 + 18 + 2 + 17      # label, value, link / email
+    body_h = top_h + 14 + ticket_row_h + 14 + grid_row1_h + 14 + grid_row2_h + 18
+    tear_h = 24
+    qr_block_h = 16 + 208 + 12 + 28 + 24
+    card_h = body_h + tear_h + qr_block_h
 
-    # ---- Compute body height up front so the canvas fits everything ----
-    body_top = HEADER_HEIGHT
-    row_y = body_top + 28  # DATE/TIME row
-    row_y += 22 + 34       # values + gap
-    row_y += 28            # VENUE label
-    row_y += 22 + 34       # value + gap
-    dash_y = row_y
-    row_y += 30            # ATTENDEE label
-    row_y += 22 + 40       # value + gap
-    qr_top = row_y
-    qr_block_bottom = qr_top + QR_SIZE + 40
-    height = qr_block_bottom + 20
+    img = Image.new("RGB", ((CARD_W + 2 * MARGIN) * U, (card_h + 2 * MARGIN) * U), BG)
+    d = ImageDraw.Draw(img)
+    ox = oy = MARGIN                         # card origin
 
-    img = Image.new("RGB", (WIDTH, height), WHITE)
-    draw = ImageDraw.Draw(img)
+    def X(v):
+        return (ox + v) * U
 
-    # ---- Body background ----
-    draw.rectangle([0, HEADER_HEIGHT, WIDTH, height], fill=BODY_BG)
+    def Y(v):
+        return (oy + v) * U
 
-    # ---- Gradient header ----
-    for x in range(WIDTH):
-        draw.line([(x, 0), (x, HEADER_HEIGHT)], fill=_gradient_color(x / WIDTH))
+    d.rounded_rectangle([X(0), Y(0), X(CARD_W), Y(card_h)], radius=28 * U, fill=WHITE, outline=LINE, width=U)
 
-    # Badge (frosted pill with a dot + label)
-    badge_font = _font(13)
-    badge_text = "EVENT"
-    text_w = draw.textlength(badge_text, font=badge_font)
-    badge_bg = _lerp(_gradient_color(36 / WIDTH), WHITE, 0.22)
-    badge_right = 36 + 20 + text_w + 16
-    draw.rounded_rectangle([36, 24, badge_right, 48], radius=12, fill=badge_bg)
-    draw.ellipse([48, 33, 56, 41], fill=WHITE)
-    draw.text((64, 28), badge_text, font=badge_font, fill=WHITE)
+    # --- title and host ---
+    y = 24
+    for ln in title_lines:
+        _text(d, ox + PAD, oy + y, ln, 36, INK, bold=True)
+        y += 38
+    _text(d, ox + PAD, oy + y + 8, f"Hosted by {_fit(d, hosted_by or 'byro', 14, inner_w - 70)}", 14, MUTED)
+    y = top_h + 14
 
-    # Event name
-    name_font = _font(26)
-    name_text = _truncate(draw, event_name, name_font, WIDTH - 72)
-    _draw_bold(draw, (36, 62), name_text, name_font, WHITE)
+    # --- ticket row ---
+    d.rounded_rectangle([X(PAD), Y(y), X(CARD_W - PAD), Y(y + ticket_row_h)], radius=16 * U, outline=LINE, width=U)
+    _label(d, ox + PAD + 14, oy + y + 12, "TICKET")
+    tier = _fit(d, tier_name or "General admission", 16, inner_w - 28 - 90)
+    _text(d, ox + PAD + 14, oy + y + 28, tier, 16, INK, bold=True)
+    _text(d, ox + PAD + 14 + _width(d, tier, 16) + 6, oy + y + 28, "x 1", 16, MUTED, bold=True)
+    if price_label:
+        pw = _width(d, price_label, 16)
+        _text(d, ox + CARD_W - PAD - 14 - pw, oy + y + 20, price_label, 16, INK, bold=True)
+    y += ticket_row_h + 14
 
-    if tier_name:
-        tier_font = _font(15)
-        tier_color = _lerp(WHITE, PURPLE_END, 0.3)
-        draw.text((36, 100), tier_name, font=tier_font, fill=tier_color)
+    # --- date / time ---
+    col2 = PAD + inner_w // 2 + 6
+    col_w = inner_w // 2 - 12
+    _label(d, ox + PAD, oy + y, "DATE")
+    _text(d, ox + PAD, oy + y + 15, _fit(d, date_str, 15, col_w), 15, INK, bold=True)
+    _label(d, ox + col2, oy + y, "TIME")
+    _text(d, ox + col2, oy + y + 15, _fit(d, time_str, 15, col_w), 15, INK, bold=True)
+    y += grid_row1_h + 14
 
-    # Rounded top corners on the whole card (matches the web card's rounded-3xl)
-    mask = _rounded_top_mask((WIDTH, HEADER_HEIGHT), CORNER_RADIUS)
-    header_crop = img.crop((0, 0, WIDTH, HEADER_HEIGHT))
-    rounded_header = Image.new("RGB", (WIDTH, HEADER_HEIGHT), WHITE)
-    rounded_header.paste(header_crop, (0, 0), mask)
-    img.paste(rounded_header, (0, 0))
-
-    # ---- Detail rows ----
-    label_font = _font(12)
-    value_font = _font(18)
-
-    row_y = body_top + 28
-    draw.text((pad_x, row_y), "DATE", font=label_font, fill=LIGHT_GRAY)
-    if time_str:
-        draw.text((col2_x, row_y), "TIME", font=label_font, fill=LIGHT_GRAY)
-    row_y += 22
-    _draw_bold(draw, (pad_x, row_y), date_str or "TBA", value_font, NAVY)
-    if time_str:
-        _draw_bold(draw, (col2_x, row_y), time_str, value_font, NAVY)
-
+    # --- venue / attendee ---
+    _label(d, ox + PAD, oy + y, "VENUE")
+    _text(d, ox + PAD, oy + y + 15, _fit(d, location or "To be announced", 15, col_w), 15, INK, bold=True)
     if location:
-        row_y += 34 + 28
-        draw.text((pad_x, row_y), "VENUE", font=label_font, fill=LIGHT_GRAY)
-        row_y += 22
-        venue_text = _truncate(draw, location, value_font, WIDTH - pad_x * 2)
-        _draw_bold(draw, (pad_x, row_y), venue_text, value_font, NAVY)
-    else:
-        row_y += 34
+        _text(d, ox + PAD, oy + y + 34, "Get directions", 13, BLUE, bold=True)
+    _label(d, ox + col2, oy + y, "ATTENDEE")
+    _text(d, ox + col2, oy + y + 15, _fit(d, attendee_name or "", 15, col_w), 15, INK, bold=True)
+    if attendee_email:
+        _text(d, ox + col2, oy + y + 34, _fit(d, attendee_email, 13, col_w), 13, MUTED)
 
-    # Dashed tear-off divider
-    row_y += 34
-    dash_y = row_y
-    x = pad_x
-    while x < WIDTH - pad_x:
-        draw.line([(x, dash_y), (min(x + 10, WIDTH - pad_x), dash_y)], fill=BORDER, width=2)
-        x += 18
+    # --- tear line with notches ---
+    ty = body_h + tear_h // 2
+    x = PAD
+    while x < CARD_W - PAD:
+        d.line([X(x), Y(ty), X(min(x + 6, CARD_W - PAD)), Y(ty)], fill=LINE, width=2 * U)
+        x += 10
+    for side in (0, CARD_W):
+        d.ellipse([X(side - 12), Y(ty - 12), X(side + 12), Y(ty + 12)], fill=BG, outline=LINE, width=U)
+    # the notches overlap the card border; paint the half that sits outside the card in the page colour
+    d.rectangle([X(-13), Y(ty - 13), X(0) - 1, Y(ty + 13)], fill=BG)
+    d.rectangle([X(CARD_W) + 1, Y(ty - 13), X(CARD_W + 13), Y(ty + 13)], fill=BG)
 
-    row_y += 30
-    draw.text((pad_x, row_y), "ATTENDEE", font=label_font, fill=LIGHT_GRAY)
-    row_y += 22
-    attendee_text = _truncate(draw, attendee_name or "Guest", value_font, WIDTH - pad_x * 2)
-    _draw_bold(draw, (pad_x, row_y), attendee_text, value_font, NAVY)
+    # --- QR code ---
+    qy = body_h + tear_h + 16
+    qx = (CARD_W - 208) // 2
+    d.rounded_rectangle([X(qx), Y(qy), X(qx + 208), Y(qy + 208)], radius=18 * U, fill=WHITE, outline=LINE, width=U)
+    qr = qrcode.make(qr_data, border=0).get_image().convert("RGB").resize((188 * U, 188 * U), Image.NEAREST)
+    img.paste(qr, (X(qx + 10), Y(qy + 10)))
 
-    # ---- QR code, centred ----
-    row_y += 40
-    qr_img = qrcode.make(qr_data, border=2).get_image().convert("RGB")
-    qr_img = qr_img.resize((QR_SIZE, QR_SIZE), Image.NEAREST)
-    qr_x = (WIDTH - QR_SIZE) // 2
-    qr_y = row_y
-    draw.rounded_rectangle(
-        [qr_x - 1, qr_y - 1, qr_x + QR_SIZE + 1, qr_y + QR_SIZE + 1],
-        radius=12, outline=BORDER, width=1,
-    )
-    img.paste(qr_img, (qr_x, qr_y))
-
-    caption_font = _font(13)
-    caption_text = "Present this QR code at the gate for entry"
-    caption_w = draw.textlength(caption_text, font=caption_font)
-    draw.text(((WIDTH - caption_w) / 2, qr_y + QR_SIZE + 14), caption_text, font=caption_font, fill=MUTED_GRAY)
+    # --- "Valid" pill ---
+    label = "Valid · show this at the door"
+    pill_w = 12 + 7 + 6 + _width(d, label, 13) + 12
+    px = (CARD_W - pill_w) / 2
+    py = qy + 208 + 12
+    d.rounded_rectangle([X(px), Y(py), X(px + pill_w), Y(py + 28)], radius=14 * U, fill=GREEN_BG)
+    d.ellipse([X(px + 12), Y(py + 14 - 3.5), X(px + 12 + 7), Y(py + 14 + 3.5)], fill=GREEN_DOT)
+    _text(d, ox + px + 12 + 7 + 6, oy + py + 6, label, 13, GREEN_INK, bold=True)
 
     buf = io.BytesIO()
-    img.save(buf, format="PNG")
+    img.save(buf, format="PNG", optimize=True)
     return buf.getvalue()

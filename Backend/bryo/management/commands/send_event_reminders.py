@@ -34,8 +34,11 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        from bryo.emails import event_reminder_email, organizer_event_reminder_email
+        from bryo.emails import (
+            event_reminder_email, format_event_date, format_event_time, organizer_event_reminder_email,
+        )
         from bryo.mailer import send_email
+        from bryo.views import _event_revenue
 
         dry_run = options['dry_run']
         tomorrow = (timezone.now() + timedelta(days=1)).date()
@@ -49,8 +52,8 @@ class Command(BaseCommand):
         total_attendee_emails = 0
 
         for event in events:
-            date_str = event.day.strftime('%A, %B %d, %Y') if event.day else ''
-            time_str = event.time_from.strftime('%I:%M %p') if event.time_from else ''
+            date_str = format_event_date(event.day)
+            time_str = format_event_time(event.time_from, event.timezone)
 
             tickets = event.tickets.filter(payment_status__in=['paid', 'free'])
             attendee_count = 0
@@ -69,6 +72,7 @@ class Command(BaseCommand):
                         location=event.location or '',
                         ticket_url=f"{frontend_url}/ticket/{ticket.ticket_id}",
                         virtual_link=event.virtual_link or '',
+                        tier_label=f"{ticket.tier.name if ticket.tier else 'General admission'} × 1",
                     )
                     send_email(
                         to=ticket.current_owner_email,
@@ -82,14 +86,15 @@ class Command(BaseCommand):
                         f"for event {event.pk}: {e}"
                     )
 
+            # (name, email, is_owner): co-hosts see sales but not revenue, which belongs to the owner.
             recipients = []
             if event.owner_id and event.owner.email:
-                recipients.append((event.owner.get_full_name() or event.owner.email, event.owner.email))
+                recipients.append((event.owner.get_full_name() or event.owner.email, event.owner.email, True))
             for cohost in event.cohosts.filter(status=EventCoHost.STATUS_ACCEPTED).select_related('user'):
                 if cohost.user and cohost.user.email:
-                    recipients.append((cohost.user.get_full_name() or cohost.user.email, cohost.user.email))
+                    recipients.append((cohost.user.get_full_name() or cohost.user.email, cohost.user.email, False))
 
-            for name, email in recipients:
+            for name, email, is_owner in recipients:
                 if dry_run:
                     continue
                 try:
@@ -100,6 +105,9 @@ class Command(BaseCommand):
                         time=time_str,
                         tickets_sold=attendee_count,
                         dashboard_url=f"{frontend_url}/dashboard/events/{event.slug}",
+                        location=event.location or '',
+                        capacity=event.capacity,
+                        revenue=_event_revenue(event) if is_owner else None,
                     )
                     send_email(
                         to=email, subject=email_data['subject'],
