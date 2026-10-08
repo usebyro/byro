@@ -241,13 +241,12 @@ def _api_public_url():
 def ticket_confirmation_email(name, event_name, date, time, location, ticket_id, form_answers=None, ticket_url=None,
                               tier_label=None, holder_name=None, bought_by=None, qr_url=None, calendar_url=None):
     """
-    "You're going to {event}": one email per ticket, with a QR code that works at the door.
+    "You're going to {event}": one email per ticket, with the ticket image attached.
 
     `date`/`time` are display strings. `tier_label` is e.g. "General admission x 1".
     `bought_by` is set when someone else bought the ticket for this person.
     """
     view_url = ticket_url or "https://usebyro.com"
-    qr = qr_url or (f"{_api_public_url()}/api/tickets/{ticket_id}/qr/" if ticket_id else "")
     cal = calendar_url or (f"{_api_public_url()}/api/tickets/{ticket_id}/calendar/" if ticket_id else "")
     when = " · ".join(x for x in [date, time] if x)
 
@@ -266,20 +265,15 @@ def ticket_confirmation_email(name, event_name, date, time, location, ticket_id,
             answers_html = _rows([(_h(q), _h(a)) for q, a in pairs])
             answers_text = "".join(f"{q}: {a}\n" for q, a in pairs) + "\n"
 
-    qr_html = (
-        f'<table cellpadding="0" cellspacing="0" style="margin:0 auto 20px;"><tr><td align="center">'
-        f'<img src="{qr}" alt="Ticket QR code" width="200" height="200" style="display:block;width:200px;height:200px;border:1px solid {BORDER};border-radius:16px;padding:10px;box-sizing:border-box;background:#ffffff;">'
-        f'<div style="font-size:13px;color:{MUTED};padding-top:10px;">Show this at the door. A screenshot works too.</div></td></tr></table>'
-        if qr else ""
-    )
-    buttons = [_btn(view_url, "View ticket online")]
+    buttons = [_btn(view_url, "View ticket")]
     if cal:
         buttons.append(_btn(cal, "Add to calendar", primary=False))
     gifted = _small(f"Ticket bought for you by {_h(bought_by)}.") if bought_by else ""
 
     body_html = (
         _lead(f"Here&#8217;s your ticket for <b>{_h(event_name)}</b>. It&#8217;s just for you. Everyone in the same order gets their own email.")
-        + _rows(rows) + answers_html + qr_html
+        + _rows(rows) + answers_html
+        + _small("Your ticket is attached to this email. Show it at entry.")
         + f'<div style="text-align:center;">{_btn_row(*buttons)}</div>'.replace("<table", '<table align="center"', 1)
         + gifted
     )
@@ -288,7 +282,7 @@ def ticket_confirmation_email(name, event_name, date, time, location, ticket_id,
         f"You&#8217;re going, {_h(_first(holder_name or name))}",
         body_html,
         f"You&#8217;re getting this because a ticket for {_h(event_name)} was issued in your name.",
-        preheader="Your ticket and QR code are inside.",
+        preheader="Your ticket is attached.",
     )
     text = (
         f"You're going, {_first(holder_name or name)}\n\n"
@@ -296,8 +290,8 @@ def ticket_confirmation_email(name, event_name, date, time, location, ticket_id,
         f"Event: {event_name}\nDate: {when}\n" + (f"Venue: {location}\n" if location else "")
         + (f"Ticket: {tier_label}\n" if tier_label else "") + f"Name: {holder_name or name}\n\n"
         + answers_text
-        + f"View ticket online: {view_url}\n" + (f"Add to calendar: {cal}\n" if cal else "")
-        + "Show your QR code at the door. A screenshot works too.\n"
+        + "Your ticket is attached to this email. Show it at entry.\n\n"
+        + f"View ticket: {view_url}\n" + (f"Add to calendar: {cal}\n" if cal else "")
         + (f"\nTicket bought for you by {bought_by}.\n" if bought_by else "")
         + "\nByro Team\nsupport@usebyro.com"
     )

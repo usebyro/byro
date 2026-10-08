@@ -47,12 +47,12 @@ class DesignTests(SimpleTestCase):
         )
         self.assertEqual(m["subject"], "You're going to Tech Meetup")
         # the badge is stored as "Your ticket" and shown in capitals by the email's own styling
-        for text in ("Your ticket", "You&#8217;re going, Tunde", "It&#8217;s just for you", "Show this at the door",
-                     "View ticket online", "Add to calendar", "General admission × 1", "Ticket bought for you by Adaeze Okafor.",
-                     "/api/tickets/tid-1/qr/", "/api/tickets/tid-1/calendar/",
+        for text in ("Your ticket", "You&#8217;re going, Tunde", "It&#8217;s just for you", "Your ticket is attached to this email. Show it at entry.",
+                     "View ticket", "Add to calendar", "General admission × 1", "Ticket bought for you by Adaeze Okafor.",
+                     "/api/tickets/tid-1/calendar/",
                      "a ticket for Tech Meetup was issued in your name"):
             self.assertIn(text, m["html"])
-        self.assertIn("Your ticket and QR code are inside.", m["html"])  # inbox preview line
+        self.assertIn("Your ticket is attached.", m["html"])  # inbox preview line
 
     def test_ticket_email_only_says_bought_for_you_when_it_was_a_gift(self):
         m = e.ticket_confirmation_email("Tunde", "Tech Meetup", DATE, TIME, "Cafe", "tid")
@@ -150,7 +150,7 @@ class DesignTests(SimpleTestCase):
 
 class TicketImageTests(SimpleTestCase):
 
-    def test_the_ticket_image_is_a_valid_png_with_the_new_card_layout(self):
+    def test_the_ticket_image_is_a_valid_png_with_the_wide_card_layout(self):
         png = generate_ticket_png(
             event_name="Tech Meetup", date_str=DATE, time_str=TIME, location="Cafe One, Yaba",
             attendee_name="Tunde Bello", ticket_id="t", qr_data="00000000-0000-4000-8000-000000000001",
@@ -158,8 +158,8 @@ class TicketImageTests(SimpleTestCase):
         )
         img = Image.open(io.BytesIO(png))
         self.assertEqual(img.format, "PNG")
-        self.assertGreater(img.height, img.width)          # a portrait card
-        self.assertEqual(img.getpixel((2, 2)), (247, 249, 252))  # the #F7F9FC page behind the card
+        self.assertGreater(img.width, img.height)          # a wide ticket
+        self.assertEqual(img.getpixel((2, 2)), (243, 246, 251))  # the #F3F6FB page behind the card
 
     def test_very_long_names_still_render(self):
         png = generate_ticket_png(
