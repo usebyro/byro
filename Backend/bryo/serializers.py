@@ -337,10 +337,11 @@ class EventSerializer(serializers.ModelSerializer):
             'virtual_link', 'ticket_price', 'capacity', 'transferable',
             'show_remaining_count', 'pass_fee_to_attendee', 'max_tickets_per_person', 'is_sold_out',
             'event_image', 'event_image_url', 'visibility', 'timezone', 'hosted_by',
-            'is_active', 'is_draft', 'created_at', 'updated_at',
+            'is_active', 'is_draft', 'cancelled_at', 'cancel_reason', 'created_at', 'updated_at',
             'cohosts', 'role', 'tiers',
         ]
-        read_only_fields = ['id', 'slug', 'owner', 'is_active', 'is_sold_out', 'created_at', 'updated_at']
+        # cancelled_at/cancel_reason are set only by the cancel endpoint, never by editing an event.
+        read_only_fields = ['id', 'slug', 'owner', 'is_active', 'is_sold_out', 'cancelled_at', 'cancel_reason', 'created_at', 'updated_at']
 
     def get_is_sold_out(self, obj):
         return obj.is_sold_out()
@@ -417,11 +418,14 @@ class TicketSerializer(serializers.ModelSerializer):
     tier_price = serializers.DecimalField(source='tier.price', max_digits=10, decimal_places=2, read_only=True, default=None)
     event_hosted_by = serializers.CharField(source='event.hosted_by', read_only=True)
     ticket_price = serializers.SerializerMethodField()
+    event_cancelled_at = serializers.DateTimeField(source='event.cancelled_at', read_only=True)
+    event_cancel_reason = serializers.CharField(source='event.cancel_reason', read_only=True)
+    refund = serializers.SerializerMethodField()
 
     class Meta:
         model = Ticket
         fields = [
-            'ticket_id', 'event', 'event_name', 'event_slug', 'event_hosted_by', 'ticket_price',
+            'ticket_id', 'event_cancelled_at', 'event_cancel_reason', 'refund', 'event', 'event_name', 'event_slug', 'event_hosted_by', 'ticket_price',
             'event_date', 'event_time', 'event_location', 'event_image_url',
             'tier', 'tier_name', 'tier_price',
             'original_owner_name', 'original_owner_email',
@@ -438,6 +442,16 @@ class TicketSerializer(serializers.ModelSerializer):
             'event_location', 'event_image_url', 'tier_name', 'tier_price',
             'event_hosted_by', 'ticket_price',
         ]
+
+    def get_refund(self, obj):
+        """What the buyer is getting back, once the event this ticket was for is cancelled."""
+        refund = getattr(obj.payment, 'refund', None) if obj.payment_id else None
+        if refund is None:
+            return None
+        # The money is the buyer's. Someone who was given a ticket sees the cancellation, not the refund.
+        if obj.current_owner_email.strip().lower() != obj.payment.customer_email.strip().lower():
+            return None
+        return {'amount': refund.amount, 'status': refund.status}
 
     def get_event_image_url(self, obj):
         if obj.event.event_image:

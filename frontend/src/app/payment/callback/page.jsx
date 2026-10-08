@@ -12,13 +12,18 @@ function PaymentCallbackContent() {
   const reference = searchParams.get("reference") || searchParams.get("trxref");
   const [status, setStatus] = useState(reference ? "verifying" : "failed");
   const [errorMsg, setErrorMsg] = useState("");
+  const [cancelledMsg, setCancelledMsg] = useState("");
 
   useEffect(() => {
     if (!reference) return;
 
     API.verifyPayment(reference)
       .then((data) => {
-        if (data.status === "success") {
+        if (data.status === "event_cancelled") {
+          // The organiser cancelled while this buyer was paying: no ticket, the ticket price comes back.
+          setCancelledMsg(data.message || "This event was cancelled before your payment went through.");
+          setStatus("cancelled");
+        } else if (data.status === "success") {
           const ticket = data.tickets?.[0];
           const payment = data.payment;
           const event = payment?.event || {};
@@ -73,6 +78,24 @@ function PaymentCallbackContent() {
       <div className="min-h-screen bg-white flex flex-col items-center justify-center gap-4">
         <div className="animate-spin rounded-full h-14 w-14 border-b-2 border-green-500"></div>
         <p className="text-gray-600 text-lg">Verifying your payment...</p>
+      </div>
+    );
+  }
+
+  if (status === "cancelled") {
+    return (
+      <div className="min-h-screen bg-white flex flex-col items-center justify-center gap-4 px-6 text-center">
+        <h2 className="text-2xl font-bold text-gray-900">This event was cancelled</h2>
+        <p className="text-gray-600 max-w-md">{cancelledMsg}</p>
+        <p className="text-sm text-gray-500 max-w-md">
+          Byro&apos;s service fee and the payment processing charge cannot be refunded. You will get an email when your refund is sent.
+        </p>
+        <button
+          onClick={() => router.push("/")}
+          className="mt-2 px-6 py-3 bg-green-500 text-white rounded-xl font-semibold hover:bg-green-600 transition-colors"
+        >
+          Back to Byro
+        </button>
       </div>
     );
   }

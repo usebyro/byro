@@ -28,11 +28,15 @@ from django.http import JsonResponse
 from django.contrib.auth import get_user_model
 from .models import (
     WaitList, Event, Ticket, TicketTransfer,
-    EventCoHost, Payment, UserProfile, EventFormQuestion, EventFormAnswer,
+    EventCoHost, Payment, Refund, UserProfile, EventFormQuestion, EventFormAnswer,
     TicketTier, PayoutRequest, PromoCode, MerchItem, Follow, AdminAction, AdminMember, ActivityLog,
 )
 from .activity import log_activity
 from .pricing import calculate_ticket_fees, FEE_RATE, PAYSTACK_FEE_CAP
+from .refunds import (
+    EventCancellationError, apply_refund_webhook, authorise_refunds, cancel_event, cancellation_preview,
+    paystack_balance, process_event_refunds, refund_progress, refundable_amount, send_arranged_notice,
+)
 from django.urls import reverse
 from .serializers import EventSerializer, TicketSerializer, PaymentSerializer, TicketTierSerializer, PromoCodeSerializer, MerchItemSerializer
 from .permissions import IsEventOwnerOrCoHost, IsEventOwner, IsAdminMember, get_admin_member
@@ -143,6 +147,11 @@ def lock_and_check_capacity(event, tier_id, quantity):
             raise InsufficientCapacityError("Not enough tickets available in this tier")
 
     return tier
+
+
+def _event_page_url(event):
+    """Public page for an event."""
+    return f"{settings.SITE_URL}/discover/{event.slug}"
 
 
 def send_ticket_confirmation_email(ticket, customer_name, customer_email, event):
@@ -545,6 +554,13 @@ def _save_answers(tickets, clean):
             )
 
 
+def _notice_late_refund(refund_pk):
+    try:
+        send_arranged_notice(Refund.objects.select_related('payment', 'event').get(pk=refund_pk))
+    except Exception:
+        logger.exception('Could not email a buyer who paid after cancellation')
+
+
 def _fulfil_payment(payment, ticket_user):
     """
     Atomically fulfil a successful payment: mark it successful, redeem promo,
@@ -567,6 +583,17 @@ def _fulfil_payment(payment, ticket_user):
         payment.status = 'successful'
         payment.paid_at = timezone.now()
         payment.save(update_fields=['status', 'paid_at'])
+
+        if payment.event.cancelled_at:
+            # The event was cancelled while this buyer was still at Paystack. Take no
+            # ticket, redeem no promo: record the refund and tell the buyer. A Byro admin
+            # sends the money with the rest of this event's refunds.
+            refund, _ = Refund.objects.get_or_create(
+                payment=payment,
+                defaults={'event': payment.event, 'amount': refundable_amount(payment), 'currency': payment.currency},
+            )
+            transaction.on_commit(lambda: _notice_late_refund(refund.pk))
+            return [], []
 
         # Redeem promo code
         if payment.promo_code_id:
@@ -648,6 +675,8 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
 
         # Get event
         event = get_object_or_404(Event, slug=event_slug, is_active=True, is_draft=False)
+        if event.cancelled_at:
+            return Response({'error': 'This event has been cancelled and is no longer selling tickets.'}, status=status.HTTP_400_BAD_REQUEST)
 
         # The organiser decides how many tickets one order may contain. Each tier
         # sets its own limit (empty = no limit); an event without tiers uses the
@@ -967,6 +996,12 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                             )
                     transaction.on_commit(_post_commit)
 
+                    if payment.event.cancelled_at:
+                        return Response({
+                            'status': 'event_cancelled',
+                            'message': 'This event was cancelled before your payment went through. No ticket was issued, and the ticket price will be refunded to you.',
+                        }, status=status.HTTP_200_OK)
+
                     return Response({
                         'status': 'success',
                         'message': 'Payment verified successfully',
@@ -1030,6 +1065,10 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
         event_type = request.data.get('event')
         data = request.data.get('data', {})
         
+        if event_type and event_type.startswith('refund.'):
+            apply_refund_webhook(event_type, data)
+            return Response({'status': 'success'}, status=status.HTTP_200_OK)
+
         if event_type == 'charge.success':
             reference = data.get('reference')
             
@@ -1555,7 +1594,7 @@ class EventViewSet(viewsets.ModelViewSet):
             permission_classes = [IsAuthenticated]
         elif self.action in ['update', 'partial_update']:
             permission_classes = [IsAuthenticated, IsEventOwnerOrCoHost]
-        elif self.action in ['destroy', 'add_cohost', 'update_cohost', 'remove_cohost']:
+        elif self.action in ['destroy', 'add_cohost', 'update_cohost', 'remove_cohost', 'cancel', 'refunds']:
             permission_classes = [IsAuthenticated, IsEventOwner]
         else:
             permission_classes = [IsAuthenticated]
@@ -1679,6 +1718,8 @@ class EventViewSet(viewsets.ModelViewSet):
                 else Q(is_active=True, is_draft=False)
             )
             queryset = queryset.filter(visible | own)
+        if is_listing:
+            queryset = queryset.filter(cancelled_at__isnull=True)
         queryset = queryset.distinct()
 
         sort = self.request.query_params.get('sort', 'newest')
@@ -2046,6 +2087,11 @@ class EventViewSet(viewsets.ModelViewSet):
         """
         try:
             event = self.get_object()
+            if event.cancelled_at:
+                return Response(
+                    {"error": "This event has been cancelled."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
             if event.is_draft:
                 return Response(
                     {"error": "This event is not open for registration yet."},
@@ -2246,6 +2292,12 @@ class EventViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
+        if ticket.payment_status in ('refunded', 'cancelled'):
+            return Response(
+                {'error': 'This ticket was cancelled because the event was cancelled.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         if ticket.checked_in:
             return Response({
                 'already_checked_in': True,
@@ -2374,6 +2426,75 @@ class EventViewSet(viewsets.ModelViewSet):
         serializer.save(event=event)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
     
+    def destroy(self, request, *args, **kwargs):
+        """
+        Delete an event. Refused while buyers have paid for it or are owed a refund:
+        deleting would wipe their payments with no money going back. Cancel it instead.
+        """
+        event = self.get_object()
+        if event.tickets.filter(payment_status='paid').exists() or _refunds_unfinished(event):
+            return Response(
+                {'error': 'This event has paid tickets or refunds in progress, so it cannot be deleted. '
+                          'Cancel it instead and your buyers will be refunded.'},
+                status=status.HTTP_409_CONFLICT,
+            )
+        return super().destroy(request, *args, **kwargs)
+
+    @action(detail=True, methods=['GET', 'POST'], url_path='cancel',
+            permission_classes=[IsAuthenticated, IsEventOwner])
+    def cancel(self, request, slug=None):
+        """
+        Cancel an event and refund its paid tickets. Owner only.
+
+        GET  /api/events/<slug>/cancel/   what cancelling would do (nothing changes)
+        POST /api/events/<slug>/cancel/   {"reason": "..."}  cancel it
+
+        Buyers cannot ask for refunds; this is the only way money goes back.
+        Each buyer is refunded the ticket price they paid. Byro's service fee
+        and the payment charge are not refundable.
+        """
+        event = self.get_object()
+
+        if request.method == 'GET':
+            if event.cancelled_at:
+                return Response({'cancelled': True, 'progress': refund_progress(event)})
+            return Response({'cancelled': False, 'preview': cancellation_preview(event)})
+
+        reason = (request.data.get('reason') or '').strip()
+        if len(reason) < 3:
+            return Response({'error': 'Tell your attendees why the event is cancelled.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            summary = cancel_event(event, reason)
+        except EventCancellationError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        log_activity(
+            'event.cancelled', request=request, target_type='event', target_id=event.pk,
+            target_label=event.name, detail=f"{summary['paid_orders']} refunds, NGN {summary['refund_total']}",
+        )
+        if summary['paid_orders']:
+            _alert_byro_of_refunds(event, summary)
+        try:
+            progress = process_event_refunds(event)  # sends the first emails; no money moves
+        except Exception:
+            logger.exception('First notices failed for event %s', event.pk)
+            progress = refund_progress(event)
+        return Response({'cancelled': True, 'summary': summary, 'progress': progress})
+
+    @action(detail=True, methods=['GET'], url_path='refunds',
+            permission_classes=[IsAuthenticated, IsEventOwner])
+    def refunds(self, request, slug=None):
+        """
+        GET /api/events/<slug>/refunds/   where the refunds for a cancelled event have got to
+
+        Read-only. Money is sent by a Byro admin from the admin panel, because the
+        Paystack balance the refunds come out of belongs to Byro.
+        """
+        event = self.get_object()
+        if not event.cancelled_at:
+            return Response({'error': 'This event has not been cancelled.'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(refund_progress(event))
+
     @action(detail=True, methods=['POST'], permission_classes=[IsAuthenticated, IsEventOwner],
             throttle_classes=[ScopedRateThrottle], throttle_scope='cohost_invite')
     def add_cohost(self, request, slug=None):
@@ -2884,6 +3005,21 @@ class PayoutRequestView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        # If a cancelled event's money was already paid out to this organiser, Byro
+        # refunded its buyers anyway, so that event sits in the red. Their balance
+        # across ALL events has to cover the request, which holds back withdrawals
+        # until later ticket sales have made up the difference.
+        overall = compute_available_balance(request.user)
+        if overall < available and (amount is None or amount > overall):
+            return Response(
+                {'error': (
+                    'You cannot withdraw this yet. Money already paid out for an event that was '
+                    'cancelled has been refunded to its buyers, and it is being taken out of your '
+                    f'ticket sales first. Your balance across all events is {overall}.'
+                )},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         payout = serializer.save(user=request.user)
 
         # Persist bank details to user profile for pre-fill next time
@@ -2953,6 +3089,108 @@ class PayoutBalanceView(APIView):
             'pending': str(pending),
             'currency': 'NGN',
         })
+
+
+def _refunds_unfinished(event):
+    """Refunds for this event that have not reached the buyer yet. Deleting the event would erase them."""
+    return event.refunds.exclude(status=Refund.STATUS_PROCESSED).exists()
+
+
+def _alert_byro_of_refunds(event, summary):
+    """Email the Byro team that refunds are waiting to be sent. Never blocks the cancellation."""
+    try:
+        from .emails import refunds_awaiting_email
+        from .mailer import send_email
+        mail = refunds_awaiting_email(
+            event.name, event.owner.email, summary['paid_orders'], summary['refund_total'],
+            f"{settings.SITE_URL}/admin/refunds",
+        )
+        send_email(getattr(settings, 'REFUND_ALERT_EMAIL', 'support@usebyro.com'), mail['subject'], mail['html'], mail['text'])
+    except Exception:
+        logger.exception('Could not alert Byro about refunds for event %s', event.pk)
+
+
+class AdminRefundsView(APIView):
+    """
+    GET /api/admin/refunds/ — every cancelled event that has refunds, how far each has got,
+    and Byro's Paystack balance so an admin can check the money is there before sending.
+    """
+    permission_classes = [IsAdminMember]
+
+    def get(self, request):
+        events = (
+            Event.objects.filter(refunds__isnull=False).distinct()
+            .select_related('owner').order_by('-cancelled_at')
+        )
+        rows = []
+        for event in events:
+            problems = [
+                {
+                    'refund_id': r.pk, 'email': r.payment.customer_email, 'name': r.payment.customer_name,
+                    'amount': r.amount, 'status': r.status, 'reason': r.failure_reason,
+                    'reference': r.payment.paystack_reference,
+                }
+                for r in event.refunds.filter(
+                    status__in=[Refund.STATUS_FAILED, Refund.STATUS_NEEDS_ATTENTION]
+                ).select_related('payment')
+            ]
+            rows.append({
+                'event_id': event.pk, 'name': event.name, 'slug': event.slug,
+                'owner_email': event.owner.email, 'progress': refund_progress(event), 'problems': problems,
+            })
+        balance = paystack_balance()
+        return Response({
+            'paystack_balance': balance,  # None when Paystack could not be reached
+            'awaiting_total': sum((r['progress']['awaiting_amount'] for r in rows), Decimal('0')),
+            'events': rows,
+        })
+
+
+class AdminEventRefundsView(APIView):
+    """
+    POST /api/admin/events/<id>/refunds/   {"action": "send" | "continue" | "retry"}
+
+    send     approve every refund still awaiting approval, and send the first batch.
+             Refuses (409) when Byro's Paystack balance looks too low unless
+             {"confirm_low_balance": true}: refunds can also come out of a pending payout.
+    continue send the next batch of approved refunds.
+    retry    put failed refunds back in the queue and send a batch.
+
+    Money moves here, so it needs the admin role, and each send is audit-logged.
+    """
+    permission_classes = [IsAdminMember]
+    method_roles = {'POST': 'admin'}
+
+    def post(self, request, pk):
+        event = get_object_or_404(Event, pk=pk, cancelled_at__isnull=False)
+        action = request.data.get('action')
+
+        if action == 'send':
+            progress = refund_progress(event)
+            needed = progress['awaiting_amount']
+            if needed <= 0 and not progress['waiting']:
+                return Response({'error': 'There are no refunds waiting to be sent.'}, status=status.HTTP_400_BAD_REQUEST)
+            balance = paystack_balance()
+            if balance is not None and balance < needed and not request.data.get('confirm_low_balance'):
+                return Response({
+                    'error': f'Your Paystack balance (₦{balance:,.2f}) is less than the ₦{needed:,.2f} to refund.',
+                    'code': 'low_balance', 'balance': balance, 'needed': needed,
+                }, status=status.HTTP_409_CONFLICT)
+            count = authorise_refunds(event)
+            _log_admin_action(
+                request, AdminAction.ACTION_REFUNDS_SENT, 'event', event.pk, event.name,
+                f'{count} refunds, NGN {needed}',
+            )
+            return Response(process_event_refunds(event))
+
+        if action == 'continue':
+            return Response(process_event_refunds(event))
+
+        if action == 'retry':
+            _log_admin_action(request, AdminAction.ACTION_REFUNDS_RETRIED, 'event', event.pk, event.name, '')
+            return Response(process_event_refunds(event, retry_failed=True))
+
+        return Response({'error': "action must be 'send', 'continue' or 'retry'"}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class AdminPayoutView(APIView):
@@ -3148,6 +3386,11 @@ class AdminEventDetailView(APIView):
         event = self._get_event(pk)
         if event is None:
             return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+        if _refunds_unfinished(event):
+            return Response(
+                {'error': 'This event has refunds that have not been completed. Finish or resolve them before deleting it.'},
+                status=status.HTTP_409_CONFLICT,
+            )
         _log_admin_action(request, AdminAction.ACTION_EVENT_DELETED, 'event', event.pk, event.name, '')
         event.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)

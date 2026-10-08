@@ -61,6 +61,8 @@ PAYSTACK_CALLBACK_URL = config('PAYSTACK_CALLBACK_URL', default='https://usebyro
 RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')
 
 # Brevo newsletter contacts (footer signup)
+# Where "refunds are waiting to be sent" alerts go when an organiser cancels an event.
+REFUND_ALERT_EMAIL = os.environ.get('REFUND_ALERT_EMAIL', 'support@usebyro.com')
 BREVO_API_KEY = os.environ.get('BREVO_API_KEY', '')
 BREVO_LIST_ID = os.environ.get('BREVO_LIST_ID', '')
 BREVO_SMTP_KEY = os.environ.get('BREVO_SMTP_KEY', '')
