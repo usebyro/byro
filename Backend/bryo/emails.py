@@ -1,4 +1,5 @@
 import re
+from decimal import Decimal
 """
 Transactional email templates for Byro.
 Each function returns a dict: { subject, html, text }
@@ -73,22 +74,31 @@ def _logo_url():
     return f"{getattr(settings, 'SITE_URL', 'https://usebyro.com').rstrip('/')}/assets/images/logo-email.png"
 
 
-def _shell(badge_html, headline, body_html, footer_text):
+def _shell(badge_html, headline, body_html, footer_text, preheader=""):
+    pre = (
+        f'<div style="display:none;max-height:0;overflow:hidden;opacity:0;font-size:1px;line-height:1px;color:{PAGE_BG};">{preheader}</div>'
+        if preheader else ""
+    )
+    heading = (
+        f'<h1 style="margin:0 0 20px;font-family:{DISPLAY_STACK};font-size:32px;font-weight:700;color:{INK};line-height:1.1;letter-spacing:-0.02em;">{headline}</h1>'
+        if headline else ""
+    )
     return f"""
-<div style="background-color:{PAGE_BG};padding:24px 16px 32px;font-family:{FONT_STACK};color:{INK};">
+<div style="background-color:{PAGE_BG};padding:24px 24px 32px;font-family:{FONT_STACK};color:{INK};">
+  {pre}
   <table cellpadding="0" cellspacing="0" style="max-width:600px;margin:0 auto;width:100%;">
     <tr>
       <td style="background:#ffffff;border-radius:24px;overflow:hidden;">
         <table cellpadding="0" cellspacing="0" style="width:100%;">
           <tr>
             <td style="height:72px;padding:0 32px;border-bottom:1px solid {HAIRLINE};">
-              <img src="{_logo_url()}" alt="byro" width="67" height="32" style="display:block;height:32px;width:67px;border:0;">
+              <img src="{_logo_url()}" alt="byro" width="54" height="26" style="display:block;height:26px;width:54px;border:0;">
             </td>
           </tr>
           <tr>
             <td style="padding:32px;">
               {badge_html}
-              <h1 style="margin:0 0 16px;font-family:{DISPLAY_STACK};font-size:32px;font-weight:700;color:{INK};line-height:1.1;letter-spacing:-0.02em;">{headline}</h1>
+              {heading}
               {body_html}
             </td>
           </tr>
@@ -96,612 +106,483 @@ def _shell(badge_html, headline, body_html, footer_text):
       </td>
     </tr>
     <tr>
-      <td style="text-align:center;padding:20px 8px 0;">
+      <td style="text-align:center;padding:16px 8px 0;">
         <p style="color:{MUTED};font-size:12px;line-height:1.6;margin:0 0 6px;">{footer_text}</p>
         <p style="color:{MUTED};font-size:12px;line-height:1.6;margin:0 0 6px;">Questions? Reply to this email or write to <a href="mailto:support@usebyro.com" style="color:{BRAND_DARK};font-weight:700;text-decoration:none;">support@usebyro.com</a></p>
-        <p style="color:{BODY};font-size:12px;font-weight:700;line-height:1.6;margin:0;">byro &middot; Create communities. Discover events. Create memories.</p>
+        <p style="color:{BODY};font-size:12px;font-weight:700;line-height:1.6;margin:0;">Create communities. Discover events. Create memories.</p>
       </td>
     </tr>
   </table>
 </div>"""
 
 
-def ticket_confirmation_email(name, event_name, date, time, location, ticket_id, form_answers=None, ticket_url=None):
+# ---------------------------------------------------------------------------
+# Building blocks. Each one matches a piece of the email designs, using tables
+# and inline styles because mail clients ignore flexbox, grid and most CSS.
+# ---------------------------------------------------------------------------
+
+def format_event_date(day):
+    """'Sun, 11 Oct 2026'."""
+    return f"{day:%a}, {day.day} {day:%b %Y}" if day else ""
+
+
+def format_event_time(t, tz=""):
+    """'9:00 AM WAT' (the zone is only named for Lagos events)."""
+    if not t:
+        return ""
+    text = f"{t.hour % 12 or 12}:{t:%M} {'AM' if t.hour < 12 else 'PM'}"
+    return f"{text} WAT" if "lagos" in (tz or "").lower() else text
+
+
+def _money(amount):
+    value = Decimal(str(amount))
+    return f"₦{value:,.0f}" if value == value.to_integral_value() else f"₦{value:,.2f}"
+
+
+def _first(name):
+    return (name or "").strip().split(" ")[0] or "there"
+
+
+def _h(text):
+    from html import escape
+    return escape(str(text or ""))
+
+
+def _btn(url, label, primary=True):
+    look = (
+        f"background:{BRAND};color:#ffffff;font-size:16px;padding:0 26px;"
+        if primary else
+        f"border:1px solid #D5DBE5;color:{INK};font-size:15px;padding:0 22px;"
+    )
+    return (
+        f'<a href="{url}" style="display:inline-block;{look}height:50px;line-height:50px;'
+        f'text-decoration:none;font-weight:700;border-radius:999px;text-align:center;">{label}</a>'
+    )
+
+
+def _btn_row(*buttons):
+    cells = "".join(f'<td style="padding:0 10px 10px 0;">{b}</td>' for b in buttons)
+    return f'<table cellpadding="0" cellspacing="0" style="margin:0 0 20px;"><tr>{cells}</tr></table>'
+
+
+def _lead(html):
+    return f'<p style="margin:0 0 20px;font-size:16px;line-height:1.6;color:{BODY};">{html}</p>'
+
+
+def _small(html):
+    return f'<p style="margin:0 0 20px;font-size:14px;line-height:1.6;color:{MUTED};">{html}</p>'
+
+
+def _rows(rows):
+    """A bordered box of label / value lines, like the details panel in the designs."""
+    last = len(rows) - 1
+    body = "".join(
+        f'<tr><td style="padding:10px 0;{"" if n == last else f"border-bottom:1px solid {HAIRLINE};"}font-size:15px;color:{MUTED};vertical-align:top;">{label}</td>'
+        f'<td style="padding:10px 0 10px 16px;{"" if n == last else f"border-bottom:1px solid {HAIRLINE};"}font-size:15px;font-weight:700;color:{INK};text-align:right;vertical-align:top;">{value}</td></tr>'
+        for n, (label, value) in enumerate(rows)
+    )
+    return (
+        f'<table cellpadding="0" cellspacing="0" style="width:100%;border:1px solid {BORDER};border-radius:18px;border-collapse:separate;margin:0 0 20px;">'
+        f'<tr><td style="padding:6px 18px;"><table cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;">{body}</table></td></tr></table>'
+    )
+
+
+def _callout(title, bullets):
+    items = "".join(f'<div style="padding-top:8px;font-size:15px;color:{INK};">&bull; {b}</div>' for b in bullets)
+    return (
+        f'<table cellpadding="0" cellspacing="0" style="width:100%;margin:0 0 20px;"><tr>'
+        f'<td style="background:{SURFACE};border-radius:18px;padding:16px 18px;">'
+        f'<div style="font-size:15px;font-weight:700;color:{INK};">{title}</div>{items}</td></tr></table>'
+    )
+
+
+def _tiles(tiles):
+    cells = "".join(
+        f'<td width="{100 // len(tiles)}%" style="padding:0 {0 if n == len(tiles) - 1 else 10}px 0 0;vertical-align:top;">'
+        f'<table cellpadding="0" cellspacing="0" style="width:100%;border:1px solid {BORDER};border-radius:16px;border-collapse:separate;"><tr><td style="padding:14px 16px;">'
+        f'<div style="font-family:{DISPLAY_STACK};font-size:26px;font-weight:700;color:{INK};line-height:1.2;">{value}</div>'
+        f'<div style="font-size:13px;font-weight:700;color:{MUTED};padding-top:2px;">{label}</div></td></tr></table></td>'
+        for n, (value, label) in enumerate(tiles)
+    )
+    return f'<table cellpadding="0" cellspacing="0" style="width:100%;margin:0 0 20px;"><tr>{cells}</tr></table>'
+
+
+def _timeline(steps):
+    """steps: [(title, subtitle, done)]"""
+    rows = ""
+    for title, sub, done in steps:
+        dot = (
+            f'<div style="width:24px;height:24px;line-height:24px;border-radius:12px;background:{INK};color:#ffffff;font-size:13px;font-weight:800;text-align:center;">&#10003;</div>'
+            if done else
+            '<div style="width:20px;height:20px;border-radius:12px;border:2px solid #C9D0DC;background:#ffffff;"></div>'
+        )
+        rows += (
+            f'<tr><td width="36" style="padding:0 12px 14px 0;vertical-align:top;">{dot}</td>'
+            f'<td style="padding:0 0 14px;vertical-align:top;"><div style="font-size:15px;font-weight:800;color:{INK if done else MUTED};">{title}</div>'
+            f'<div style="font-size:13px;color:{MUTED};padding-top:2px;">{sub}</div></td></tr>'
+        )
+    return f'<table cellpadding="0" cellspacing="0" style="width:100%;margin:0 0 6px;">{rows}</table>'
+
+
+def _maps_link(location):
+    from urllib.parse import quote
+    return f"https://www.google.com/maps/search/?api=1&query={quote(location)}"
+
+
+def _api_public_url():
+    from django.conf import settings
+    return getattr(settings, "API_PUBLIC_URL", "https://byro.onrender.com").rstrip("/")
+
+
+# ---------------------------------------------------------------------------
+# The eight emails
+# ---------------------------------------------------------------------------
+
+def ticket_confirmation_email(name, event_name, date, time, location, ticket_id, form_answers=None, ticket_url=None,
+                              tier_label=None, holder_name=None, bought_by=None, qr_url=None, calendar_url=None):
     """
-    Ticket confirmation email — sent for both free and paid tickets.
+    "You're going to {event}": one email per ticket, with a QR code that works at the door.
 
-    Args:
-        name (str): Customer's name.
-        event_name (str): Event name.
-        date (str): Formatted event date e.g. "Saturday, July 5, 2026".
-        time (str): Formatted start time e.g. "6:00 PM".
-        location (str): Event location.
-        ticket_id (str): UUID of the ticket.
-        form_answers (list[dict], optional): List of {"question": str, "answer": str}.
-        ticket_url (str, optional): Link to the attendee's ticket page. A ticket
-            image (event details + QR code) is attached to this email
-            separately (see mailer.send_email's `attachments` param).
+    `date`/`time` are display strings. `tier_label` is e.g. "General admission x 1".
+    `bought_by` is set when someone else bought the ticket for this person.
     """
-    view_ticket_url = ticket_url or "https://usebyro.com"
+    view_url = ticket_url or "https://usebyro.com"
+    qr = qr_url or (f"{_api_public_url()}/api/tickets/{ticket_id}/qr/" if ticket_id else "")
+    cal = calendar_url or (f"{_api_public_url()}/api/tickets/{ticket_id}/calendar/" if ticket_id else "")
+    when = " · ".join(x for x in [date, time] if x)
 
-    time_cell = _cell("Doors", time) if time else "<td></td>"
-    location_row = f"<tr>{_cell('Venue', location, colspan=2)}</tr>" if location else ""
+    rows = [("Event", _h(event_name)), ("Date", _h(when))]
+    if location:
+        rows.append(("Venue", _h(location)))
+    if tier_label:
+        rows.append(("Ticket", _h(tier_label)))
+    rows.append(("Name", _h(holder_name or name)))
 
-    details_grid = f"""
-    <table cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;">
-      <tr>
-        {_cell("Date", date)}
-        {time_cell}
-      </tr>
-      {location_row}
-    </table>"""
-
-    ticket_id_section = ""
-    if ticket_id:
-        ticket_id_section = f"""
-    <table cellpadding="0" cellspacing="0" style="width:100%;">
-      <tr>
-        <td>
-          <p style="color:{MUTED};font-size:12px;margin:0;">Your ticket is attached to this email. Present it at the gate for entry</p>
-        </td>
-      </tr>
-    </table>"""
-
-    form_section = ""
-    form_rows_text = ""
+    answers_html = ""
+    answers_text = ""
     if form_answers:
-        rows_html = ""
-        for i, entry in enumerate(form_answers):
-            q = entry.get("question", "")
-            a = entry.get("answer", "")
-            if not q or not a:
-                continue
-            border = f"border-top:1px solid {BORDER};" if i > 0 else ""
-            padding_top = "10px" if i > 0 else "0"
-            rows_html += f"""
-          <table cellpadding="0" cellspacing="0" style="width:100%;{border}">
-            <tr><td style="padding:{padding_top} 0 0;">
-              <p style="color:{MUTED};font-size:11px;margin:0 0 3px;">{q}</p>
-              <p style="color:{INK};font-size:14px;font-weight:500;margin:0;">{a}</p>
-            </td></tr>
-          </table>"""
-            form_rows_text += f"{q}: {a}\n"
+        pairs = [(a.get("question", ""), a.get("answer", "")) for a in form_answers if a.get("question") and a.get("answer")]
+        if pairs:
+            answers_html = _rows([(_h(q), _h(a)) for q, a in pairs])
+            answers_text = "".join(f"{q}: {a}\n" for q, a in pairs) + "\n"
 
-        if rows_html:
-            form_section = f"""
-    <table cellpadding="0" cellspacing="0" style="width:100%;background:{SURFACE};border:1px solid {BORDER};border-radius:12px;margin-bottom:24px;">
-      <tr>
-        <td style="padding:20px;">
-          <p style="color:{MUTED};font-size:11px;font-weight:700;margin:0 0 14px;">Registration details</p>
-          {rows_html}
-        </td>
-      </tr>
-    </table>"""
+    qr_html = (
+        f'<table cellpadding="0" cellspacing="0" style="margin:0 auto 20px;"><tr><td align="center">'
+        f'<img src="{qr}" alt="Ticket QR code" width="200" height="200" style="display:block;width:200px;height:200px;border:1px solid {BORDER};border-radius:16px;padding:10px;box-sizing:border-box;background:#ffffff;">'
+        f'<div style="font-size:13px;color:{MUTED};padding-top:10px;">Show this at the door. A screenshot works too.</div></td></tr></table>'
+        if qr else ""
+    )
+    buttons = [_btn(view_url, "View ticket online")]
+    if cal:
+        buttons.append(_btn(cal, "Add to calendar", primary=False))
+    gifted = _small(f"Ticket bought for you by {_h(bought_by)}.") if bought_by else ""
 
-    body_html = f"""
-        <p style="color:{BODY};font-size:15px;line-height:1.6;margin:0 0 28px;">
-          Hi {name}, your booking is confirmed. Show your ticket ID at the gate for entry.
-        </p>
-
-        <table cellpadding="0" cellspacing="0" style="width:100%;border-collapse:separate;border-spacing:0;border-radius:16px;overflow:hidden;margin-bottom:24px;">
-          <tr>
-            <td style="background:linear-gradient(135deg,#2451D6 0%,#3669F6 100%);padding:28px 24px 24px;border-radius:16px 16px 0 0;">
-              <table cellpadding="0" cellspacing="0" style="margin-bottom:14px;">
-                <tr>
-                  <td style="background:rgba(255,255,255,0.15);border-radius:20px;padding:4px 12px;">
-                    <span style="color:#ffffff;font-size:11px;font-weight:700;">&#9679; Event</span>
-                  </td>
-                </tr>
-              </table>
-              <h2 style="color:#ffffff;font-size:22px;font-weight:700;margin:0;line-height:1.3;">{event_name}</h2>
-            </td>
-          </tr>
-          <tr>
-            <td style="background:{SURFACE};padding:20px 24px;border:1px solid {BORDER};border-top:none;border-radius:0 0 16px 16px;">
-              {details_grid}
-              <table cellpadding="0" cellspacing="0" style="width:100%;margin:8px 0 20px;">
-                <tr><td style="border-top:2px dashed #cbd5e1;font-size:0;line-height:0;">&nbsp;</td></tr>
-              </table>
-              {ticket_id_section}
-            </td>
-          </tr>
-        </table>
-
-        {form_section}
-
-        {_button(view_ticket_url, "View my tickets", NEUTRAL)}
-
-        <p style="text-align:center;color:{MUTED};font-size:13px;margin:16px 0 0;">
-          A calendar invite is attached to this email
-        </p>
-    """
-
+    body_html = (
+        _lead(f"Here&#8217;s your ticket for <b>{_h(event_name)}</b>. It&#8217;s just for you. Everyone in the same order gets their own email.")
+        + _rows(rows) + answers_html + qr_html
+        + f'<div style="text-align:center;">{_btn_row(*buttons)}</div>'.replace("<table", '<table align="center"', 1)
+        + gifted
+    )
     html = _shell(
-        _badge("Booking confirmed", NEUTRAL, NEUTRAL_BG),
-        "You're in. See you there.",
+        _badge("Your ticket", NEUTRAL, NEUTRAL_BG),
+        f"You&#8217;re going, {_h(_first(holder_name or name))}",
         body_html,
-        'You\'re getting this because you signed up for an event on Byro. '
-        f'<a href="mailto:support@usebyro.com?subject=Unsubscribe" style="color:{MUTED};text-decoration:underline;">Unsubscribe</a>',
+        f"You&#8217;re getting this because a ticket for {_h(event_name)} was issued in your name.",
+        preheader="Your ticket and QR code are inside.",
     )
+    text = (
+        f"You're going, {_first(holder_name or name)}\n\n"
+        f"Here's your ticket for {event_name}. It's just for you. Everyone in the same order gets their own email.\n\n"
+        f"Event: {event_name}\nDate: {when}\n" + (f"Venue: {location}\n" if location else "")
+        + (f"Ticket: {tier_label}\n" if tier_label else "") + f"Name: {holder_name or name}\n\n"
+        + answers_text
+        + f"View ticket online: {view_url}\n" + (f"Add to calendar: {cal}\n" if cal else "")
+        + "Show your QR code at the door. A screenshot works too.\n"
+        + (f"\nTicket bought for you by {bought_by}.\n" if bought_by else "")
+        + "\nByro Team\nsupport@usebyro.com"
+    )
+    return {"subject": f"You're going to {event_name}", "html": html, "text": text}
 
-    plain_text = (
-        f"Hi {name},\n\n"
-        f"Your booking is confirmed! Your ticket for {event_name} is ready.\n\n"
-        f"Date: {date}\n"
-    )
-    if time:
-        plain_text += f"Doors: {time}\n"
+
+def event_reminder_email(name, event_name, date, time, location, ticket_url=None, virtual_link=None, tier_label=None):
+    """Attendee reminder, sent the day before."""
+    view_url = ticket_url or "https://usebyro.com"
+    when = " · ".join(x for x in [date, time] if x)
+
+    rows = [("When", _h(when))]
     if location:
-        plain_text += f"Venue: {location}\n"
-    if form_rows_text:
-        plain_text += f"\nRegistration Details:\n{form_rows_text}"
-    plain_text += (
-        f"\nYour ticket is attached to this email. Present it at the gate for entry.\n"
-        f"A calendar invite is also attached to this email.\n"
-        f"View your ticket online: {view_ticket_url}\n\n"
-        f"Best regards,\nByro Team\nsupport@usebyro.com\n\n"
-        f"You're getting this because you signed up for an event on Byro."
+        rows.append(("Where", f'{_h(location)} · <a href="{_maps_link(location)}" style="color:{BRAND_DARK};text-decoration:none;">Get directions</a>'))
+    if virtual_link:
+        rows.append(("Join link", f'<a href="{_h(virtual_link)}" style="color:{BRAND_DARK};text-decoration:none;">{_h(virtual_link)}</a>'))
+    if tier_label:
+        rows.append(("Your ticket", _h(tier_label)))
+
+    body_html = (
+        _lead("Quick details so you can plan your day.")
+        + _rows(rows)
+        + _callout("Before you go", [
+            "Have your QR ready (a screenshot works)",
+            "Doors open on time, so arriving 10 minutes early helps",
+        ])
+        + _btn_row(_btn(view_url, "Show my ticket"))
     )
-
-    return {
-        "subject": f"Your Ticket for {event_name} is Confirmed!",
-        "html": html,
-        "text": plain_text,
-    }
-
-
-def event_reminder_email(name, event_name, date, time, location, ticket_url=None, virtual_link=None):
-    """
-    Attendee reminder email — sent ~24h before the event starts.
-
-    Args:
-        name (str): Attendee's name.
-        event_name (str): Event name.
-        date (str): Formatted event date e.g. "Saturday, July 5, 2026".
-        time (str): Formatted start time e.g. "6:00 PM".
-        location (str): Event location.
-        ticket_url (str, optional): Link to the attendee's ticket page.
-        virtual_link (str, optional): Link to join, for virtual/hybrid events.
-    """
-    view_ticket_url = ticket_url or "https://usebyro.com"
-
-    location_row = f"<tr>{_cell('Venue', location, colspan=2)}</tr>" if location else ""
-    location_row_text = f"Venue: {location}\n" if location else ""
-
-    virtual_row = f"<tr>{_cell('Join link', virtual_link, colspan=2)}</tr>" if virtual_link else ""
-    virtual_row_text = f"Join link: {virtual_link}\n" if virtual_link else ""
-
-    body_html = f"""
-        <p style="color:{BODY};font-size:15px;line-height:1.6;margin:0 0 28px;">
-          Hi {name}, just a reminder: {event_name} is happening tomorrow. Here are the details:
-        </p>
-
-        <table cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;background:{SURFACE};border:1px solid {BORDER};border-radius:12px;margin-bottom:24px;">
-          <tr>{_cell("Date", date)}{_cell("Doors", time)}</tr>
-          {location_row}
-          {virtual_row}
-          <tr><td colspan="2" style="height:4px;"></td></tr>
-        </table>
-
-        {_button(view_ticket_url, "View my ticket", TIME)}
-    """
-
+    short = " · ".join(x for x in [date, time] if x)
     html = _shell(
         _badge("Tomorrow", TIME, TIME_BG),
-        f"{event_name} is tomorrow.",
+        f"See you tomorrow at {_h(event_name)}",
         body_html,
-        'You\'re getting this because you have a ticket for this event on Byro. '
-        f'<a href="mailto:support@usebyro.com?subject=Unsubscribe" style="color:{MUTED};text-decoration:underline;">Unsubscribe</a>',
+        f"You&#8217;re getting this because you have a ticket for {_h(event_name)}.",
+        preheader=f"{short}{' at ' + _h(location) if location else ''}. Your ticket is inside.",
     )
-
-    plain_text = (
-        f"Hi {name},\n\n"
-        f"Just a reminder: {event_name} is happening tomorrow.\n\n"
-        f"Date: {date}\n"
-        f"Doors: {time}\n"
-        f"{location_row_text}"
-        f"{virtual_row_text}\n"
-        f"View your ticket: {view_ticket_url}\n\n"
-        f"See you there,\nByro Team\nsupport@usebyro.com"
+    text = (
+        f"See you tomorrow at {event_name}\n\nQuick details so you can plan your day.\n\n"
+        f"When: {when}\n" + (f"Where: {location} ({_maps_link(location)})\n" if location else "")
+        + (f"Join link: {virtual_link}\n" if virtual_link else "") + (f"Your ticket: {tier_label}\n" if tier_label else "")
+        + "\nBefore you go:\n- Have your QR ready (a screenshot works)\n- Doors open on time, so arriving 10 minutes early helps\n\n"
+        f"Show my ticket: {view_url}\n\nByro Team\nsupport@usebyro.com"
     )
-
-    return {
-        "subject": f"Reminder: {event_name} is tomorrow",
-        "html": html,
-        "text": plain_text,
-    }
+    return {"subject": f"{event_name} is tomorrow", "html": html, "text": text}
 
 
-def organizer_event_reminder_email(name, event_name, date, time, tickets_sold, dashboard_url=None):
-    """
-    Organiser heads-up email — sent ~24h before the event starts, same run
-    as the attendee reminder.
+def organizer_event_reminder_email(name, event_name, date, time, tickets_sold, dashboard_url=None,
+                                   location="", capacity=None, revenue=None, checkin_url=None):
+    """Organiser reminder, sent the day before: how sales stand and a check-in plan."""
+    manage_url = dashboard_url or "https://usebyro.com"
+    checkin = checkin_url or manage_url
+    where = f" · {_h(location)}" if location else ""
+    when = " · ".join(x for x in [date, time] if x)
+    sold_word = "ticket" if tickets_sold == 1 else "tickets"
 
-    Args:
-        name (str): Organiser's/co-host's name.
-        event_name (str): Event name.
-        date (str): Formatted event date.
-        time (str): Formatted start time.
-        tickets_sold (int): Total paid + free tickets issued so far.
-        dashboard_url (str, optional): Link to the event's organiser dashboard.
-    """
-    view_dashboard_url = dashboard_url or "https://usebyro.com"
-    ticket_word = "ticket" if tickets_sold == 1 else "tickets"
+    tiles = [(str(tickets_sold), f"{sold_word} sold"), ("No cap" if not capacity else str(capacity), "capacity")]
+    if revenue is not None:
+        tiles.append((_money(revenue), "revenue"))
 
-    body_html = f"""
-        <p style="color:{BODY};font-size:15px;line-height:1.6;margin:0 0 28px;">
-          Hi {name}, {event_name} is happening tomorrow at {time}. You've sold <strong style="color:{INK};">{tickets_sold}</strong> {ticket_word} so far. Good time for a final check on staffing and check-in.
-        </p>
-
-        <table cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;background:{SURFACE};border:1px solid {BORDER};border-radius:12px;margin-bottom:24px;">
-          <tr>{_cell("Date", date)}{_cell("Doors", time)}</tr>
-          <tr><td colspan="2" style="height:4px;"></td></tr>
-        </table>
-
-        {_button(view_dashboard_url, "Open dashboard", TIME)}
-    """
-
+    body_html = (
+        _lead(f"<b>{_h(event_name)}</b> · {_h(when)}{where}")
+        + _tiles(tiles)
+        + _callout("Get ready", [
+            "Open the check-in scanner on your phone and test it once",
+            "Add co-hosts who will help at the door",
+            "Share the link one more time for last-minute sales",
+        ])
+        + _btn_row(_btn(checkin, "Open check-in"), _btn(manage_url, "Manage event", primary=False))
+    )
     html = _shell(
-        _badge("Tomorrow", TIME, TIME_BG),
-        f"{event_name} starts tomorrow.",
+        _badge("For organisers", NEUTRAL, NEUTRAL_BG),
+        "Your event starts tomorrow",
         body_html,
-        "&#169; 2026 Byro Technologies. All rights reserved.",
+        f"You&#8217;re getting this because you host {_h(event_name)} on byro.",
+        preheader=f"{tickets_sold} {sold_word} sold so far. Here is your check-in plan.",
     )
-
-    plain_text = (
-        f"Hi {name},\n\n"
-        f"{event_name} is happening tomorrow, {date} at {time}.\n\n"
-        f"You've sold {tickets_sold} {ticket_word} so far.\n\n"
-        f"Dashboard: {view_dashboard_url}\n\n"
-        f"Best regards,\nByro Team\nsupport@usebyro.com"
+    text = (
+        f"Your event starts tomorrow\n\n{event_name} · {when}{' · ' + location if location else ''}\n\n"
+        + "".join(f"{label}: {value}\n" for value, label in tiles)
+        + "\nGet ready:\n- Open the check-in scanner on your phone and test it once\n- Add co-hosts who will help at the door\n"
+        "- Share the link one more time for last-minute sales\n\n"
+        f"Open check-in: {checkin}\nManage event: {manage_url}\n\nByro Team\nsupport@usebyro.com"
     )
-
-    return {
-        "subject": f"{event_name} is tomorrow: {tickets_sold} tickets sold",
-        "html": html,
-        "text": plain_text,
-    }
+    return {"subject": f"{event_name} starts tomorrow", "html": html, "text": text}
 
 
-def milestone_reached_email(name, event_name, milestone, tickets_sold, dashboard_url=None):
-    """
-    Organiser milestone email — sent when total tickets sold for an event
-    crosses a threshold (1st sale, 10, 25, 50, 100, then every 100).
+def _next_milestone(n):
+    for step in (1, 10, 25, 50, 100):
+        if n < step:
+            return step
+    return (n // 100 + 1) * 100
 
-    Args:
-        name (str): Organiser's/co-host's name.
-        event_name (str): Event name.
-        milestone (int): The threshold just crossed.
-        tickets_sold (int): Total paid + free tickets issued right now.
-        dashboard_url (str, optional): Link to the event's organiser dashboard.
-    """
-    view_dashboard_url = dashboard_url or "https://usebyro.com"
-    headline = "Your first ticket just sold!" if milestone == 1 else f"You've hit {milestone} tickets sold!"
-    ticket_word = "ticket" if tickets_sold == 1 else "tickets"
 
-    body_html = f"""
-        <p style="color:{BODY};font-size:15px;line-height:1.6;margin:0 0 28px;">
-          Hi {name}, <strong style="color:{INK};">{event_name}</strong> has now sold <strong style="color:{INK};">{tickets_sold}</strong> {ticket_word} in total.
-        </p>
-
-        {_button(view_dashboard_url, "Open dashboard", GROWTH)}
-    """
-
+def milestone_reached_email(name, event_name, milestone, tickets_sold, dashboard_url=None, share_url=None):
+    """Organiser milestone: the 1st sale, then 10, 25, 50, 100 and every 100 after."""
+    dash = dashboard_url or "https://usebyro.com"
+    share = share_url or dash
+    word = "ticket" if milestone == 1 else "tickets"
+    nxt = _next_milestone(milestone)
+    banner = (
+        f'<table cellpadding="0" cellspacing="0" style="width:100%;margin:0 0 20px;"><tr><td style="background:{BRAND};border-radius:20px;padding:28px;color:#ffffff;">'
+        f'<div style="font-size:13px;font-weight:800;letter-spacing:0.1em;opacity:0.85;">MILESTONE</div>'
+        f'<div style="font-family:{DISPLAY_STACK};font-size:64px;font-weight:700;line-height:1.05;">{milestone}</div>'
+        f'<div style="font-size:18px;font-weight:800;">{word} sold for {_h(event_name)}</div></td></tr></table>'
+    )
+    body_html = (
+        banner
+        + _lead(f"People are showing up for you. Your next milestone is <b>{nxt} tickets</b>. A quick post or a message in your community group usually helps.")
+        + _btn_row(_btn(share, "Share event"), _btn(dash, "See sales", primary=False))
+        + _small("Milestone emails go out at 1, 10, 25 and 50 tickets, then every 100. Reply to this email if you would rather not get them.")
+    )
     html = _shell(
-        _badge("Milestone", GROWTH, GROWTH_BG),
-        headline,
-        body_html,
-        "&#169; 2026 Byro Technologies. All rights reserved.",
+        "", None, body_html,
+        f"You&#8217;re getting this because you host {_h(event_name)} on byro.",
+        preheader="Nice work. Keep it going.",
     )
-
-    plain_text = (
-        f"Hi {name},\n\n"
-        f"{headline}\n\n"
-        f"{event_name} has now sold {tickets_sold} {ticket_word} in total.\n\n"
-        f"Dashboard: {view_dashboard_url}\n\n"
-        f"Best regards,\nByro Team\nsupport@usebyro.com"
+    text = (
+        f"{milestone} {word} sold for {event_name}\n\nPeople are showing up for you. Your next milestone is {nxt} tickets. "
+        f"A quick post or a message in your community group usually helps.\n\nShare event: {share}\nSee sales: {dash}\n\n"
+        "Milestone emails go out at 1, 10, 25 and 50 tickets, then every 100. Reply to this email if you would rather not get them.\n\n"
+        "Byro Team\nsupport@usebyro.com"
     )
-
-    return {
-        "subject": f"{event_name}: {headline}",
-        "html": html,
-        "text": plain_text,
-    }
+    return {"subject": f"{milestone} {word} sold for {event_name}", "html": html, "text": text}
 
 
-def event_published_email(name, event_name, date, time, location, event_url, share_cta_url=None, is_first_event=True):
-    """
-    Event published email — sent to the organiser right after an event goes live.
+def event_published_email(name, event_name, date, time, location, event_url, share_cta_url=None, is_first_event=True,
+                          tickets_label=None, manage_url=None):
+    """To the organiser, the moment an event goes live: share it."""
+    from urllib.parse import quote
+    manage = manage_url or event_url
+    when = " · ".join(x for x in [date, time] if x)
+    share_text = quote(f"{event_name}\n{event_url}")
+    wa = f"https://wa.me/?text={share_text}"
+    x = f"https://twitter.com/intent/tweet?text={quote(event_name)}&url={quote(event_url)}"
 
-    Two variants share the same layout: a first-timer gets a more instructive
-    push ("do this first"), a returning organiser gets a shorter one that
-    assumes they already know the playbook.
-
-    Args:
-        name (str): Organiser's name.
-        event_name (str): Event name.
-        date (str): Formatted event date e.g. "Saturday, July 5, 2026".
-        time (str): Formatted start time e.g. "6:00 PM".
-        location (str): Event location.
-        event_url (str): Link to the public event page ("View Event").
-        share_cta_url (str, optional): Link for the primary share CTA — opens
-            the in-app share options (WhatsApp, X, copy link, etc). Falls
-            back to event_url if not given.
-        is_first_event (bool): True if this is the organiser's first-ever
-            published event.
-    """
-    primary_url = share_cta_url or event_url
-
-    if is_first_event:
-        subject = "Your first event is live. Here's how to sell it out."
-        headline = "You're live. Here's how to sell it out."
-        intro_html = (
-            f"<p style=\"color:{BODY};font-size:15px;line-height:1.6;margin:0 0 16px;\">"
-            f"Hi {name}, <strong style=\"color:{INK};\">{event_name}</strong> is published on Byro. "
-            f"That's the hard part done. Now for the part that actually fills the room."
-            f"</p>"
-            f"<p style=\"color:{BODY};font-size:15px;line-height:1.6;margin:0 0 28px;\">"
-            f"Nobody buys a ticket to an event they've never heard of. Do this first: DM five people "
-            f"right now with your event link. That single move outsells a week of hoping people find your page on their own."
-            f"</p>"
-        )
-        intro_text = (
-            f"Hi {name},\n\n"
-            f"{event_name} is published on Byro. That's the hard part done, now for the part that actually fills the room.\n\n"
-            f"Nobody buys a ticket to an event they've never heard of. Do this first: DM five people right now with your event link.\n\n"
-        )
-        primary_label = "Get my first 5 RSVPs"
-    else:
-        subject = f"{event_name} is live. You already know what works."
-        headline = "You're live. You know what works."
-        intro_html = (
-            f"<p style=\"color:{BODY};font-size:15px;line-height:1.6;margin:0 0 28px;\">"
-            f"Hi {name}, <strong style=\"color:{INK};\">{event_name}</strong> is published. You've done this before: "
-            f"the tickets you sell yourself beat the ones you wait for."
-            f"</p>"
-        )
-        intro_text = (
-            f"Hi {name},\n\n"
-            f"{event_name} is published. You've done this before, so you know the drill: the tickets you sell yourself beat the ones you wait for.\n\n"
-        )
-        primary_label = "Sell my first tickets"
-
-    location_row = f"<tr>{_cell('Venue', location, colspan=2)}</tr>" if location else ""
-
-    details_grid = f"""
-    <table cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;background:{SURFACE};border:1px solid {BORDER};border-radius:12px;margin-bottom:24px;">
-      <tr>{_cell("Date", date)}{_cell("Doors", time)}</tr>
-      {location_row}
-      <tr><td colspan="2" style="height:4px;"></td></tr>
-    </table>"""
-
-    body_html = f"""
-        {intro_html}
-        {details_grid}
-        {_button(primary_url, primary_label, GROWTH)}
-        {_text_link(event_url, "View event page")}
-    """
-
-    html = _shell(
-        _badge("Published", GROWTH, GROWTH_BG),
-        headline,
-        body_html,
-        'You\'re getting this because you published an event on Byro. '
-        f'<a href="mailto:support@usebyro.com?subject=Unsubscribe" style="color:{MUTED};text-decoration:underline;">Unsubscribe</a>',
-    )
-
-    plain_text = (
-        f"{intro_text}"
-        f"Event: {event_name} ({event_url})\n"
-        f"Date: {date}\n"
-        f"Doors: {time}\n"
-    )
+    rows = [("Date", _h(when))]
     if location:
-        plain_text += f"Venue: {location}\n"
-    plain_text += (
-        f"\n{primary_label}: {primary_url}\n"
-        f"View Event: {event_url}\n\n"
-        f"Best regards,\nByro Team\nsupport@usebyro.com\n\n"
-        f"You're getting this because you published an event on Byro."
+        rows.append(("Venue", _h(location)))
+    if tickets_label:
+        rows.append(("Tickets", _h(tickets_label)))
+
+    share_html = (
+        f'<div style="font-size:15px;font-weight:800;color:{INK};padding-bottom:10px;">Share it now</div>'
+        f'<table cellpadding="0" cellspacing="0" style="width:100%;margin:0 0 20px;"><tr>'
+        f'<td width="50%" style="padding-right:5px;"><a href="{wa}" style="display:block;height:52px;line-height:52px;border:1px solid #D5DBE5;border-radius:999px;text-align:center;font-size:15px;font-weight:700;color:{INK};text-decoration:none;">WhatsApp</a></td>'
+        f'<td width="50%" style="padding-left:5px;"><a href="{x}" style="display:block;height:52px;line-height:52px;border:1px solid #D5DBE5;border-radius:999px;text-align:center;font-size:15px;font-weight:700;color:{INK};text-decoration:none;">Post on X</a></td>'
+        f'</tr></table>'
     )
+    body_html = (
+        _lead("Your event page is up and tickets are on sale.")
+        + share_html + _rows(rows)
+        + _btn_row(_btn(event_url, "View event page"), _btn(manage, "Manage event", primary=False))
+        + _small("Sharing in the first hour helps early sales, and early sales help your event show up on Discover.")
+    )
+    html = _shell(
+        _badge("Live", MONEY, MONEY_BG),
+        f"{_h(event_name)} is live",
+        body_html,
+        "You&#8217;re getting this because you published an event on byro.",
+        preheader="Your event page is up. Share the link to start selling.",
+    )
+    text = (
+        f"{event_name} is live\n\nYour event page is up and tickets are on sale.\n\n"
+        f"Share on WhatsApp: {wa}\nPost on X: {x}\n\n"
+        + "".join(f"{label}: {value}\n" for label, value in [("Date", when), ("Venue", location), ("Tickets", tickets_label)] if value)
+        + f"\nView event page: {event_url}\nManage event: {manage}\n\n"
+        "Sharing in the first hour helps early sales, and early sales help your event show up on Discover.\n\nByro Team\nsupport@usebyro.com"
+    )
+    return {"subject": f"{event_name} is live", "html": html, "text": text}
 
-    return {
-        "subject": subject,
-        "html": html,
-        "text": plain_text,
-    }
 
-
-COHOST_ROLE_SUMMARY = {
-    'manager': "You can edit the event and its tickets and discounts, see the guest list and check people in.",
-    'checkin': "You can see the guest list and check people in at the door.",
-}
-
-
-def cohost_invite_email(event_name, inviter_name, event_url, is_new_user=False, role='manager', invitee_email=''):
-    """
-    Co-host invitation email.
-
-    Sent when an organiser adds someone as a co-host. `role` says what they may
-    do. When the invitee has no Byro account yet (`is_new_user`), the button is
-    an "Accept invitation" link that leads them to sign in or sign up and then
-    to the event: no separate sign-up email is sent. Their access switches on
-    when they sign in with the invited address. Existing users already have
-    access, so their button simply opens the event.
-
-    Args:
-        event_name (str): Event they have been invited to co-host.
-        inviter_name (str): Display name or email of the organiser who invited them.
-        event_url (str): Where the button goes (an accept link for new users,
-            the event dashboard otherwise).
-        is_new_user (bool): True when the invitee has no Byro account yet.
-        role (str): 'manager' or 'checkin'.
-        invitee_email (str): The invited address, shown so they sign in with it.
-    """
-    permission = COHOST_ROLE_SUMMARY.get(role, COHOST_ROLE_SUMMARY['manager'])
-    if is_new_user:
-        lead = f"{inviter_name} has invited you to co-host <strong style=\"color:{INK};\">{event_name}</strong> on Byro."
-        instruction = (
-            f"{permission} Choose Accept to sign in or create your account"
-            + (f", using <strong style=\"color:{INK};\">{invitee_email}</strong>" if invitee_email else "")
-            + ". Your access switches on as soon as you do."
-        )
-        cta = "Accept invitation"
-        footer = "If you weren't expecting this, you can safely ignore this email. Nothing changes until you accept."
+def cohost_invite_email(event_name, inviter_name, event_url, is_new_user=False, role="manager", invitee_email="",
+                        date="", time="", location=""):
+    """Invite to co-host. Managers can edit; check-in helpers can only see guests and check them in."""
+    when = " · ".join(x for x in [date, time, location] if x)
+    if role == "checkin":
+        can = ["See the guest list and check people in", "You won&#8217;t be able to edit the event", "You won&#8217;t see payouts or bank details"]
+        can_text = ["See the guest list and check people in", "You won't be able to edit the event", "You won't see payouts or bank details"]
     else:
-        lead = f"{inviter_name} has added you as a co-host of <strong style=\"color:{INK};\">{event_name}</strong> on Byro."
-        instruction = permission
-        cta = "View event"
-        footer = "If you weren't expecting this, you can safely ignore this email."
+        can = ["See the guest list and check people in", "Edit event details and share the event", "You won&#8217;t see payouts or bank details"]
+        can_text = ["See the guest list and check people in", "Edit event details and share the event", "You won't see payouts or bank details"]
 
-    body_html = f"""
-        <p style="color:{BODY};font-size:15px;line-height:1.6;margin:0 0 16px;">{lead}</p>
-        <p style="color:{BODY};font-size:15px;line-height:1.6;margin:0 0 28px;">{instruction}</p>
-        {_button(event_url, cta, NEUTRAL)}
-        <p style="color:{MUTED};font-size:12px;line-height:1.6;margin:24px 0 0;border-top:1px solid {BORDER};padding-top:20px;">
-          {footer}
-        </p>
-    """
-
+    inviter = _h(inviter_name)
+    body_html = (
+        (_lead(_h(when)) if when else "")
+        + _callout("As a co-host you can", can)
+        + _btn_row(_btn(event_url, "Accept invite" if is_new_user else "Open event"))
+        + _small("Not expecting this? Just ignore this email. Nothing changes unless you accept.")
+        + (_small("If you don&#8217;t have a byro account yet, you can create one when you accept.") if is_new_user else "")
+    )
     html = _shell(
-        _badge("Co-host invite", NEUTRAL, NEUTRAL_BG),
-        f"You've been invited to co-host {event_name}.",
+        _badge("Invite", NEUTRAL, NEUTRAL_BG),
+        f"{inviter} invited you to co-host {_h(event_name)}",
         body_html,
-        "&#169; 2026 Byro Technologies. All rights reserved.",
+        f"You&#8217;re getting this because {inviter} added this email as a co-host.",
+        preheader="Accept to help manage the event and check guests in.",
     )
-
-    plain_instruction = re.sub(r"<[^>]+>", "", instruction)
-    plain_lead = re.sub(r"<[^>]+>", "", lead)
-    plain_text = (
-        f"{plain_lead}\n\n"
-        f"{plain_instruction}\n\n"
-        f"{cta}: {event_url}\n\n"
-        f"{footer}\n\n"
-        f"Best regards,\nByro Team\nsupport@usebyro.com"
+    text = (
+        f"{inviter_name} invited you to co-host {event_name}\n\n" + (f"{when}\n\n" if when else "")
+        + "As a co-host you can:\n" + "".join(f"- {c}\n" for c in can_text)
+        + f"\n{'Accept invite' if is_new_user else 'Open event'}: {event_url}\n\n"
+        "Not expecting this? Just ignore this email. Nothing changes unless you accept.\n"
+        + ("If you don't have a byro account yet, you can create one when you accept.\n" if is_new_user else "")
+        + "\nByro Team\nsupport@usebyro.com"
     )
-
-    return {
-        "subject": f"You've been invited to co-host {event_name}",
-        "html": html,
-        "text": plain_text,
-    }
+    return {"subject": f"{inviter_name} invited you to co-host {event_name}", "html": html, "text": text}
 
 
-def payout_requested_email(name, amount, bank_name, account_number, event_name=None):
-    """
-    Payout requested email — sent when organiser submits a payout request.
+def _payout_destination(bank_name, account_number):
+    last4 = (account_number or "")[-4:]
+    return f"{_h(bank_name)} ••••{last4}" if last4 else _h(bank_name)
 
-    Args:
-        name (str): Organiser's name.
-        amount (decimal): Payout amount.
-        bank_name (str): Bank name.
-        account_number (str): Account number.
-        event_name (str, optional): Event name if payout is for a specific event.
-    """
-    formatted_amount = f"₦{amount:,.0f}"
 
-    event_cell = _cell("Event", event_name) if event_name else "<td></td>"
-    event_section_text = f"\nEvent: {event_name}" if event_name else ""
+def payout_requested_email(name, amount, bank_name, account_number, event_name=None, requested_at=None,
+                           reference=None, payouts_url=None):
+    """To the organiser, right after they ask for a payout."""
+    shown = _money(amount)
+    url = payouts_url or "https://usebyro.com/dashboard/payouts"
+    rows = [("To", _payout_destination(bank_name, account_number))]
+    if requested_at:
+        rows.append(("Requested", _h(requested_at)))
+    if reference:
+        rows.append(("Reference", _h(reference)))
 
-    body_html = f"""
-        <p style="color:{BODY};font-size:15px;line-height:1.6;margin:0 0 28px;">
-          Hi {name}, your payout request has been initiated.
-        </p>
-
-        <table cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;margin-bottom:24px;">
-          <tr>{_cell("Amount", formatted_amount)}{_cell("Bank", bank_name)}</tr>
-          <tr>{_cell("Account number", account_number, mono=True)}{event_cell}</tr>
-        </table>
-
-        <table cellpadding="0" cellspacing="0" style="width:100%;background:{SURFACE};border:1px solid {BORDER};border-radius:12px;">
-          <tr>
-            <td style="padding:16px 20px;">
-              <p style="color:{BODY};font-size:14px;line-height:1.5;margin:0;">
-                Payouts are processed within 24 hours. We'll send you a confirmation once it's completed.
-              </p>
-            </td>
-          </tr>
-        </table>
-    """
-
+    amount_block = (
+        f'<div style="margin:0 0 20px;"><div style="font-size:13px;font-weight:800;letter-spacing:0.08em;color:{MUTED};">AMOUNT</div>'
+        f'<div style="font-family:{DISPLAY_STACK};font-size:44px;font-weight:700;color:{INK};line-height:1.2;">{shown}</div></div>'
+    )
+    body_html = (
+        _lead("We&#8217;re reviewing it now.") + amount_block + _rows(rows)
+        + _timeline([("Requested", "Just now", True), ("Approved", "Usually within 24 hours", False),
+                     ("Paid to your bank", "We&#8217;ll email you when it lands", False)])
+        + '<div style="height:14px;"></div>'
+        + _btn_row(_btn(url, "View payouts", primary=False))
+    )
     html = _shell(
-        _badge("Payout initiated", MONEY, MONEY_BG),
-        "Your payout is on the way.",
+        _badge("Payout", TIME, TIME_BG),
+        "We got your payout request",
         body_html,
-        f'If you have any questions, kindly reach out to <a href="mailto:support@usebyro.com" style="color:{MONEY};text-decoration:underline;">support@usebyro.com</a><br/>&#169; 2026 Byro Technologies. All rights reserved.',
+        "You&#8217;re getting this because a payout was requested from your byro account. Didn&#8217;t request it? Reply right away.",
+        preheader="We&#8217;re reviewing it now. Here&#8217;s what happens next.",
     )
-
-    plain_text = (
-        f"Hi {name},\n\n"
-        f"Your payout request has been initiated.\n\n"
-        f"Amount: {formatted_amount}\n"
-        f"Bank: {bank_name}\n"
-        f"Account Number: {account_number}"
-        f"{event_section_text}\n\n"
-        f"Payouts are processed within 24 hours. We'll send you a confirmation once it's completed.\n\n"
-        f"If you have any questions, kindly reach out to support@usebyro.com.\n\n"
-        f"Thanks,\n"
-        f"The Byro Team"
+    text = (
+        f"We got your payout request\n\nWe're reviewing it now.\n\nAmount: {shown}\n"
+        + "".join(f"{label}: {value}\n" for label, value in [("To", f'{bank_name} ••••{(account_number or "")[-4:]}'), ("Requested", requested_at), ("Reference", reference)] if value)
+        + "\nRequested: just now\nApproved: usually within 24 hours\nPaid to your bank: we'll email you when it lands\n\n"
+        f"View payouts: {url}\n\nIf you didn't request this, reply right away.\n\nByro Team\nsupport@usebyro.com"
     )
-
-    return {
-        "subject": f"Your Payout Request of {formatted_amount} has been Initiated",
-        "html": html,
-        "text": plain_text,
-    }
+    return {"subject": f"We got your payout request for {shown}", "html": html, "text": text}
 
 
-def payout_completed_email(name, amount, bank_name, account_number, event_name=None):
-    """
-    Payout completed email — sent when admin marks payout as processed.
+def payout_completed_email(name, amount, bank_name, account_number, event_name=None, paid_on=None,
+                           reference=None, payouts_url=None):
+    """To the organiser, once a payout has been paid."""
+    shown = _money(amount)
+    url = payouts_url or "https://usebyro.com/dashboard/payouts"
+    rows = [("To", _payout_destination(bank_name, account_number))]
+    if paid_on:
+        rows.append(("Paid on", _h(paid_on)))
+    if reference:
+        rows.append(("Reference", _h(reference)))
 
-    Args:
-        name (str): Organiser's name.
-        amount (decimal): Payout amount.
-        bank_name (str): Bank name.
-        account_number (str): Account number.
-        event_name (str, optional): Event name if payout is for a specific event.
-    """
-    formatted_amount = f"₦{amount:,.0f}"
-
-    event_cell = _cell("Event", event_name) if event_name else "<td></td>"
-    event_row_text = f"\nEvent: {event_name}" if event_name else ""
-
-    body_html = f"""
-        <p style="color:{BODY};font-size:15px;line-height:1.6;margin:0 0 28px;">
-          Hi {name}, your payout has been processed and sent to your bank account.
-        </p>
-
-        <table cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;margin-bottom:8px;">
-          <tr>{_cell("Amount", formatted_amount)}{_cell("Bank", bank_name)}</tr>
-          <tr>{_cell("Account number", account_number, mono=True)}{event_cell}</tr>
-        </table>
-    """
-
+    banner = (
+        f'<table cellpadding="0" cellspacing="0" style="width:100%;margin:0 0 20px;"><tr><td style="background:#E3F5EC;border-radius:20px;padding:24px;">'
+        f'<table cellpadding="0" cellspacing="0"><tr><td style="background:#ffffff;border-radius:999px;padding:6px 12px;color:#1F6B47;font-size:12px;font-weight:800;letter-spacing:0.08em;">PAID</td></tr></table>'
+        f'<div style="font-family:{DISPLAY_STACK};font-size:52px;font-weight:700;line-height:1.1;color:{INK};padding-top:6px;">{shown}</div>'
+        f'<div style="font-size:16px;font-weight:700;color:#1F6B47;">is on its way to your bank</div></td></tr></table>'
+    )
+    body_html = (
+        banner + _rows(rows)
+        + _small("Depending on your bank, it can take a little while to show in your account. If it hasn&#8217;t arrived after 24 hours, reply with the reference above.")
+        + _btn_row(_btn(url, "View payouts", primary=False))
+    )
     html = _shell(
-        _badge("Payout completed", MONEY, MONEY_BG),
-        "You've been paid.",
-        body_html,
-        f'If you have any questions, kindly reach out to <a href="mailto:support@usebyro.com" style="color:{MONEY};text-decoration:underline;">support@usebyro.com</a><br/>&#169; 2026 Byro Technologies. All rights reserved.',
+        "", None, body_html,
+        "You&#8217;re getting this because you requested a payout from your byro account.",
+        preheader="Your payout is complete.",
     )
-
-    plain_text = (
-        f"Hi {name},\n\n"
-        f"Your payout has been completed.\n\n"
-        f"Amount: {formatted_amount}\n"
-        f"Bank: {bank_name}\n"
-        f"Account Number: {account_number}"
-        f"{event_row_text}\n\n"
-        f"If you have any questions, kindly reach out to support@usebyro.com.\n\n"
-        f"Thanks,\n"
-        f"The Byro Team"
+    text = (
+        f"{shown} is on its way to your bank\n\n"
+        + "".join(f"{label}: {value}\n" for label, value in [("To", f'{bank_name} ••••{(account_number or "")[-4:]}'), ("Paid on", paid_on), ("Reference", reference)] if value)
+        + "\nDepending on your bank, it can take a little while to show in your account. If it hasn't arrived after 24 hours, "
+        f"reply with the reference above.\n\nView payouts: {url}\n\nByro Team\nsupport@usebyro.com"
     )
-
-    return {
-        "subject": f"Your Payout of {formatted_amount} has been Completed",
-        "html": html,
-        "text": plain_text,
-    }
+    return {"subject": f"{shown} has been paid to your bank", "html": html, "text": text}
 
 
 def event_cancelled_email(name, event_name, date, time, location, reason, refund_amount=None,
