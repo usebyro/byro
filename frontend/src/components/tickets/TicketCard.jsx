@@ -152,7 +152,6 @@ export default function TicketCard({ ticket }) {
             </div>
           </div>
 
-          {/* Tear line */}
           <div aria-hidden="true" className="relative flex h-6 items-center">
             <span className="absolute -left-3 h-6 w-6 rounded-full border-r border-[#E3E8F0] bg-[#F7F9FC]" />
             <span className="mx-[22px] grow border-t-2 border-dashed border-[#E3E8F0]" />
@@ -198,7 +197,7 @@ export default function TicketCard({ ticket }) {
       </div>
       {saveError && <p role="alert" className="mt-3 text-center text-[13px] text-red-600">{saveError}</p>}
       <p className="mt-4 text-center text-[13px] text-[#5B6272]">
-        We also emailed this ticket. Screenshots work at the door, no app needed.
+        Also emailed to you. A screenshot works at the door.
       </p>
     </div>
   );

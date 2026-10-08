@@ -1,4 +1,3 @@
-// components/EventsContainer.jsx
 import React, { useState, useEffect } from "react";
 import { fetchHappeningEvents } from "@/services/eventServices";
 import EventCard from "./EventCard";

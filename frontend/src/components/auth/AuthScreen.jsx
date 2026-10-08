@@ -235,7 +235,6 @@ export default function AuthScreen() {
         onLoad={() => setTurnstileReady(true)}
       />
       <div className="w-full grid grid-cols-1 md:grid-cols-2 min-h-screen">
-        {/* Left — brand panel */}
         <div className="relative hidden md:block overflow-hidden h-full">
           {SLIDES.map((slide, i) => (
             <Image
@@ -252,7 +251,6 @@ export default function AuthScreen() {
           ))}
         </div>
 
-        {/* Right — auth form */}
         <div className="relative bg-white flex items-center justify-center p-10 sm:p-14 min-h-screen">
           <Link href="/" className="absolute top-6 left-6 md:top-8 md:left-10">
             <Image src="/assets/images/logo.svg" alt="byro" width={80} height={32} className="h-7 w-auto" priority />
@@ -262,7 +260,7 @@ export default function AuthScreen() {
               <>
                 <h2 className="font-serif text-3xl text-gray-900 mb-2">Welcome to Byro</h2>
                 <p className="text-gray-500 text-sm mb-8">
-                  Enter your email to sign in or create an account.
+                  Enter your email to continue.
                 </p>
 
                 <form className="space-y-4" onSubmit={handleEmailSubmit}>

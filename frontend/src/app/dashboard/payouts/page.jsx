@@ -262,9 +262,7 @@ export default function StudioPayouts() {
         <p className="text-xs text-gray-500 mt-0.5">Track earnings and withdraw to your bank.</p>
       </div>
 
-      {/* Summary cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
-        {/* Available */}
         <div className="col-span-2 md:col-span-1 bg-gradient-to-br from-[#4F6EF7] to-[#6366f1] rounded-xl p-4 text-white shadow-sm flex flex-col justify-between">
           <div>
             <p className="text-[11px] font-bold text-white/80 uppercase tracking-wider mb-2">Available to withdraw</p>
@@ -308,7 +306,6 @@ export default function StudioPayouts() {
           </div>
         </div>
 
-        {/* Paid out */}
         <div className="bg-white rounded-xl border border-gray-100/80 shadow-sm p-4 flex flex-col justify-between min-h-[120px]">
           <div className="flex items-center justify-between mb-2">
             <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Paid out</p>
@@ -324,7 +321,6 @@ export default function StudioPayouts() {
           </div>
         </div>
 
-        {/* Pending */}
         <div className="bg-white rounded-xl border border-gray-100/80 shadow-sm p-4 flex flex-col justify-between min-h-[120px]">
           <div className="flex items-center justify-between mb-2">
             <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Pending</p>
@@ -341,7 +337,6 @@ export default function StudioPayouts() {
         </div>
       </div>
 
-      {/* Payout history */}
       <div className="bg-white rounded-xl border border-gray-100/80 shadow-sm p-4">
         <div className="pb-3 mb-3 border-b border-gray-100 flex items-center justify-between">
           <p className="text-sm font-bold text-gray-800">Payout history</p>
@@ -379,7 +374,6 @@ export default function StudioPayouts() {
         )}
       </div>
 
-      {/* Bank details modal */}
       {bankModalOpen && (
         <Modal title="Bank Details" onClose={() => setBankModalOpen(false)}>
           <form onSubmit={saveBankDetails} className="space-y-3.5">
@@ -459,7 +453,6 @@ export default function StudioPayouts() {
         </Modal>
       )}
 
-      {/* Withdraw modal */}
       {withdrawModalOpen && (
         <Modal title="Request Withdrawal" onClose={() => setWithdrawModalOpen(false)}>
           <form onSubmit={submitWithdrawal} className="space-y-3.5">

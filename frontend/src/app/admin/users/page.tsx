@@ -206,13 +206,11 @@ export default function AdminUsersPage() {
 
   return (
     <div className="p-5 md:p-8">
-      {/* Header */}
       <div className="mb-8">
         <h1 className="text-white text-xl font-bold">Users</h1>
         <p className="text-gray-400 text-sm mt-1">Registered accounts and the role they picked at sign-up</p>
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
         {[
           { label: "Registered Users", value: summary?.total_users },
@@ -314,7 +312,6 @@ export default function AdminUsersPage() {
         )}
       </div>
 
-      {/* User detail drawer */}
       {selected && (
         <div className="fixed inset-0 z-50 flex justify-end">
           <div className="absolute inset-0 bg-black/70" onClick={() => setSelected(null)} />

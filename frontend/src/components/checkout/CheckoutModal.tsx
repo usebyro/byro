@@ -517,7 +517,6 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
         </div>
       )}
       <div className="mx-auto flex min-h-full max-w-[920px] flex-col overflow-hidden bg-white md:my-8 md:min-h-0 md:flex-row md:rounded-[32px] md:shadow-[0_40px_100px_rgba(20,22,28,0.35)]">
-          {/* Left panel */}
           <div className="flex flex-1 flex-col gap-5 p-5 md:p-10">
             <div className="flex items-center justify-between gap-3">
               <ol aria-label="Checkout steps" className="flex items-center gap-2 text-[13px] font-bold">
@@ -551,7 +550,6 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                 </svg>
               </button>
             </div>
-            {/* Step 1 – Tickets */}
             {step === 1 && (
               <div className="flex flex-col">
                 <h1 className="font-display text-[32px] md:text-4xl font-bold tracking-[-0.025em] text-ink mb-1">
@@ -656,7 +654,6 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                   })}
                 </div>
 
-                {/* Promo code */}
                 <div className="mt-4 flex items-center border border-line rounded-xl overflow-hidden">
                   <div className="flex items-center gap-3 flex-1 px-4 py-3">
                     <svg
@@ -712,7 +709,6 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
               </div>
             )}
 
-            {/* Step 2 – Details */}
             {step === 2 && (
               <div className="flex flex-col">
                 <h1 className="font-display text-[32px] md:text-4xl font-bold tracking-[-0.025em] text-ink mb-1">
@@ -723,7 +719,6 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                 </p>
 
                 <div className="space-y-4">
-                  {/* Full name */}
                   <div>
                     <label className="text-sm font-bold text-ink block mb-1.5">
                       Full name
@@ -751,7 +746,6 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                     </div>
                   </div>
 
-                  {/* Email + Phone */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="text-sm font-bold text-ink block mb-1.5">
@@ -809,7 +803,6 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
 
                 </div>
 
-                {/* Ticket delivery */}
                 <div className="mt-5 border border-hairline rounded-xl p-4">
                   <p className="font-semibold text-ink text-sm mb-3">
                     Ticket recipient(s)
@@ -839,7 +832,6 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                     </label>
                   )}
 
-                  {/* Per-recipient details */}
                   {recipientCount > 0 && (
                     <div className="mt-4 space-y-4 border-t border-hairline pt-4">
                       {isRedirect && (
@@ -885,7 +877,6 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                     </div>
                   )}
 
-                  {/* Organiser's questions */}
                   {formQuestions.length > 0 && (
                     <div className="space-y-5 pt-2">
                       <h2 className="font-display text-xl font-bold text-ink">A few questions</h2>
@@ -936,7 +927,6 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
               </div>
             )}
 
-            {/* Step 3 – Payment */}
             {step === 3 && (
               <div className="flex flex-col">
                 <h1 className="font-display text-[32px] md:text-4xl font-bold tracking-[-0.025em] text-ink mb-1">
@@ -946,9 +936,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                   All transactions are encrypted and secure.
                 </p>
 
-                {/* Payment methods */}
                 <div className="space-y-3 mb-5">
-                  {/* Pay with Paystack */}
                   <label
                     className={`flex items-center gap-4 p-4 rounded-[18px] border cursor-pointer transition-colors ${
                       payMethod === "paystack"
@@ -991,7 +979,6 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                     </div>
                   </label>
 
-                  {/* Pay with Crypto — coming soon */}
                   <div className="flex items-center gap-4 p-4 rounded-[18px] border border-hairline opacity-60 cursor-not-allowed select-none">
                     <div className="w-5 h-5 rounded-full border-2 border-[#C7CEDA] flex-shrink-0" />
                     <span className="text-faint flex-shrink-0">
@@ -1044,11 +1031,9 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
 
           </div>
 
-          {/* ── Right panel – Order summary ── */}
           {step < 4 && (
             <div className="w-full shrink-0 bg-paper md:w-[330px]">
               <div className="md:sticky md:top-0">
-                {/* Event preview */}
                 <div className="relative m-5 mb-0 h-[150px] overflow-hidden rounded-[18px] md:m-7 md:mb-0">
                   {event.event_image_url ? (
                     <Image
@@ -1109,7 +1094,6 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                     {event.location}
                   </div>
 
-                  {/* Order lines */}
                   {subtotal > 0 && (
                     <div className="mt-4 pt-4 border-t border-hairline space-y-2">
                       {tiers.map((t) => {
@@ -1194,7 +1178,6 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                     </div>
                   )}
 
-                  {/* CTA */}
                   <button
                     onClick={() => {
                       if (step === 2) {

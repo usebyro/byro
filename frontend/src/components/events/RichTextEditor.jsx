@@ -66,7 +66,6 @@ export default function RichTextEditor({ value, onChange, placeholder = "Tell at
 
   return (
     <div className="border border-gray-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-transparent">
-      {/* Toolbar */}
       <div className="flex items-center gap-0.5 px-2 py-1.5 border-b border-gray-100 bg-gray-50/60 flex-wrap">
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleBold().run()}
@@ -128,7 +127,6 @@ export default function RichTextEditor({ value, onChange, placeholder = "Tell at
         </ToolbarButton>
       </div>
 
-      {/* Editor content */}
       <EditorContent editor={editor} />
     </div>
   );

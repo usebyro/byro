@@ -169,7 +169,7 @@ export default function MerchPage() {
         <div>
           <h1 className="text-xl font-bold text-gray-900">Merch</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            List items your community can buy. Active items show on your public profile.
+            Active items show on your public profile.
           </p>
         </div>
         <button
@@ -189,7 +189,7 @@ export default function MerchPage() {
             <HugeiconsIcon icon={ShoppingBag01Icon} size={28} color="#d1d5db" />
             <p className="text-sm font-semibold text-gray-700">No merch yet</p>
             <p className="text-xs text-gray-400 max-w-xs">
-              Add a t-shirt, sticker pack, or anything else your community can buy from you.
+              Add something your community can buy.
             </p>
             <button
               onClick={openCreate}

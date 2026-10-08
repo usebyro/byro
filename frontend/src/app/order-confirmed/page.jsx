@@ -161,7 +161,6 @@ function TicketConfirmationContent() {
           </div>
         </div>
 
-        {/* The ticket */}
         <div className="w-full max-w-[420px] overflow-hidden rounded-[30px] bg-white shadow-[0_30px_80px_rgba(20,22,28,0.14)] lg:mx-auto">
           <div className="flex h-[150px] items-end bg-sky p-6">
             <span className="font-display text-[30px] font-bold leading-[1.05] tracking-[-0.02em]">{ticketData.eventName}</span>

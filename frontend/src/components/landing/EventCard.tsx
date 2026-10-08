@@ -144,10 +144,8 @@ const EventCard = ({ event }: { event: Event }) => {
             <EventImageFallback category={event.category} tone="solid" />
           )}
 
-          {/* Bottom gradient overlay */}
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
 
-          {/* Category badge — top left */}
           <div className="absolute top-3 left-3">
             <span className="inline-flex items-center gap-1.5 bg-black/40 backdrop-blur-sm text-white text-[10px] font-semibold tracking-wide px-2.5 py-1 rounded-full">
               <span className={`w-1.5 h-1.5 rounded-full ${dotColor} flex-shrink-0`} />
@@ -155,7 +153,6 @@ const EventCard = ({ event }: { event: Event }) => {
             </span>
           </div>
 
-          {/* Heart — top right */}
           <button
             className="absolute top-3 right-3 w-8 h-8 bg-white/80 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-white transition-colors"
             onClick={(e) => { e.preventDefault(); setSaved((s) => !s); }}
@@ -183,7 +180,6 @@ const EventCard = ({ event }: { event: Event }) => {
           </div>
         </Link>
 
-        {/* Card body */}
         <div className="p-4 flex flex-col flex-1">
           <div className="space-y-1.5 mb-4 flex-1">
             <div className="flex items-center gap-2 text-sm text-gray-500">
@@ -222,7 +218,6 @@ const EventCard = ({ event }: { event: Event }) => {
             </div>
           </div>
 
-          {/* Price + CTA */}
           <div className="flex items-center justify-between pt-3 border-t border-gray-100">
             <div>
               <p className="text-[10px] text-gray-400 uppercase tracking-wider font-medium">
@@ -280,7 +275,6 @@ const EventCard = ({ event }: { event: Event }) => {
         </div>
       </div>
 
-      {/* Checkout modal */}
       {showCheckout && (
         <CheckoutModal
           event={event}

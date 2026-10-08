@@ -204,7 +204,6 @@ export default function AdminDashboardPage() {
 
   return (
     <div className="p-5 md:p-8">
-      {/* Header */}
       <div className="mb-8">
         <h1 className="text-white text-xl font-bold">Overview</h1>
         <p className="text-gray-400 text-sm mt-1">Platform activity at a glance</p>
@@ -212,7 +211,6 @@ export default function AdminDashboardPage() {
 
       {error && <p className="text-red-400 text-sm mb-6">{error}</p>}
 
-      {/* Stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <StatCard label="Total Events" value={loading ? "—" : totalEvents} sublabel={`${loading ? "—" : activeEvents} active · ${summary?.private_events ?? 0} private · ${summary?.draft_events ?? 0} drafts`} />
         <StatCard label="Paid Events" value={loading ? "—" : paidEvents} sublabel={`${loading ? "—" : events.length - paidEvents} free`} />
@@ -227,7 +225,6 @@ export default function AdminDashboardPage() {
         />
       </div>
 
-      {/* Payouts callout */}
       <div className="flex items-center justify-between bg-[#1a1d27] border border-white/10 rounded-xl px-5 py-4 mb-8">
         <div>
           <p className="text-white font-semibold text-sm">
@@ -243,7 +240,6 @@ export default function AdminDashboardPage() {
         </Link>
       </div>
 
-      {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="bg-[#1a1d27] border border-white/10 rounded-xl p-5">
           <div className="flex items-center justify-between mb-4">

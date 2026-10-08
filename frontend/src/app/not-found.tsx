@@ -6,28 +6,23 @@ import { Home01Icon, Search01Icon, Calendar01Icon, Location01Icon, MusicNote01Ic
 export default function NotFound() {
   return (
     <div className="min-h-screen bg-[#EEF2FF] flex flex-col">
-      {/* Top-left logo */}
       <div className="p-6">
         <Link href="/">
           <Image src="/assets/images/logo.svg" alt="byro" width={72} height={28} />
         </Link>
       </div>
 
-      {/* Main content */}
       <div className="flex-1 flex flex-col items-center justify-center px-4 pb-16 -mt-8">
 
-        {/* Rotated mock event card */}
         <div className="mb-14" style={{ transform: "rotate(6deg)" }}>
           <div className="w-52 rounded-2xl overflow-hidden shadow-2xl">
 
-            {/* Gradient top — event hero */}
             <div
               className="px-4 pt-5 pb-10"
               style={{
                 background: "linear-gradient(160deg, #2D0A3E 0%, #6B1F8A 55%, #9B3DB8 100%)",
               }}
             >
-              {/* Category badge */}
               <div className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 mb-8"
                 style={{ background: "rgba(0,0,0,0.35)" }}>
                 <HugeiconsIcon icon={MusicNote01Icon} size={10} color="white" />
@@ -38,7 +33,6 @@ export default function NotFound() {
               <p className="text-white text-4xl font-black leading-none">404</p>
             </div>
 
-            {/* White bottom */}
             <div className="bg-white px-4 py-3">
               <div className="flex items-center gap-2 mb-2">
                 <HugeiconsIcon icon={Calendar01Icon} size={13} color="#9ca3af" />
@@ -67,7 +61,6 @@ export default function NotFound() {
           </div>
         </div>
 
-        {/* 404 number */}
         <h1
           className="text-[96px] sm:text-[120px] font-black text-gray-900 leading-none mb-3 select-none"
           style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}
@@ -75,17 +68,14 @@ export default function NotFound() {
           404
         </h1>
 
-        {/* Heading */}
         <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-3 text-center">
           We lost that page in the crowd
         </h2>
 
-        {/* Subtext */}
         <p className="text-gray-500 text-center max-w-sm text-sm leading-relaxed mb-9">
           The link may be broken or the event has ended. Let&apos;s get you back to the good shows.
         </p>
 
-        {/* CTAs */}
         <div className="flex items-center gap-3 flex-wrap justify-center">
           <Link
             href="/"
