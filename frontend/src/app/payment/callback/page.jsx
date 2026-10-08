@@ -118,21 +118,23 @@ function PaymentCallbackContent() {
       </div>
       <h2 className="text-2xl font-bold text-gray-900">We couldn&apos;t confirm your payment</h2>
       <p className="text-gray-600 max-w-md text-center px-6">
-        If you were debited, don&apos;t pay again. Contact support and we&apos;ll sort it out.
+        If you were debited, don&apos;t panic. Contact support and we&apos;ll sort it out.
       </p>
       {reference && <p className="text-sm text-gray-500">Reference: {reference}</p>}
-      <button
-        onClick={() => openPaymentSupport({ reference })}
-        className="mt-2 px-6 py-3 bg-green-500 text-white rounded-xl font-semibold hover:bg-green-600 transition-colors"
-      >
-        Contact support
-      </button>
-      <button
-        onClick={() => router.back()}
-        className="px-6 py-3 border border-gray-300 text-gray-900 rounded-xl font-semibold hover:bg-gray-50 transition-colors"
-      >
-        Try again
-      </button>
+      <div className="mt-2 flex flex-wrap items-center justify-center gap-3">
+        <button
+          onClick={() => router.back()}
+          className="px-6 py-3 border border-gray-300 text-gray-900 rounded-xl font-semibold hover:bg-gray-50 transition-colors"
+        >
+          Try again
+        </button>
+        <button
+          onClick={() => openPaymentSupport({ reference })}
+          className="px-6 py-3 bg-brand text-white rounded-xl font-semibold hover:brightness-90 transition-[filter]"
+        >
+          Contact support
+        </button>
+      </div>
     </div>
   );
 }
