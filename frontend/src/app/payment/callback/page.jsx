@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState, Suspense } from "react";
+import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import API from "@/services/api";
 import { trackPurchase } from "@/lib/analytics";
@@ -135,6 +136,9 @@ function PaymentCallbackContent() {
           Contact support
         </button>
       </div>
+      <Link href="/" className="text-sm text-gray-500 underline underline-offset-2 hover:text-gray-900">
+        Back to home
+      </Link>
     </div>
   );
 }
