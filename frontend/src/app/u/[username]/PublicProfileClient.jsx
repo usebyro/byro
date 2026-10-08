@@ -158,7 +158,6 @@ export default function PublicProfileClient({ username }) {
       <Navbar />
 
       <main className="flex-1 pb-16">
-        {/* Cover + identity */}
         <section className="mx-auto max-w-[1440px] px-4 pt-4 md:px-12 md:pt-5 xl:px-24">
           <div className="relative h-[190px] overflow-hidden rounded-[30px] md:h-[300px] md:rounded-[36px]" style={{ background: tint }}>
             {cover ? (
@@ -207,7 +206,6 @@ export default function PublicProfileClient({ username }) {
           </div>
         </section>
 
-        {/* About + stats */}
         <section className="mx-auto flex max-w-[1440px] flex-col gap-8 px-4 pt-8 md:flex-row md:items-start md:gap-12 md:px-12 md:pt-8 xl:px-32">
           <div className="flex min-w-0 flex-1 flex-col gap-[18px]">
             <p className="max-w-[680px] text-pretty text-[17px] leading-[1.65] text-[#3B4252] md:text-lg">
@@ -260,7 +258,6 @@ export default function PublicProfileClient({ username }) {
           </div>
         )}
 
-        {/* Events */}
         {page === "events" && (
         <section
           id="panel-events"

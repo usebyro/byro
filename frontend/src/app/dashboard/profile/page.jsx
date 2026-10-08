@@ -261,7 +261,7 @@ function ProfilePageContent() {
       <header className="mb-6 md:mb-8 flex flex-wrap items-end gap-x-4 gap-y-3">
         <div className="flex-1 min-w-[240px]">
           <h1 className="font-display text-[32px] md:text-[40px] leading-tight font-bold tracking-[-0.03em]">Profile</h1>
-          <p className="text-base text-muted mt-1.5">This is your community page. Changes show on the right as you type.</p>
+          <p className="text-base text-muted mt-1.5">Changes show on the right as you type.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {publicPath && (
@@ -312,7 +312,6 @@ function ProfilePageContent() {
           <ProfileStrength checks={checks} />
         </aside>
 
-        {/* ── Form ── */}
         <div className="lg:col-start-1 lg:row-start-1 min-w-0 flex flex-col gap-[18px]">
           <Card title="About">
             <div className="grid gap-4">
@@ -523,7 +522,6 @@ function ProfilePreview({ form, avatarSrc, coverSrc, onAvatarChange, onCoverChan
       )}
 
       <div className="px-[22px] pb-[22px] flex flex-col gap-2">
-        {/* Avatar with change badge */}
         <div className="relative -mt-[42px] w-[84px] h-[84px]">
           <Avatar
             src={avatarSrc}

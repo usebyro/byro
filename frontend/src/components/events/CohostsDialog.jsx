@@ -145,7 +145,7 @@ export default function CohostsDialog({ open, onClose, slug, ownerEmail, cohosts
 
         <section className="px-5 py-4 border-t border-dashed border-gray-200">
           <h3 className="text-[13px] font-semibold text-gray-900">Invite to co-host</h3>
-          <p className="text-[13px] text-gray-500 mt-0.5">Add people by email. They don&apos;t need a Byro account yet.</p>
+          <p className="text-[13px] text-gray-500 mt-0.5">Add people by email.</p>
 
           <form onSubmit={invite} className="mt-3 flex items-center gap-2">
             <div className="flex-1 min-w-0 flex items-center rounded-lg border border-gray-300 bg-white focus-within:border-[#4F6EF7] focus-within:ring-2 focus-within:ring-[#4F6EF7]/25">

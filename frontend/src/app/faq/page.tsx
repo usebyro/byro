@@ -111,7 +111,6 @@ export default function FAQPage() {
     <div className="min-h-screen flex flex-col bg-white">
       <Navbar />
 
-      {/* ── Hero ── */}
       <section
         className="relative py-20 px-4 text-center overflow-hidden"
         style={{
@@ -119,7 +118,6 @@ export default function FAQPage() {
             "linear-gradient(135deg, #0f0c29 0%, #1a1156 30%, #302b63 55%, #6b21a8 80%, #7c3aed 100%)",
         }}
       >
-        {/* subtle radial glow */}
         <div
           className="absolute inset-0 pointer-events-none"
           style={{
@@ -158,7 +156,6 @@ export default function FAQPage() {
         </div>
       </section>
 
-      {/* ── Browse by topic ── */}
       <section className="max-w-5xl mx-auto w-full px-4 sm:px-6 py-14">
         <h2 className="text-xl font-bold text-gray-900 mb-6">Browse by topic</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -181,7 +178,6 @@ export default function FAQPage() {
         </div>
       </section>
 
-      {/* ── Popular questions ── */}
       <section className="max-w-5xl mx-auto w-full px-4 sm:px-6 pb-14">
         <h2 className="text-xl font-bold text-gray-900 mb-5">Popular questions</h2>
 
@@ -216,7 +212,6 @@ export default function FAQPage() {
         )}
       </section>
 
-      {/* ── Still need a hand ── */}
       <section className="max-w-5xl mx-auto w-full px-4 sm:px-6 pb-16">
         <div className="bg-gray-50 border border-gray-100 rounded-2xl px-6 py-10 text-center">
           <h3 className="text-xl font-bold text-gray-900 mb-2">Still need a hand?</h3>

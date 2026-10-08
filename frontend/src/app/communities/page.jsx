@@ -184,7 +184,6 @@ export default function CommunitiesPage() {
             </div>
           ) : (
             <>
-              {/* Featured */}
               <section className="mt-8">
                 <Link
                   href={`/u/${featured.handle}`}

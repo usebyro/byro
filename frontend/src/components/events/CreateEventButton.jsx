@@ -1,4 +1,3 @@
-// components/CreateEventButton.jsx
 import React from "react";
 
 const CreateEventButton = ({ onClick }) => {

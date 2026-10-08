@@ -186,12 +186,10 @@ const BrowseByCategory = () => {
                   categoryGradients[category.value] || "from-gray-600 to-gray-500"
                 } rounded-2xl p-5 text-left text-white overflow-hidden group hover:scale-[1.02] active:scale-[0.99] transition-transform duration-200 shadow-md hover:shadow-lg aspect-[4/3] flex flex-col`}
               >
-                {/* Icon container */}
                 <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center flex-shrink-0">
                   <CategoryIcon category={category.value} />
                 </div>
 
-                {/* Name and count pushed to bottom */}
                 <div className="mt-auto pt-4">
                   <h3 className="text-base font-bold leading-tight">
                     {lines.map((line, i) => (
@@ -206,7 +204,6 @@ const BrowseByCategory = () => {
                   </p>
                 </div>
 
-                {/* Decorative blur blob */}
                 <div className="absolute -bottom-6 -right-6 w-24 h-24 bg-white/10 rounded-full blur-2xl pointer-events-none" />
               </button>
             );

@@ -136,7 +136,6 @@ function EventRow({ event, stats }) {
         </div>
         <p className={`hidden lg:block lg:order-3 text-sm lg:text-right ${isFree ? "text-gray-500" : "font-medium text-gray-900"}`}>{isFree ? "Free" : revenue}</p>
 
-        {/* Arrow */}
         <svg
           width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2"
           className="hidden lg:block lg:order-5 shrink-0 transition-transform group-hover:translate-x-0.5"
@@ -207,7 +206,6 @@ export default function StudioEvents() {
 
   return (
     <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-5">
-      {/* Header */}
       <div className="flex items-center justify-between gap-3">
         <h1 className="text-2xl font-bold tracking-tight text-gray-900">Events</h1>
         <Link
@@ -219,7 +217,6 @@ export default function StudioEvents() {
         </Link>
       </div>
 
-      {/* Search + filters */}
       <div className="flex items-center gap-3 flex-wrap">
         <div className="relative w-full md:w-72">
           <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
@@ -252,9 +249,7 @@ export default function StudioEvents() {
         </div>
       </div>
 
-      {/* List */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        {/* Column titles (desktop only) */}
         {!loading && filtered.length > 0 && (
           <div className="hidden lg:grid grid-cols-[minmax(0,1fr)_130px_100px_130px_16px] gap-x-4 px-5 py-2.5 border-b border-gray-200 bg-gray-50 text-sm font-medium text-gray-600">
             <span>Event</span>

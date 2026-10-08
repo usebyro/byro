@@ -1,4 +1,3 @@
-// components/Tab.jsx
 import React from "react";
 
 const Tab = ({ label, isActive, onClick }) => {
