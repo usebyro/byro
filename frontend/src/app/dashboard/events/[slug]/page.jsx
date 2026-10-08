@@ -17,8 +17,6 @@ import {
   Delete02Icon,
   CircleXIcon,
   QrCodeIcon,
-  Camera01Icon,
-  KeyboardIcon,
   DiscountTag01Icon,
   Copy02Icon,
   AddCircleIcon,
@@ -26,13 +24,13 @@ import {
 } from "@hugeicons/core-free-icons";
 import { useReactToPrint } from "react-to-print";
 import { toast } from "sonner";
-import jsQR from "jsqr";
 import API from "@/services/api";
 import ShareMenu from "@/components/ShareMenu";
 import EventPublishedModal from "@/components/events/EventPublishedModal";
 import CohostsDialog from "@/components/events/CohostsDialog";
 import CancelEventDialog from "@/components/events/CancelEventDialog";
 import CancelledPanel from "@/components/events/CancelledPanel";
+import PrintableGuestList from "@/components/events/PrintableGuestList";
 import SharedAvatar from "@/components/ui/Avatar";
 import EventImageFallback from "@/components/ui/EventImageFallback";
 
@@ -67,33 +65,6 @@ function Avatar({ name }) {
   return <SharedAvatar name={name} className="w-7 h-7 rounded-full text-[11px]" />;
 }
 
-// Printable list for export
-const PrintableList = ({ attendees, eventName, ref: r }) => (
-  <div ref={r} className="p-6">
-    <h1 className="text-xl font-bold mb-4">{eventName} — Guest List</h1>
-    <table className="w-full border-collapse">
-      <thead>
-        <tr className="bg-gray-50">
-          <th className="border border-gray-300 px-3 py-2 text-left text-sm">#</th>
-          <th className="border border-gray-300 px-3 py-2 text-left text-sm">Name</th>
-          <th className="border border-gray-300 px-3 py-2 text-left text-sm">Email</th>
-          <th className="border border-gray-300 px-3 py-2 text-left text-sm">Status</th>
-        </tr>
-      </thead>
-      <tbody>
-        {attendees.map((a, i) => (
-          <tr key={a.id} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
-            <td className="border border-gray-300 px-3 py-2 text-sm">{i + 1}</td>
-            <td className="border border-gray-300 px-3 py-2 text-sm font-medium">{a.name}</td>
-            <td className="border border-gray-300 px-3 py-2 text-sm">{a.email}</td>
-            <td className="border border-gray-300 px-3 py-2 text-sm">{a.checkedIn ? "Checked in" : "Not arrived"}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  </div>
-);
-
 export default function StudioEventPage() {
   const { slug } = useParams();
   const router = useRouter();
@@ -119,16 +90,12 @@ export default function StudioEventPage() {
   const [filter, setFilter] = useState("all"); // all | checkedin | vip
   const [sort, setSort] = useState("newest");
   const [tiers, setTiers] = useState([]);
-  const [checkInModal, setCheckInModal] = useState(false);
-  const [checkInValue, setCheckInValue] = useState("");
-  const [checkingIn, setCheckingIn] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
+  const [formQuestions, setFormQuestions] = useState([]);
   const [showCancel, setShowCancel] = useState(false);
   const [showCohosts, setShowCohosts] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState("");
-  const [checkInMode, setCheckInMode] = useState("scan"); // scan | manual
-  const [cameraError, setCameraError] = useState("");
 
   // Discount codes
   const [discountCodes, setDiscountCodes] = useState([]);
@@ -157,11 +124,6 @@ export default function StudioEventPage() {
     active: p.active,
   });
 
-  const videoRef = useRef(null);
-  const canvasRef = useRef(null);
-  const streamRef = useRef(null);
-  const scanFrameRef = useRef(null);
-  const scanLockRef = useRef(false);
 
   const printRef = useRef();
   const handlePrint = useReactToPrint({
@@ -202,11 +164,13 @@ export default function StudioEventPage() {
           name: t.current_owner_name || t.original_owner_name || "Unknown",
           email: t.current_owner_email || t.original_owner_email || "",
           checkedIn: t.checked_in,
+          checkedInAt: t.checked_in_at || "",
           paymentStatus: t.payment_status,
           ref: String(t.ticket_id || "").replace(/-/g, "").toUpperCase().slice(0, 12),
           tier: t.tier_name || "General admission",
           registeredAt: t.created_at || "",
           answers: (t.form_answers || []).map((f) => ({
+            questionId: f.question,
             question: f.question_text,
             answer: Array.isArray(f.answer) ? f.answer.join(", ") : String(f.answer ?? ""),
           })),
@@ -222,6 +186,11 @@ export default function StudioEventPage() {
 
   useEffect(() => {
     if (!slug) return;
+    API.getFormQuestions(slug).then((q) => setFormQuestions(Array.isArray(q) ? q : [])).catch(() => {});
+  }, [slug]);
+
+  useEffect(() => {
+    if (!slug) return;
     API.getEventTiers(slug)
       .then((d) => setTiers(Array.isArray(d) ? d : d?.tiers || []))
       .catch(() => {});
@@ -234,91 +203,6 @@ export default function StudioEventPage() {
       .catch(() => {});
   }, [slug]);
 
-  const handleCheckIn = async (valueOverride) => {
-    const value = (valueOverride ?? checkInValue).trim();
-    if (!value) return;
-    setCheckingIn(true);
-    try {
-      const res = await API.checkInAttendee(slug, value);
-      if (res.already_checked_in) {
-        toast.info(`${res.attendee?.name || "Attendee"} already checked in.`);
-      } else {
-        toast.success(`${res.attendee?.name || "Attendee"} checked in!`);
-        const checkedId = res.attendee?.ticket_id;
-        setAttendees((prev) =>
-          prev.map((a) =>
-            a.id === checkedId || a.email === res.attendee?.email
-              ? { ...a, checkedIn: true }
-              : a
-          )
-        );
-        setCheckedInCount((c) => c + 1);
-      }
-      setCheckInValue("");
-      setCheckInModal(false);
-    } catch (err) {
-      toast.error(err?.message || "Check-in failed.");
-      scanLockRef.current = false;
-    } finally {
-      setCheckingIn(false);
-    }
-  };
-
-  const stopScanner = () => {
-    if (scanFrameRef.current) {
-      cancelAnimationFrame(scanFrameRef.current);
-      scanFrameRef.current = null;
-    }
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((t) => t.stop());
-      streamRef.current = null;
-    }
-    scanLockRef.current = false;
-  };
-
-  const scanTick = () => {
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    if (!video || !canvas || video.readyState !== video.HAVE_ENOUGH_DATA) {
-      scanFrameRef.current = requestAnimationFrame(scanTick);
-      return;
-    }
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const ctx = canvas.getContext("2d");
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const code = jsQR(imageData.data, imageData.width, imageData.height);
-
-    if (code?.data && !scanLockRef.current) {
-      scanLockRef.current = true;
-      handleCheckIn(code.data);
-    }
-    scanFrameRef.current = requestAnimationFrame(scanTick);
-  };
-
-  useEffect(() => {
-    if (!checkInModal || checkInMode !== "scan") {
-      stopScanner();
-      return;
-    }
-    setCameraError("");
-    navigator.mediaDevices
-      ?.getUserMedia({ video: { facingMode: "environment" } })
-      .then((stream) => {
-        streamRef.current = stream;
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          videoRef.current.play().catch(() => {});
-        }
-        scanFrameRef.current = requestAnimationFrame(scanTick);
-      })
-      .catch(() => {
-        setCameraError("Couldn't access the camera. Check permissions, or enter the code manually.");
-      });
-
-    return stopScanner;
-  }, [checkInModal, checkInMode]);
 
   const handleDelete = async () => {
     if (deleteConfirm.trim() !== (event?.name || "").trim()) return;
@@ -513,7 +397,7 @@ export default function StudioEventPage() {
             {!isDraft && !isCancelled && (
               <button
                 type="button"
-                onClick={() => { setCheckInMode("scan"); setCheckInModal(true); }}
+                onClick={() => router.push(`/checkin/${slug}`)}
                 className="flex-1 basis-[calc(50%-4px)] md:basis-auto md:flex-initial flex items-center justify-center gap-1.5 min-h-[40px] md:min-h-0 bg-white text-gray-900 text-xs font-semibold px-3.5 py-2 rounded-lg hover:bg-white/90 transition-colors whitespace-nowrap"
               >
                 <HugeiconsIcon icon={QrCodeIcon} size={13} color="currentColor" />
@@ -660,18 +544,21 @@ export default function StudioEventPage() {
               </div>
               <div className="flex items-center gap-1.5 w-full md:w-auto">
                 <button
-                  onClick={() => { setCheckInMode("scan"); setCheckInModal(true); }}
+                  onClick={() => router.push(`/checkin/${slug}`)}
                   className="flex-1 md:flex-initial flex items-center justify-center gap-1 bg-[#4F6EF7] text-white text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-blue-700 transition-colors shadow-sm shadow-[#4F6EF7]/10"
                 >
                   <HugeiconsIcon icon={QrCodeIcon} size={11} color="white" />
                   Check in
                 </button>
                 <button
+                  type="button"
                   onClick={handlePrint}
-                  className="flex-1 md:flex-initial flex items-center justify-center gap-1 bg-white border border-gray-200 text-gray-600 text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-gray-50 transition-colors"
+                  disabled={attendees.length === 0}
+                  title="Opens the print window. Choose Save as PDF."
+                  className="flex-1 md:flex-initial flex items-center justify-center gap-1 bg-white border border-gray-200 text-gray-600 text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
                 >
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                  Export
+                  Export PDF
                 </button>
               </div>
             </div>
@@ -990,91 +877,6 @@ export default function StudioEventPage() {
         />
       )}
 
-      {checkInModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
-          <div className="bg-white rounded-xl shadow-xl p-5 w-full max-w-sm">
-            <div className="flex items-center justify-between mb-3.5">
-              <h3 className="text-sm font-bold text-gray-900">Check In Attendee</h3>
-              <button onClick={() => setCheckInModal(false)}>
-                <HugeiconsIcon icon={CircleXIcon} size={18} color="#9ca3af" />
-              </button>
-            </div>
-
-            <div className="flex bg-gray-50 rounded-lg p-0.5 mb-3.5 border border-gray-100/50">
-              <button
-                onClick={() => setCheckInMode("scan")}
-                className={`flex-1 flex items-center justify-center gap-1 py-1.5 rounded-md text-[11px] font-bold transition-all ${
-                  checkInMode === "scan" ? "bg-white text-gray-900 shadow-sm" : "text-gray-400"
-                }`}
-              >
-                <HugeiconsIcon icon={Camera01Icon} size={13} color="currentColor" />
-                Scan QR
-              </button>
-              <button
-                onClick={() => setCheckInMode("manual")}
-                className={`flex-1 flex items-center justify-center gap-1 py-1.5 rounded-md text-[11px] font-bold transition-all ${
-                  checkInMode === "manual" ? "bg-white text-gray-900 shadow-sm" : "text-gray-400"
-                }`}
-              >
-                <HugeiconsIcon icon={KeyboardIcon} size={13} color="currentColor" />
-                Enter email
-              </button>
-            </div>
-
-            {checkInMode === "scan" ? (
-              <div className="mb-3.5">
-                <div className="relative w-full aspect-square bg-black rounded-lg overflow-hidden border border-gray-900">
-                  <video ref={videoRef} muted playsInline className="w-full h-full object-cover" />
-                  <canvas ref={canvasRef} className="hidden" />
-                  {!cameraError && (
-                    <div className="absolute inset-5 border-2 border-white/60 rounded-lg pointer-events-none animate-pulse" />
-                  )}
-                  {cameraError && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/90 px-4">
-                      <p className="text-white text-xs text-center leading-relaxed">{cameraError}</p>
-                    </div>
-                  )}
-                </div>
-                <p className="text-xs text-gray-400 text-center mt-2.5">
-                  {checkingIn ? "Verifying ticket..." : "Align QR code inside the camera view"}
-                </p>
-              </div>
-            ) : (
-              <>
-                <p className="text-xs text-gray-400 mb-3 leading-relaxed">Enter attendee email address or paste the verification token below.</p>
-                <input
-                  type="text"
-                  value={checkInValue}
-                  onChange={(e) => setCheckInValue(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleCheckIn()}
-                  placeholder="email@example.com"
-                  autoFocus
-                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#4F6EF7]/20 mb-4"
-                />
-              </>
-            )}
-
-            <div className="flex gap-2">
-              <button
-                onClick={() => setCheckInModal(false)}
-                className="flex-1 py-2 rounded-lg border border-gray-200 text-xs font-semibold text-gray-500 hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              {checkInMode === "manual" && (
-                <button
-                  onClick={() => handleCheckIn()}
-                  disabled={checkingIn || !checkInValue.trim()}
-                  className="flex-1 py-2 rounded-lg bg-[#4F6EF7] text-white text-xs font-bold hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-sm shadow-[#4F6EF7]/10"
-                >
-                  {checkingIn ? "Checking in..." : "Check In"}
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
       {showDiscountModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
           <form
@@ -1248,7 +1050,7 @@ export default function StudioEventPage() {
       )}
 
       <div style={{ display: "none" }}>
-        <PrintableList ref={printRef} attendees={attendees} eventName={event?.name || ""} />
+        <PrintableGuestList ref={printRef} attendees={attendees} questions={formQuestions} event={event} />
       </div>
 
       {showPublished && (
