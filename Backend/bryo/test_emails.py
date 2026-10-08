@@ -47,12 +47,12 @@ class DesignTests(SimpleTestCase):
         )
         self.assertEqual(m["subject"], "You're going to Tech Meetup")
         # the badge is stored as "Your ticket" and shown in capitals by the email's own styling
-        for text in ("Your ticket", "You&#8217;re going, Tunde", "It&#8217;s just for you", "Show this at the door",
-                     "View ticket online", "Add to calendar", "General admission × 1", "Ticket bought for you by Adaeze Okafor.",
-                     "/api/tickets/tid-1/qr/", "/api/tickets/tid-1/calendar/",
+        for text in ("Your ticket", "You&#8217;re going, Tunde", "It&#8217;s just for you", "Your ticket is attached to this email. Show it at entry.",
+                     "View ticket", "Add to calendar", "General admission × 1", "Ticket bought for you by Adaeze Okafor.",
+                     "/api/tickets/tid-1/calendar/",
                      "a ticket for Tech Meetup was issued in your name"):
             self.assertIn(text, m["html"])
-        self.assertIn("Your ticket and QR code are inside.", m["html"])  # inbox preview line
+        self.assertIn("Your ticket is attached.", m["html"])  # inbox preview line
 
     def test_ticket_email_only_says_bought_for_you_when_it_was_a_gift(self):
         m = e.ticket_confirmation_email("Tunde", "Tech Meetup", DATE, TIME, "Cafe", "tid")
