@@ -31,7 +31,6 @@ import CohostsDialog from "@/components/events/CohostsDialog";
 import CancelEventDialog from "@/components/events/CancelEventDialog";
 import CancelledPanel from "@/components/events/CancelledPanel";
 import PrintableGuestList from "@/components/events/PrintableGuestList";
-import { buildGuestCsv, downloadCsv } from "@/lib/guestExport";
 import SharedAvatar from "@/components/ui/Avatar";
 import EventImageFallback from "@/components/ui/EventImageFallback";
 
@@ -92,7 +91,6 @@ export default function StudioEventPage() {
   const [sort, setSort] = useState("newest");
   const [tiers, setTiers] = useState([]);
   const [showDelete, setShowDelete] = useState(false);
-  const [showExport, setShowExport] = useState(false);
   const [formQuestions, setFormQuestions] = useState([]);
   const [showCancel, setShowCancel] = useState(false);
   const [showCohosts, setShowCohosts] = useState(false);
@@ -190,16 +188,6 @@ export default function StudioEventPage() {
     if (!slug) return;
     API.getFormQuestions(slug).then((q) => setFormQuestions(Array.isArray(q) ? q : [])).catch(() => {});
   }, [slug]);
-
-  const exportCsv = () => {
-    setShowExport(false);
-    downloadCsv(`${slug}-guest-list.csv`, buildGuestCsv(attendees, formQuestions));
-  };
-  const exportPdf = () => {
-    setShowExport(false);
-    // The browser's print dialog: choose "Save as PDF" as the destination.
-    handlePrint();
-  };
 
   useEffect(() => {
     if (!slug) return;
@@ -562,38 +550,16 @@ export default function StudioEventPage() {
                   <HugeiconsIcon icon={QrCodeIcon} size={11} color="white" />
                   Check in
                 </button>
-                <div className="relative flex-1 md:flex-initial">
-                  <button
-                    type="button"
-                    onClick={() => setShowExport((v) => !v)}
-                    aria-haspopup="menu"
-                    aria-expanded={showExport}
-                    disabled={attendees.length === 0}
-                    className="w-full flex items-center justify-center gap-1 bg-white border border-gray-200 text-gray-600 text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
-                  >
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                    Export
-                  </button>
-                  {showExport && (
-                    <>
-                      <div className="fixed inset-0 z-10" onClick={() => setShowExport(false)} />
-                      <div role="menu" className="absolute right-0 top-full mt-1.5 z-20 w-60 bg-white border border-gray-100 rounded-xl shadow-lg p-1.5">
-                        <p className="px-2.5 pt-1.5 pb-1 text-[11px] text-gray-400">
-                          All {attendees.length} guest{attendees.length === 1 ? "" : "s"}
-                          {formQuestions.length > 0 ? `, with their answers to your ${formQuestions.length} question${formQuestions.length === 1 ? "" : "s"}` : ""}
-                        </p>
-                        <button role="menuitem" onClick={exportCsv} className="w-full text-left px-2.5 py-2 rounded-lg hover:bg-gray-50">
-                          <span className="block text-xs font-semibold text-gray-900">CSV</span>
-                          <span className="block text-[11px] text-gray-500">For Excel or Google Sheets. One column per question.</span>
-                        </button>
-                        <button role="menuitem" onClick={exportPdf} className="w-full text-left px-2.5 py-2 rounded-lg hover:bg-gray-50">
-                          <span className="block text-xs font-semibold text-gray-900">PDF</span>
-                          <span className="block text-[11px] text-gray-500">For printing. Choose &quot;Save as PDF&quot; in the print window.</span>
-                        </button>
-                      </div>
-                    </>
-                  )}
-                </div>
+                <button
+                  type="button"
+                  onClick={handlePrint}
+                  disabled={attendees.length === 0}
+                  title="Opens the print window. Choose Save as PDF."
+                  className="flex-1 md:flex-initial flex items-center justify-center gap-1 bg-white border border-gray-200 text-gray-600 text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+                >
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  Export PDF
+                </button>
               </div>
             </div>
           </div>
