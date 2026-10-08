@@ -154,6 +154,12 @@ def _event_page_url(event):
     return f"{settings.SITE_URL}/discover/{event.slug}"
 
 
+def _checkin_counts(event):
+    """How many confirmed tickets there are and how many are already inside."""
+    confirmed = event.tickets.filter(payment_status__in=['paid', 'free'])
+    return {'checked_in': confirmed.filter(checked_in=True).count(), 'total': confirmed.count()}
+
+
 def _tickets_label(event):
     """'General admission · Free' or '3 ticket types · from ₦3,000', for the published email."""
     from .emails import _money
@@ -2339,6 +2345,14 @@ class EventViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        if ticket.payment_status not in ('paid', 'free'):
+            return Response(
+                {'error': 'This ticket has not been paid for, so it cannot be used to get in.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        tier_name = ticket.tier.name if ticket.tier_id else 'General admission'
+
         if ticket.checked_in:
             return Response({
                 'already_checked_in': True,
@@ -2346,7 +2360,11 @@ class EventViewSet(viewsets.ModelViewSet):
                 'attendee': {
                     'name': ticket.current_owner_name,
                     'email': ticket.current_owner_email,
+                    'ticket_id': str(ticket.ticket_id),
+                    'tier_name': tier_name,
+                    'checked_in_at': ticket.checked_in_at,
                 },
+                'counts': _checkin_counts(event),
             }, status=status.HTTP_200_OK)
 
         ticket.checked_in = True
@@ -2367,8 +2385,10 @@ class EventViewSet(viewsets.ModelViewSet):
                 'name': ticket.current_owner_name,
                 'email': ticket.current_owner_email,
                 'ticket_id': str(ticket.ticket_id),
+                'tier_name': tier_name,
                 'checked_in_at': ticket.checked_in_at,
             },
+            'counts': _checkin_counts(event),
         }, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['GET'], permission_classes=[IsAuthenticated])

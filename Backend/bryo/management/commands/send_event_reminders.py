@@ -108,6 +108,7 @@ class Command(BaseCommand):
                         location=event.location or '',
                         capacity=event.capacity,
                         revenue=_event_revenue(event) if is_owner else None,
+                        checkin_url=f"{frontend_url}/checkin/{event.slug}",
                     )
                     send_email(
                         to=email, subject=email_data['subject'],
