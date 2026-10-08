@@ -223,7 +223,6 @@ export default function PricingPage() {
     <>
       <Navbar />
       <div className="min-h-screen bg-[#F8FAFC] space-y-16 pb-12">
-        {/* Hero */}
         <div className="text-center pt-20 pb-4 px-4 relative">
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-64 h-64 bg-indigo-200/10 blur-3xl rounded-full -z-10 pointer-events-none" />
           <span className="text-[#4F6EF7] text-xs font-extrabold tracking-widest uppercase bg-indigo-50 px-3 py-1 rounded-full">
@@ -243,14 +242,12 @@ export default function PricingPage() {
           </p>
         </div>
 
-        {/* Plan Card + Payout Calculator */}
         <div className="max-w-4xl mx-auto px-4 relative">
           <div
             aria-hidden
             className="absolute -inset-x-24 -top-8 -bottom-8 -z-10 bg-indigo-50/30 blur-3xl rounded-full pointer-events-none"
           />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-stretch">
-            {/* Standard Card (only live plan) */}
             <div className="bg-[#0B0F19] text-white border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-sm relative">
               <div className="absolute top-6 right-6">
                 <span className="bg-[#4F6EF7] text-white text-[10px] font-extrabold px-3 py-1 rounded-full uppercase tracking-wider">
@@ -297,7 +294,6 @@ export default function PricingPage() {
           </div>
         </div>
 
-        {/* Event Management */}
         <div className="bg-[#EEF2FF]/40 border-y border-indigo-50/50 py-20 relative">
           <div className="absolute inset-0 bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:14px_24px] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_50%,#000_70%,transparent_100%)] pointer-events-none" />
           <div className="w-[90%] max-w-6xl mx-auto relative z-10">
@@ -334,7 +330,6 @@ export default function PricingPage() {
           </div>
         </div>
 
-        {/* Common Questions */}
         <div className="w-[90%] mx-auto max-w-4xl">
           <div className="bg-white rounded-3xl p-6 sm:p-10 shadow-sm border border-gray-100/80">
             <h2 className="text-2xl font-black text-gray-900 mb-8 text-center tracking-tight">
@@ -358,7 +353,6 @@ export default function PricingPage() {
           </div>
         </div>
 
-        {/* Closing CTA */}
         <div className="max-w-2xl mx-auto px-4 text-center">
           <h2 className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight">
             Ready to start selling?

@@ -99,7 +99,6 @@ function EventRow({ item, isPast }) {
       href={href}
       className="group flex items-center gap-4 px-4 md:px-5 py-4 hover:bg-gray-50 focus-visible:outline-none focus-visible:bg-gray-50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#4F6EF7] transition-colors"
     >
-      {/* Thumbnail */}
       <div className="w-14 h-14 md:w-16 md:h-16 rounded-xl overflow-hidden shrink-0 relative bg-gray-100">
         {imageUrl ? (
           <Image
@@ -276,18 +275,16 @@ export default function HomePage() {
       <div className="min-h-screen bg-white">
         <div className="max-w-3xl mx-auto px-4 md:px-6 py-6 md:py-8">
 
-          {/* Header */}
           <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-6">
             <div>
               <h1 className="text-3xl md:text-4xl font-bold text-gray-900 tracking-tight mb-1">
                 Your events
               </h1>
               <p className="text-gray-600 text-[15px] md:text-base">
-                Events you are attending or hosting, all in one place.
+                Events you attend or host.
               </p>
             </div>
 
-            {/* Tabs */}
             <div className="flex md:inline-flex items-center gap-1 bg-gray-100 rounded-full p-1 md:self-start" role="tablist" aria-label="Your events">
               {tabs.map(tab => (
                 <button
@@ -307,7 +304,6 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* Content */}
           {loading ? (
             <div className="bg-white rounded-2xl border border-gray-200 divide-y divide-gray-100 overflow-hidden">
               <SkeletonRow />

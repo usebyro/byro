@@ -1,8 +1,10 @@
 "use client";
 import { useEffect, useState, Suspense } from "react";
+import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import API from "@/services/api";
 import { trackPurchase } from "@/lib/analytics";
+import { openPaymentSupport } from "@/lib/support";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { BadgeCheckIcon, CircleXIcon } from "@hugeicons/core-free-icons";
 
@@ -11,7 +13,6 @@ function PaymentCallbackContent() {
   const router = useRouter();
   const reference = searchParams.get("reference") || searchParams.get("trxref");
   const [status, setStatus] = useState(reference ? "verifying" : "failed");
-  const [errorMsg, setErrorMsg] = useState("");
   const [cancelledMsg, setCancelledMsg] = useState("");
 
   useEffect(() => {
@@ -68,7 +69,6 @@ function PaymentCallbackContent() {
       .catch((err) => {
         const msg = err?.response?.data?.error || err?.message || "Unknown error";
         console.error("Verification failed:", msg, err?.response?.data);
-        setErrorMsg(msg);
         setStatus("failed");
       });
   }, [reference, router]);
@@ -117,15 +117,28 @@ function PaymentCallbackContent() {
       <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center">
         <HugeiconsIcon icon={CircleXIcon} size={40} color="#ef4444" />
       </div>
-      <h2 className="text-2xl font-bold text-gray-900">Payment Failed</h2>
-      <p className="text-gray-600">Your payment could not be verified. Please try again.</p>
-      {errorMsg && <p className="text-sm text-red-500">{errorMsg}</p>}
-      <button
-        onClick={() => router.back()}
-        className="mt-4 px-6 py-3 bg-green-500 text-white rounded-xl font-semibold hover:bg-green-600 transition-colors"
-      >
-        Try Again
-      </button>
+      <h2 className="text-2xl font-bold text-gray-900">We couldn&apos;t confirm your payment</h2>
+      <p className="text-gray-600 max-w-md text-center px-6">
+        If you were debited, don&apos;t panic. Contact support and we&apos;ll sort it out.
+      </p>
+      {reference && <p className="text-sm text-gray-500">Reference: {reference}</p>}
+      <div className="mt-2 flex flex-wrap items-center justify-center gap-3">
+        <button
+          onClick={() => router.back()}
+          className="px-6 py-3 border border-gray-300 text-gray-900 rounded-xl font-semibold hover:bg-gray-50 transition-colors"
+        >
+          Try again
+        </button>
+        <button
+          onClick={() => openPaymentSupport({ reference })}
+          className="px-6 py-3 bg-brand text-white rounded-xl font-semibold hover:brightness-90 transition-[filter]"
+        >
+          Contact support
+        </button>
+      </div>
+      <Link href="/" className="text-sm text-gray-500 underline underline-offset-2 hover:text-gray-900">
+        Back to home
+      </Link>
     </div>
   );
 }

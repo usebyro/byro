@@ -1,4 +1,3 @@
-// components/EventCard.jsx
 import React, { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
@@ -10,13 +9,11 @@ const EventCard = ({ event }) => {
   const [imageError, setImageError] = useState(false);
   const authenticated = useSelector((state) => !!state.auth?.token);
 
-  // Get image URL with fallback
   const getImageUrl = () => {
     if (imageError) {
       return "/assets/images/default-event.jpg";
     }
 
-    // Prefer the full URL from the serializer
     if (event.event_image_url) {
       return event.event_image_url;
     }
@@ -25,18 +22,15 @@ const EventCard = ({ event }) => {
       return "/assets/images/default-event.jpg";
     }
 
-    // If it's already a full URL
     if (event.event_image.startsWith("http")) {
       return event.event_image;
     }
 
-    // Relative path - build from the API base (strip /api/ suffix if present)
     const apiBase = process.env.NEXT_PUBLIC_API_URL || "https://byro.onrender.com";
     const base = apiBase.replace(/\/api\/?$/, "");
     return `${base}${event.event_image}`;
   };
 
-  // Extract event data
   const eventId = event.id || event._id;
   const eventTitle = event.title || event.name;
   const eventDate = event.day || event.startDate || event.eventDate;
@@ -48,25 +42,6 @@ const EventCard = ({ event }) => {
   const eventSlug = event.slug || eventId;
   const eventType = event.eventType || event.type || "ONLINE EVENT";
 
-  // Get image URL
-  // const getImageUrl = () => {
-  //   const imageField = event.image || event.event_image || event.banner;
-  //   console.log("Image field", event?.event_image);
-
-  //   if (!imageField || imageError) {
-  //     return "/assets/images/default-event.jpg";
-  //   }
-
-  //   if (imageField.startsWith("http")) {
-  //     return imageField;
-  //   }
-
-  //   const baseURL =
-  //     process.env.NEXT_PUBLIC_API_URL || "https://byro.onrender.com/";
-  //   return `${baseURL.replace("/api/", "")}${imageField}`;
-  // };
-
-  // Format date
   const formatDate = (dateString) => {
     try {
       const date = new Date(dateString);
@@ -85,7 +60,6 @@ const EventCard = ({ event }) => {
   return (
     <Link href={`/discover/${eventSlug}`} className="block group">
       <div className="bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-300 border border-gray-100 p-2 sm:p-3">
-        {/* Event Image */}
         <div className="relative h-40 sm:h-48 w-full overflow-hidden rounded-lg">
           <Image
             src={getImageUrl()}
@@ -99,7 +73,6 @@ const EventCard = ({ event }) => {
             quality={75}
           />
 
-          {/* FREE Badge */}
           {authenticated && (
             <div className="absolute top-2 left-2">
               <span
@@ -115,51 +88,15 @@ const EventCard = ({ event }) => {
           )}
         </div>
 
-        {/* Event Content */}
         <div className="p-2 sm:p-3">
-          {/* Event Title */}
           <h3 className="font-semibold text-sm sm:text-base text-gray-900 mb-2 sm:mb-3 line-clamp-2 group-hover:text-blue-600 transition-colors">
             {eventTitle}
           </h3>
 
-          {/* Event Date */}
           <p className="text-blue-600 text-xs sm:text-sm font-medium mb-3 sm:mb-4">
             {formatDate(eventDate)}
           </p>
 
-          {/* Action Buttons Row */}
-          {/* <div className="flex items-center justify-between">
-            {event.isUserHost ? (
-              <button
-                onClick={(e) => {
-                  e.preventDefault();
-                  // Handle manage event
-                }}
-                className="bg-blue-50 text-blue-600 px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-100 transition-colors"
-              >
-                Manage Event
-              </button>
-            ) : (
-              <button
-                onClick={(e) => {
-                  e.preventDefault();
-                  // Handle going to event
-                }}
-                className="bg-blue-50 text-blue-600 px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-100 transition-colors"
-              >
-                Going
-              </button>
-            )}
-
-            <div className="text-right">
-              <p className="text-xs text-gray-500 uppercase tracking-wide font-medium mb-1">
-                {eventType}
-              </p>
-              <p className="text-sm text-gray-600">
-                {event.isUserHost ? "You hosted this event" : eventHost}
-              </p>
-            </div>
-          </div> */}
           <div className="flex items-center gap-1">
             <div className="shrink-0">
               <IoLocationSharp size={14} className="sm:w-[15px] sm:h-[15px] text-[#007AFF]" />

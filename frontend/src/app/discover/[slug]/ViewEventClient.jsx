@@ -271,7 +271,6 @@ export default function ViewEventClient({ slug }) {
         <Navbar />
 
         <main className="flex-1 pb-28 lg:pb-0">
-          {/* Cover */}
           <section className="mx-auto max-w-[1440px] px-4 pt-4 md:px-12 md:pt-6 xl:px-24">
             <div className="relative h-[260px] overflow-hidden rounded-3xl bg-mist md:h-[460px] md:rounded-[36px]">
               <EventImage
@@ -316,9 +315,7 @@ export default function ViewEventClient({ slug }) {
             </div>
           </section>
 
-          {/* Body */}
           <section className="mx-auto flex max-w-[1440px] flex-col gap-10 px-4 pt-8 md:px-12 md:pt-11 lg:flex-row lg:items-start lg:gap-16 xl:px-24">
-            {/* Main column */}
             <div className="flex min-w-0 flex-1 flex-col gap-9">
               <div className="flex flex-col gap-3.5">
                 <span
@@ -379,7 +376,6 @@ export default function ViewEventClient({ slug }) {
                 </div>
               </div>
 
-              {/* About */}
               <div className="flex flex-col gap-3.5">
                 <h2 className="font-display text-[28px] font-bold tracking-[-0.02em]">About this event</h2>
                 {event.description ? (
@@ -402,7 +398,6 @@ export default function ViewEventClient({ slug }) {
                 </div>
               </div>
 
-              {/* Organiser */}
               <div className="flex flex-wrap items-center gap-4 rounded-3xl border border-hairline p-5 md:px-6 md:py-[22px]">
                 <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-sky font-extrabold text-brand">
                   {orgInitial}
@@ -426,18 +421,16 @@ export default function ViewEventClient({ slug }) {
                 )}
               </div>
 
-              {/* The stamp you'll collect */}
               <div className="flex flex-col items-start gap-5 rounded-[28px] bg-butter p-6 md:flex-row md:items-center md:gap-7 md:px-8 md:py-7">
                 <Stamp name={event.name.length > 18 ? event.name.slice(0, 16) + "…" : event.name} city={stampCity} date={stampDate} ink="blue" size={120} tilt={-8} filled className="shrink-0" />
                 <div className="flex flex-col gap-1.5">
                   <span className="font-display text-2xl font-bold tracking-[-0.01em]">Collect this stamp</span>
                   <span className="max-w-[460px] text-base leading-[1.55] text-muted">
-                    Check in at the door and this stamp lands in your byro passport, next to every other night you&apos;ve been to.
+                    Check in at the door.
                   </span>
                 </div>
               </div>
 
-              {/* Location map */}
               {(event.location || event.address) && (
                 <div className="flex flex-col gap-4">
                   <h2 className="font-display text-[28px] font-bold tracking-[-0.02em]">Location</h2>
@@ -486,7 +479,6 @@ export default function ViewEventClient({ slug }) {
               )}
             </div>
 
-            {/* Ticket panel */}
             <aside
               id="tickets"
               aria-label="Tickets"
@@ -607,7 +599,6 @@ export default function ViewEventClient({ slug }) {
             </aside>
           </section>
 
-          {/* More events */}
           {more.length > 0 && (
             <section className="mx-auto flex max-w-[1440px] flex-col gap-5 px-4 pt-16 md:px-12 md:pt-[90px] xl:px-24">
               <div className="flex items-baseline justify-between gap-4">

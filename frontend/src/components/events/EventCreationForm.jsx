@@ -867,7 +867,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
                   placeholder="Unlimited"
                   className="w-full border border-gray-200 rounded-xl px-4 py-3 min-h-[46px] text-base md:text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
-                <p className="mt-1.5 text-xs text-gray-500">Sales stop when this many seats are taken. Leave empty for no limit.</p>
+                <p className="mt-1.5 text-xs text-gray-500">Leave empty for no limit.</p>
               </div>
               {tiers.length === 0 && <div>
                 <label htmlFor="max-per-person" className="block text-sm font-medium text-gray-700 mb-1.5">Tickets per person</label>
@@ -881,7 +881,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
                     <option key={n} value={String(n)}>{n}</option>
                   ))}
                 </select>
-                <p className="mt-1.5 text-xs text-gray-500">The most tickets one buyer can get in a single order. With tiers, each tier sets its own.</p>
+                <p className="mt-1.5 text-xs text-gray-500">Most tickets one buyer can get per order.</p>
               </div>}
             </div>
             {tierAllocationWarning && (
@@ -977,13 +977,13 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
                         </div>
                         <p className="mt-1 text-xs text-gray-500">
                           {parseInt(editTierData.admits, 10) > 1
-                            ? `A group ticket that admits ${parseInt(editTierData.admits, 10)} people. It is always bought one at a time.`
+                            ? `Admits ${parseInt(editTierData.admits, 10)} people. Bought one at a time.`
                             : (() => {
                                 const min = parseInt(editTierData.minPerPerson, 10) || 1;
                                 const max = parseInt(editTierData.perPerson, 10);
-                                if (!isNaN(max) && min === max && min > 1) return `Sold only in sets of ${min}, like a couples ticket. Buyers can't get fewer.`;
-                                if (min > 1) return `Buyers must take at least ${min}, so the counter starts at ${min}.`;
-                                return "The fewest and the most one buyer can get of this ticket in one order.";
+                                if (!isNaN(max) && min === max && min > 1) return `Sold in sets of ${min}.`;
+                                if (min > 1) return `Buyers take at least ${min}.`;
+                                return "Fewest and most per order.";
                               })()}
                         </p>
                       </div>
@@ -1066,7 +1066,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
             step={4}
             done={questions.length > 0}
           >
-            <p className="text-sm text-[#5B6272] mb-4">Name and email are always collected. Add only what you really need. Each buyer answers once per order.</p>
+            <p className="text-sm text-[#5B6272] mb-4">Name and email are always collected.</p>
             <div className="space-y-3">
               {questions.map((q, qi) => (
                 <div key={q.key} className="rounded-2xl border border-[#E3E8F0] p-4 space-y-3">
@@ -1236,7 +1236,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
                 { label: "Public event", hint: eventVisibility ? "Shows on Discover" : "Only people with the link", value: eventVisibility, toggle: () => setEventVisibility(v => !v) },
                 { label: "Show tickets left", hint: "Creates urgency when stock is low", value: showRemainingCount, toggle: () => setShowRemainingCount(v => !v) },
                 // { label: "Transferable tickets", value: ticketsTransferable, toggle: () => setTicketsTransferable(v => !v) }, // disabled for now
-                { label: "Buyers pay the 5% fee", hint: passFeeToAttendee ? "A ₦5,000 ticket costs buyers ₦5,250" : "You get ₦4,750 from a ₦5,000 ticket", value: passFeeToAttendee, toggle: () => setPassFeeToAttendee(v => !v) },
+                { label: "Buyers pay the 5% fee", hint: passFeeToAttendee ? undefined : "You get ₦4,750 from a ₦5,000 ticket", value: passFeeToAttendee, toggle: () => setPassFeeToAttendee(v => !v) },
               ].map(({ label, hint, value, toggle }) => (
                 <div key={label} className="flex items-center justify-between gap-3">
                   <span className="flex flex-col">

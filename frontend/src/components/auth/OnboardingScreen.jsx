@@ -179,7 +179,6 @@ export default function OnboardingScreen() {
   return (
     <div className="min-h-screen bg-white">
       <div className="w-full grid grid-cols-1 md:grid-cols-2 min-h-screen">
-        {/* Left — brand panel */}
         <div className="relative hidden md:block overflow-hidden h-full">
           {SLIDES.map((slide, i) => (
             <Image
@@ -196,7 +195,6 @@ export default function OnboardingScreen() {
           ))}
         </div>
 
-        {/* Right — onboarding form */}
         <div className="relative bg-white flex items-center justify-center p-10 sm:p-14 min-h-screen">
           <Link href="/" className="absolute top-6 left-6 md:top-8 md:left-10">
             <Image src="/assets/images/logo.svg" alt="byro" width={80} height={32} className="h-7 w-auto" priority />
@@ -207,7 +205,7 @@ export default function OnboardingScreen() {
               <>
                 <h2 className="font-serif text-3xl text-gray-900 mb-2">Welcome</h2>
                 <p className="text-gray-500 text-sm mb-8">
-                  Welcome to Byro. Setup your account before you proceed.
+                  Welcome to Byro. Set up your account.
                 </p>
 
                 <div className="space-y-3">

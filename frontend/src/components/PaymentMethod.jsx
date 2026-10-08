@@ -9,7 +9,6 @@ export default function PaymentMethod({ selectedMethod, onSelect }) {
   return (
     <div className="max-w-2xl mx-auto p-6">
       <div className="grid gap-4">
-        {/* Connect Wallet */}
         <div
           onClick={() => onSelect("wallet")}
           className={`cursor-pointer border rounded-2xl p-5 items-center justify-between transition
@@ -69,7 +68,6 @@ export default function PaymentMethod({ selectedMethod, onSelect }) {
           </div>
         </div>
 
-        {/* Paystack */}
         <div
           onClick={() => onSelect("paystack")}
           className={`cursor-pointer border rounded-2xl p-5 flex items-center justify-between transition

@@ -1,4 +1,3 @@
-// AppLayout.jsx
 import Navbar from "../../components/Navbar";
 
 const AppLayout = ({ children }) => {

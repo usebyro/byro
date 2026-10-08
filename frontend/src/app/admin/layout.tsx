@@ -86,7 +86,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   const sidebarContent = (
     <>
-      {/* Logo */}
       <div className="px-5 py-5 border-b border-white/10 flex items-center gap-2">
         <Image
           src="/assets/images/logo.svg"
@@ -100,7 +99,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </span>
       </div>
 
-      {/* Nav */}
       <nav className="flex-1 px-3 py-4 space-y-1">
         {navItems.map((item) => {
           const active = isActive(pathname, item.href);
@@ -146,12 +144,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   return (
     <div className="min-h-screen bg-[#0f1117] flex">
-      {/* Desktop sidebar */}
       <aside className="hidden md:flex w-56 shrink-0 bg-[#1a1d27] border-r border-white/10 flex-col">
         {sidebarContent}
       </aside>
 
-      {/* Mobile top bar */}
       <div className="md:hidden fixed top-0 inset-x-0 z-40 h-14 bg-[#1a1d27] border-b border-white/10 flex items-center justify-between px-4">
         <div className="flex items-center gap-2">
           <Image
@@ -177,12 +173,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </div>
       </div>
 
-      {/* Desktop top bar */}
       <div className="hidden md:flex fixed top-0 right-0 left-56 z-30 h-14 bg-[#1a1d27]/80 backdrop-blur border-b border-white/10 items-center justify-end px-6">
         <NotificationBell />
       </div>
 
-      {/* Mobile drawer + backdrop */}
       {mobileOpen && (
         <div className="md:hidden fixed inset-0 z-50 flex">
           <div
@@ -202,7 +196,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </div>
       )}
 
-      {/* Main content */}
       <main className="flex-1 overflow-y-auto min-w-0 pt-14">
         <AdminMeContext.Provider value={me}>{children}</AdminMeContext.Provider>
       </main>

@@ -337,7 +337,6 @@ function DiscoverPageContent() {
           </form>
 
           <div className="mt-6 flex items-start gap-10 md:mt-10">
-            {/* Filter sidebar */}
             <aside aria-label="Filters" className="hidden w-[272px] shrink-0 flex-col gap-7 rounded-3xl border border-hairline bg-white p-6 lg:flex">
               <div className="flex items-center justify-between">
                 <span className="font-display text-[22px] font-bold tracking-[-0.01em]">Filters</span>
@@ -350,7 +349,6 @@ function DiscoverPageContent() {
               {filterBody}
             </aside>
 
-            {/* Results */}
             <div className="flex min-w-0 flex-1 flex-col gap-8">
               <div className="flex flex-wrap items-center gap-2.5">
                 <button
