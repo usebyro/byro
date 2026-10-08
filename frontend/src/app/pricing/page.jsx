@@ -66,8 +66,8 @@ const faqs = [
     a: "Payouts land in your bank within 24 hours of submitting a payout request on the dashboard.",
   },
   {
-    q: "Can I issue refunds?",
-    a: "Yes. Set your own refund window per event; Byro handles the reversal automatically.",
+    q: "What happens if I cancel an event?",
+    a: "Your attendees are told straight away and everyone who paid is refunded the ticket price. Byro's service fee and the payment processing charge are not refunded. Buyers can't ask for refunds themselves.",
   },
   {
     q: "Who pays the fees?",

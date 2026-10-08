@@ -182,6 +182,7 @@ export default function ViewEventClient({ slug }) {
 
   /* Registration closes one full day after the event has ended */
   const registrationClosed = useMemo(() => {
+    if (event?.cancelled_at) return true; // cancelled by the organiser: nothing to buy
     if (!event?.day) return false;
     const endTime = event.time_to || event.time_from || "23:59:59";
     const eventEnd = new Date(`${event.day}T${endTime}`);
@@ -326,6 +327,13 @@ export default function ViewEventClient({ slug }) {
                 >
                   {tone.label}
                 </span>
+                {event?.cancelled_at && (
+                  <div role="status" className="mb-5 rounded-2xl border border-[#F2C4C4] bg-[#FDECEC] px-5 py-4 text-[#8A1C1C]">
+                    <p className="font-bold">This event has been cancelled.</p>
+                    {event.cancel_reason && <p className="mt-1 text-[15px] break-words">{event.cancel_reason}</p>}
+                    <p className="mt-2 text-sm">If you had a ticket, check your email: paid tickets are refunded the ticket price.</p>
+                  </div>
+                )}
                 <h1 className="text-balance font-display text-[40px] font-bold leading-none tracking-[-0.04em] md:text-[64px]">
                   {event.name}
                 </h1>
@@ -586,7 +594,7 @@ export default function ViewEventClient({ slug }) {
                     disabled={registrationClosed}
                     className="flex h-14 items-center justify-center rounded-full bg-brand text-[17px] font-bold text-white transition-[filter,scale] hover:brightness-90 active:scale-[0.96] focus:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-line disabled:text-faint disabled:hover:brightness-100"
                   >
-                    {registrationClosed ? "Registration closed" : isFree ? "Register" : "Get tickets"}
+                    {event?.cancelled_at ? "Event cancelled" : registrationClosed ? "Registration closed" : isFree ? "Register" : "Get tickets"}
                   </button>
                   <p className="flex items-center justify-center gap-1.5 text-center text-[13px] text-muted">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2F9E6E" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -628,7 +636,7 @@ export default function ViewEventClient({ slug }) {
               disabled={registrationClosed}
               className="flex h-12 items-center rounded-full bg-brand px-7 text-[15px] font-bold text-white transition-[filter,scale] active:scale-[0.96] disabled:bg-line disabled:text-faint"
             >
-              {registrationClosed ? "Closed" : isFree ? "Register" : "Get tickets"}
+              {event?.cancelled_at ? "Cancelled" : registrationClosed ? "Closed" : isFree ? "Register" : "Get tickets"}
             </button>
           </div>
         )}

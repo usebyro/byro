@@ -155,6 +155,35 @@ const API = {
     }
   },
 
+  // What cancelling the event would do (nothing changes), or its refund progress once cancelled.
+  getCancelPreview: async (slug) => {
+    try {
+      const response = await axiosInstance.get(`events/${slug}/cancel/`);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  // Cancel the event. Buyers are told and refunds are recorded; a Byro admin sends the money.
+  cancelEvent: async (slug, reason) => {
+    try {
+      const response = await axiosInstance.post(`events/${slug}/cancel/`, { reason });
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  getEventRefunds: async (slug) => {
+    try {
+      const response = await axiosInstance.get(`events/${slug}/refunds/`);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
   getFormQuestions: async (slug) => {
     try {
       const response = await axiosInstance.get(`events/${slug}/form-questions/`);

@@ -70,8 +70,12 @@ const FAQS = [
     a: "Go to your Profile, open My Tickets, and tap the ticket you want to transfer. Select Transfer, enter your friend's name and email, then confirm. They'll receive an email with a link to accept the ticket. Transfers are only available for events that allow it.",
   },
   {
+    q: "Can I get a refund?",
+    a: "Tickets can't be refunded on request. If an organiser cancels an event, you are refunded the ticket price you paid (Byro's service fee and the payment processing charge are not refunded). You don't need to ask: we email you when the event is cancelled and again when your refund is sent.",
+  },
+  {
     q: "When will I receive my refund?",
-    a: "Refunds are processed within 5–7 business days back to your original payment method. If you paid by card, your bank may take an additional 2–3 days to reflect the amount. Contact support if you haven't received it after 10 business days.",
+    a: "Once we send your refund it goes back to the card or bank account you paid with, and banks usually show it within 3–10 business days. We email you when it has been sent. If it hasn't arrived after 10 business days, write to support@usebyro.com with your ticket ID.",
   },
   {
     q: "My QR code won't scan at the gate",
