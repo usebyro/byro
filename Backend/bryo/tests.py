@@ -875,6 +875,28 @@ class AdminSeesEveryEventTests(TestCase):
         )
 
 
+class SuspendedEventPageTests(TestCase):
+    """A suspended event says so to visitors; unknown and draft events stay a plain 404."""
+
+    def setUp(self):
+        owner = get_user_model().objects.create_user(email='o@example.com', password='x')
+        base = dict(owner=owner, day='2030-01-01', time_from='10:00', time_to='12:00',
+                    location='Lagos', ticket_price=0)
+        Event.objects.create(name='Gone', slug='gone', is_active=False, **base)
+        Event.objects.create(name='Secret', slug='secret', is_draft=True, **base)
+
+    def test_visitor_is_told_the_event_is_suspended(self):
+        r = APIClient().get('/api/events/gone/')
+        self.assertEqual(r.status_code, 403)
+        self.assertEqual(r.json()['code'], 'event_suspended')
+        self.assertEqual(r.json()['name'], 'Gone')
+
+    def test_drafts_and_unknown_events_are_still_404(self):
+        c = APIClient()
+        self.assertEqual(c.get('/api/events/secret/').status_code, 404)
+        self.assertEqual(c.get('/api/events/nope/').status_code, 404)
+
+
 class CancelRegistrationTests(TestCase):
     """DELETE /api/tickets/<id>/ is unauthenticated, so it may only cancel free tickets."""
 

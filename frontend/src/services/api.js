@@ -89,6 +89,13 @@ const API = {
         err.status = 404;
         throw err;
       }
+      if (error.response?.data?.code === "event_suspended") {
+        const err = new Error(error.response.data.error);
+        err.status = 403;
+        err.suspended = true;
+        err.eventName = error.response.data.name;
+        throw err;
+      }
       throw handleApiError(error);
     }
   },
