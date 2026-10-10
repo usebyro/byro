@@ -1236,11 +1236,28 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
                 { label: "Public event", hint: eventVisibility ? undefined : "Only people with the link", value: eventVisibility, toggle: () => setEventVisibility(v => !v) },
                 { label: "Show ticket availability", value: showRemainingCount, toggle: () => setShowRemainingCount(v => !v) },
                 // { label: "Transferable tickets", value: ticketsTransferable, toggle: () => setTicketsTransferable(v => !v) }, // disabled for now
-                { label: "Buyers pay the 5% fee", hint: passFeeToAttendee ? undefined : "You get ₦4,750 from a ₦5,000 ticket", value: passFeeToAttendee, toggle: () => setPassFeeToAttendee(v => !v) },
-              ].map(({ label, hint, value, toggle }) => (
+                { label: "Buyers pay the 5% fee", info: "/pricing", hint: passFeeToAttendee ? undefined : "You get ₦4,750 from a ₦5,000 ticket", value: passFeeToAttendee, toggle: () => setPassFeeToAttendee(v => !v) },
+              ].map(({ label, hint, info, value, toggle }) => (
                 <div key={label} className="flex items-center justify-between gap-3">
                   <span className="flex flex-col">
-                    <span className="text-sm font-bold text-[#14161C]">{label}</span>
+                    <span className="flex items-center gap-1.5 text-sm font-bold text-[#14161C]">
+                      {info && (
+                        <a
+                          href={info}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          aria-label="How Byro pricing works"
+                          title="How Byro pricing works"
+                          className="inline-flex shrink-0 text-gray-400 transition-colors hover:text-blue-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 rounded-full"
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <circle cx="12" cy="12" r="10" />
+                            <path d="M12 16v-4M12 8h.01" />
+                          </svg>
+                        </a>
+                      )}
+                      {label}
+                    </span>
                     {hint && <span className="text-xs text-[#5B6272]">{hint}</span>}
                   </span>
                   <button
