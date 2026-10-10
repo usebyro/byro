@@ -981,7 +981,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                       </li>
                     ))}
                   </ul>
-                  <p className="pt-2 text-xs text-muted">Tickets will be sent to each email.</p>
+                  {isMultiSeat && <p className="pt-2 text-xs text-muted">Tickets will be sent to each email.</p>}
                 </section>
 
                 {formQuestions.length > 0 && (
