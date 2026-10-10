@@ -316,7 +316,7 @@ function ProfilePageContent() {
           <Card title="About">
             <div className="grid gap-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <Field id="display_name" label="Display name" error={errors.display_name}>
+                <Field id="display_name" label="Name or community name" error={errors.display_name}>
                   <input
                     id="display_name"
                     type="text"

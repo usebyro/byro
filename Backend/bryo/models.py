@@ -387,6 +387,9 @@ class Event(models.Model):
     # Reminder/notification bookkeeping — set by the send_event_reminders
     # management command and the ticket-sales milestone check, so re-runs
     # don't re-send the same email.
+    # Set once followers have been emailed about this event, so a later edit or
+    # re-publish never emails them twice.
+    followers_notified_at = models.DateTimeField(null=True, blank=True)
     reminder_sent_at = models.DateTimeField(
         null=True, blank=True,
         help_text="When the 24h-before attendee/organizer reminder was sent"
@@ -945,6 +948,28 @@ class Follow(models.Model):
 
     def __str__(self):
         return f"{self.follower_id} follows {self.following_id}"
+
+
+class Stamp(models.Model):
+    """Proof someone showed up: created the first time a ticket is scanned at the door."""
+    ticket = models.OneToOneField(Ticket, on_delete=models.CASCADE, related_name='stamp')
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='stamps')
+    # The organiser, kept here so community stats don't have to join through the event.
+    organizer = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name='stamps_given',
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name='stamps',
+    )
+    email = models.EmailField(db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [models.Index(fields=['organizer', 'email'])]
+
+    def __str__(self):
+        return f"{self.email} @ {self.event_id}"
 
 
 class AdminMember(models.Model):

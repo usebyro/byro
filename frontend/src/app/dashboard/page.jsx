@@ -115,6 +115,7 @@ function StatCard({ icon, label, value, trend, note, iconBg, iconColor }) {
 export default function StudioDashboard() {
   const [dashboard, setDashboard] = useState(null);
   const [analytics, setAnalytics] = useState(null);
+  const [community, setCommunity] = useState(null);
   const [loading, setLoading]     = useState(true);
   const [revenueRange, setRevenueRange] = useState("12m");
   const [chartLoading, setChartLoading] = useState(false);
@@ -126,6 +127,10 @@ export default function StudioDashboard() {
 
   useEffect(() => {
     document.title = "Overview | Byro";
+  }, []);
+
+  useEffect(() => {
+    API.getCommunityStats().then(setCommunity).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -191,6 +196,37 @@ export default function StudioDashboard() {
         <StatCard icon={Ticket01Icon}       label="Tickets sold"      value={loading || !last30 ? "—" : last30.tickets}                   trend={last30 ? pctChange(last30.tickets, prev30?.tickets) : null}                     note={last30 && last30.tickets === 0 ? "No sales yet" : "Last 30 days"}                    iconBg="bg-blue-50"   iconColor="text-blue-600" />
         <StatCard icon={Calendar01Icon}     label="Active events"     value={loading ? "—" : upcoming.length}                             trend={null}                                                                          note="Upcoming and live"                                                                   iconBg="bg-violet-50" iconColor="text-violet-600" />
         <StatCard icon={UserMultiple02Icon} label="Avg. fill rate"    value={loading || analytics?.avg_fill_rate == null ? "—" : `${analytics.avg_fill_rate}%`} trend={null} note={analytics && analytics.avg_fill_rate == null ? "Set a capacity to track" : "Tickets sold vs capacity"} iconBg="bg-amber-50"  iconColor="text-amber-600" />
+      </div>
+
+      <div className="bg-white rounded-xl border border-gray-100/80 shadow-sm p-4">
+        <div className="flex items-start justify-between gap-2 mb-3">
+          <div>
+            <p className="text-sm font-bold text-gray-800">Your community</p>
+            <p className="text-xs text-gray-400 mt-0.5">The people who follow you and show up.</p>
+          </div>
+          {community?.new_followers_30d > 0 && (
+            <span className="text-[11px] font-semibold text-emerald-600 bg-emerald-50 rounded-full px-2 py-0.5 shrink-0">
+              +{community.new_followers_30d} followers this month
+            </span>
+          )}
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {[
+            { label: "Followers", value: community?.followers, note: "Hear about your next event" },
+            { label: "Have attended", value: community?.attendees, note: "Checked in at your events" },
+            { label: "Regulars", value: community?.regulars, note: "Came to 3 or more events" },
+            { label: "Repeat rate", value: community ? `${community.repeat_rate}%` : null, note: "Came back at least once" },
+          ].map((c) => (
+            <div key={c.label} className="rounded-lg bg-gray-50/70 px-3.5 py-3">
+              <p className="text-xl font-extrabold tracking-tight text-gray-900">{community ? c.value : "—"}</p>
+              <p className="text-xs font-semibold text-gray-700">{c.label}</p>
+              <p className="text-[11px] text-gray-400 mt-0.5">{c.note}</p>
+            </div>
+          ))}
+        </div>
+        {community && community.attendees === 0 && (
+          <p className="text-xs text-gray-400 mt-3">Attendees and regulars fill in as you check guests in at the door.</p>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">

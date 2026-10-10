@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { CompassIcon, Megaphone01Icon, Camera01Icon, UserIcon } from "@hugeicons/core-free-icons";
 import API from "@/services/api";
+import { handleProblem, friendlyProfileError } from "@/lib/handle";
 import { FaXTwitter, FaInstagram, FaLinkedinIn, FaTelegram } from "react-icons/fa6";
 
 const ROLES = [
@@ -32,7 +33,7 @@ const ORGANIZER_STEPS = [
   {
     title: "Basic info",
     fields: [
-      { key: "displayName", label: "Full name", type: "text", placeholder: "Amara Okafor" },
+      { key: "displayName", label: "Name or community name", type: "text", placeholder: "Lagos Run Club" },
       { key: "handle", label: "Username", type: "handle", required: true, placeholder: "amara-live" },
     ],
   },
@@ -90,6 +91,8 @@ export default function OnboardingScreen() {
   const [avatarFile, setAvatarFile] = useState(null);
   const [avatarPreview, setAvatarPreview] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [stepError, setStepError] = useState("");
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     document.title = "Welcome | Byro";
@@ -113,6 +116,7 @@ export default function OnboardingScreen() {
 
   const saveOrganizerProfile = async () => {
     setIsSaving(true);
+    setStepError("");
     try {
       if (avatarFile) {
         await API.uploadAvatar(avatarFile);
@@ -124,8 +128,11 @@ export default function OnboardingScreen() {
         is_public: isPublic,
         is_complete: true,
       });
+      return true;
     } catch (err) {
       console.error("Could not save onboarding profile:", err);
+      setStepError(friendlyProfileError(err));
+      return false;
     } finally {
       setIsSaving(false);
     }
@@ -154,9 +161,27 @@ export default function OnboardingScreen() {
 
   const handleNext = async () => {
     if (isNextDisabled) return;
+    setStepError("");
+    const hasHandle = ORGANIZER_STEPS[wizardStep].fields.some((f) => f.type === "handle");
+    if (hasHandle) {
+      // Claim the username now, so a taken or invalid one is caught on this step, not after Finish.
+      const problem = handleProblem(hostForm.handle);
+      if (problem) {
+        setStepError(problem);
+        return;
+      }
+      setIsSaving(true);
+      try {
+        await API.updateProfile({ handle: hostForm.handle.trim(), display_name: hostForm.displayName });
+      } catch (err) {
+        setStepError(friendlyProfileError(err));
+        setIsSaving(false);
+        return;
+      }
+      setIsSaving(false);
+    }
     if (isLastWizardStep) {
-      await saveOrganizerProfile();
-      router.push(returnPath("/dashboard"));
+      if (await saveOrganizerProfile()) setStage("live");
     } else {
       setWizardStep((s) => s + 1);
     }
@@ -172,8 +197,23 @@ export default function OnboardingScreen() {
 
   const handleSkip = async () => {
     if (isNextDisabled) return;
-    await saveOrganizerProfile();
-    router.push(returnPath("/dashboard"));
+    const problem = handleProblem(hostForm.handle);
+    if (problem) {
+      setStepError(problem);
+      return;
+    }
+    if (await saveOrganizerProfile()) setStage("live");
+  };
+
+  const pageUrl = `${(process.env.NEXT_PUBLIC_SITE_URL || "https://usebyro.com").replace(/\/+$/, "")}/u/${hostForm.handle.trim()}`;
+  const copyPageUrl = () => {
+    navigator.clipboard
+      ?.writeText(pageUrl)
+      .then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      })
+      .catch(() => {});
   };
 
   return (
@@ -200,7 +240,7 @@ export default function OnboardingScreen() {
             <Image src="/assets/images/logo.svg" alt="byro" width={80} height={32} className="h-7 w-auto" priority />
           </Link>
 
-          <div className={`w-full ${stage === "organizer-details" ? "max-w-md" : "max-w-sm"}`}>
+          <div className={`w-full ${stage === "select" ? "max-w-sm" : "max-w-md"}`}>
             {stage === "select" && (
               <>
                 <h2 className="font-serif text-3xl text-gray-900 mb-2">Welcome</h2>
@@ -243,7 +283,7 @@ export default function OnboardingScreen() {
                 </div>
 
                 <h2 className="font-serif text-3xl text-gray-900 mb-2">{ORGANIZER_STEPS[wizardStep].title}</h2>
-                <p className="text-gray-500 text-sm mb-8">Set up your organiser profile.</p>
+                <p className="text-gray-500 text-sm mb-8">Set up your organiser or community profile.</p>
 
                 <div className="space-y-4">
                   {ORGANIZER_STEPS[wizardStep].fields.map((field) =>
@@ -313,6 +353,12 @@ export default function OnboardingScreen() {
                   )}
                 </div>
 
+                {stepError && (
+                  <p role="alert" className="mt-4 text-sm text-red-600">
+                    {stepError}
+                  </p>
+                )}
+
                 <div className="flex items-center justify-between mt-8">
                   <button
                     type="button"
@@ -344,6 +390,55 @@ export default function OnboardingScreen() {
                     </button>
                   </div>
                 </div>
+              </>
+            )}
+
+            {stage === "live" && (
+              <>
+                <div className="w-14 h-14 rounded-full bg-emerald-50 flex items-center justify-center mb-5">
+                  <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2.5" aria-hidden="true">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                </div>
+                <h2 className="font-serif text-3xl text-gray-900 mb-2">Your community is live</h2>
+                <p className="text-gray-500 text-sm mb-6">
+                  {hostForm.isPublic
+                    ? "People can find it on the communities page, follow it, and hear about every event you publish."
+                    : "It's private for now, so only people with the link can see it. You can list it publicly any time in settings."}
+                </p>
+
+                <div className="flex items-center border border-gray-200 rounded-xl overflow-hidden mb-4">
+                  <span className="flex-1 px-4 py-2.5 text-sm text-gray-600 truncate">{pageUrl.replace(/^https?:\/\//, "")}</span>
+                  <button
+                    type="button"
+                    onClick={copyPageUrl}
+                    className="px-4 py-2.5 text-sm font-semibold text-gray-700 border-l border-gray-200 hover:bg-gray-50 transition-colors shrink-0"
+                  >
+                    {copied ? "Copied" : "Copy"}
+                  </button>
+                </div>
+                <a
+                  href={`https://wa.me/?text=${encodeURIComponent(`Follow ${hostForm.displayName || "us"} on Byro: ${pageUrl}`)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center w-full border border-gray-200 rounded-full py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors mb-3"
+                >
+                  Share on WhatsApp
+                </a>
+                <button
+                  type="button"
+                  onClick={() => router.push(returnPath("/dashboard/events/create"))}
+                  className="w-full bg-blue-600 text-white font-semibold py-3 rounded-full hover:bg-blue-700 transition-colors text-sm"
+                >
+                  Create your first event
+                </button>
+                <button
+                  type="button"
+                  onClick={() => router.push("/dashboard")}
+                  className="w-full mt-3 text-sm font-medium text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  Go to dashboard
+                </button>
               </>
             )}
           </div>

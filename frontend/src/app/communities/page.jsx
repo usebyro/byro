@@ -7,48 +7,37 @@ import Footer from "@/components/Footer";
 import EventImage from "@/components/brand/EventImage";
 import FollowButton from "@/components/community/FollowButton";
 import API from "@/services/api";
-import { categoryTone, dayParts, eventInitials, formatTime, isPast } from "@/lib/eventFormat";
+import { categoryTone, dayParts, eventInitials, formatTime } from "@/lib/eventFormat";
 
 const INKS = ["#3669F6", "#D0668E", "#2F9E6E", "#C9971C", "#1F2A44"];
 const TINTS = ["#E6F2FC", "#FCECEE", "#E9F7EF", "#FFFDE9", "#F3F6FB"];
 
 const hashOf = (s) => [...s].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7);
 
-/** A community is an organiser's public page. Group public events by organiser handle. */
-function buildCommunities(events, profiles) {
-  const map = new Map();
-  for (const e of events) {
-    const handle = e.owner_handle;
-    if (!handle) continue;
-    if (!map.has(handle)) map.set(handle, { handle, events: [] });
-    map.get(handle).events.push(e);
-  }
-  return [...map.values()].map((c) => {
-    const profile = profiles[c.handle] || {};
-    const upcoming = c.events
-      .filter((e) => !isPast(e))
-      .sort((a, b) => (a.day + a.time_from).localeCompare(b.day + b.time_from));
-    const cover = upcoming.find((e) => e.event_image_url) || c.events.find((e) => e.event_image_url) || null;
-    const name = profile.display_name || c.events[0]?.hosted_by || c.handle;
-    const slot = hashOf(c.handle) % INKS.length;
-    return {
-      handle: c.handle,
-      name,
-      bio: profile.bio || "",
-      location: profile.location || "",
-      avatar: profile.avatar_url || null,
-      followers: profile.followers_count ?? 0,
-      isFollowing: !!profile.is_following,
-      total: c.events.length,
-      upcoming,
-      next: upcoming[0] || null,
-      cover,
-      categories: [...new Set(c.events.map((e) => e.category).filter(Boolean))],
-      ink: INKS[slot],
-      tint: TINTS[slot],
-    };
-  });
+/** Shape one row of /api/communities/ for the cards. */
+function toCommunity(row) {
+  const slot = hashOf(row.handle) % INKS.length;
+  return {
+    handle: row.handle,
+    name: row.name,
+    bio: row.bio || "",
+    location: row.location || "",
+    avatar: row.avatar_url || null,
+    followers: row.followers ?? 0,
+    attendees: row.attendees ?? 0,
+    regulars: row.regulars ?? 0,
+    isFollowing: !!row.is_following,
+    total: row.events_total ?? 0,
+    upcomingCount: row.upcoming_count ?? 0,
+    next: row.next_event || null,
+    cover: row.cover_url ? { name: row.name, category: "other", event_image_url: row.cover_url } : null,
+    categories: row.categories || [],
+    ink: INKS[slot],
+    tint: TINTS[slot],
+  };
 }
+
+const PAGE_SIZE = 12;
 
 function Avatar({ community, size, className = "" }) {
   return (
@@ -68,49 +57,64 @@ function Avatar({ community, size, className = "" }) {
 
 export default function CommunitiesPage() {
   const [communities, setCommunities] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [query, setQuery] = useState("");
+  const [search, setSearch] = useState("");
   const [interest, setInterest] = useState("all");
+  const [categories, setCategories] = useState([]);
+
+  // Search waits for a pause in typing, so each keystroke is not a request.
+  useEffect(() => {
+    const t = setTimeout(() => setSearch(query.trim()), 300);
+    return () => clearTimeout(t);
+  }, [query]);
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      try {
-        const data = await API.getEvents({ sort: "recent" });
-        const events = Array.isArray(data) ? data : data?.events || data?.results || data?.data || [];
-        const handles = [...new Set(events.map((e) => e.owner_handle).filter(Boolean))].slice(0, 24);
-        const entries = await Promise.all(
-          handles.map((h) =>
-            API.getPublicProfile(h)
-              .then((p) => [h, p])
-              .catch(() => [h, null])
-          )
-        );
-        const profiles = Object.fromEntries(entries.filter(([, p]) => p));
-        if (!cancelled) setCommunities(buildCommunities(events, profiles));
-      } catch (err) {
-        console.error(err);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
+    setLoading(true);
+    API.getCommunities({ q: search || undefined, category: interest === "all" ? undefined : interest, page_size: PAGE_SIZE })
+      .then((data) => {
+        if (cancelled) return;
+        const rows = (data.results || []).map(toCommunity);
+        setCommunities(rows);
+        setTotal(data.total || 0);
+        setPage(1);
+        // Remember the interests seen on the unfiltered list so the chips don't vanish when one is picked.
+        if (!search && interest === "all") setCategories([...new Set(rows.flatMap((c) => c.categories))]);
+      })
+      .catch((err) => console.error(err))
+      .finally(() => !cancelled && setLoading(false));
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [search, interest]);
 
-  const interests = useMemo(() => {
-    const cats = [...new Set(communities.flatMap((c) => c.categories))];
-    return [{ value: "all", label: "All" }, ...cats.map((v) => ({ value: v, label: categoryTone(v).label }))];
-  }, [communities]);
+  const loadMore = async () => {
+    setLoadingMore(true);
+    try {
+      const data = await API.getCommunities({
+        q: search || undefined,
+        category: interest === "all" ? undefined : interest,
+        page: page + 1,
+        page_size: PAGE_SIZE,
+      });
+      setCommunities((list) => [...list, ...(data.results || []).map(toCommunity)]);
+      setPage((p) => p + 1);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return communities
-      .filter((c) => interest === "all" || c.categories.includes(interest))
-      .filter((c) => !q || `${c.name} ${c.handle} ${c.bio} ${c.location}`.toLowerCase().includes(q))
-      .sort((a, b) => b.followers - a.followers || b.upcoming.length - a.upcoming.length || b.total - a.total);
-  }, [communities, query, interest]);
+  const interests = useMemo(
+    () => [{ value: "all", label: "All" }, ...categories.map((v) => ({ value: v, label: categoryTone(v).label }))],
+    [categories]
+  );
+  const filtered = communities;
 
   const [featured, ...rest] = filtered;
 
@@ -171,10 +175,10 @@ export default function CommunitiesPage() {
           ) : !featured ? (
             <div className="mt-8 flex flex-col items-start gap-3 rounded-[30px] bg-mist p-8 md:p-12">
               <p className="font-display text-2xl font-bold">
-                {communities.length === 0 ? "No communities yet" : "No communities match"}
+                {!search && interest === "all" ? "No communities yet" : "No communities match"}
               </p>
               <p className="text-muted">
-                {communities.length === 0
+                {!search && interest === "all"
                   ? "Communities appear here once organisers publish events."
                   : "Try a different search or interest."}
               </p>
@@ -221,6 +225,13 @@ export default function CommunitiesPage() {
                       <span>
                         <b>{featured.total}</b> <span className="text-muted">{featured.total === 1 ? "event" : "events"} hosted</span>
                       </span>
+                      {featured.attendees > 0 && (
+                        <span>
+                          <b>{featured.attendees.toLocaleString()}</b>{" "}
+                          <span className="text-muted">{featured.attendees === 1 ? "has attended" : "have attended"}</span>
+                          {featured.regulars > 0 && <span className="text-muted"> · {featured.regulars} regular{featured.regulars === 1 ? "" : "s"}</span>}
+                        </span>
+                      )}
                       {featured.next && (
                         <span>
                           <b>Next:</b>{" "}
@@ -266,8 +277,13 @@ export default function CommunitiesPage() {
                             <span className="flex h-[30px] items-center rounded-full bg-mist px-2.5 text-xs font-bold">
                               {c.total} {c.total === 1 ? "event" : "events"}
                             </span>
+                            {c.attendees > 0 && (
+                              <span className="flex h-[30px] items-center rounded-full bg-mist px-2.5 text-xs font-bold">
+                                {c.attendees.toLocaleString()} {c.attendees === 1 ? "has" : "have"} attended
+                              </span>
+                            )}
                             <span className="flex h-[30px] items-center rounded-full px-2.5 text-xs font-bold" style={{ background: c.tint }}>
-                              {c.upcoming.length} upcoming
+                              {c.upcomingCount} upcoming
                             </span>
                           </div>
                           <div className="flex-1" />
@@ -294,6 +310,16 @@ export default function CommunitiesPage() {
                       </article>
                     ))}
                   </div>
+                  {communities.length < total && (
+                    <button
+                      type="button"
+                      onClick={loadMore}
+                      disabled={loadingMore}
+                      className="mt-2 flex h-[50px] items-center justify-center self-center rounded-full border border-line px-8 text-[15px] font-bold transition-[background-color,scale] hover:bg-mist active:scale-[0.96] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                    >
+                      {loadingMore ? "Loading…" : "Show more communities"}
+                    </button>
+                  )}
                 </section>
               )}
             </>

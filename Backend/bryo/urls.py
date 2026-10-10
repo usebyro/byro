@@ -2,6 +2,7 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from . import views
 from .views import (
+    CommunityDashboardView, MyStampsView, CommunityDirectoryView, UnfollowByTokenView,
     WaitListViewSet,
     EventViewSet,
     TicketViewSet,
@@ -73,6 +74,10 @@ urlpatterns = [
 
     # Dashboard
     path('api/dashboard/', DashboardView.as_view(), name='dashboard'),
+    path('api/dashboard/community/', CommunityDashboardView.as_view(), name='dashboard-community'),
+    path('api/stamps/', MyStampsView.as_view(), name='my-stamps'),
+    path('api/communities/', CommunityDirectoryView.as_view(), name='community-directory'),
+    path('api/community/unfollow/', UnfollowByTokenView.as_view(), name='community-unfollow'),
     path('api/dashboard/analytics/', DashboardAnalyticsView.as_view(), name='dashboard-analytics'),
 
     # Events (explicit routes that need to come before the router catch-all)

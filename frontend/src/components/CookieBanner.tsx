@@ -68,17 +68,8 @@ export default function CookieBanner() {
 
   if (!ready) return null;
 
-  if (!open) {
-    return (
-      <button
-        type="button"
-        onClick={() => { setManage(true); setOpen(true); }}
-        className="hidden md:flex fixed left-8 bottom-8 z-40 h-9 px-3.5 items-center rounded-full border border-line bg-white text-[13px] font-bold text-[#3B4252] shadow-sm hover:bg-mist focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
-      >
-        Cookie settings
-      </button>
-    );
-  }
+  // Once answered the banner goes away. The choice can be changed from "Cookie settings" in the footer.
+  if (!open) return null;
 
   return (
     <section
