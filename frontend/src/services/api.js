@@ -464,9 +464,10 @@ const API = {
   },
 
   // ===== PAYMENTS =====
-  initializePayment: async ({ event_slug, customer_email, customer_name, quantity = 1, tier_id, attendees, promo_code, turnstile_token, form_answers }) => {
+  initializePayment: async ({ event_slug, customer_email, customer_name, quantity = 1, tier_id, attendees, promo_code, turnstile_token, form_answers, follow_organizer }) => {
     try {
       const body = { event_slug, customer_email, customer_name, quantity };
+      if (follow_organizer === false) body.follow_organizer = false;
       if (Array.isArray(form_answers) && form_answers.length > 0) body.form_answers = form_answers;
       if (tier_id !== undefined && tier_id !== null) body.tier_id = tier_id;
       if (Array.isArray(attendees) && attendees.length > 0) body.attendees = attendees;
@@ -586,6 +587,48 @@ const API = {
       const response = await axiosInstance.delete(`profile/${encodeURIComponent(handle)}/follow/`);
       return response.data;
     } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  // Public directory of organiser communities: ?q, category, sort, page, page_size.
+  getCommunities: async (params = {}) => {
+    try {
+      const response = await axiosInstance.get("communities/", { params });
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  // Followers, attendance, regulars and repeat rate for the signed-in organiser.
+  getCommunityStats: async () => {
+    try {
+      const response = await axiosInstance.get("dashboard/community/");
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  // The signed-in user's passport of stamps.
+  getMyStamps: async () => {
+    try {
+      const response = await axiosInstance.get("stamps/");
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  // The unfollow link in a follower email. No sign-in needed.
+  unfollowByToken: async (token) => {
+    try {
+      const response = await axiosInstance.post("community/unfollow/", { token });
+      return response.data;
+    } catch (error) {
+      const message = error.response?.data?.error;
+      if (message) throw new Error(message);
       throw handleApiError(error);
     }
   },
