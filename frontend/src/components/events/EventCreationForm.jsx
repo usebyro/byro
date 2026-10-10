@@ -1236,7 +1236,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
                 { label: "Public event", hint: eventVisibility ? undefined : "Only people with the link", value: eventVisibility, toggle: () => setEventVisibility(v => !v) },
                 { label: "Show ticket availability", value: showRemainingCount, toggle: () => setShowRemainingCount(v => !v) },
                 // { label: "Transferable tickets", value: ticketsTransferable, toggle: () => setTicketsTransferable(v => !v) }, // disabled for now
-                { label: "Buyers pay the 5% fee", info: "/pricing", hint: passFeeToAttendee ? undefined : "You get ₦4,750 from a ₦5,000 ticket", value: passFeeToAttendee, toggle: () => setPassFeeToAttendee(v => !v) },
+                { label: "Buyers pay the 5% fee", info: "/pricing", value: passFeeToAttendee, toggle: () => setPassFeeToAttendee(v => !v) },
               ].map(({ label, hint, info, value, toggle }) => (
                 <div key={label} className="flex items-center justify-between gap-3">
                   <span className="flex flex-col">
