@@ -8,6 +8,7 @@ const staticPages = [
   { url: `${BASE_URL}/pricing`,         priority: 0.7, changeFrequency: 'monthly' },
   { url: `${BASE_URL}/faq`,             priority: 0.6, changeFrequency: 'monthly' },
   { url: `${BASE_URL}/terms`,           priority: 0.4, changeFrequency: 'yearly'  },
+  { url: `${BASE_URL}/privacy`,         priority: 0.4, changeFrequency: 'yearly'  },
   { url: `${BASE_URL}/refund-policy`,   priority: 0.4, changeFrequency: 'yearly'  },
 ];
 

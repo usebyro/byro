@@ -55,8 +55,9 @@ export default function CookiesPage() {
           <section>
             <h2 className="text-lg font-semibold text-gray-900 mb-2">4. Marketing (off until you accept)</h2>
             <p>
-              Byro does not currently show ads or use advertising cookies. If you turn this on, you
-              only allow Google&apos;s advertising signals. Nothing on the site uses them today.
+              If you turn this on, we may use advertising pixels, such as the Meta Pixel, and
+              Google&apos;s advertising signals. They help us measure our ads and show Byro to people who
+              may like it. They stay off until you accept, and you can switch them off at any time.
             </p>
           </section>
 

@@ -12,6 +12,7 @@ export type ConsentChoice = { analytics: boolean; marketing: boolean };
 
 export const CONSENT_KEY = "byro_cookie_consent";
 export const OPEN_SETTINGS_EVENT = "byro:open-cookie-settings";
+export const CONSENT_SAVED_EVENT = "byro:consent-saved";
 
 export function readConsent(): ConsentChoice | null {
   try {
@@ -74,6 +75,7 @@ export function saveConsent(choice: ConsentChoice) {
     // Private mode: the choice lasts for this page only.
   }
   applyConsent(choice);
+  window.dispatchEvent(new Event(CONSENT_SAVED_EVENT));
 }
 
 /** Reopen the banner from anywhere (a footer link, the cookies page). */
