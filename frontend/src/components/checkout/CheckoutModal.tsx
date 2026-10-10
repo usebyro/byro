@@ -94,7 +94,7 @@ const fmt = (price: number) =>
     maximumFractionDigits: 0,
   }).format(price);
 
-const STEPS = ["Tickets", "Details", "Payment", "Done"];
+const STEPS = ["Tickets", "Details", "Pay", "Done"];
 
 const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || "";
 
@@ -129,13 +129,23 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
   const [confirmRelease, setConfirmRelease] = useState(false);
 
   /* ── Human check (Cloudflare Turnstile) ──
-     Sits above the pay button on the details and payment steps and is verified
-     by the server when the payment is created. Skipped when no site key is set. */
+     Sits on the review step, next to the pay button, because the token is single-use
+     and verified by the server when the order is created. Skipped when no site key is set. */
   const [tsReady, setTsReady] = useState(false);
   const [tsToken, setTsToken] = useState("");
   const tsBox = useRef<HTMLDivElement>(null);
   const tsWidget = useRef<string | null>(null);
-  const needsTs = !!TURNSTILE_SITE_KEY && (step === 2 || step === 3);
+  const needsTs = !!TURNSTILE_SITE_KEY && step === 3;
+  // The pay button sits in the side column on desktop and in a bar at the bottom on phones;
+  // the check is drawn right under whichever one is showing.
+  const [isDesktop, setIsDesktop] = useState(true);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 768px)");
+    const sync = () => setIsDesktop(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
 
   useEffect(() => {
     if (!needsTs || !tsReady || !tsBox.current) return;
@@ -153,7 +163,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
       tsWidget.current = null;
       setTsToken("");
     };
-  }, [needsTs, tsReady]);
+  }, [needsTs, tsReady, isDesktop]);
 
   // Tokens are single-use, so a failed attempt needs a fresh one.
   const resetTs = () => {
@@ -206,6 +216,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
   } | null>(null);
   const [promoError, setPromoError] = useState("");
   const [isApplyingPromo, setIsApplyingPromo] = useState(false);
+  const [promoOpen, setPromoOpen] = useState(false);
 
   /* ── Details ── */
   const [fullName, setFullName] = useState("");
@@ -239,9 +250,6 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
         return Array.isArray(a) ? a.length > 0 : !!a && a.trim() !== "";
       })
       .map((q) => ({ question_id: q.id, answer: answers[q.id] }));
-
-  /* ── Payment ── */
-  const [payMethod, setPayMethod] = useState("paystack");
 
   /* ── Calculations ── */
   const subtotal = tiers.reduce(
@@ -464,6 +472,70 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
   // return real counts to the owner/co-host, so gate on the flag here too.
   const showRemaining = !!event.show_remaining_count;
 
+  /* ── Review and pay ──
+     Who is going: the buyer holds seat 1 on a multi-ticket order, and a single
+     ticket sent to someone else belongs only to that person. */
+  const tierLabel = activeTier?.name || "Ticket";
+  const holders: { name: string; email: string; you: boolean }[] = [];
+  if (buyerHoldsTicket) holders.push({ name: fullName.trim(), email: email.trim(), you: true });
+  for (let i = 0; i < recipientCount; i++) {
+    const em = (guests[i]?.email || "").trim();
+    holders.push({ name: (guests[i]?.name || "").trim() || em, email: em, you: false });
+  }
+  const isFreeOrder = total === 0;
+
+  const termsCheckbox = (
+    <label className="flex cursor-pointer items-start gap-2.5">
+      <input
+        type="checkbox"
+        checked={agreed}
+        onChange={(e) => setAgreed(e.target.checked)}
+        className="mt-0.5 h-5 w-5 shrink-0 cursor-pointer rounded accent-[#3669F6]"
+      />
+      <span className="text-[13px] leading-relaxed text-[#3B4252]">
+        I agree to Byro&apos;s{" "}
+        <a href="/terms" target="_blank" className="font-bold text-[#2451D6] hover:underline">Terms</a>,{" "}
+        <a href="/refund-policy" target="_blank" className="font-bold text-[#2451D6] hover:underline">Refund policy</a>{" "}
+        and{" "}
+        <a href="/privacy" target="_blank" className="font-bold text-[#2451D6] hover:underline">Privacy policy</a>.
+      </span>
+    </label>
+  );
+
+  const payDisabled = isProcessing || !agreed || (needsTs && !tsToken);
+  const payButton = (
+    <button
+      type="button"
+      onClick={handlePayment}
+      disabled={payDisabled}
+      className="flex h-[54px] w-full items-center justify-center gap-2 rounded-full bg-brand text-[17px] font-bold text-white transition-[filter,scale] hover:brightness-90 active:scale-[0.96] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40"
+    >
+      {isProcessing ? "Processing..." : isFreeOrder ? "Register" : `Pay ${fmt(total)}`}
+    </button>
+  );
+
+  const tsBlock = needsTs ? (
+    <div>
+      <div className="h-[60px]">
+        <div ref={tsBox} className="w-[300px] origin-top-left scale-[0.91]" />
+      </div>
+      {!tsToken && <p className="mt-1 text-xs text-muted">Tick the box to continue.</p>}
+    </div>
+  ) : null;
+
+  const backLink = (label: string, to: number) => (
+    <button
+      type="button"
+      onClick={() => setStep(to)}
+      className="-mb-1 flex items-center gap-1.5 self-start text-sm font-bold text-ink hover:text-brand focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+    >
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M19 12H5M11 6l-6 6 6 6" />
+      </svg>
+      {label}
+    </button>
+  );
+
   return (
     <div
       className="fixed inset-0 z-50 overflow-y-auto bg-ink/45 font-body text-ink backdrop-blur-[2px]"
@@ -524,7 +596,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                   const n = i + 1;
                   const done = step > n;
                   const active = step === n;
-                  const label = name === "Details" ? "Your details" : name === "Payment" ? "Pay" : name;
+                  const label = name;
                   return (
                     <li
                       key={name}
@@ -654,63 +726,12 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                   })}
                 </div>
 
-                <div className="mt-4 flex items-center border border-line rounded-xl overflow-hidden">
-                  <div className="flex items-center gap-3 flex-1 px-4 py-3">
-                    <svg
-                      width="15"
-                      height="15"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      className="text-faint flex-shrink-0"
-                    >
-                      <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
-                      <line x1="7" y1="7" x2="7.01" y2="7" />
-                    </svg>
-                    <input
-                      type="text"
-                      value={promoCode}
-                      onChange={(e) => {
-                        setPromoCode(e.target.value);
-                        if (appliedPromo) setAppliedPromo(null);
-                        if (promoError) setPromoError("");
-                      }}
-                      placeholder="Have a promo code?"
-                      className="flex-1 text-sm text-ink placeholder-gray-400 focus:outline-none bg-transparent"
-                    />
-                  </div>
-                  <button
-                    onClick={applyPromo}
-                    disabled={!promoCode.trim() || isApplyingPromo}
-                    className="px-5 py-3 text-sm font-semibold text-ink border-l border-line hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isApplyingPromo ? "Checking..." : "Apply"}
-                  </button>
-                </div>
-                {appliedPromo && (
-                  <p className="text-sm text-emerald-600 flex items-center gap-1.5 mt-2">
-                    <svg
-                      width="13"
-                      height="13"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.5"
-                    >
-                      <polyline points="20 6 9 17 4 12" />
-                    </svg>
-                    Promo code applied!
-                  </p>
-                )}
-                {promoError && (
-                  <p className="text-sm text-red-600 mt-2">{promoError}</p>
-                )}
               </div>
             )}
 
             {step === 2 && (
               <div className="flex flex-col">
+                <div className="mb-4">{backLink("Back to tickets", 1)}</div>
                 <h1 className="font-display text-[32px] md:text-4xl font-bold tracking-[-0.025em] text-ink mb-1">
                   Your details
                 </h1>
@@ -877,9 +898,14 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                     </div>
                   )}
 
+                </div>
+
                   {formQuestions.length > 0 && (
-                    <div className="space-y-5 pt-2">
-                      <h2 className="font-display text-xl font-bold text-ink">A few questions</h2>
+                    <section aria-label="Questions from the organiser" className="mt-5 space-y-5 rounded-xl border border-hairline p-4">
+                      <div>
+                        <h2 className="font-display text-xl font-bold text-ink">A few questions</h2>
+                        <p className="mt-0.5 text-xs text-muted">Only the organiser sees your answers.</p>
+                      </div>
                       {formQuestions.map((q) => {
                         const a = answers[q.id];
                         const choiceCls = "flex items-center gap-3 border border-[#D5DBE5] rounded-[14px] px-4 py-3 text-sm text-ink cursor-pointer has-[:checked]:border-brand has-[:checked]:bg-[#EEF3FF] focus-within:ring-2 focus-within:ring-brand";
@@ -921,111 +947,53 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                           </fieldset>
                         );
                       })}
-                    </div>
+                    </section>
                   )}
-                </div>
               </div>
             )}
 
             {step === 3 && (
-              <div className="flex flex-col">
-                <h1 className="font-display text-[32px] md:text-4xl font-bold tracking-[-0.025em] text-ink mb-1">
-                  Payment
+              <div className="flex flex-col gap-4">
+                {backLink("Back to details", 2)}
+                <h1 className="font-display text-[32px] md:text-4xl font-bold tracking-[-0.025em] text-ink">
+                  Review and pay
                 </h1>
-                <p className="text-sm text-muted mb-6">
-                  All transactions are encrypted and secure.
-                </p>
 
-                <div className="space-y-3 mb-5">
-                  <label
-                    className={`flex items-center gap-4 p-4 rounded-[18px] border cursor-pointer transition-colors ${
-                      payMethod === "paystack"
-                        ? "border-brand bg-[#F3F8FE]"
-                        : "border-hairline hover:border-line"
-                    }`}
-                  >
-                    <div
-                      onClick={() => setPayMethod("paystack")}
-                      className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors cursor-pointer ${
-                        payMethod === "paystack"
-                          ? "border-brand"
-                          : "border-[#C7CEDA]"
-                      }`}
-                    >
-                      {payMethod === "paystack" && (
-                        <div className="w-2.5 h-2.5 rounded-full bg-brand" />
-                      )}
-                    </div>
-                    <span className="text-faint flex-shrink-0">
-                      <svg
-                        width="18"
-                        height="18"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                      >
-                        <rect x="1" y="4" width="22" height="16" rx="2" ry="2" />
-                        <line x1="1" y1="10" x2="23" y2="10" />
-                      </svg>
-                    </span>
-                    <div>
-                      <p className="font-semibold text-ink text-sm">
-                        Pay with Paystack
-                      </p>
-                      <p className="text-muted text-xs mt-0.5">
-                        Card, bank transfer &amp; more
-                      </p>
-                    </div>
-                  </label>
-
-                  <div className="flex items-center gap-4 p-4 rounded-[18px] border border-hairline opacity-60 cursor-not-allowed select-none">
-                    <div className="w-5 h-5 rounded-full border-2 border-[#C7CEDA] flex-shrink-0" />
-                    <span className="text-faint flex-shrink-0">
-                      <svg
-                        width="18"
-                        height="18"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                      >
-                        <circle cx="12" cy="12" r="10" />
-                        <path d="M9.5 8.5h4a2 2 0 0 1 0 4h-4v4" />
-                        <path d="M9.5 8.5V7" />
-                        <path d="M13.5 16.5V18" />
-                      </svg>
-                    </span>
-                    <div className="flex items-center gap-2 flex-1">
-                      <div>
-                        <p className="font-semibold text-ink text-sm">
-                          Pay with Crypto
-                        </p>
-                        <p className="text-muted text-xs mt-0.5">
-                          BTC, ETH, USDT and more
-                        </p>
-                      </div>
-                      <span className="ml-auto text-[10px] font-bold uppercase tracking-wide bg-amber-100 text-amber-600 px-2.5 py-1 rounded-full flex-shrink-0">
-                        Coming Soon
-                      </span>
-                    </div>
+                <section className="rounded-[22px] border border-line bg-white p-5">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-base font-extrabold">Who&apos;s going</h2>
+                    <button type="button" onClick={() => setStep(2)} className="text-[13px] font-bold text-brand hover:underline">Edit</button>
                   </div>
-                </div>
+                  <ul className="mt-1">
+                    {holders.map((h, i) => (
+                      <li key={i} className="flex items-center gap-3 border-b border-hairline py-2.5 last:border-b-0">
+                        <span aria-hidden="true" className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full bg-[#EEF3FF] text-[13px] font-extrabold text-[#2451D6]">
+                          {(h.name || h.email || "?").charAt(0).toUpperCase()}
+                        </span>
+                        <div className="min-w-0 grow">
+                          <p className="break-words text-[15px] font-extrabold">
+                            {h.name || h.email}
+                            {h.you && <span className="font-semibold text-muted"> (you)</span>}
+                          </p>
+                          {h.name && h.name !== h.email && <p className="truncate text-[13px] text-muted">{h.email}</p>}
+                        </div>
+                        <span className="shrink-0 text-[13px] font-bold text-[#3B4252]">{tierLabel}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="pt-2 text-xs text-muted">Tickets will be sent to each email.</p>
+                </section>
 
-                <p className="text-xs text-faint flex items-center gap-1.5 mt-4">
-                  <svg
-                    width="12"
-                    height="12"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                  </svg>
-                  Secured by Paystack · 256-bit encryption
-                </p>
+                {formQuestions.length > 0 && (
+                  <section className="flex items-center gap-2.5 rounded-[22px] border border-line bg-white px-5 py-3.5">
+                    <span aria-hidden="true" className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full bg-[#2F9E6E] text-xs font-extrabold text-white">✓</span>
+                    <span className="grow text-sm font-bold">Questions from the organiser answered</span>
+                    <button type="button" onClick={() => setStep(2)} className="text-[13px] font-bold text-brand hover:underline">Edit</button>
+                  </section>
+                )}
+
+                <section className="hidden rounded-[22px] border border-line bg-white px-5 py-4 md:block">{termsCheckbox}</section>
+
               </div>
             )}
 
@@ -1138,24 +1106,59 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                         </span>
                         <span className="text-ink">{fmt(serviceFee)}</span>
                       </div>
-                      {appliedPromo && (
-                        <div className="flex justify-between text-sm">
-                          <span className="text-emerald-600 flex items-center gap-1">
-                            <svg
-                              width="11"
-                              height="11"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2.5"
+                      {step === 3 && !appliedPromo && !promoOpen && (
+                        <button
+                          type="button"
+                          onClick={() => setPromoOpen(true)}
+                          className="self-start text-left text-[13px] font-bold text-[#2451D6] hover:underline"
+                        >
+                          Have a discount code?
+                        </button>
+                      )}
+                      {step === 3 && !appliedPromo && promoOpen && (
+                        <div>
+                          <div className="flex gap-2">
+                            <label htmlFor="discount-code" className="sr-only">Discount code</label>
+                            <input
+                              id="discount-code"
+                              type="text"
+                              value={promoCode}
+                              autoFocus
+                              onChange={(e) => {
+                                setPromoCode(e.target.value);
+                                if (promoError) setPromoError("");
+                              }}
+                              onKeyDown={(e) => { if (e.key === "Enter") applyPromo(); }}
+                              placeholder="Enter code"
+                              className="h-[42px] min-w-0 grow rounded-xl border-[1.5px] border-[#CBD3DF] bg-white px-3 text-sm font-bold uppercase focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                            />
+                            <button
+                              type="button"
+                              onClick={applyPromo}
+                              disabled={!promoCode.trim() || isApplyingPromo}
+                              className="h-[42px] rounded-xl bg-ink px-4 text-sm font-bold text-white transition-[filter] hover:brightness-125 disabled:cursor-not-allowed disabled:opacity-50"
                             >
-                              <polyline points="20 6 9 17 4 12" />
-                            </svg>
-                            Promo: {appliedPromo.code}
+                              {isApplyingPromo ? "Checking..." : "Apply"}
+                            </button>
+                          </div>
+                          {promoError && <p role="alert" className="mt-1.5 text-xs text-red-600">{promoError}</p>}
+                        </div>
+                      )}
+                      {appliedPromo && (
+                        <div className="flex items-center justify-between text-sm text-[#1F7A52]">
+                          <span className="flex items-center gap-1.5">
+                            Discount ({appliedPromo.code})
+                            {step === 3 && (
+                              <button
+                                type="button"
+                                onClick={() => { setAppliedPromo(null); setPromoCode(""); setPromoOpen(false); }}
+                                className="text-xs font-bold text-muted underline"
+                              >
+                                Remove
+                              </button>
+                            )}
                           </span>
-                          <span className="text-emerald-600">
-                            -{fmt(discount)}
-                          </span>
+                          <span className="font-bold">-{fmt(discount)}</span>
                         </div>
                       )}
                       <div className="flex justify-between pt-2 border-t border-hairline mt-1">
@@ -1167,17 +1170,14 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                     </div>
                   )}
 
-                  {needsTs && (
-                    <div className="mt-4">
-                      <div className="h-[60px]">
-                        <div ref={tsBox} className="w-[300px] origin-top-left scale-[0.91]" />
-                      </div>
-                      {!tsToken && (
-                        <p className="mt-1.5 text-xs text-muted">Tick the box to continue.</p>
-                      )}
+                  {step === 3 && isDesktop && (
+                    <div className="mt-4 flex flex-col gap-3">
+                      {payButton}
+                      {tsBlock}
                     </div>
                   )}
 
+                  {step < 3 && (
                   <button
                     onClick={() => {
                       if (step === 2) {
@@ -1187,9 +1187,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                           return;
                         }
                       }
-                      if (step === 3 || (step === 2 && total === 0)) {
-                        handlePayment();
-                      } else {
+                      {
                         if (step === 1) {
                           const selectedTier = tiers.find(t => (quantities[String(t.id)] || 0) > 0);
                           trackSelectTicket({
@@ -1203,7 +1201,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                         setStep((s) => Math.min(s + 1, 4));
                       }
                     }}
-                    disabled={(step === 1 && totalQty === 0) || (step === 2 && !agreed) || (step === 2 && isProcessing) || (step === 3 && isProcessing) || (needsTs && !tsToken)}
+                    disabled={step === 1 && totalQty === 0}
                     className="mt-4 w-full bg-brand text-white font-semibold py-3 rounded-full hover:brightness-90 transition-colors flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed text-sm"
                   >
                     {step === 1 && (
@@ -1223,160 +1221,27 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                     )}
                     {step === 2 && (
                       <>
-                        {isProcessing ? (
-                          <>
-                            <svg
-                              className="animate-spin"
-                              width="13"
-                              height="13"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                            >
-                              <circle
-                                cx="12"
-                                cy="12"
-                                r="10"
-                                stroke="currentColor"
-                                strokeWidth="4"
-                                className="opacity-25"
-                              />
-                              <path
-                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                                fill="currentColor"
-                                className="opacity-75"
-                              />
-                            </svg>
-                            Processing...
-                          </>
-                        ) : total === 0 ? (
-                          <>
-                            Get tickets
-                            <svg
-                              width="15"
-                              height="15"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                            >
-                              <polyline points="20 6 9 17 4 12" />
-                            </svg>
-                          </>
-                        ) : (
-                          <>
-                            Continue to payment
-                            <svg
-                              width="15"
-                              height="15"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                            >
-                              <path d="M5 12h14M12 5l7 7-7 7" />
-                            </svg>
-                          </>
-                        )}
-                      </>
-                    )}
-                    {step === 3 && (
-                      <>
-                        {isProcessing ? (
-                          <>
-                            <svg
-                              className="animate-spin"
-                              width="13"
-                              height="13"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                            >
-                              <circle
-                                cx="12"
-                                cy="12"
-                                r="10"
-                                stroke="currentColor"
-                                strokeWidth="4"
-                                className="opacity-25"
-                              />
-                              <path
-                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                                fill="currentColor"
-                                className="opacity-75"
-                              />
-                            </svg>
-                            Processing...
-                          </>
-                        ) : (
-                          <>
-                            <svg
-                              width="13"
-                              height="13"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                            >
-                              <rect
-                                x="3"
-                                y="11"
-                                width="18"
-                                height="11"
-                                rx="2"
-                                ry="2"
-                              />
-                              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                            </svg>
-                            Pay {fmt(total)}
-                          </>
-                        )}
+                        {isFreeOrder ? "Review and register" : "Continue to payment"}
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M5 12h14M12 5l7 7-7 7" />
+                        </svg>
                       </>
                     )}
                   </button>
-
-                  {/* Terms — directly under the Get tickets / Continue CTA */}
-                  {step === 2 && (
-                    <label className="flex items-start gap-2.5 mt-3 cursor-pointer">
-                      <div
-                        onClick={() => setAgreed(!agreed)}
-                        className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors cursor-pointer ${
-                          agreed ? "bg-brand" : "border-2 border-[#C7CEDA]"
-                        }`}
-                      >
-                        {agreed && (
-                          <svg
-                            width="11"
-                            height="11"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="white"
-                            strokeWidth="3"
-                          >
-                            <polyline points="20 6 9 17 4 12" />
-                          </svg>
-                        )}
-                      </div>
-                      <span className="text-xs text-muted leading-relaxed">
-                        I agree to Byro&apos;s{" "}
-                        <a href="/terms" target="_blank" className="text-brand hover:underline">
-                          Terms
-                        </a>{" "}
-                        and{" "}
-                        <a
-                          href="/refund-policy"
-                          target="_blank"
-                          className="text-brand hover:underline"
-                        >
-                          Refund policy
-                        </a>
-                        .
-                      </span>
-                    </label>
                   )}
+
                 </div>
               </div>
             </div>
           )}
       </div>
+      {step === 3 && !isDesktop && (
+        <div className="sticky bottom-0 z-[55] flex flex-col gap-3 border-t border-line bg-white px-4 pb-6 pt-3.5 shadow-[0_-10px_30px_rgba(20,22,28,0.06)] md:hidden">
+          {termsCheckbox}
+          {payButton}
+          {tsBlock}
+        </div>
+      )}
     </div>
   );
 }
