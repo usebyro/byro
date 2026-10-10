@@ -225,6 +225,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
   const [sendToOther, setSendToOther] = useState(false); // single ticket → send to another email
   const [guests, setGuests] = useState<{ name: string; email: string }[]>([]);
   const [agreed, setAgreed] = useState(false);
+  const [followOrganizer, setFollowOrganizer] = useState(true);
 
   /* ── The organiser's questions: asked once per order, on the details step ── */
   const [formQuestions, setFormQuestions] = useState<FormQuestion[]>([]);
@@ -408,6 +409,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
           promo_code: appliedPromo?.code,
           turnstile_token: tsToken || undefined,
           form_answers: buildAnswers(),
+          follow_organizer: followOrganizer,
         });
         const ticket = result.tickets?.[0];
         const ticketData = {
@@ -443,6 +445,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
         promo_code: appliedPromo?.code,
         turnstile_token: tsToken || undefined,
         form_answers: buildAnswers(),
+          follow_organizer: followOrganizer,
       });
 
       if (result?.data?.authorization_url) {
@@ -484,7 +487,9 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
   }
   const isFreeOrder = total === 0;
 
+  const organizerName = (event as { owner_name?: string }).owner_name || "";
   const termsCheckbox = (
+    <div className="space-y-3">
     <label className="flex cursor-pointer items-start gap-2.5">
       <input
         type="checkbox"
@@ -500,6 +505,20 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
         <a href="/privacy" target="_blank" className="font-bold text-[#2451D6] hover:underline">Privacy policy</a>.
       </span>
     </label>
+    {organizerName && (
+      <label className="flex cursor-pointer items-start gap-2.5">
+        <input
+          type="checkbox"
+          checked={followOrganizer}
+          onChange={(e) => setFollowOrganizer(e.target.checked)}
+          className="mt-0.5 h-5 w-5 shrink-0 cursor-pointer rounded accent-[#3669F6]"
+        />
+        <span className="text-[13px] leading-relaxed text-[#3B4252]">
+          Follow <b>{organizerName}</b> and get an email when they announce new events.
+        </span>
+      </label>
+    )}
+    </div>
   );
 
   const payDisabled = isProcessing || !agreed || (needsTs && !tsToken);

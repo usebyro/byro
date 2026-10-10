@@ -32,6 +32,10 @@ from .models import (
     TicketTier, PayoutRequest, PromoCode, MerchItem, Follow, AdminAction, AdminMember, ActivityLog,
 )
 from .activity import log_activity
+from .community import (
+    community_stats, follow_organizer, notify_followers_in_background, record_stamp,
+    stamps_for_user, unfollow_from_token,
+)
 from .pricing import calculate_ticket_fees, FEE_RATE, PAYSTACK_FEE_CAP
 from .refunds import (
     EventCancellationError, apply_refund_webhook, authorise_refunds, cancel_event, cancellation_preview,
@@ -428,6 +432,14 @@ def _get_or_create_guest_user(email, name):
     return user
 
 
+def _wants_follow(data):
+    """Checkout's "follow this organiser" box. On unless the buyer turned it off."""
+    value = data.get('follow_organizer', True)
+    if isinstance(value, str):
+        return value.strip().lower() not in ('false', '0', 'no', 'off')
+    return bool(value)
+
+
 def _create_tickets(event, tier, attendees, *, payment_status, payment=None, user=None):
     """Create one Ticket row per attendee (each its own QR)."""
     tickets = []
@@ -666,6 +678,9 @@ def _fulfil_payment(payment, ticket_user):
                 (by_id[a['question_id']], a['answer']) for a in stored if a.get('question_id') in by_id
             ])
 
+        if new_tickets and payment.metadata.get('follow_organizer', True):
+            follow_organizer(ticket_user, payment.event)
+
         all_tickets = existing_tickets + new_tickets
         return new_tickets, all_tickets
 
@@ -795,6 +810,8 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                 _save_answers(tickets, answers)
                 if promo is not None:
                     PromoCode.objects.filter(pk=promo.pk).update(redeemed_count=F('redeemed_count') + 1)
+            if _wants_follow(request.data):
+                follow_organizer(linked_user, event)
 
             # Send each free ticket to its own attendee
             _email_tickets(tickets, event)
@@ -856,6 +873,7 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                         'display_total': str(fees['display_total']),
                         'discount_amount': str(discount_amount),
                         'form_answers': [{'question_id': q.id, 'answer': a} for q, a in answers],
+                        'follow_organizer': _wants_follow(request.data),
                     }
                 )
         except InsufficientCapacityError as e:
@@ -1316,6 +1334,9 @@ class ProfileViewSet(viewsets.GenericViewSet):
 
         merch = MerchItem.objects.filter(owner=profile.user, is_active=True)
         data['merch_items'] = MerchItemSerializer(merch, many=True, context={'request': request}).data
+        data['community'] = community_stats(profile.user)
+        data['stamps'] = _stamp_payload(stamps_for_user(profile.user)[:60])
+        data['stamps_count'] = stamps_for_user(profile.user).count()
 
         return Response(data)
 
@@ -1345,6 +1366,137 @@ class ProfileViewSet(viewsets.GenericViewSet):
             'following': request.method == 'POST',
             'followers_count': target.user.follower_links.count(),
         })
+
+
+def _stamp_payload(stamps):
+    out = []
+    for st in stamps:
+        e = st.event
+        oprofile = getattr(st.organizer, 'profile', None) if st.organizer_id else None
+        out.append({
+            'id': st.pk,
+            'event_name': e.name,
+            'event_slug': e.slug,
+            'day': e.day,
+            'category': e.category,
+            'organizer_name': (oprofile.display_name if oprofile else '') or e.hosted_by,
+            'organizer_handle': oprofile.handle if oprofile else None,
+            'earned_at': st.created_at,
+        })
+    return out
+
+
+class MyStampsView(APIView):
+    """GET /api/stamps/ — the signed-in user's passport."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        stamps = stamps_for_user(request.user)
+        return Response({'count': stamps.count(), 'stamps': _stamp_payload(stamps[:200])})
+
+
+class CommunityDashboardView(APIView):
+    """GET /api/dashboard/community/ — followers, attendance and regulars for the signed-in organiser."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from .models import Follow
+        stats = community_stats(request.user)
+        since = timezone.now() - timedelta(days=30)
+        stats['new_followers_30d'] = Follow.objects.filter(following=request.user, created_at__gte=since).count()
+        return Response(stats)
+
+
+class UnfollowByTokenView(APIView):
+    """POST /api/community/unfollow/ {token} — the unfollow link in a follower email. No login needed."""
+    permission_classes = [AllowAny]
+    throttle_scope = 'follow'
+
+    def post(self, request):
+        name = unfollow_from_token(str(request.data.get('token', '')))
+        if name is None:
+            return Response({'error': 'This link is not valid.'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({'unfollowed': True, 'name': name})
+
+
+class CommunityDirectoryView(APIView):
+    """
+    GET /api/communities/ — organisers with a public page and at least one public, live event.
+      ?q=       search name, handle, bio, location
+      ?category= only organisers who host this category
+      ?sort=    followers (default) | upcoming | new
+      ?page= &page_size= (default 12, max 48)
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        from .models import Follow
+        today = timezone.localdate()
+        live = Event.objects.filter(is_active=True, is_draft=False, visibility='public', cancelled_at__isnull=True)
+        qs = (
+            UserProfile.objects.filter(is_public=True, handle__isnull=False, user__owned_events__in=live)
+            .select_related('user').distinct()
+        )
+        q = (request.query_params.get('q') or '').strip()
+        if q:
+            qs = qs.filter(
+                Q(display_name__icontains=q) | Q(handle__icontains=q) | Q(bio__icontains=q) | Q(location__icontains=q)
+            )
+        category = (request.query_params.get('category') or '').strip()
+        if category:
+            qs = qs.filter(user__owned_events__in=live.filter(category=category))
+        qs = qs.annotate(
+            n_followers=Count('user__follower_links', distinct=True),
+            n_upcoming=Count('user__owned_events', filter=Q(user__owned_events__in=live.filter(day__gte=today)), distinct=True),
+        )
+        sort = request.query_params.get('sort') or 'followers'
+        order = {
+            'upcoming': ('-n_upcoming', '-n_followers'),
+            'new': ('-created_at',),
+        }.get(sort, ('-n_followers', '-n_upcoming'))
+        qs = qs.order_by(*order, 'handle')
+
+        try:
+            page_size = min(max(int(request.query_params.get('page_size', 12)), 1), 48)
+            page = max(int(request.query_params.get('page', 1)), 1)
+        except ValueError:
+            page_size, page = 12, 1
+        total = qs.count()
+        profiles = list(qs[(page - 1) * page_size: page * page_size])
+
+        followed = set()
+        if request.user.is_authenticated:
+            followed = set(Follow.objects.filter(
+                follower=request.user, following_id__in=[p.user_id for p in profiles]
+            ).values_list('following_id', flat=True))
+
+        results = []
+        for p in profiles:
+            events = list(live.filter(owner_id=p.user_id).order_by('day', 'time_from'))
+            upcoming = [e for e in events if e.day >= today]
+            featured = next((e for e in upcoming if e.event_image), None) or next((e for e in events if e.event_image), None)
+            nxt = upcoming[0] if upcoming else None
+            stats = community_stats(p.user)
+            results.append({
+                'handle': p.handle,
+                'name': p.display_name or p.handle,
+                'bio': p.bio,
+                'location': p.location,
+                'avatar_url': request.build_absolute_uri(p.avatar.url) if p.avatar else None,
+                'followers': p.n_followers,
+                'attendees': stats['attendees'],
+                'regulars': stats['regulars'],
+                'is_following': p.user_id in followed,
+                'events_total': len(events),
+                'upcoming_count': len(upcoming),
+                'categories': sorted({e.category for e in events if e.category}),
+                'cover_url': request.build_absolute_uri(featured.event_image.url) if featured else None,
+                'next_event': {
+                    'name': nxt.name, 'slug': nxt.slug, 'day': nxt.day,
+                    'time_from': nxt.time_from, 'location': nxt.location,
+                } if nxt else None,
+            })
+        return Response({'results': results, 'total': total, 'page': page, 'page_size': page_size})
 
 
 # ---------------------------------------------------------------------------
@@ -1948,6 +2100,7 @@ class EventViewSet(viewsets.ModelViewSet):
         )
 
         _send_event_published_email(serializer.instance)
+        notify_followers_in_background(serializer.instance)
 
         response_data = serializer.data
         response_data['event_url'] = event_url
@@ -1999,6 +2152,9 @@ class EventViewSet(viewsets.ModelViewSet):
             'event.updated', request=request, target_type='event',
             target_id=serializer.instance.pk, target_label=serializer.instance.name,
         )
+
+        # A draft that has just been published tells the organiser's followers (once).
+        notify_followers_in_background(serializer.instance)
 
         if apps.posthog_client is not None:
             apps.posthog_client.capture('event_updated')
@@ -2219,6 +2375,8 @@ class EventViewSet(viewsets.ModelViewSet):
                     )
 
                     _save_answers([ticket], answers)
+                if _wants_follow(request.data):
+                    follow_organizer(linked_user, event)
             except InsufficientCapacityError as e:
                 return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -2393,6 +2551,7 @@ class EventViewSet(viewsets.ModelViewSet):
         ticket.checked_in = True
         ticket.checked_in_at = timezone.now()
         ticket.save(update_fields=['checked_in', 'checked_in_at'])
+        record_stamp(ticket)
 
         log_activity(
             'ticket.checked_in', request=request, target_type='event',

@@ -9,6 +9,7 @@ import Footer from "@/components/Footer";
 import ShareMenu from "@/components/ShareMenu";
 import FollowButton from "@/components/community/FollowButton";
 import EventImage from "@/components/brand/EventImage";
+import Stamp, { STAMP_INK } from "@/components/brand/Stamp";
 import { categoryTone, dayParts, eventInitials, formatTime, priceLabel } from "@/lib/eventFormat";
 
 const INKS = ["#3669F6", "#D0668E", "#2F9E6E", "#C9971C", "#1F2A44"];
@@ -146,7 +147,15 @@ export default function PublicProfileClient({ username }) {
     { value: followers.toLocaleString(), label: followers === 1 ? "follower" : "followers" },
     { value: events.length, label: events.length === 1 ? "event hosted" : "events hosted" },
     { value: upcomingEvents.length, label: "coming up" },
+    ...(profile.community?.attendees > 0
+      ? [
+          { value: profile.community.attendees.toLocaleString(), label: profile.community.attendees === 1 ? "has attended" : "have attended" },
+          ...(profile.community.regulars > 0 ? [{ value: profile.community.regulars.toLocaleString(), label: profile.community.regulars === 1 ? "regular" : "regulars" }] : []),
+        ]
+      : []),
   ];
+  const stamps = profile.stamps || [];
+  const stampInks = Object.keys(STAMP_INK);
 
   const seg = (on) =>
     `h-10 rounded-full px-4 text-sm font-bold text-ink transition-[background-color,box-shadow] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
@@ -231,6 +240,33 @@ export default function PublicProfileClient({ username }) {
             ))}
           </div>
         </section>
+
+        {stamps.length > 0 && (
+          <section aria-labelledby="passport-heading" className="mx-auto mt-10 max-w-[1440px] px-4 md:mt-11 md:px-12 xl:px-24">
+            <div className="rounded-[28px] bg-butter p-5 md:rounded-[36px] md:p-9">
+              <h2 id="passport-heading" className="font-display text-[26px] font-bold tracking-[-0.025em] md:text-[32px]">
+                Passport · {profile.stamps_count} {profile.stamps_count === 1 ? "stamp" : "stamps"}
+              </h2>
+              <p className="mt-1 text-sm text-muted">Events {name} has shown up to.</p>
+              <ul className="mt-5 flex flex-wrap gap-x-2 gap-y-4">
+                {stamps.map((st, i) => (
+                  <li key={st.id} title={`${st.event_name} · ${st.organizer_name}`}>
+                    <Stamp
+                      name={st.event_name}
+                      city={(st.organizer_name || "").slice(0, 14).toUpperCase()}
+                      date={st.day ? `${st.day.slice(8, 10)}.${st.day.slice(5, 7)}` : ""}
+                      ink={stampInks[i % stampInks.length]}
+                      shape={i % 3 === 1 ? "square" : "round"}
+                      size={112}
+                      tilt={[-6, 4, -3, 7][i % 4]}
+                      filled={i % 2 === 0}
+                    />
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </section>
+        )}
 
         {merchItems.length > 0 && (
           <div className="mx-auto mt-10 max-w-[1440px] px-4 md:mt-11 md:px-12 xl:px-24">
