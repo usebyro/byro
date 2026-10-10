@@ -307,6 +307,7 @@ class EventCoHostSerializer(serializers.ModelSerializer):
 class EventSerializer(serializers.ModelSerializer):
     owner_email = serializers.EmailField(source='owner.email', read_only=True)
     owner_handle = serializers.SerializerMethodField()
+    owner_name = serializers.SerializerMethodField()
     is_sold_out = serializers.SerializerMethodField()
     owner_events_count = serializers.SerializerMethodField()
     cohosts = EventCoHostSerializer(many=True, read_only=True)
@@ -331,7 +332,7 @@ class EventSerializer(serializers.ModelSerializer):
     class Meta:
         model = Event
         fields = [
-            'id', 'slug', 'name', 'owner', 'owner_email', 'owner_handle', 'owner_events_count',
+            'id', 'slug', 'name', 'owner', 'owner_email', 'owner_handle', 'owner_name', 'owner_events_count',
             'category', 'category_display',
             'day', 'time_from', 'time_to', 'location', 'description',
             'virtual_link', 'ticket_price', 'capacity', 'transferable',
@@ -365,6 +366,13 @@ class EventSerializer(serializers.ModelSerializer):
             return None
         profile = getattr(obj.owner, 'profile', None)
         return profile.handle if profile else None
+
+    def get_owner_name(self, obj):
+        """The organiser's public display name, for "follow {name}" and similar."""
+        if not obj.owner:
+            return obj.hosted_by
+        profile = getattr(obj.owner, 'profile', None)
+        return (profile.display_name if profile else '') or obj.hosted_by
 
     def get_owner_events_count(self, obj):
         """Number of active events this owner has hosted, for the public 'Organised by' card."""

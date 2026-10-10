@@ -485,6 +485,43 @@ def event_published_email(name, event_name, date, time, location, event_url, sha
     return {"subject": f"{event_name} is live", "html": html, "text": text}
 
 
+def follower_new_event_email(name, organizer_name, event_name, date, time, location, event_url,
+                             tickets_label=None, unfollow_url=None, community_url=None):
+    """To everyone who follows an organiser, when they publish a new event."""
+    when = " \u00b7 ".join(x for x in [date, time] if x)
+    rows = [("Date", _h(when))]
+    if location:
+        rows.append(("Venue", _h(location)))
+    if tickets_label:
+        rows.append(("Tickets", _h(tickets_label)))
+    organiser = _h(organizer_name)
+    hello = f"Hi {_h(name)}, " if name else ""
+    body_html = (
+        _lead(f"{hello}{organiser} just announced a new event.")
+        + _rows(rows)
+        + _btn_row(_btn(event_url, "Get tickets"), _btn(community_url, f"See {organiser}", primary=False) if community_url else "")
+    )
+    unfollow = (
+        f' <a href="{unfollow_url}" style="color:{MUTED};text-decoration:underline;">Unfollow</a> to stop these emails.'
+        if unfollow_url else ""
+    )
+    html = _shell(
+        _badge("New event", BRAND, BRAND_BG),
+        f"{_h(event_name)}",
+        body_html,
+        f"You&#8217;re getting this because you follow {organiser} on byro.{unfollow}",
+        preheader=f"{organizer_name} just announced {event_name}.",
+    )
+    text = (
+        f"{organizer_name} just announced a new event: {event_name}\n\n"
+        + "".join(f"{label}: {value}\n" for label, value in [("Date", when), ("Venue", location), ("Tickets", tickets_label)] if value)
+        + f"\nGet tickets: {event_url}\n"
+        + (f"\nUnfollow: {unfollow_url}\n" if unfollow_url else "")
+        + "\nByro Team\nsupport@usebyro.com"
+    )
+    return {"subject": f"{organizer_name} is hosting {event_name}", "html": html, "text": text}
+
+
 def cohost_invite_email(event_name, inviter_name, event_url, is_new_user=False, role="manager", invitee_email="",
                         date="", time="", location=""):
     """Invite to co-host. Managers can edit; check-in helpers can only see guests and check them in."""
