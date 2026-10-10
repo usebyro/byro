@@ -1130,13 +1130,13 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                               }}
                               onKeyDown={(e) => { if (e.key === "Enter") applyPromo(); }}
                               placeholder="Enter code"
-                              className="h-[42px] min-w-0 grow rounded-xl border-[1.5px] border-[#CBD3DF] bg-white px-3 text-sm font-bold uppercase focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                              className="h-9 min-w-0 grow rounded-lg border border-[#CBD3DF] bg-white px-2.5 text-[13px] font-bold uppercase focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
                             />
                             <button
                               type="button"
                               onClick={applyPromo}
                               disabled={!promoCode.trim() || isApplyingPromo}
-                              className="h-[42px] rounded-xl bg-ink px-4 text-sm font-bold text-white transition-[filter] hover:brightness-125 disabled:cursor-not-allowed disabled:opacity-50"
+                              className="h-9 rounded-lg bg-brand px-3.5 text-[13px] font-bold text-white transition-[filter,scale] hover:brightness-90 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50"
                             >
                               {isApplyingPromo ? "Checking..." : "Apply"}
                             </button>
