@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { openCookieSettings } from "@/lib/consent";
 import API from "@/services/api";
 
 const footerLinks = [
@@ -121,6 +122,13 @@ const Footer = () => {
         <div className="mt-12 flex flex-col gap-3 border-t border-line pt-6 text-sm text-faint md:flex-row md:justify-between">
           <p>© {new Date().getFullYear()} Byro Ticketing Solutions. All rights reserved.</p>
           <p className="flex gap-[18px] font-semibold">
+            <button
+              type="button"
+              onClick={openCookieSettings}
+              className="text-muted transition-colors hover:text-ink"
+            >
+              Cookie settings
+            </button>
             {socials.map((s) => (
               <a
                 key={s.label}
