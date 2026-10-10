@@ -95,7 +95,7 @@ export default function TermsPage() {
               <li>accept responsibility for your dealings with Attendees, and for the safety and conduct of your event.</li>
             </ul>
             <p className="mt-2">
-              We may suspend or remove events or accounts that break these Terms or put Attendees at risk.
+              If we suspect an event is fraudulent, misleading or unsafe, we may suspend it straight away. While it is suspended, the event may be hidden, ticket sales may stop and payouts for it may be held. We will restore the event only once we are satisfied that our doubts are cleared, and we may ask the Organiser for documents or proof to help us decide. If we cannot clear our doubts, or we confirm fraud, we may cancel the event, refund Attendees from the held funds, and close the Organiser&apos;s account. We may also suspend or remove events or accounts that break these Terms or put Attendees at risk.
             </p>
           </section>
 
