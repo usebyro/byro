@@ -1207,7 +1207,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
                     <>
                       <HugeiconsIcon icon={Camera01Icon} size={24} color="#6b7280" />
                       <span className="text-sm text-gray-500">Add cover image</span>
-                      <span className="text-xs text-gray-400">1600×900px, up to 5MB</span>
+                      <span className="text-xs text-gray-400">1600×900px, 5MB max</span>
                     </>
                   )}
                 </div>
