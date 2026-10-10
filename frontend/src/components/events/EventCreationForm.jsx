@@ -1241,6 +1241,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
                 <div key={label} className="flex items-center justify-between gap-3">
                   <span className="flex flex-col">
                     <span className="flex items-center gap-1.5 text-sm font-bold text-[#14161C]">
+                      {label}
                       {info && (
                         <a
                           href={info}
@@ -1256,7 +1257,6 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
                           </svg>
                         </a>
                       )}
-                      {label}
                     </span>
                     {hint && <span className="text-xs text-[#5B6272]">{hint}</span>}
                   </span>
