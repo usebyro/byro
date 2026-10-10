@@ -80,23 +80,42 @@ def _shell(badge_html, headline, body_html, footer_text, preheader=""):
         if preheader else ""
     )
     heading = (
-        f'<h1 style="margin:0 0 20px;font-family:{DISPLAY_STACK};font-size:32px;font-weight:700;color:{INK};line-height:1.1;letter-spacing:-0.02em;">{headline}</h1>'
+        f'<h1 class="h1" style="margin:0 0 20px;font-family:{DISPLAY_STACK};font-size:32px;word-wrap:break-word;font-weight:700;color:{INK};line-height:1.1;letter-spacing:-0.02em;">{headline}</h1>'
         if headline else ""
     )
-    return f"""
-<div style="background-color:{PAGE_BG};padding:24px 24px 32px;font-family:{FONT_STACK};color:{INK};">
+    return f"""<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="x-apple-disable-message-reformatting">
+<style>
+  body {{ margin:0; padding:0; -webkit-text-size-adjust:100%; }}
+  img {{ max-width:100%; height:auto; }}
+  @media only screen and (max-width:480px) {{
+    .outer {{ padding:12px 10px 24px !important; }}
+    .pad {{ padding:24px 20px !important; }}
+    .bar {{ padding:0 20px !important; }}
+    .h1 {{ font-size:26px !important; }}
+    .btn {{ display:block !important; width:100% !important; margin:0 0 10px !important; }}
+    .tile {{ display:block !important; width:100% !important; margin:0 0 10px !important; }}
+  }}
+</style>
+</head>
+<body style="margin:0;padding:0;background-color:{PAGE_BG};">
+<div class="outer" style="background-color:{PAGE_BG};padding:24px 24px 32px;font-family:{FONT_STACK};color:{INK};">
   {pre}
-  <table cellpadding="0" cellspacing="0" style="max-width:600px;margin:0 auto;width:100%;">
+  <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="max-width:600px;margin:0 auto;width:100%;">
     <tr>
       <td style="background:#ffffff;border-radius:24px;overflow:hidden;">
-        <table cellpadding="0" cellspacing="0" style="width:100%;">
+        <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="width:100%;">
           <tr>
-            <td style="height:72px;padding:0 32px;border-bottom:1px solid {HAIRLINE};">
+            <td class="bar" style="height:72px;padding:0 32px;border-bottom:1px solid {HAIRLINE};">
               <img src="{_logo_url()}" alt="byro" width="54" height="26" style="display:block;height:26px;width:54px;border:0;">
             </td>
           </tr>
           <tr>
-            <td style="padding:32px;">
+            <td class="pad" style="padding:32px;">
               {badge_html}
               {heading}
               {body_html}
@@ -113,7 +132,9 @@ def _shell(badge_html, headline, body_html, footer_text, preheader=""):
       </td>
     </tr>
   </table>
-</div>"""
+</div>
+</body>
+</html>"""
 
 
 # ---------------------------------------------------------------------------
@@ -155,14 +176,15 @@ def _btn(url, label, primary=True):
         f"border:1px solid #D5DBE5;color:{INK};font-size:15px;padding:0 22px;"
     )
     return (
-        f'<a href="{url}" style="display:inline-block;{look}height:50px;line-height:50px;'
+        f'<a class="btn" href="{url}" style="display:inline-block;{look}height:50px;line-height:50px;'
+        f'box-sizing:border-box;max-width:100%;margin:0 10px 10px 0;'
         f'text-decoration:none;font-weight:700;border-radius:999px;text-align:center;">{label}</a>'
     )
 
 
 def _btn_row(*buttons):
-    cells = "".join(f'<td style="padding:0 10px 10px 0;">{b}</td>' for b in buttons)
-    return f'<table cellpadding="0" cellspacing="0" style="margin:0 0 20px;"><tr>{cells}</tr></table>'
+    """Buttons sit side by side when there is room and stack when there is not."""
+    return f'<div style="margin:0 0 10px;font-size:0;">{"".join(buttons)}</div>'
 
 
 def _lead(html):
@@ -178,7 +200,7 @@ def _rows(rows):
     last = len(rows) - 1
     body = "".join(
         f'<tr><td style="padding:10px 0;{"" if n == last else f"border-bottom:1px solid {HAIRLINE};"}font-size:15px;color:{MUTED};vertical-align:top;">{label}</td>'
-        f'<td style="padding:10px 0 10px 16px;{"" if n == last else f"border-bottom:1px solid {HAIRLINE};"}font-size:15px;font-weight:700;color:{INK};text-align:right;vertical-align:top;">{value}</td></tr>'
+        f'<td style="padding:10px 0 10px 16px;{"" if n == last else f"border-bottom:1px solid {HAIRLINE};"}font-size:15px;font-weight:700;color:{INK};text-align:right;vertical-align:top;word-break:break-word;">{value}</td></tr>'
         for n, (label, value) in enumerate(rows)
     )
     return (
@@ -198,13 +220,13 @@ def _callout(title, bullets):
 
 def _tiles(tiles):
     cells = "".join(
-        f'<td width="{100 // len(tiles)}%" style="padding:0 {0 if n == len(tiles) - 1 else 10}px 0 0;vertical-align:top;">'
-        f'<table cellpadding="0" cellspacing="0" style="width:100%;border:1px solid {BORDER};border-radius:16px;border-collapse:separate;"><tr><td style="padding:14px 16px;">'
+        f'<div class="tile" style="display:inline-block;vertical-align:top;box-sizing:border-box;width:31%;min-width:120px;margin:0 8px 10px 0;'
+        f'border:1px solid {BORDER};border-radius:16px;padding:14px 16px;">'
         f'<div style="font-family:{DISPLAY_STACK};font-size:26px;font-weight:700;color:{INK};line-height:1.2;">{value}</div>'
-        f'<div style="font-size:13px;font-weight:700;color:{MUTED};padding-top:2px;">{label}</div></td></tr></table></td>'
-        for n, (value, label) in enumerate(tiles)
+        f'<div style="font-size:13px;font-weight:700;color:{MUTED};padding-top:2px;">{label}</div></div>'
+        for value, label in tiles
     )
-    return f'<table cellpadding="0" cellspacing="0" style="width:100%;margin:0 0 20px;"><tr>{cells}</tr></table>'
+    return f'<div style="margin:0 0 10px;font-size:0;">{cells}</div>'
 
 
 def _timeline(steps):
@@ -274,7 +296,7 @@ def ticket_confirmation_email(name, event_name, date, time, location, ticket_id,
         _lead(f"Here&#8217;s your ticket for <b>{_h(event_name)}</b>. It&#8217;s just for you. Everyone in the same order gets their own email.")
         + _rows(rows) + answers_html
         + _small("Your ticket is attached to this email. Show it at entry.")
-        + f'<div style="text-align:center;">{_btn_row(*buttons)}</div>'.replace("<table", '<table align="center"', 1)
+        + _btn_row(*buttons)
         + gifted
     )
     html = _shell(
@@ -716,3 +738,159 @@ def refunds_awaiting_email(event_name, owner_email, order_count, total, admin_ur
         f"Check the Paystack balance first, then approve them: {admin_url}\n"
     )
     return {"subject": f"Refunds to send: {event_name} was cancelled ({amount})", "html": html, "text": text}
+
+
+# ---------------------------------------------------------------------------
+# Suspension: an admin pauses an event while the team checks it, then clears it
+# ---------------------------------------------------------------------------
+
+def _event_rows(event_name, date, time, location):
+    when = " · ".join(x for x in [date, time] if x)
+    rows = [("Event", _h(event_name))]
+    if when:
+        rows.append(("Date", _h(when)))
+    if location:
+        rows.append(("Venue", _h(location)))
+    return rows
+
+
+def _event_text(event_name, date, time, location):
+    when = " · ".join(x for x in [date, time] if x)
+    return (
+        f"Event: {event_name}\n" + (f"Date: {when}\n" if when else "") + (f"Venue: {location}\n" if location else "")
+    )
+
+
+def event_suspended_email(name, event_name, date, time, location, event_url=None):
+    """To a ticket holder: the event is paused while Byro checks it. Their ticket is safe."""
+    url = event_url or "https://usebyro.com"
+    body_html = (
+        _lead(f"Hi {_h(_first(name))}, we&#8217;ve paused <b>{_h(event_name)}</b> while our team takes a look, "
+              "so tickets can&#8217;t be bought right now.")
+        + _rows(_event_rows(event_name, date, time, location))
+        + _callout("Already have a ticket?", [
+            "<b>Your ticket is safe.</b> It&#8217;s still valid and you don&#8217;t need to do anything.",
+            "<b>We&#8217;ll keep you posted.</b> You&#8217;ll get an email as soon as the event is back on or changes.",
+            "<b>If it gets cancelled, you get a refund</b> to the way you paid, and we&#8217;ll email you when it&#8217;s sent.",
+        ])
+        + _btn_row(_btn(url, "View event page", primary=False))
+    )
+    html = _shell(
+        _badge("Event on hold", TIME, TIME_BG),
+        f"{_h(event_name)} is on hold",
+        body_html,
+        f"You&#8217;re getting this because you hold a ticket for {_h(event_name)} on Byro.",
+        preheader="Your ticket is safe. Nothing for you to do right now.",
+    )
+    text = (
+        f"Hi {_first(name)},\n\nWe've paused {event_name} while our team takes a look, so tickets can't be bought right now.\n\n"
+        + _event_text(event_name, date, time, location)
+        + "\nAlready have a ticket?\n"
+        "- Your ticket is safe. It's still valid and you don't need to do anything.\n"
+        "- We'll keep you posted. You'll get an email as soon as the event is back on or changes.\n"
+        "- If it gets cancelled, you get a refund to the way you paid, and we'll email you when it's sent.\n\n"
+        f"Event page: {url}\n\nByro Team\nsupport@usebyro.com"
+    )
+    return {"subject": f"{event_name} is on hold", "html": html, "text": text}
+
+
+def event_reinstated_email(name, event_name, date, time, location, event_url=None):
+    """To a ticket holder: the check is done and the event is going ahead."""
+    url = event_url or "https://usebyro.com"
+    body_html = (
+        _lead(f"Hi {_h(_first(name))}, good news: our team has finished looking at <b>{_h(event_name)}</b> "
+              "and it&#8217;s going ahead. Your ticket is still valid and you don&#8217;t need to do anything.")
+        + _rows(_event_rows(event_name, date, time, location))
+        + _btn_row(_btn(url, "View event page"))
+    )
+    html = _shell(
+        _badge("Back on", NEUTRAL, NEUTRAL_BG),
+        f"{_h(event_name)} is back on",
+        body_html,
+        f"You&#8217;re getting this because you hold a ticket for {_h(event_name)} on Byro.",
+        preheader="The event is going ahead and your ticket is still valid.",
+    )
+    text = (
+        f"Hi {_first(name)},\n\nGood news: our team has finished looking at {event_name} and it's going ahead. "
+        "Your ticket is still valid and you don't need to do anything.\n\n"
+        + _event_text(event_name, date, time, location)
+        + f"\nEvent page: {url}\n\nByro Team\nsupport@usebyro.com"
+    )
+    return {"subject": f"{event_name} is back on", "html": html, "text": text}
+
+
+def organizer_event_suspended_email(name, event_name, date, time, location, event_url=None, dashboard_url=None):
+    """To the organiser: their event is paused, why, and that our team will be in touch. No buttons: they reply."""
+    from django.conf import settings
+    terms_url = f"{(getattr(settings, 'FRONTEND_URL', '') or 'https://usebyro.com').rstrip('/')}/terms"
+    body_html = (
+        _lead(f"Hi {_h(_first(name))}, we&#8217;ve suspended <b>{_h(event_name)}</b> because it doesn&#8217;t currently "
+              f'meet our <a href="{terms_url}" style="color:{BRAND_DARK};font-weight:700;text-decoration:none;">Terms of Service</a>. '
+              "Please don&#8217;t panic. This is a pause while we check things, and we just need to ask you a few questions.")
+        + _rows(_event_rows(event_name, date, time, location))
+        + _callout("What this means for now", [
+            "Ticket sales are paused, and the event page shows that it&#8217;s on hold.",
+            "Tickets already sold stay valid, and attendees have been told.",
+            "Payouts for this event may be held until we&#8217;ve sorted this out.",
+        ])
+        + _callout("What happens next", [
+            "<b>Our team will reach out shortly</b> by email to ask a few questions about the event.",
+            "<b>Once we have your answers,</b> we&#8217;ll let you know the outcome.",
+            "<b>If everything checks out,</b> the event goes back on sale. If we can&#8217;t resolve it, the event may be "
+            "cancelled and attendees refunded, as set out in our Terms.",
+        ])
+        + _lead("You don&#8217;t need to do anything right now. If you&#8217;d like to get in touch first, just reply to this email.")
+    )
+    html = _shell(
+        _badge("Event suspended", TIME, TIME_BG),
+        f"{_h(event_name)} has been suspended",
+        body_html,
+        f"You&#8217;re getting this because you&#8217;re the organiser of {_h(event_name)} on Byro.",
+        preheader="Please don't panic. Our team will be in touch shortly with a few questions.",
+    )
+    text = (
+        f"Hi {_first(name)},\n\nWe've suspended {event_name} because it doesn't currently meet our Terms of Service "
+        f"({terms_url}). Please don't panic. This is a pause while we check things, and we just need to ask you a few questions.\n\n"
+        + _event_text(event_name, date, time, location)
+        + "\nWhat this means for now\n"
+        "- Ticket sales are paused, and the event page shows that it's on hold.\n"
+        "- Tickets already sold stay valid, and attendees have been told.\n"
+        "- Payouts for this event may be held until we've sorted this out.\n\n"
+        "What happens next\n"
+        "- Our team will reach out shortly by email to ask a few questions about the event.\n"
+        "- Once we have your answers, we'll let you know the outcome.\n"
+        "- If everything checks out, the event goes back on sale. If we can't resolve it, the event may be cancelled "
+        "and attendees refunded, as set out in our Terms.\n\n"
+        "You don't need to do anything right now. If you'd like to get in touch first, just reply to this email.\n\n"
+        "Byro Team\nsupport@usebyro.com"
+    )
+    return {"subject": f"Your event {event_name} has been suspended", "html": html, "text": text}
+
+
+def organizer_event_reinstated_email(name, event_name, date, time, location, event_url=None, dashboard_url=None):
+    """To the organiser: the review is done and the event is live again."""
+    buttons = [_btn(event_url or "https://usebyro.com", "View event page")]
+    if dashboard_url:
+        buttons.append(_btn(dashboard_url, "Open dashboard", primary=False))
+    body_html = (
+        _lead(f"Hi {_h(_first(name))}, thanks for your patience. Our review of <b>{_h(event_name)}</b> is done "
+              "and the event is live again. Ticket sales are open and the event page is back.")
+        + _rows(_event_rows(event_name, date, time, location))
+        + _btn_row(*buttons)
+    )
+    html = _shell(
+        _badge("Back on", NEUTRAL, NEUTRAL_BG),
+        f"{_h(event_name)} is live again",
+        body_html,
+        f"You&#8217;re getting this because you&#8217;re the organiser of {_h(event_name)} on Byro.",
+        preheader="Your event is back on sale.",
+    )
+    text = (
+        f"Hi {_first(name)},\n\nThanks for your patience. Our review of {event_name} is done and the event is live "
+        "again. Ticket sales are open and the event page is back.\n\n"
+        + _event_text(event_name, date, time, location)
+        + f"\nEvent page: {event_url or 'https://usebyro.com'}\n"
+        + (f"Dashboard: {dashboard_url}\n" if dashboard_url else "")
+        + "\nByro Team\nsupport@usebyro.com"
+    )
+    return {"subject": f"{event_name} is live again", "html": html, "text": text}

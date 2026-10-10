@@ -202,3 +202,40 @@ class ReminderPrivacyTests(PaymentTestBase):
         self.assertIn('₦5,000', owner_mail)
         self.assertNotIn('revenue', helper_mail)
         self.assertNotIn('₦5,000', helper_mail)
+
+
+class SuspensionAndResponsiveTests(SimpleTestCase):
+
+    def test_suspended_emails_say_what_happens_next(self):
+        guest = e.event_suspended_email("Tunde Bello", "Tech Meetup", DATE, TIME, "Cafe One, Yaba")
+        self.assertEqual(guest["subject"], "Tech Meetup is on hold")
+        self.assertIn("Your ticket is safe", guest["html"])
+        self.assertIn("you get a refund", guest["html"])
+        host = e.organizer_event_suspended_email("Sam", "Tech Meetup", DATE, TIME, "Cafe One, Yaba")
+        self.assertEqual(host["subject"], "Your event Tech Meetup has been suspended")
+        self.assertIn("doesn&#8217;t currently meet our", host["html"])
+        self.assertIn("don&#8217;t panic", host["html"])
+        self.assertIn("reach out shortly", host["html"])
+        self.assertIn("just reply to this email", host["text"])
+        self.assertNotIn('class="btn"', host["html"])
+        self.assertNotIn("dashboard", host["html"].lower())
+
+    def test_event_names_are_escaped(self):
+        for mail in (e.event_suspended_email("T", "<script>x</script>", DATE, TIME, ""),
+                     e.organizer_event_suspended_email("T", "<script>x</script>", DATE, TIME, ""),
+                     e.event_reinstated_email("T", "<script>x</script>", DATE, TIME, ""),
+                     e.organizer_event_reinstated_email("T", "<script>x</script>", DATE, TIME, "")):
+            self.assertNotIn("<script>x", mail["html"])
+
+    def test_every_email_works_on_a_phone(self):
+        mails = [
+            e.ticket_confirmation_email("Tunde Bello", "Tech Meetup", DATE, TIME, "Cafe One, Yaba", "abc"),
+            e.event_reminder_email("Tunde", "Tech Meetup", DATE, TIME, "Cafe One, Yaba"),
+            e.event_suspended_email("Tunde", "Tech Meetup", DATE, TIME, "Cafe One, Yaba"),
+            e.payout_completed_email("Sam", 200, "GTBank", "0123456789"),
+        ]
+        for mail in mails:
+            html = mail["html"]
+            self.assertIn('name="viewport"', html)
+            self.assertIn("@media only screen and (max-width:480px)", html)
+            self.assertIn('class="outer"', html)
