@@ -1882,7 +1882,24 @@ class EventViewSet(viewsets.ModelViewSet):
     @method_decorator(never_cache)
     def retrieve(self, request, *args, **kwargs):
         """Get single event with role information"""
-        return super().retrieve(request, *args, **kwargs)
+        try:
+            return super().retrieve(request, *args, **kwargs)
+        except Http404:
+            # A suspended event is hidden from the public, but visitors should
+            # be told that, not shown a 404. Only the name is revealed.
+            suspended = Event.objects.filter(
+                slug=kwargs.get(self.lookup_field), is_active=False, is_draft=False
+            ).values('name').first()
+            if suspended:
+                return Response(
+                    {
+                        'code': 'event_suspended',
+                        'error': 'This event is currently suspended.',
+                        'name': suspended['name'],
+                    },
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+            raise
     
     def create(self, request, *args, **kwargs):
         """Create event - automatically sets owner"""

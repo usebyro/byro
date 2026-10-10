@@ -44,6 +44,7 @@ export default function ViewEventClient({ slug }) {
   const [event, setEvent] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [suspended, setSuspended] = useState(null);
   const [registered, setRegistered] = useState(false);
   const [ticketId, setTicketId] = useState(null);
   const [showCheckout, setShowCheckout] = useState(false);
@@ -126,9 +127,13 @@ export default function ViewEventClient({ slug }) {
         }
         if (ticketData?.registered) { setRegistered(true); setTicketId(ticketData.ticket_id || null); }
       } catch (err) {
-        console.error(err);
-        setError(err.message || "Failed to load event");
-        toast.error(err.message || "Failed to load event");
+        if (err.suspended) {
+          setSuspended({ name: err.eventName });
+        } else {
+          console.error(err);
+          setError(err.message || "Failed to load event");
+          toast.error(err.message || "Failed to load event");
+        }
       } finally {
         setLoading(false);
       }
@@ -200,6 +205,29 @@ export default function ViewEventClient({ slug }) {
           <div className="mt-10 h-12 w-2/3 rounded-2xl bg-mist" />
           <div className="mt-6 h-24 rounded-3xl bg-mist" />
         </div>
+      </div>
+    </Providers>
+  );
+
+  if (suspended) return (
+    <Providers>
+      <div className="flex min-h-screen flex-col bg-white font-body">
+        <Navbar />
+        <main className="mx-auto flex w-full max-w-xl flex-1 flex-col items-center justify-center px-4 py-20 text-center">
+          <h1 className="font-display text-3xl font-bold text-ink md:text-4xl">This event is suspended</h1>
+          {suspended.name && <p className="mt-3 text-lg font-semibold text-ink">{suspended.name}</p>}
+          <p className="mt-3 text-muted">
+            We have paused this event while we review it. Ticket sales are closed for now. If it is cleared, it will
+            be back on Byro.
+          </p>
+          <p className="mt-2 text-sm text-muted">
+            Already bought a ticket? Contact{" "}
+            <a href="mailto:support@usebyro.com" className="font-semibold text-brand">support@usebyro.com</a>.
+          </p>
+          <Link href="/discover" className="mt-8 rounded-full bg-brand px-6 py-3 text-sm font-bold text-white hover:bg-brand-dark">
+            Browse other events
+          </Link>
+        </main>
       </div>
     </Providers>
   );
