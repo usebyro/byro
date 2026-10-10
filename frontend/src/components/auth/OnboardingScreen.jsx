@@ -283,7 +283,7 @@ export default function OnboardingScreen() {
                 </div>
 
                 <h2 className="font-serif text-3xl text-gray-900 mb-2">{ORGANIZER_STEPS[wizardStep].title}</h2>
-                <p className="text-gray-500 text-sm mb-8">Set up your organiser profile.</p>
+                <p className="text-gray-500 text-sm mb-8">Set up your organiser or community profile.</p>
 
                 <div className="space-y-4">
                   {ORGANIZER_STEPS[wizardStep].fields.map((field) =>
