@@ -6,6 +6,7 @@ import { useRouter, useSearchParams, notFound } from "next/navigation";
 import API from "@/services/api";
 import { toast } from "sonner";
 import Navbar from "@/components/Navbar";
+import SuspendedEvent from "./SuspendedEvent";
 import Footer from "@/components/Footer";
 import { Providers } from "@/redux/Providers";
 import CheckoutModal from "@/components/checkout/CheckoutModal";
@@ -128,7 +129,7 @@ export default function ViewEventClient({ slug }) {
         if (ticketData?.registered) { setRegistered(true); setTicketId(ticketData.ticket_id || null); }
       } catch (err) {
         if (err.suspended) {
-          setSuspended({ name: err.eventName });
+          setSuspended(err.event);
         } else {
           console.error(err);
           setError(err.message || "Failed to load event");
@@ -211,23 +212,9 @@ export default function ViewEventClient({ slug }) {
 
   if (suspended) return (
     <Providers>
-      <div className="flex min-h-screen flex-col bg-white font-body">
+      <div className="flex min-h-screen flex-col bg-[#F7F9FC] font-body">
         <Navbar />
-        <main className="mx-auto flex w-full max-w-xl flex-1 flex-col items-center justify-center px-4 py-20 text-center">
-          <h1 className="font-display text-3xl font-bold text-ink md:text-4xl">This event is suspended</h1>
-          {suspended.name && <p className="mt-3 text-lg font-semibold text-ink">{suspended.name}</p>}
-          <p className="mt-3 text-muted">
-            We have paused this event while we review it. Ticket sales are closed for now. If it is cleared, it will
-            be back on Byro.
-          </p>
-          <p className="mt-2 text-sm text-muted">
-            Already bought a ticket? Contact{" "}
-            <a href="mailto:support@usebyro.com" className="font-semibold text-brand">support@usebyro.com</a>.
-          </p>
-          <Link href="/discover" className="mt-8 rounded-full bg-brand px-6 py-3 text-sm font-bold text-white hover:bg-brand-dark">
-            Browse other events
-          </Link>
-        </main>
+        <SuspendedEvent event={suspended} />
       </div>
     </Providers>
   );

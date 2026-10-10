@@ -93,7 +93,7 @@ const API = {
         const err = new Error(error.response.data.error);
         err.status = 403;
         err.suspended = true;
-        err.eventName = error.response.data.name;
+        err.event = error.response.data;
         throw err;
       }
       throw handleApiError(error);
