@@ -7,7 +7,6 @@ import Script from "next/script";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useDispatch } from "react-redux";
 import { FcGoogle } from "react-icons/fc";
-import { FaApple } from "react-icons/fa";
 import axiosInstance from "@/utils/axios";
 import API from "@/services/api";
 import { authSuccess } from "@/redux/auth/authSlice";
@@ -311,27 +310,15 @@ export default function AuthScreen() {
                   <div className="flex-1 h-px bg-gray-200" />
                 </div>
 
-                <div className="flex gap-3">
-                  <button
-                    type="button"
-                    onClick={handleGoogle}
-                    disabled={isStartingGoogle}
-                    className="flex-1 flex items-center justify-center gap-2 border border-gray-200 rounded-full py-3 text-sm font-medium text-gray-900 hover:bg-gray-50 transition-colors disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-                  >
-                    <FcGoogle size={18} />
-                    {isStartingGoogle ? "Opening Google..." : "Google"}
-                  </button>
-                  <button
-                    type="button"
-                    disabled
-                    title="Coming soon"
-                    aria-disabled="true"
-                    className="flex-1 flex items-center justify-center gap-2 border border-gray-200 rounded-full py-3 text-sm font-medium text-gray-400 opacity-60 cursor-not-allowed"
-                  >
-                    <FaApple size={18} />
-                    Apple
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={handleGoogle}
+                  disabled={isStartingGoogle}
+                  className="w-full flex items-center justify-center gap-2 border border-gray-200 rounded-full py-3 text-sm font-medium text-gray-900 hover:bg-gray-50 transition-colors disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                >
+                  <FcGoogle size={18} />
+                  {isStartingGoogle ? "Opening Google..." : "Continue with Google"}
+                </button>
               </>
             ) : (
               <>
