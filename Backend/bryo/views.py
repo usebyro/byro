@@ -1886,16 +1886,22 @@ class EventViewSet(viewsets.ModelViewSet):
             return super().retrieve(request, *args, **kwargs)
         except Http404:
             # A suspended event is hidden from the public, but visitors should
-            # be told that, not shown a 404. Only the name is revealed.
-            suspended = Event.objects.filter(
+            # be told that, not shown a 404. Only what the public page already
+            # showed is revealed: name, when, where and who is hosting.
+            event = Event.objects.filter(
                 slug=kwargs.get(self.lookup_field), is_active=False, is_draft=False
-            ).values('name').first()
-            if suspended:
+            ).select_related('owner').first()
+            if event:
+                profile = getattr(event.owner, 'profile', None) if event.owner_id else None
                 return Response(
                     {
                         'code': 'event_suspended',
                         'error': 'This event is currently suspended.',
-                        'name': suspended['name'],
+                        'name': event.name,
+                        'day': event.day.isoformat() if event.day else None,
+                        'time_from': event.time_from.strftime('%H:%M') if event.time_from else None,
+                        'location': event.location or '',
+                        'organizer': (profile.display_name if profile else '') or '',
                     },
                     status=status.HTTP_403_FORBIDDEN,
                 )
@@ -3464,6 +3470,9 @@ class AdminEventDetailView(APIView):
                 request, AdminAction.ACTION_EVENT_REACTIVATED if event.is_active else AdminAction.ACTION_EVENT_SUSPENDED,
                 'event', event.pk, event.name, '',
             )
+            if not event.is_draft:
+                from .suspension import notify_in_background
+                notify_in_background(event, suspended=not event.is_active)
         return Response(EventSerializer(event, context={'request': request}).data)
 
     def delete(self, request, pk):

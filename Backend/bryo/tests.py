@@ -610,10 +610,13 @@ class PrivateEventVisibilityTests(WorkOSAuthTestCase):
         self.assertEqual(counts[self.public.category], 1)
 
     def test_deactivated_event_is_hidden_even_by_link(self):
-        """is_active is the other axis — a deactivated event is gone for visitors."""
+        """is_active is the other axis — visitors cannot open a deactivated event; they are told it is suspended."""
         self.private.is_active = False
         self.private.save(update_fields=['is_active'])
-        self.assertEqual(self.client.get(f'/api/events/{self.private.slug}/').status_code, 404)
+        r = self.client.get(f'/api/events/{self.private.slug}/')
+        self.assertEqual(r.status_code, 403)
+        self.assertEqual(r.json()['code'], 'event_suspended')
+        self.assertNotIn('description', r.json())
 
     def test_owner_can_still_open_their_deactivated_event(self):
         self.private.is_active = False
@@ -890,11 +893,67 @@ class SuspendedEventPageTests(TestCase):
         self.assertEqual(r.status_code, 403)
         self.assertEqual(r.json()['code'], 'event_suspended')
         self.assertEqual(r.json()['name'], 'Gone')
+        self.assertEqual(r.json()['location'], 'Lagos')
+        self.assertEqual(r.json()['day'], '2030-01-01')
 
     def test_drafts_and_unknown_events_are_still_404(self):
         c = APIClient()
         self.assertEqual(c.get('/api/events/secret/').status_code, 404)
         self.assertEqual(c.get('/api/events/nope/').status_code, 404)
+
+
+class SuspensionEmailTests(TestCase):
+    """Suspending or clearing an event emails the organiser and each ticket holder once."""
+
+    def setUp(self):
+        from .models import AdminMember, Ticket
+
+        User = get_user_model()
+        self.admin = User.objects.create_user(email='a@example.com', password='x')
+        AdminMember.objects.create(email='a@example.com', role='admin')
+        owner = User.objects.create_user(email='o@example.com', password='x')
+        self.event = Event.objects.create(
+            owner=owner, name='Tech Meetup', slug='tm', day='2030-01-01', time_from='10:00',
+            time_to='12:00', location='Cafe One, Yaba', ticket_price=0,
+        )
+        def ticket(email, status):
+            Ticket.objects.create(
+                event=self.event, original_owner_name='X', original_owner_email=email,
+                current_owner_name='Tunde Bello', current_owner_email=email, payment_status=status,
+            )
+        ticket('t@example.com', 'paid')
+        ticket('T@example.com', 'paid')       # same person, second ticket
+        ticket('f@example.com', 'free')
+        ticket('p@example.com', 'pending')    # never paid: not told
+
+    def _patch(self, active):
+        c = APIClient()
+        c.force_authenticate(self.admin)
+        with patch('bryo.suspension.notify_in_background',
+                   side_effect=lambda e, suspended: __import__('bryo.suspension', fromlist=['x']).notify_event_status_change(e, suspended)), \
+             patch('bryo.suspension.send_email') as send:
+            r = c.patch('/api/admin/events/%d/' % self.event.pk, {'is_active': active}, format='json')
+        self.assertEqual(r.status_code, 200)
+        return send
+
+    def test_suspending_tells_the_organiser_and_each_holder_once(self):
+        send = self._patch(False)
+        sent = {c.args[0].lower(): c.args[1] for c in send.call_args_list}
+        self.assertEqual(set(sent), {'o@example.com', 't@example.com', 'f@example.com'})
+        self.assertEqual(send.call_count, 3)
+        self.assertEqual(sent['o@example.com'], 'Your event Tech Meetup has been suspended')
+        self.assertEqual(sent['t@example.com'], 'Tech Meetup is on hold')
+
+    def test_clearing_it_says_it_is_back_on(self):
+        self.event.is_active = False
+        self.event.save()
+        send = self._patch(True)
+        subjects = {c.args[1] for c in send.call_args_list}
+        self.assertEqual(subjects, {'Tech Meetup is live again', 'Tech Meetup is back on'})
+
+    def test_no_emails_when_nothing_changed(self):
+        send = self._patch(True)   # already active
+        self.assertEqual(send.call_count, 0)
 
 
 class CancelRegistrationTests(TestCase):
