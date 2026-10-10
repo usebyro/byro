@@ -1233,7 +1233,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
           >
             <div className="space-y-4">
               {[
-                { label: "Public event", hint: eventVisibility ? "Shows on Discover" : "Only people with the link", value: eventVisibility, toggle: () => setEventVisibility(v => !v) },
+                { label: "Public event", hint: eventVisibility ? undefined : "Only people with the link", value: eventVisibility, toggle: () => setEventVisibility(v => !v) },
                 { label: "Show ticket availability", hint: "Creates urgency when stock is low", value: showRemainingCount, toggle: () => setShowRemainingCount(v => !v) },
                 // { label: "Transferable tickets", value: ticketsTransferable, toggle: () => setTicketsTransferable(v => !v) }, // disabled for now
                 { label: "Buyers pay the 5% fee", hint: passFeeToAttendee ? undefined : "You get ₦4,750 from a ₦5,000 ticket", value: passFeeToAttendee, toggle: () => setPassFeeToAttendee(v => !v) },
