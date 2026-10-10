@@ -1,7 +1,7 @@
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import type { EventLike } from "@/lib/eventFormat";
-import { Hero, TrendingEvents, StampsSection, HostsSection, TrustRow, CommunitySection } from "@/components/landing";
+import { Hero, TrendingEvents, StampsSection, HostsSection, TrustRow, CommunitySection, CommunitiesStrip } from "@/components/landing";
 
 type Event = EventLike & { id: number; is_active?: boolean };
 
@@ -41,6 +41,7 @@ export default async function Home() {
         <Hero event={events[0]} />
         <TrendingEvents events={events} />
         <StampsSection />
+        <CommunitiesStrip />
         <HostsSection />
         <TrustRow />
         <CommunitySection />
