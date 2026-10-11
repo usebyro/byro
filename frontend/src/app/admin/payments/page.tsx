@@ -22,9 +22,9 @@ interface AdminPayment {
 const STATUSES = ["", "successful", "pending", "failed", "abandoned"];
 
 const STATUS_STYLE: Record<string, string> = {
-  successful: "bg-green-500/10 text-green-400",
-  pending: "bg-yellow-500/10 text-yellow-400",
-  failed: "bg-red-500/10 text-red-400",
+  successful: "bg-green-500/10 text-green-700",
+  pending: "bg-yellow-500/10 text-amber-700",
+  failed: "bg-red-500/10 text-red-600",
 };
 
 function formatDateTime(s: string | null) {
@@ -70,8 +70,8 @@ export default function AdminPaymentsPage() {
   return (
     <div className="p-5 md:p-8">
       <div className="mb-8">
-        <h1 className="text-white text-xl font-bold">Payments</h1>
-        <p className="text-gray-400 text-sm mt-1">
+        <h1 className="text-ink text-xl font-bold">Payments</h1>
+        <p className="text-muted text-sm mt-1">
           {loading ? "Loading…" : `${count.toLocaleString()} payments, newest first`}
         </p>
       </div>
@@ -82,58 +82,58 @@ export default function AdminPaymentsPage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search by email, name, reference or event…"
-          className="w-full sm:w-80 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500/50"
+          className="w-full sm:w-80 bg-mist border border-line rounded-lg px-3 py-2 text-sm text-ink placeholder:text-faint focus:outline-none focus:ring-1 focus:ring-brand/40"
         />
         <select
           value={status}
           onChange={(e) => setStatus(e.target.value)}
           aria-label="Filter by status"
-          className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none"
+          className="bg-mist border border-line rounded-lg px-3 py-2 text-sm text-ink focus:outline-none"
         >
           {STATUSES.map((s) => (
-            <option key={s} value={s} className="bg-[#1a1d27]">
+            <option key={s} value={s} className="bg-white">
               {s ? s[0].toUpperCase() + s.slice(1) : "All statuses"}
             </option>
           ))}
         </select>
       </div>
 
-      {error && <p className="text-red-400 text-sm mb-6">{error}</p>}
+      {error && <p className="text-red-600 text-sm mb-6">{error}</p>}
 
-      <div className="bg-[#1a1d27] border border-white/10 rounded-xl p-6 overflow-x-auto">
+      <div className="bg-white border border-line rounded-xl p-6 overflow-x-auto">
         {!loading && payments.length === 0 ? (
-          <p className="text-gray-500 text-sm py-6 text-center">No payments match.</p>
+          <p className="text-faint text-sm py-6 text-center">No payments match.</p>
         ) : (
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-white/5 text-left">
+              <tr className="border-b border-hairline text-left">
                 {["Customer", "Event", "Amount", "Promo", "Tickets", "Status", "Date"].map((h) => (
-                  <th key={h} className="pb-3 pr-6 text-xs text-gray-500 font-medium">{h}</th>
+                  <th key={h} className="pb-3 pr-6 text-xs text-faint font-medium">{h}</th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/5">
+            <tbody className="divide-y divide-hairline">
               {payments.map((p) => (
                 <tr key={p.id}>
                   <td className="py-3 pr-6">
-                    <p className="text-white truncate max-w-[200px]">{p.customer_name || p.customer_email}</p>
-                    <p className="text-gray-500 text-xs truncate max-w-[200px]">{p.paystack_reference}</p>
+                    <p className="text-ink truncate max-w-[200px]">{p.customer_name || p.customer_email}</p>
+                    <p className="text-faint text-xs truncate max-w-[200px]">{p.paystack_reference}</p>
                   </td>
-                  <td className="py-3 pr-6 text-gray-400">
+                  <td className="py-3 pr-6 text-muted">
                     <p className="truncate max-w-[180px]">{p.event_name ?? "—"}</p>
-                    {p.tier_name && <p className="text-gray-500 text-xs">{p.tier_name}</p>}
+                    {p.tier_name && <p className="text-faint text-xs">{p.tier_name}</p>}
                   </td>
-                  <td className="py-3 pr-6 text-gray-300 tabular-nums whitespace-nowrap">
+                  <td className="py-3 pr-6 text-[#3B4252] tabular-nums whitespace-nowrap">
                     {formatNaira(Number(p.amount))}
                   </td>
-                  <td className="py-3 pr-6 text-gray-400">{p.promo_code ?? "—"}</td>
-                  <td className="py-3 pr-6 text-gray-400 tabular-nums">{p.tickets}</td>
+                  <td className="py-3 pr-6 text-muted">{p.promo_code ?? "—"}</td>
+                  <td className="py-3 pr-6 text-muted tabular-nums">{p.tickets}</td>
                   <td className="py-3 pr-6">
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_STYLE[p.status] ?? "bg-gray-500/10 text-gray-400"}`}>
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_STYLE[p.status] ?? "bg-gray-500/10 text-muted"}`}>
                       {p.status}
                     </span>
                   </td>
-                  <td className="py-3 text-gray-400 whitespace-nowrap">{formatDateTime(p.paid_at ?? p.created_at)}</td>
+                  <td className="py-3 text-muted whitespace-nowrap">{formatDateTime(p.paid_at ?? p.created_at)}</td>
                 </tr>
               ))}
             </tbody>

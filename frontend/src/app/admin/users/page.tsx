@@ -45,20 +45,20 @@ function formatDate(dateStr: string) {
 function RoleBadge({ role }: { role: AdminUser["role"] }) {
   if (role === "organizer") {
     return (
-      <span className="inline-flex items-center text-xs px-2 py-0.5 rounded-full font-medium bg-blue-500/10 text-blue-400">
+      <span className="inline-flex items-center text-xs px-2 py-0.5 rounded-full font-medium bg-blue-500/10 text-brand-dark">
         Organiser
       </span>
     );
   }
   if (role === "attendee") {
     return (
-      <span className="inline-flex items-center text-xs px-2 py-0.5 rounded-full font-medium bg-green-500/10 text-green-400">
+      <span className="inline-flex items-center text-xs px-2 py-0.5 rounded-full font-medium bg-green-500/10 text-green-700">
         Attendee
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center text-xs px-2 py-0.5 rounded-full font-medium bg-gray-500/10 text-gray-400">
+    <span className="inline-flex items-center text-xs px-2 py-0.5 rounded-full font-medium bg-gray-500/10 text-muted">
       Unspecified
     </span>
   );
@@ -68,7 +68,7 @@ function GuestBadge() {
   return (
     <span
       title="Created from a guest checkout — no login account, linked automatically if they later sign in with the same email"
-      className="inline-flex items-center text-xs px-2 py-0.5 rounded-full font-medium bg-amber-500/10 text-amber-400 ml-1.5"
+      className="inline-flex items-center text-xs px-2 py-0.5 rounded-full font-medium bg-amber-500/10 text-amber-700 ml-1.5"
     >
       Guest
     </span>
@@ -79,7 +79,7 @@ function StatusBadge({ isActive }: { isActive: boolean }) {
   return (
     <span
       className={`inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded-full font-medium ${
-        isActive ? "bg-green-500/10 text-green-400" : "bg-red-500/10 text-red-400"
+        isActive ? "bg-green-500/10 text-green-700" : "bg-red-500/10 text-red-600"
       }`}
     >
       <span className={`w-1.5 h-1.5 rounded-full ${isActive ? "bg-green-400" : "bg-red-400"}`} />
@@ -207,8 +207,8 @@ export default function AdminUsersPage() {
   return (
     <div className="p-5 md:p-8">
       <div className="mb-8">
-        <h1 className="text-white text-xl font-bold">Users</h1>
-        <p className="text-gray-400 text-sm mt-1">Registered accounts and the role they picked at sign-up</p>
+        <h1 className="text-ink text-xl font-bold">Users</h1>
+        <p className="text-muted text-sm mt-1">Registered accounts and the role they picked at sign-up</p>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
@@ -217,20 +217,20 @@ export default function AdminUsersPage() {
           { label: "Organisers", value: summary?.total_organizers },
           { label: "Attendees", value: summary?.total_attendees },
         ].map((stat) => (
-          <div key={stat.label} className="bg-[#1a1d27] border border-white/10 rounded-xl px-5 py-4">
-            <p className="text-gray-400 text-xs mb-1.5">{stat.label}</p>
-            <p className="text-white text-2xl font-semibold tabular-nums">{stat.value ?? "—"}</p>
+          <div key={stat.label} className="bg-white border border-line rounded-xl px-5 py-4">
+            <p className="text-muted text-xs mb-1.5">{stat.label}</p>
+            <p className="text-ink text-2xl font-semibold tabular-nums">{stat.value ?? "—"}</p>
           </div>
         ))}
       </div>
 
-      {error && <p className="text-red-400 text-sm mb-6">{error}</p>}
+      {error && <p className="text-red-600 text-sm mb-6">{error}</p>}
 
-      <div className="bg-[#1a1d27] border border-white/10 rounded-xl p-6">
+      <div className="bg-white border border-line rounded-xl p-6">
         <div className="flex items-center justify-between gap-2 flex-wrap mb-4">
           <div className="flex items-center gap-2">
-            <h2 className="text-white font-semibold">All Users</h2>
-            <span className="text-xs bg-white/5 text-gray-400 px-2 py-0.5 rounded-full">
+            <h2 className="text-ink font-semibold">All Users</h2>
+            <span className="text-xs bg-mist text-muted px-2 py-0.5 rounded-full">
               {loading ? "—" : visibleUsers.length}
             </span>
           </div>
@@ -241,8 +241,8 @@ export default function AdminUsersPage() {
                 onClick={() => setFilter(f.value)}
                 className={`text-[11px] font-semibold px-2.5 py-1.5 rounded-lg transition-colors ${
                   filter === f.value
-                    ? "bg-blue-600/20 text-blue-400"
-                    : "text-gray-400 hover:text-white hover:bg-white/5"
+                    ? "bg-brand/10 text-brand-dark"
+                    : "text-muted hover:text-ink hover:bg-mist"
                 }`}
               >
                 {f.label}
@@ -256,45 +256,45 @@ export default function AdminUsersPage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search by email or name…"
-          className="w-full sm:w-72 mb-5 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500/50"
+          className="w-full sm:w-72 mb-5 bg-mist border border-line rounded-lg px-3 py-2 text-sm text-ink placeholder:text-faint focus:outline-none focus:ring-1 focus:ring-brand/40"
         />
 
         {loading ? (
-          <p className="text-gray-500 text-sm py-6 text-center">Loading...</p>
+          <p className="text-faint text-sm py-6 text-center">Loading...</p>
         ) : visibleUsers.length === 0 ? (
-          <p className="text-gray-500 text-sm py-6 text-center">
+          <p className="text-faint text-sm py-6 text-center">
             {search ? "No users match your search." : "No users match this filter."}
           </p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-white/5 text-left">
-                  <th className="pb-3 pr-6 text-xs text-gray-500 font-medium">Email</th>
-                  <th className="pb-3 pr-6 text-xs text-gray-500 font-medium">Name</th>
-                  <th className="pb-3 pr-6 text-xs text-gray-500 font-medium">Role</th>
-                  <th className="pb-3 pr-6 text-xs text-gray-500 font-medium">Events created</th>
-                  <th className="pb-3 pr-6 text-xs text-gray-500 font-medium">Joined</th>
-                  <th className="pb-3 text-xs text-gray-500 font-medium">Status</th>
+                <tr className="border-b border-hairline text-left">
+                  <th className="pb-3 pr-6 text-xs text-faint font-medium">Email</th>
+                  <th className="pb-3 pr-6 text-xs text-faint font-medium">Name</th>
+                  <th className="pb-3 pr-6 text-xs text-faint font-medium">Role</th>
+                  <th className="pb-3 pr-6 text-xs text-faint font-medium">Events created</th>
+                  <th className="pb-3 pr-6 text-xs text-faint font-medium">Joined</th>
+                  <th className="pb-3 text-xs text-faint font-medium">Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/5">
+              <tbody className="divide-y divide-hairline">
                 {visibleUsers.map((u) => (
                   <tr
                     key={u.id}
                     onClick={() => openUser(u)}
-                    className="cursor-pointer hover:bg-white/[0.03]"
+                    className="cursor-pointer hover:bg-mist"
                   >
-                    <td className="py-3 pr-6 text-white font-medium truncate max-w-[220px]">{u.email}</td>
-                    <td className="py-3 pr-6 text-gray-400 truncate max-w-[160px]">
+                    <td className="py-3 pr-6 text-ink font-medium truncate max-w-[220px]">{u.email}</td>
+                    <td className="py-3 pr-6 text-muted truncate max-w-[160px]">
                       {u.display_name || u.handle || "—"}
                     </td>
                     <td className="py-3 pr-6">
                       <RoleBadge role={u.role} />
                       {u.auth_provider === "guest" && <GuestBadge />}
                     </td>
-                    <td className="py-3 pr-6 text-gray-300 tabular-nums">{u.events_created}</td>
-                    <td className="py-3 pr-6 text-gray-400 whitespace-nowrap">{formatDate(u.date_joined)}</td>
+                    <td className="py-3 pr-6 text-[#3B4252] tabular-nums">{u.events_created}</td>
+                    <td className="py-3 pr-6 text-muted whitespace-nowrap">{formatDate(u.date_joined)}</td>
                     <td className="py-3">
                       <StatusBadge isActive={u.is_active !== false} />
                     </td>
@@ -306,7 +306,7 @@ export default function AdminUsersPage() {
         )}
 
         {!loading && unspecified !== null && unspecified > 0 && filter === "" && (
-          <p className="text-gray-500 text-xs mt-4">
+          <p className="text-faint text-xs mt-4">
             {`${unspecified} ${unspecified === 1 ? "user hasn't" : "users haven't"} picked a role yet (signed up before this existed, or never finished onboarding).`}
           </p>
         )}
@@ -314,17 +314,17 @@ export default function AdminUsersPage() {
 
       {selected && (
         <div className="fixed inset-0 z-50 flex justify-end">
-          <div className="absolute inset-0 bg-black/70" onClick={() => setSelected(null)} />
-          <div className="relative w-full max-w-md h-full bg-[#1a1d27] border-l border-white/10 shadow-2xl overflow-y-auto">
-            <div className="sticky top-0 bg-[#1a1d27] border-b border-white/10 px-6 py-4 flex items-start justify-between gap-3">
+          <div className="absolute inset-0 bg-ink/50" onClick={() => setSelected(null)} />
+          <div className="relative w-full max-w-md h-full bg-white border-l border-line shadow-[0_20px_50px_rgba(20,22,28,0.14)] overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b border-line px-6 py-4 flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <h3 className="text-white font-semibold truncate">{selected.display_name || selected.email}</h3>
-                <p className="text-gray-500 text-xs mt-0.5 truncate">{selected.email}</p>
+                <h3 className="text-ink font-semibold truncate">{selected.display_name || selected.email}</h3>
+                <p className="text-faint text-xs mt-0.5 truncate">{selected.email}</p>
               </div>
               <button
                 onClick={() => setSelected(null)}
                 aria-label="Close"
-                className="shrink-0 text-gray-400 hover:text-white text-lg leading-none px-1"
+                className="shrink-0 text-muted hover:text-ink text-lg leading-none px-1"
               >
                 ×
               </button>
@@ -332,30 +332,30 @@ export default function AdminUsersPage() {
 
             <div className="p-6 space-y-6">
               <div className="grid grid-cols-2 gap-3">
-                <div className="bg-white/5 rounded-lg px-3 py-2.5">
-                  <p className="text-gray-500 text-[11px] mb-0.5">Handle</p>
-                  <p className="text-white text-sm">{selected.handle ? `@${selected.handle}` : "—"}</p>
+                <div className="bg-mist rounded-lg px-3 py-2.5">
+                  <p className="text-faint text-[11px] mb-0.5">Handle</p>
+                  <p className="text-ink text-sm">{selected.handle ? `@${selected.handle}` : "—"}</p>
                 </div>
-                <div className="bg-white/5 rounded-lg px-3 py-2.5">
-                  <p className="text-gray-500 text-[11px] mb-0.5">Events created</p>
-                  <p className="text-white text-sm tabular-nums">{selected.events_created}</p>
+                <div className="bg-mist rounded-lg px-3 py-2.5">
+                  <p className="text-faint text-[11px] mb-0.5">Events created</p>
+                  <p className="text-ink text-sm tabular-nums">{selected.events_created}</p>
                 </div>
-                <div className="bg-white/5 rounded-lg px-3 py-2.5">
-                  <p className="text-gray-500 text-[11px] mb-0.5">Joined</p>
-                  <p className="text-white text-sm">{formatDate(selected.date_joined)}</p>
+                <div className="bg-mist rounded-lg px-3 py-2.5">
+                  <p className="text-faint text-[11px] mb-0.5">Joined</p>
+                  <p className="text-ink text-sm">{formatDate(selected.date_joined)}</p>
                 </div>
-                <div className="bg-white/5 rounded-lg px-3 py-2.5">
-                  <p className="text-gray-500 text-[11px] mb-0.5">Status</p>
+                <div className="bg-mist rounded-lg px-3 py-2.5">
+                  <p className="text-faint text-[11px] mb-0.5">Status</p>
                   <StatusBadge isActive={selected.is_active !== false} />
                 </div>
               </div>
 
               <div>
-                <h4 className="text-white text-sm font-semibold mb-2">Role</h4>
+                <h4 className="text-ink text-sm font-semibold mb-2">Role</h4>
                 {!can.manage_roles && (
-                  <p className="text-gray-500 text-xs mb-2">Only owners can change a user&apos;s role.</p>
+                  <p className="text-faint text-xs mb-2">Only owners can change a user&apos;s role.</p>
                 )}
-                <div className="flex items-center gap-1 bg-white/5 rounded-lg p-1 w-fit">
+                <div className="flex items-center gap-1 bg-mist rounded-lg p-1 w-fit">
                   {ROLE_OPTIONS.map((opt) => (
                     <button
                       key={opt.value}
@@ -363,20 +363,20 @@ export default function AdminUsersPage() {
                       onClick={() => changeRole(selected, opt.value)}
                       className={`text-xs font-semibold px-3 py-1.5 rounded-md transition-colors disabled:opacity-50 ${
                         selected.role === opt.value
-                          ? "bg-blue-600/20 text-blue-400"
-                          : "text-gray-400 hover:text-white hover:bg-white/5"
+                          ? "bg-brand/10 text-brand-dark"
+                          : "text-muted hover:text-ink hover:bg-mist"
                       }`}
                     >
                       {opt.label}
                     </button>
                   ))}
                 </div>
-                {roleError && <p className="text-red-400 text-xs mt-2">{roleError}</p>}
+                {roleError && <p className="text-red-600 text-xs mt-2">{roleError}</p>}
               </div>
 
               <div>
-                <h4 className="text-white text-sm font-semibold mb-2">Account access</h4>
-                <p className="text-gray-500 text-xs leading-relaxed mb-3">
+                <h4 className="text-ink text-sm font-semibold mb-2">Account access</h4>
+                <p className="text-faint text-xs leading-relaxed mb-3">
                   {selected.is_active !== false
                     ? "This account can sign in and use Byro normally."
                     : "This account is suspended and cannot sign in."}
@@ -391,13 +391,13 @@ export default function AdminUsersPage() {
                   disabled={updatingStatus}
                   className={`text-xs font-semibold px-3 py-2 rounded-lg transition-colors disabled:opacity-50 ${
                     selected.is_active !== false
-                      ? "text-red-400 bg-red-500/10 hover:bg-red-500/20"
-                      : "text-green-400 bg-green-500/10 hover:bg-green-500/20"
+                      ? "text-red-600 bg-red-500/10 hover:bg-red-500/20"
+                      : "text-green-700 bg-green-500/10 hover:bg-green-500/20"
                   }`}
                 >
                   {selected.is_active !== false ? "Suspend account" : "Reactivate account"}
-                </button> : <p className="text-gray-500 text-xs">Your role can&apos;t change account access.</p>}
-                {statusError && <p className="text-red-400 text-xs mt-2">{statusError}</p>}
+                </button> : <p className="text-faint text-xs">Your role can&apos;t change account access.</p>}
+                {statusError && <p className="text-red-600 text-xs mt-2">{statusError}</p>}
               </div>
             </div>
           </div>
@@ -407,12 +407,12 @@ export default function AdminUsersPage() {
       {/* Suspend/reactivate confirmation modal */}
       {confirming && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/70" onClick={() => setConfirming(null)} />
-          <div className="relative w-full max-w-sm bg-[#1a1d27] border border-white/10 rounded-xl p-6 shadow-2xl">
-            <h3 className="text-white font-semibold text-sm mb-2">
+          <div className="absolute inset-0 bg-ink/50" onClick={() => setConfirming(null)} />
+          <div className="relative w-full max-w-sm bg-white border border-line rounded-xl p-6 shadow-[0_20px_50px_rgba(20,22,28,0.14)]">
+            <h3 className="text-ink font-semibold text-sm mb-2">
               {confirming.action === "suspend" ? "Suspend this account?" : "Reactivate this account?"}
             </h3>
-            <p className="text-gray-400 text-xs leading-relaxed mb-5">
+            <p className="text-muted text-xs leading-relaxed mb-5">
               {confirming.action === "suspend"
                 ? `${confirming.user.email} will immediately lose the ability to sign in.`
                 : `${confirming.user.email} will be able to sign in again.`}
@@ -420,7 +420,7 @@ export default function AdminUsersPage() {
             <div className="flex items-center justify-end gap-2">
               <button
                 onClick={() => setConfirming(null)}
-                className="text-xs font-semibold text-gray-300 hover:text-white px-3 py-2 rounded-lg hover:bg-white/5 transition-colors"
+                className="text-xs font-semibold text-[#3B4252] hover:text-ink px-3 py-2 rounded-lg hover:bg-mist transition-colors"
               >
                 Cancel
               </button>
@@ -428,8 +428,8 @@ export default function AdminUsersPage() {
                 onClick={() => updateStatus(confirming.user, confirming.action)}
                 className={`text-xs font-semibold px-3 py-2 rounded-lg transition-colors ${
                   confirming.action === "suspend"
-                    ? "text-red-400 bg-red-500/10 hover:bg-red-500/20"
-                    : "text-green-400 bg-green-500/10 hover:bg-green-500/20"
+                    ? "text-red-600 bg-red-500/10 hover:bg-red-500/20"
+                    : "text-green-700 bg-green-500/10 hover:bg-green-500/20"
                 }`}
               >
                 {confirming.action === "suspend" ? "Confirm suspend" : "Confirm reactivate"}

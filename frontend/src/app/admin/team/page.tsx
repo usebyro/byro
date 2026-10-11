@@ -27,12 +27,12 @@ const ROLES: { value: Role; label: string; hint: string }[] = [
 
 const ROLE_STYLE: Record<Role, string> = {
   owner: "bg-indigo-500/15 text-indigo-300",
-  admin: "bg-blue-500/15 text-blue-300",
-  viewer: "bg-white/5 text-gray-400",
+  admin: "bg-blue-500/15 text-brand-dark",
+  viewer: "bg-mist text-muted",
 };
 
 const AVATAR_COLORS = [
-  "bg-blue-600", "bg-teal-600", "bg-pink-500", "bg-violet-600", "bg-emerald-600", "bg-orange-600",
+  "bg-brand", "bg-teal-600", "bg-pink-500", "bg-violet-600", "bg-emerald-600", "bg-orange-600",
 ];
 
 function formatShortDate(dateStr: string | null) {
@@ -68,7 +68,7 @@ function Avatar({ m }: { m: AdminTeamMember }) {
   return (
     <span
       aria-hidden
-      className={`w-8 h-8 rounded-full shrink-0 flex items-center justify-center text-[11px] font-semibold text-white ${color}`}
+      className={`w-8 h-8 rounded-full shrink-0 flex items-center justify-center text-[11px] font-semibold text-ink ${color}`}
     >
       {name.slice(0, 2).toUpperCase()}
     </span>
@@ -233,27 +233,27 @@ export default function AdminTeamPage() {
   const columns = can.manage_team ? 6 : 5;
 
   const row = (m: AdminTeamMember) => (
-    <tr key={m.id} className="group border-b border-white/5 last:border-0 hover:bg-white/[0.02]">
+    <tr key={m.id} className="group border-b border-hairline last:border-0 hover:bg-mist">
       <td className="py-3 pl-4 pr-4">
         <div className="flex items-center gap-3 min-w-0">
           <Avatar m={m} />
           <div className="min-w-0">
-            <p className="text-white text-sm font-medium truncate">{nameOf(m)}</p>
-            <p className="text-gray-500 text-xs truncate">{m.handle ?? m.email.split("@")[0]}</p>
+            <p className="text-ink text-sm font-medium truncate">{nameOf(m)}</p>
+            <p className="text-faint text-xs truncate">{m.handle ?? m.email.split("@")[0]}</p>
           </div>
         </div>
       </td>
-      <td className="py-3 pr-4 text-gray-400 text-sm truncate max-w-[240px]">{m.email}</td>
+      <td className="py-3 pr-4 text-muted text-sm truncate max-w-[240px]">{m.email}</td>
       <td className="py-3 pr-4">
         {can.manage_team ? (
           <select
             value={m.role}
             onChange={(e) => changeRole(m, e.target.value as Role)}
             aria-label={`Role for ${m.email}`}
-            className={`text-xs font-medium capitalize rounded px-2 py-1 border border-transparent hover:border-white/10 focus:outline-none focus:border-white/20 cursor-pointer ${ROLE_STYLE[m.role]}`}
+            className={`text-xs font-medium capitalize rounded px-2 py-1 border border-transparent hover:border-line focus:outline-none focus:border-brand cursor-pointer ${ROLE_STYLE[m.role]}`}
           >
             {ROLES.map((r) => (
-              <option key={r.value} value={r.value} className="bg-[#1a1d27] text-white">
+              <option key={r.value} value={r.value} className="bg-white text-ink">
                 {r.label}
               </option>
             ))}
@@ -262,15 +262,15 @@ export default function AdminTeamPage() {
           <RoleBadge role={m.role} />
         )}
       </td>
-      <td className="py-3 pr-4 text-gray-400 text-sm whitespace-nowrap">{formatShortDate(m.added_at)}</td>
+      <td className="py-3 pr-4 text-muted text-sm whitespace-nowrap">{formatShortDate(m.added_at)}</td>
       <td className="py-3 pr-4 text-sm whitespace-nowrap">
         {isOnline(m.last_seen) ? (
-          <span className="inline-flex items-center gap-1.5 text-gray-300">
+          <span className="inline-flex items-center gap-1.5 text-[#3B4252]">
             <span className="w-1.5 h-1.5 rounded-full bg-green-400" />
             Online
           </span>
         ) : (
-          <span className="text-gray-400">{m.signed_up ? formatShortDate(m.last_seen) : "Not signed in yet"}</span>
+          <span className="text-muted">{m.signed_up ? formatShortDate(m.last_seen) : "Not signed in yet"}</span>
         )}
       </td>
       {can.manage_team && (
@@ -279,7 +279,7 @@ export default function AdminTeamPage() {
             onClick={() => setRemoving(m)}
             disabled={removingId === m.id}
             aria-label={`Remove ${m.email}`}
-            className="opacity-0 group-hover:opacity-100 focus:opacity-100 text-gray-500 hover:text-red-400 disabled:opacity-40 p-1.5 rounded-md hover:bg-red-500/10 transition"
+            className="opacity-0 group-hover:opacity-100 focus:opacity-100 text-faint hover:text-red-600 disabled:opacity-40 p-1.5 rounded-md hover:bg-red-500/10 transition"
           >
             <HugeiconsIcon icon={Delete02Icon} size={15} color="currentColor" />
           </button>
@@ -292,8 +292,8 @@ export default function AdminTeamPage() {
     list.length > 0 && (
       <>
         <tr>
-          <td colSpan={columns} className="bg-white/[0.03] py-2 pl-4 text-xs text-gray-400">
-            {label} <span className="text-gray-600 ml-1">{list.length}</span>
+          <td colSpan={columns} className="bg-mist py-2 pl-4 text-xs text-muted">
+            {label} <span className="text-faint ml-1">{list.length}</span>
           </td>
         </tr>
         {list.map(row)}
@@ -302,64 +302,64 @@ export default function AdminTeamPage() {
 
   return (
     <div className="p-5 md:p-10 max-w-5xl">
-      <h1 className="text-white text-2xl font-semibold mb-6">Members</h1>
+      <h1 className="text-ink text-2xl font-semibold mb-6">Members</h1>
 
       <div className="flex flex-wrap items-center gap-2 mb-6">
-        <label className="flex items-center gap-2 w-full sm:w-80 bg-white/5 border border-white/10 rounded-lg px-3 py-2 focus-within:ring-1 focus-within:ring-blue-500/50">
+        <label className="flex items-center gap-2 w-full sm:w-80 bg-mist border border-line rounded-lg px-3 py-2 focus-within:ring-1 focus-within:ring-brand/40">
           <HugeiconsIcon icon={Search01Icon} size={15} color="#6b7280" />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by name or email"
-            className="flex-1 bg-transparent text-sm text-white placeholder:text-gray-500 focus:outline-none"
+            className="flex-1 bg-transparent text-sm text-ink placeholder:text-faint focus:outline-none"
           />
         </label>
         <select
           value={roleFilter}
           onChange={(e) => setRoleFilter(e.target.value as "" | Role)}
           aria-label="Filter by role"
-          className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none"
+          className="bg-mist border border-line rounded-lg px-3 py-2 text-sm text-ink focus:outline-none"
         >
-          <option value="" className="bg-[#1a1d27]">All roles</option>
+          <option value="" className="bg-white">All roles</option>
           {ROLES.map((r) => (
-            <option key={r.value} value={r.value} className="bg-[#1a1d27]">{r.label}s</option>
+            <option key={r.value} value={r.value} className="bg-white">{r.label}s</option>
           ))}
         </select>
         {can.manage_team && (
           <button
             onClick={() => setInviteOpen(true)}
-            className="ml-auto text-sm font-semibold text-white bg-indigo-500 hover:bg-indigo-400 px-4 py-2 rounded-lg transition-colors"
+            className="ml-auto text-sm font-semibold text-ink bg-indigo-500 hover:bg-indigo-400 px-4 py-2 rounded-lg transition-colors"
           >
             Invite
           </button>
         )}
       </div>
 
-      {actionError && <p className="text-red-400 text-xs mb-4">{actionError}</p>}
+      {actionError && <p className="text-red-600 text-xs mb-4">{actionError}</p>}
 
       {loading ? (
-        <p className="text-gray-500 text-sm py-10 text-center">Loading…</p>
+        <p className="text-faint text-sm py-10 text-center">Loading…</p>
       ) : error ? (
         <div className="flex flex-col items-center gap-3 py-10 text-center">
           <HugeiconsIcon icon={Alert02Icon} size={20} color="#f87171" />
-          <p className="text-gray-400 text-sm">{error}</p>
+          <p className="text-muted text-sm">{error}</p>
           <button
             onClick={loadMembers}
-            className="text-xs font-semibold text-gray-300 hover:text-white bg-white/5 hover:bg-white/10 px-3 py-1.5 rounded-lg transition-colors"
+            className="text-xs font-semibold text-[#3B4252] hover:text-ink bg-mist hover:bg-line px-3 py-1.5 rounded-lg transition-colors"
           >
             Try again
           </button>
         </div>
       ) : visible.length === 0 ? (
-        <p className="text-gray-500 text-sm py-10 text-center">
+        <p className="text-faint text-sm py-10 text-center">
           {members.length === 0 ? "No one on the team yet." : "No one matches that search."}
         </p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead>
-              <tr className="text-xs text-gray-500">
+              <tr className="text-xs text-faint">
                 <th className="pb-3 pl-4 pr-4 font-medium">Name</th>
                 <th className="pb-3 pr-4 font-medium">Email</th>
                 <th className="pb-3 pr-4 font-medium">Role</th>
@@ -378,19 +378,19 @@ export default function AdminTeamPage() {
 
       {inviteOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/70" onClick={closeInvite} />
+          <div className="absolute inset-0 bg-ink/50" onClick={closeInvite} />
           <form
             onSubmit={handleInvite}
-            className="relative w-full max-w-sm bg-[#1a1d27] border border-white/10 rounded-xl p-6 shadow-2xl space-y-4"
+            className="relative w-full max-w-sm bg-white border border-line rounded-xl p-6 shadow-[0_20px_50px_rgba(20,22,28,0.14)] space-y-4"
           >
             <div>
-              <h3 className="text-white font-semibold text-sm">Invite to the admin team</h3>
-              <p className="text-gray-400 text-xs mt-1">
+              <h3 className="text-ink font-semibold text-sm">Invite to the admin team</h3>
+              <p className="text-muted text-xs mt-1">
                 They sign in at the admin page with a code sent to this email.
               </p>
             </div>
             <div>
-              <label htmlFor="invite-email" className="text-xs text-gray-400 block mb-1.5">Email</label>
+              <label htmlFor="invite-email" className="text-xs text-muted block mb-1.5">Email</label>
               <input
                 id="invite-email"
                 type="email"
@@ -398,36 +398,36 @@ export default function AdminTeamPage() {
                 value={inviteEmail}
                 onChange={(e) => setInviteEmail(e.target.value)}
                 placeholder="name@usebyro.com"
-                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500/50"
+                className="w-full bg-mist border border-line rounded-lg px-3 py-2.5 text-sm text-ink placeholder:text-faint focus:outline-none focus:ring-1 focus:ring-brand/40"
               />
             </div>
             <div>
-              <label htmlFor="invite-role" className="text-xs text-gray-400 block mb-1.5">Role</label>
+              <label htmlFor="invite-role" className="text-xs text-muted block mb-1.5">Role</label>
               <select
                 id="invite-role"
                 value={inviteRole}
                 onChange={(e) => setInviteRole(e.target.value as Role)}
-                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none"
+                className="w-full bg-mist border border-line rounded-lg px-3 py-2.5 text-sm text-ink focus:outline-none"
               >
                 {ROLES.map((r) => (
-                  <option key={r.value} value={r.value} className="bg-[#1a1d27]">{r.label}</option>
+                  <option key={r.value} value={r.value} className="bg-white">{r.label}</option>
                 ))}
               </select>
-              <p className="text-gray-500 text-xs mt-1.5">{ROLES.find((r) => r.value === inviteRole)?.hint}</p>
+              <p className="text-faint text-xs mt-1.5">{ROLES.find((r) => r.value === inviteRole)?.hint}</p>
             </div>
-            {inviteError && <p className="text-red-400 text-xs">{inviteError}</p>}
+            {inviteError && <p className="text-red-600 text-xs">{inviteError}</p>}
             <div className="flex items-center justify-end gap-2">
               <button
                 type="button"
                 onClick={closeInvite}
-                className="text-xs font-semibold text-gray-300 hover:text-white px-3 py-2 rounded-lg hover:bg-white/5 transition-colors"
+                className="text-xs font-semibold text-[#3B4252] hover:text-ink px-3 py-2 rounded-lg hover:bg-mist transition-colors"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={inviting || !inviteEmail.trim()}
-                className="text-xs font-semibold text-white bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 px-4 py-2 rounded-lg transition-colors"
+                className="text-xs font-semibold text-ink bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 px-4 py-2 rounded-lg transition-colors"
               >
                 {inviting ? "Adding…" : "Add to team"}
               </button>
@@ -438,22 +438,22 @@ export default function AdminTeamPage() {
 
       {removing && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/70" onClick={() => setRemoving(null)} />
-          <div className="relative w-full max-w-sm bg-[#1a1d27] border border-white/10 rounded-xl p-6 shadow-2xl">
-            <h3 className="text-white font-semibold text-sm mb-2">Remove {nameOf(removing)}?</h3>
-            <p className="text-gray-400 text-xs leading-relaxed mb-5">
+          <div className="absolute inset-0 bg-ink/50" onClick={() => setRemoving(null)} />
+          <div className="relative w-full max-w-sm bg-white border border-line rounded-xl p-6 shadow-[0_20px_50px_rgba(20,22,28,0.14)]">
+            <h3 className="text-ink font-semibold text-sm mb-2">Remove {nameOf(removing)}?</h3>
+            <p className="text-muted text-xs leading-relaxed mb-5">
               {removing.email} will lose access to the admin panel immediately. Their Byro account is not affected.
             </p>
             <div className="flex items-center justify-end gap-2">
               <button
                 onClick={() => setRemoving(null)}
-                className="text-xs font-semibold text-gray-300 hover:text-white px-3 py-2 rounded-lg hover:bg-white/5 transition-colors"
+                className="text-xs font-semibold text-[#3B4252] hover:text-ink px-3 py-2 rounded-lg hover:bg-mist transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={() => handleRemove(removing)}
-                className="text-xs font-semibold text-red-400 bg-red-500/10 hover:bg-red-500/20 px-3 py-2 rounded-lg transition-colors"
+                className="text-xs font-semibold text-red-600 bg-red-500/10 hover:bg-red-500/20 px-3 py-2 rounded-lg transition-colors"
               >
                 Remove
               </button>
