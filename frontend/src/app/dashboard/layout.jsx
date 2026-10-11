@@ -14,6 +14,7 @@ import {
   Cancel01Icon,
   UserCircleIcon,
   ShoppingBag01Icon,
+  Mail01Icon,
 } from "@hugeicons/core-free-icons";
 import { Providers } from "@/redux/Providers";
 import { useSelector, useDispatch } from "react-redux";
@@ -24,6 +25,7 @@ import NotificationBell from "@/components/dashboard/NotificationBell";
 const NAV = [
   { label: "Overview", href: "/dashboard/overview", icon: Home01Icon,     exact: true },
   { label: "Events",    href: "/dashboard/events",   icon: Ticket01Icon },
+  { label: "Messages", href: "/dashboard/messages", icon: Mail01Icon },
   { label: "Merch",    href: "/dashboard/merch",    icon: ShoppingBag01Icon },
   { label: "Payouts",  href: "/dashboard/payouts",  icon: Money01Icon },
   { label: "Profile",  href: "/dashboard/profile",  icon: UserCircleIcon },
