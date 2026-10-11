@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { toast } from "sonner";
 import API from "@/services/api";
 import EventImage from "@/components/brand/EventImage";
 import { dayParts, formatTime } from "@/lib/eventFormat";
@@ -21,6 +20,22 @@ const DRAFTS = {
     body: "Hi,\n\nQuick update: ",
   },
 };
+
+// Arrow keys move the selection through a radio group, as native radios do.
+function radioKeys(count, index, select) {
+  return (e) => {
+    const next = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 }[e.key];
+    if (!next) return;
+    e.preventDefault();
+    const to = (index + next + count) % count;
+    select(to);
+    const radios = e.currentTarget.parentElement.querySelectorAll('[role="radio"]');
+    radios[to]?.focus();
+  };
+}
+
+// Flip to true once the send endpoint exists.
+const SENDING_READY = false;
 
 const n = (v) => (v == null ? "—" : Number(v).toLocaleString());
 
@@ -90,8 +105,18 @@ export default function MessagesPage() {
     if (id === "update") setAttach(false);
   };
 
+  const draftDirty = subject.trim() !== "" || body !== DRAFTS[kind].body;
+  useEffect(() => {
+    if (!draftDirty) return;
+    const guard = (e) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", guard);
+    return () => window.removeEventListener("beforeunload", guard);
+  }, [draftDirty]);
+
   const canSend = subject.trim() && body.trim() && activeAudience && (activeAudience.count ?? 0) > 0;
-  const comingSoon = () => toast.info("Sending isn't connected yet. Your draft is safe on this page until then.");
 
   const brand = dashboard?.profile?.display_name || "Your community";
   const footer = isAnnounce
@@ -103,7 +128,7 @@ export default function MessagesPage() {
     "w-full rounded-xl border-[1.5px] border-[#CBD3DF] bg-white px-3.5 text-[15px] text-ink focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/25";
 
   return (
-    <div className="flex flex-col gap-7 px-4 pb-12 pt-8 md:px-8 lg:px-12">
+    <div className="flex flex-col gap-7 px-4 pb-12 pt-8 tabular-nums md:px-8 lg:px-12">
       <div>
         <h1 className="font-display text-[28px] font-bold leading-tight tracking-[-0.03em] text-ink md:text-[32px]">Messages</h1>
         <p className="mt-1.5 text-[15px] text-muted">Email the people in your community. Replies come to your inbox.</p>
@@ -114,7 +139,7 @@ export default function MessagesPage() {
           <div className="flex flex-col gap-2">
             <span className={label}>What are you sending?</span>
             <div role="radiogroup" aria-label="Message type" className="grid gap-2.5 sm:grid-cols-2">
-              {KINDS.map((k) => {
+              {KINDS.map((k, i) => {
                 const on = kind === k.id;
                 return (
                   <button
@@ -122,7 +147,9 @@ export default function MessagesPage() {
                     type="button"
                     role="radio"
                     aria-checked={on}
+                    tabIndex={on ? 0 : -1}
                     onClick={() => pickKind(k.id)}
+                    onKeyDown={radioKeys(KINDS.length, i, (to) => pickKind(KINDS[to].id))}
                     className={`flex flex-col gap-0.5 rounded-xl px-4 py-3.5 text-left text-ink transition-[scale] active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
                       on ? "border-2 border-brand bg-[#EEF3FF]" : "border-[1.5px] border-[#CBD3DF] bg-white"
                     }`}
@@ -147,13 +174,16 @@ export default function MessagesPage() {
               <div role="radiogroup" aria-label="Audience" className="flex flex-col overflow-hidden rounded-xl border border-line">
                 {audiences.map((a, i) => {
                   const on = activeAudience?.id === a.id;
+                  const choose = (id) => (isAnnounce ? setAudience(id) : setEventSlug(id));
                   return (
                     <button
                       key={a.id}
                       type="button"
                       role="radio"
                       aria-checked={on}
-                      onClick={() => (isAnnounce ? setAudience(a.id) : setEventSlug(a.id))}
+                      tabIndex={on ? 0 : -1}
+                      onClick={() => choose(a.id)}
+                      onKeyDown={radioKeys(audiences.length, i, (to) => choose(audiences[to].id))}
                       className={`flex h-14 items-center gap-3 px-4 text-left text-ink transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand ${
                         i > 0 ? "border-t border-hairline" : ""
                       } ${on ? "bg-paper" : "bg-white hover:bg-paper"}`}
@@ -176,8 +206,10 @@ export default function MessagesPage() {
             <input
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
+              name="subject"
+              autoComplete="off"
               maxLength={120}
-              placeholder={isAnnounce ? "What's new?" : "What changed?"}
+              placeholder={isAnnounce ? "What’s new…" : "What changed…"}
               className={`${field} h-[50px] font-semibold`}
             />
           </label>
@@ -187,8 +219,11 @@ export default function MessagesPage() {
             <textarea
               value={body}
               onChange={(e) => setBody(e.target.value)}
+              name="body"
+              autoComplete="off"
               rows={6}
               maxLength={5000}
+              placeholder="Write your message…"
               className={`${field} resize-none py-3 font-medium leading-[1.55]`}
             />
           </label>
@@ -202,8 +237,8 @@ export default function MessagesPage() {
                 onClick={() => setAttach((v) => !v)}
                 className="flex items-center gap-3 text-left text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
               >
-                <span aria-hidden="true" className={`flex h-6 w-10 shrink-0 rounded-full p-[3px] transition-colors ${attach ? "justify-end bg-brand" : "justify-start bg-[#C9D0DC]"}`}>
-                  <span className="h-[18px] w-[18px] rounded-full bg-white" />
+                <span aria-hidden="true" className={`flex h-6 w-10 shrink-0 rounded-full p-[3px] transition-colors motion-reduce:transition-none ${attach ? "bg-brand" : "bg-[#C9D0DC]"}`}>
+                  <span className={`h-[18px] w-[18px] rounded-full bg-white transition-transform duration-150 ease-out motion-reduce:transition-none ${attach ? "translate-x-4" : "translate-x-0"}`} />
                 </span>
                 <span className="flex flex-col">
                   <span className="text-[15px] font-bold">Attach event card</span>
@@ -229,18 +264,22 @@ export default function MessagesPage() {
 
           <div className="flex flex-wrap items-center gap-2.5 border-t border-hairline pt-4">
             <span className="min-w-0 flex-1 text-[13px] text-muted">
-              {isAnnounce ? "People can unsubscribe from announcements" : "Event updates always reach ticket holders"}
+              {SENDING_READY
+                ? isAnnounce
+                  ? "People can unsubscribe from announcements"
+                  : "Event updates always reach ticket holders"
+                : "Sending isn’t available yet. Your draft stays here until it is."}
             </span>
-            <button type="button" onClick={comingSoon} className="h-11 rounded-full border border-line bg-white px-5 text-[15px] font-bold text-ink transition-[background-color,scale] hover:bg-paper active:scale-[0.97]">
+            <button type="button" disabled={!SENDING_READY} title={SENDING_READY ? undefined : "Coming soon"} className="h-11 rounded-full border border-line bg-white px-5 text-[15px] font-bold text-ink transition-[background-color,scale] hover:bg-paper active:scale-[0.97] disabled:cursor-not-allowed disabled:border-0 disabled:bg-hairline disabled:text-muted disabled:active:scale-100">
               Send me a test
             </button>
-            <button type="button" onClick={comingSoon} className="h-11 rounded-full border border-line bg-white px-5 text-[15px] font-bold text-ink transition-[background-color,scale] hover:bg-paper active:scale-[0.97]">
+            <button type="button" disabled={!SENDING_READY} title={SENDING_READY ? undefined : "Coming soon"} className="h-11 rounded-full border border-line bg-white px-5 text-[15px] font-bold text-ink transition-[background-color,scale] hover:bg-paper active:scale-[0.97] disabled:cursor-not-allowed disabled:border-0 disabled:bg-hairline disabled:text-muted disabled:active:scale-100">
               Schedule
             </button>
             <button
               type="button"
-              onClick={comingSoon}
-              disabled={!canSend}
+              disabled={!SENDING_READY || !canSend}
+              title={SENDING_READY ? undefined : "Coming soon"}
               className="h-11 rounded-full bg-brand px-5 text-[15px] font-bold text-white transition-[background-color,scale] hover:bg-brand-dark active:scale-[0.97] disabled:cursor-not-allowed disabled:bg-hairline disabled:text-muted disabled:active:scale-100"
             >
               {activeAudience ? `Send to ${n(activeAudience.count)}` : "Send"}
