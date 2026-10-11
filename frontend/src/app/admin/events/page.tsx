@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { formatNaira, isPaidEvent, priceLabel } from "@/lib/eventFormat";
 import { useAdminMe } from "@/components/admin/AdminMe";
+import { publicHref } from "@/lib/adminNav";
 
 interface EventTier {
   id?: number;
@@ -158,7 +159,7 @@ function EventTable({
             >
               <td className="py-3 pr-6">
                 <a
-                  href={`/discover/${event.slug}`}
+                  href={publicHref(`/discover/${event.slug}`)}
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={(e) => e.stopPropagation()}
@@ -541,7 +542,7 @@ export default function AdminEventsPage() {
               )}
 
               <a
-                href={`/discover/${selected.slug}`}
+                href={publicHref(`/discover/${selected.slug}`)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-block text-xs font-semibold text-blue-400 hover:text-blue-300"
