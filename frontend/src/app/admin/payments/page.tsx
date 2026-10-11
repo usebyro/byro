@@ -70,7 +70,7 @@ export default function AdminPaymentsPage() {
   return (
     <div className="p-5 md:p-8">
       <div className="mb-8">
-        <h1 className="text-ink text-xl font-bold">Payments</h1>
+        <h1 className="font-display text-ink text-3xl font-extrabold tracking-tight">Payments</h1>
         <p className="text-muted text-sm mt-1">
           {loading ? "Loading…" : `${count.toLocaleString()} payments, newest first`}
         </p>
