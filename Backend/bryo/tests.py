@@ -877,6 +877,20 @@ class AdminSeesEveryEventTests(TestCase):
             (summary['total_events'], summary['private_events'], summary['draft_events']), (4, 1, 1)
         )
 
+    def test_activity_trend_counts_events_created_and_tickets_sold_per_day(self):
+        from .models import Ticket
+        c = APIClient()
+        c.force_authenticate(self.admin)
+        event = Event.objects.get(slug='pub')
+        for status in ('free', 'paid', 'pending'):
+            Ticket.objects.create(
+                event=event, original_owner_name='A', original_owner_email='a@x.com',
+                current_owner_name='A', current_owner_email='a@x.com', payment_status=status,
+            )
+        rows = c.get('/api/admin/analytics/activity-trend/?days=7').json()
+        self.assertEqual(len(rows), 1)
+        self.assertEqual((rows[0]['events'], rows[0]['tickets']), (4, 2))
+
 
 class SuspendedEventPageTests(TestCase):
     """A suspended event says so to visitors; unknown and draft events stay a plain 404."""

@@ -3722,6 +3722,43 @@ class AdminUsersListView(APIView):
         return Response(data)
 
 
+class AdminAnalyticsActivityTrendView(APIView):
+    """GET /api/admin/analytics/activity-trend/?days=30
+
+    Tickets sold and events created per day. Days with nothing are left out;
+    the dashboard fills the gaps."""
+    permission_classes = [IsAdminMember]
+
+    def get(self, request):
+        try:
+            days = int(request.query_params.get('days', 30))
+        except ValueError:
+            days = 30
+        days = max(1, min(days, 730))
+        since = timezone.now() - timedelta(days=days)
+
+        tickets = (
+            Ticket.objects
+            .filter(payment_status__in=['paid', 'free'], created_at__gte=since)
+            .annotate(date=TruncDate('created_at'))
+            .values('date')
+            .annotate(n=Count('id'))
+        )
+        events = (
+            Event.objects
+            .filter(created_at__gte=since)
+            .annotate(date=TruncDate('created_at'))
+            .values('date')
+            .annotate(n=Count('id'))
+        )
+        by_date = {}
+        for r in tickets:
+            by_date.setdefault(str(r['date']), {'tickets': 0, 'events': 0})['tickets'] = r['n']
+        for r in events:
+            by_date.setdefault(str(r['date']), {'tickets': 0, 'events': 0})['events'] = r['n']
+        return Response([{'date': d, **v} for d, v in sorted(by_date.items())])
+
+
 class AdminAnalyticsRevenueTrendView(APIView):
     """GET /api/admin/analytics/revenue-trend/?days=30"""
     permission_classes = [IsAdminMember]
