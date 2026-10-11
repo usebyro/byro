@@ -1,23 +1,21 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import API from "@/services/api";
 import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  Notification01Icon,
-  Ticket01Icon,
-  Wallet01Icon,
-  CheckmarkCircle02Icon,
-} from "@hugeicons/core-free-icons";
+import { Notification01Icon } from "@hugeicons/core-free-icons";
 
-const TYPE_META = {
-  ticket_purchase: { icon: Ticket01Icon, color: "#4F6EF7", bg: "bg-[#4F6EF7]/10" },
-  payout_request: { icon: Wallet01Icon, color: "#d97706", bg: "bg-amber-500/10" },
-  payout_processed: { icon: CheckmarkCircle02Icon, color: "#16a34a", bg: "bg-green-500/10" },
+// A quiet colour per type instead of an icon.
+const KIND_DOT = {
+  ticket_sale: "bg-[#4F6EF7]",
+  new_follower: "bg-[#D0668E]",
+  payout_processed: "bg-green-500",
+  payout_rejected: "bg-amber-500",
+  event_status: "bg-amber-500",
 };
 
-function fmtNaira(n) {
-  return `₦${n.toLocaleString()}`;
-}
+const POLL_MS = 60_000;
 
 function timeAgo(iso) {
   const then = new Date(iso).getTime();
@@ -35,9 +33,30 @@ function timeAgo(iso) {
 export default function NotificationBell() {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState([]);
+  const [unread, setUnread] = useState(0);
   const containerRef = useRef(null);
+  const router = useRouter();
 
-  const unread = useMemo(() => items.filter((n) => !n.read).length, [items]);
+  const load = useCallback(async () => {
+    try {
+      const data = await API.getNotifications();
+      setItems(data.results || []);
+      setUnread(data.unread || 0);
+    } catch {
+      // Keep whatever we had; the next poll tries again.
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+    const timer = setInterval(load, POLL_MS);
+    const onFocus = () => load();
+    window.addEventListener("focus", onFocus);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [load]);
 
   useEffect(() => {
     if (!open) return;
@@ -57,8 +76,25 @@ export default function NotificationBell() {
     };
   }, [open]);
 
-  const markAllRead = () =>
+  const markAllRead = async () => {
     setItems((prev) => prev.map((n) => ({ ...n, read: true })));
+    setUnread(0);
+    try {
+      await API.markNotificationsRead();
+    } catch {
+      load();
+    }
+  };
+
+  const openItem = async (n) => {
+    setOpen(false);
+    if (!n.read) {
+      setItems((prev) => prev.map((x) => (x.id === n.id ? { ...x, read: true } : x)));
+      setUnread((u) => Math.max(0, u - 1));
+      API.markNotificationsRead([n.id]).catch(() => load());
+    }
+    if (n.link) router.push(n.link);
+  };
 
   return (
     <div ref={containerRef} className="relative">
@@ -94,31 +130,24 @@ export default function NotificationBell() {
               <p className="text-gray-400 text-xs text-center py-8">No notifications yet</p>
             ) : (
               items.map((n) => {
-                const meta = TYPE_META[n.type] || TYPE_META.ticket_purchase;
                 return (
-                  <div
+                  <button
+                    type="button"
                     key={n.id}
-                    className={`flex gap-3 px-4 py-3 border-b border-gray-50 last:border-b-0 ${
+                    onClick={() => openItem(n)}
+                    className={`flex w-full gap-3 px-4 py-3 text-left border-b border-gray-50 last:border-b-0 hover:bg-gray-50 ${
                       n.read ? "" : "bg-[#4F6EF7]/[0.03]"
                     }`}
                   >
-                    <div className={`shrink-0 w-8 h-8 rounded-lg flex items-center justify-center ${meta.bg}`}>
-                      <HugeiconsIcon icon={meta.icon} size={16} color={meta.color} />
-                    </div>
+                    <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${KIND_DOT[n.kind] || "bg-[#4F6EF7]"} ${n.read ? "opacity-30" : ""}`} />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <p className="text-gray-900 text-xs font-bold truncate">{n.title}</p>
-                        {!n.read && <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-[#4F6EF7]" />}
+                        <p className={`text-gray-900 text-xs truncate ${n.read ? "font-semibold" : "font-extrabold"}`}>{n.title}</p>
                       </div>
-                      <p className="text-gray-500 text-[11px] leading-snug mt-0.5">{n.message}</p>
-                      <div className="flex items-center gap-2 mt-1">
-                        {typeof n.amount === "number" && (
-                          <span className="text-[11px] font-semibold text-gray-700">{fmtNaira(n.amount)}</span>
-                        )}
-                        <span className="text-xs text-gray-400">{timeAgo(n.createdAt)}</span>
-                      </div>
+                      {n.body && <p className="text-gray-500 text-[11px] leading-snug mt-0.5">{n.body}</p>}
+                      <span className="mt-1 block text-xs text-gray-400">{timeAgo(n.created_at)}</span>
                     </div>
-                  </div>
+                  </button>
                 );
               })
             )}

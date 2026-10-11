@@ -32,7 +32,12 @@ def follow_organizer(user, event):
     try:
         if user is None or not getattr(user, 'pk', None) or not event.owner_id or user.pk == event.owner_id:
             return False
-        Follow.objects.get_or_create(follower=user, following=event.owner)
+        _, created = Follow.objects.get_or_create(follower=user, following=event.owner)
+        if created:
+            from .notifications import notify
+            profile = _profile_of(user)
+            name = (profile.display_name if profile else '') or user.get_full_name() or 'Someone'
+            notify(event.owner, 'new_follower', f"{name} followed you", body=f"After {event.name}", link='/dashboard/overview')
         return True
     except Exception:
         logger.exception('Could not auto-follow organiser')

@@ -31,9 +31,9 @@ const ACTION_LABEL: Record<string, string> = {
 };
 
 function tone(action: string) {
-  if (/deleted|removed|suspended|rejected/.test(action)) return "bg-red-500/10 text-red-400";
-  if (/reactivated|processed|added/.test(action)) return "bg-green-500/10 text-green-400";
-  return "bg-blue-500/10 text-blue-400";
+  if (/deleted|removed|suspended|rejected/.test(action)) return "bg-red-500/10 text-red-600";
+  if (/reactivated|processed|added/.test(action)) return "bg-green-500/10 text-green-700";
+  return "bg-blue-500/10 text-brand-dark";
 }
 
 function formatDateTime(s: string) {
@@ -68,51 +68,51 @@ export default function AdminAuditLogPage() {
   return (
     <div className="p-5 md:p-8">
       <div className="mb-8">
-        <h1 className="text-white text-xl font-bold">Audit log</h1>
-        <p className="text-gray-400 text-sm mt-1">Every action taken from the admin panel, newest first</p>
+        <h1 className="text-ink text-xl font-bold">Audit log</h1>
+        <p className="text-muted text-sm mt-1">Every action taken from the admin panel, newest first</p>
       </div>
 
       <select
         value={targetType}
         onChange={(e) => setTargetType(e.target.value)}
         aria-label="Filter by target"
-        className="mb-6 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none"
+        className="mb-6 bg-mist border border-line rounded-lg px-3 py-2 text-sm text-ink focus:outline-none"
       >
         {TARGET_TYPES.map((t) => (
-          <option key={t} value={t} className="bg-[#1a1d27]">
+          <option key={t} value={t} className="bg-white">
             {t ? `${t[0].toUpperCase()}${t.slice(1)}s` : "Everything"}
           </option>
         ))}
       </select>
 
-      {error && <p className="text-red-400 text-sm mb-6">{error}</p>}
+      {error && <p className="text-red-600 text-sm mb-6">{error}</p>}
 
-      <div className="bg-[#1a1d27] border border-white/10 rounded-xl p-6 overflow-x-auto">
+      <div className="bg-white border border-line rounded-xl p-6 overflow-x-auto">
         {!loading && entries.length === 0 ? (
-          <p className="text-gray-500 text-sm py-6 text-center">Nothing has been logged yet.</p>
+          <p className="text-faint text-sm py-6 text-center">Nothing has been logged yet.</p>
         ) : (
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-white/5 text-left">
+              <tr className="border-b border-hairline text-left">
                 {["When", "Who", "Action", "Target", "Detail"].map((h) => (
-                  <th key={h} className="pb-3 pr-6 text-xs text-gray-500 font-medium">{h}</th>
+                  <th key={h} className="pb-3 pr-6 text-xs text-faint font-medium">{h}</th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/5">
+            <tbody className="divide-y divide-hairline">
               {entries.map((a) => (
                 <tr key={a.id}>
-                  <td className="py-3 pr-6 text-gray-400 whitespace-nowrap">{formatDateTime(a.created_at)}</td>
-                  <td className="py-3 pr-6 text-gray-300 truncate max-w-[200px]">{a.actor_email || "—"}</td>
+                  <td className="py-3 pr-6 text-muted whitespace-nowrap">{formatDateTime(a.created_at)}</td>
+                  <td className="py-3 pr-6 text-[#3B4252] truncate max-w-[200px]">{a.actor_email || "—"}</td>
                   <td className="py-3 pr-6">
                     <span className={`text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap ${tone(a.action)}`}>
                       {ACTION_LABEL[a.action] ?? a.action}
                     </span>
                   </td>
-                  <td className="py-3 pr-6 text-gray-300 truncate max-w-[220px]">
+                  <td className="py-3 pr-6 text-[#3B4252] truncate max-w-[220px]">
                     {a.target_label || `${a.target_type} ${a.target_id}`}
                   </td>
-                  <td className="py-3 text-gray-500 truncate max-w-[200px]">{a.detail || "—"}</td>
+                  <td className="py-3 text-faint truncate max-w-[200px]">{a.detail || "—"}</td>
                 </tr>
               ))}
             </tbody>

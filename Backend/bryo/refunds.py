@@ -136,8 +136,10 @@ def cancel_event(event, reason):
         locked.cancel_reason = reason
         locked.save(update_fields=['cancelled_at', 'cancel_reason', 'updated_at'])
 
+        created_refunds = 0
         for payment in _paid_orders(locked).filter(refund__isnull=True):
             Refund.objects.create(payment=payment, event=locked, amount=refundable_amount(payment), currency=payment.currency)
+            created_refunds += 1
 
         # Payouts not yet paid for this event are void: the money now belongs to the buyers.
         locked.payout_requests.filter(status='pending').update(status='rejected')
@@ -146,6 +148,12 @@ def cancel_event(event, reason):
         locked.tickets.filter(payment_status__in=['free', 'pending', 'failed']).update(payment_status='cancelled')
 
     event.cancelled_at, event.cancel_reason = locked.cancelled_at, locked.cancel_reason
+    if created_refunds:
+        from .notifications import notify_admins
+        notify_admins(
+            'refunds_pending', f"{created_refunds} refund{'' if created_refunds == 1 else 's'} to review",
+            body=f"{event.name} was cancelled", link='/refunds',
+        )
     return summary
 
 

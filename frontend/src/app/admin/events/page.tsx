@@ -96,9 +96,9 @@ function getEventStatus(event: Event): "active" | "inactive" | "ended" {
 
 function StatusBadge({ status }: { status: "active" | "inactive" | "ended" }) {
   const styles = {
-    active: "bg-green-500/10 text-green-400",
-    inactive: "bg-gray-500/10 text-gray-400",
-    ended: "bg-red-500/10 text-red-400",
+    active: "bg-green-500/10 text-green-700",
+    inactive: "bg-gray-500/10 text-muted",
+    ended: "bg-red-500/10 text-red-600",
   };
   const dots = {
     active: "bg-green-400",
@@ -130,7 +130,7 @@ function EventTable({
 }) {
   if (events.length === 0) {
     return (
-      <p className="text-gray-500 text-sm py-6 text-center">{emptyText}</p>
+      <p className="text-faint text-sm py-6 text-center">{emptyText}</p>
     );
   }
 
@@ -138,24 +138,24 @@ function EventTable({
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-white/5 text-left">
-            <th className="pb-3 pr-6 text-xs text-gray-500 font-medium">Event</th>
-            <th className="pb-3 pr-6 text-xs text-gray-500 font-medium">Date</th>
-            <th className="pb-3 pr-6 text-xs text-gray-500 font-medium">Location</th>
-            <th className="pb-3 pr-6 text-xs text-gray-500 font-medium">Category</th>
-            <th className="pb-3 pr-6 text-xs text-gray-500 font-medium">Price</th>
-            <th className="pb-3 pr-6 text-xs text-gray-500 font-medium">Created</th>
-            <th className="pb-3 pr-6 text-xs text-gray-500 font-medium">Tickets sold</th>
-            <th className="pb-3 pr-6 text-xs text-gray-500 font-medium">Revenue</th>
-            <th className="pb-3 text-xs text-gray-500 font-medium">Status</th>
+          <tr className="border-b border-hairline text-left">
+            <th className="pb-3 pr-6 text-xs text-faint font-medium">Event</th>
+            <th className="pb-3 pr-6 text-xs text-faint font-medium">Date</th>
+            <th className="pb-3 pr-6 text-xs text-faint font-medium">Location</th>
+            <th className="pb-3 pr-6 text-xs text-faint font-medium">Category</th>
+            <th className="pb-3 pr-6 text-xs text-faint font-medium">Price</th>
+            <th className="pb-3 pr-6 text-xs text-faint font-medium">Created</th>
+            <th className="pb-3 pr-6 text-xs text-faint font-medium">Tickets sold</th>
+            <th className="pb-3 pr-6 text-xs text-faint font-medium">Revenue</th>
+            <th className="pb-3 text-xs text-faint font-medium">Status</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-white/5">
+        <tbody className="divide-y divide-hairline">
           {events.map((event) => (
             <tr
               key={event.id}
               onClick={() => onSelect(event)}
-              className="group cursor-pointer hover:bg-white/[0.03]"
+              className="group cursor-pointer hover:bg-mist"
             >
               <td className="py-3 pr-6">
                 <a
@@ -163,40 +163,40 @@ function EventTable({
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={(e) => e.stopPropagation()}
-                  className="text-white group-hover:text-blue-400 transition-colors font-medium truncate block max-w-[200px]"
+                  className="text-ink group-hover:text-brand-dark transition-colors font-medium truncate block max-w-[200px]"
                 >
                   {event.name}
                 </a>
                 {(event.visibility === "private" || event.is_draft) && (
                   <span className="mt-1 flex gap-1">
                     {event.visibility === "private" && (
-                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-300">Private</span>
+                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-700">Private</span>
                     )}
                     {event.is_draft && (
-                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-yellow-500/10 text-yellow-300">Draft</span>
+                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-yellow-500/10 text-amber-700">Draft</span>
                     )}
                   </span>
                 )}
               </td>
-              <td className="py-3 pr-6 text-gray-400 whitespace-nowrap">
+              <td className="py-3 pr-6 text-muted whitespace-nowrap">
                 {formatDate(event.day)}
               </td>
-              <td className="py-3 pr-6 text-gray-400 truncate max-w-[160px]">
+              <td className="py-3 pr-6 text-muted truncate max-w-[160px]">
                 {event.location || "—"}
               </td>
-              <td className="py-3 pr-6 text-gray-400 capitalize">
+              <td className="py-3 pr-6 text-muted capitalize">
                 {event.category?.replace(/_/g, " ") || "—"}
               </td>
-              <td className="py-3 pr-6 text-gray-300 whitespace-nowrap tabular-nums">
+              <td className="py-3 pr-6 text-[#3B4252] whitespace-nowrap tabular-nums">
                 {priceLabel(event)}
               </td>
-              <td className="py-3 pr-6 text-gray-400 whitespace-nowrap">
+              <td className="py-3 pr-6 text-muted whitespace-nowrap">
                 {formatDateTime(event.created_at)}
               </td>
-              <td className="py-3 pr-6 text-gray-300 whitespace-nowrap tabular-nums">
+              <td className="py-3 pr-6 text-[#3B4252] whitespace-nowrap tabular-nums">
                 {overview[event.id]?.tickets_sold ?? "—"}
               </td>
-              <td className="py-3 pr-6 text-gray-300 whitespace-nowrap tabular-nums">
+              <td className="py-3 pr-6 text-[#3B4252] whitespace-nowrap tabular-nums">
                 {overview[event.id] ? formatNaira(Number(overview[event.id].revenue)) : "—"}
               </td>
               <td className="py-3">
@@ -366,8 +366,8 @@ export default function AdminEventsPage() {
   return (
     <div className="p-5 md:p-8">
       <div className="mb-8">
-        <h1 className="text-white text-xl font-bold">Events</h1>
-        <p className="text-gray-400 text-sm mt-1">All events on the platform</p>
+        <h1 className="text-ink text-xl font-bold">Events</h1>
+        <p className="text-muted text-sm mt-1">All events on the platform</p>
       </div>
 
       <input
@@ -375,18 +375,18 @@ export default function AdminEventsPage() {
         value={search}
         onChange={(e) => setSearch(e.target.value)}
         placeholder="Search by event name, location, or host…"
-        className="w-full sm:w-80 mb-8 mr-3 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500/50"
+        className="w-full sm:w-80 mb-8 mr-3 bg-mist border border-line rounded-lg px-3 py-2 text-sm text-ink placeholder:text-faint focus:outline-none focus:ring-1 focus:ring-brand/40"
       />
       <select
         value={visibilityFilter}
         onChange={(e) => setVisibilityFilter(e.target.value as typeof visibilityFilter)}
         aria-label="Filter by visibility"
-        className="mb-8 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none"
+        className="mb-8 bg-mist border border-line rounded-lg px-3 py-2 text-sm text-ink focus:outline-none"
       >
-        <option value="" className="bg-[#1a1d27]">All events</option>
-        <option value="public" className="bg-[#1a1d27]">Public</option>
-        <option value="private" className="bg-[#1a1d27]">Private</option>
-        <option value="draft" className="bg-[#1a1d27]">Drafts</option>
+        <option value="" className="bg-white">All events</option>
+        <option value="public" className="bg-white">Public</option>
+        <option value="private" className="bg-white">Private</option>
+        <option value="draft" className="bg-white">Drafts</option>
       </select>
 
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-8">
@@ -398,10 +398,10 @@ export default function AdminEventsPage() {
         ].map((stat) => (
           <div
             key={stat.label}
-            className="bg-[#1a1d27] border border-white/10 rounded-xl px-5 py-4"
+            className="bg-white border border-line rounded-xl px-5 py-4"
           >
-            <p className="text-gray-400 text-xs mb-1.5">{stat.label}</p>
-            <p className="text-white text-2xl font-semibold tabular-nums">
+            <p className="text-muted text-xs mb-1.5">{stat.label}</p>
+            <p className="text-ink text-2xl font-semibold tabular-nums">
               {loading ? "—" : stat.value}
             </p>
           </div>
@@ -409,18 +409,18 @@ export default function AdminEventsPage() {
       </div>
 
       {error && (
-        <p className="text-red-400 text-sm mb-6">{error}</p>
+        <p className="text-red-600 text-sm mb-6">{error}</p>
       )}
 
-      <div className="bg-[#1a1d27] border border-white/10 rounded-xl p-6 mb-6">
+      <div className="bg-white border border-line rounded-xl p-6 mb-6">
         <div className="flex items-center gap-2 mb-5">
-          <h2 className="text-white font-semibold">Free Events</h2>
-          <span className="text-xs bg-green-500/10 text-green-400 px-2 py-0.5 rounded-full">
+          <h2 className="text-ink font-semibold">Free Events</h2>
+          <span className="text-xs bg-green-500/10 text-green-700 px-2 py-0.5 rounded-full">
             {visibleFreeEvents.length}
           </span>
         </div>
         {loading ? (
-          <p className="text-gray-500 text-sm py-6 text-center">Loading...</p>
+          <p className="text-faint text-sm py-6 text-center">Loading...</p>
         ) : (
           <EventTable
             events={visibleFreeEvents}
@@ -431,15 +431,15 @@ export default function AdminEventsPage() {
         )}
       </div>
 
-      <div className="bg-[#1a1d27] border border-white/10 rounded-xl p-6">
+      <div className="bg-white border border-line rounded-xl p-6">
         <div className="flex items-center gap-2 mb-5">
-          <h2 className="text-white font-semibold">Paid Events</h2>
-          <span className="text-xs bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded-full">
+          <h2 className="text-ink font-semibold">Paid Events</h2>
+          <span className="text-xs bg-blue-500/10 text-brand-dark px-2 py-0.5 rounded-full">
             {visiblePaidEvents.length}
           </span>
         </div>
         {loading ? (
-          <p className="text-gray-500 text-sm py-6 text-center">Loading...</p>
+          <p className="text-faint text-sm py-6 text-center">Loading...</p>
         ) : (
           <EventTable
             events={visiblePaidEvents}
@@ -452,12 +452,12 @@ export default function AdminEventsPage() {
 
       {selected && (
         <div className="fixed inset-0 z-50 flex justify-end">
-          <div className="absolute inset-0 bg-black/70" onClick={() => setSelected(null)} />
-          <div className="relative w-full max-w-md h-full bg-[#1a1d27] border-l border-white/10 shadow-2xl overflow-y-auto">
-            <div className="sticky top-0 bg-[#1a1d27] border-b border-white/10 px-6 py-4 flex items-start justify-between gap-3">
+          <div className="absolute inset-0 bg-ink/50" onClick={() => setSelected(null)} />
+          <div className="relative w-full max-w-md h-full bg-white border-l border-line shadow-[0_20px_50px_rgba(20,22,28,0.14)] overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b border-line px-6 py-4 flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <h3 className="text-white font-semibold truncate">{selected.name}</h3>
-                <p className="text-gray-500 text-xs mt-0.5">
+                <h3 className="text-ink font-semibold truncate">{selected.name}</h3>
+                <p className="text-faint text-xs mt-0.5">
                   {selected.location
                     ? `${formatDate(selected.day)}, ${selected.location}`
                     : `${formatDate(selected.day)}, no location set`}
@@ -466,7 +466,7 @@ export default function AdminEventsPage() {
               <button
                 onClick={() => setSelected(null)}
                 aria-label="Close"
-                className="shrink-0 text-gray-400 hover:text-white text-lg leading-none px-1"
+                className="shrink-0 text-muted hover:text-ink text-lg leading-none px-1"
               >
                 ×
               </button>
@@ -474,23 +474,23 @@ export default function AdminEventsPage() {
 
             <div className="p-6 space-y-6">
               <div className="grid grid-cols-2 gap-3">
-                <div className="bg-white/5 rounded-lg px-3 py-2.5">
-                  <p className="text-gray-500 text-[11px] mb-0.5">Category</p>
-                  <p className="text-white text-sm capitalize">{selected.category?.replace(/_/g, " ") || "—"}</p>
+                <div className="bg-mist rounded-lg px-3 py-2.5">
+                  <p className="text-faint text-[11px] mb-0.5">Category</p>
+                  <p className="text-ink text-sm capitalize">{selected.category?.replace(/_/g, " ") || "—"}</p>
                 </div>
-                <div className="bg-white/5 rounded-lg px-3 py-2.5">
-                  <p className="text-gray-500 text-[11px] mb-0.5">Price</p>
-                  <p className="text-white text-sm tabular-nums">
+                <div className="bg-mist rounded-lg px-3 py-2.5">
+                  <p className="text-faint text-[11px] mb-0.5">Price</p>
+                  <p className="text-ink text-sm tabular-nums">
                     {priceLabel(selected)}
                   </p>
                 </div>
-                <div className="bg-white/5 rounded-lg px-3 py-2.5">
-                  <p className="text-gray-500 text-[11px] mb-0.5">Status</p>
+                <div className="bg-mist rounded-lg px-3 py-2.5">
+                  <p className="text-faint text-[11px] mb-0.5">Status</p>
                   <StatusBadge status={getEventStatus(selected)} />
                 </div>
-                <div className="bg-white/5 rounded-lg px-3 py-2.5">
-                  <p className="text-gray-500 text-[11px] mb-0.5">Created</p>
-                  <p className="text-white text-sm">{formatDateTime(selected.created_at)}</p>
+                <div className="bg-mist rounded-lg px-3 py-2.5">
+                  <p className="text-faint text-[11px] mb-0.5">Created</p>
+                  <p className="text-ink text-sm">{formatDateTime(selected.created_at)}</p>
                 </div>
               </div>
 
@@ -508,28 +508,28 @@ export default function AdminEventsPage() {
                       { label: "Pending", value: selectedOverview.pending },
                       { label: "Transferred", value: selectedOverview.transferred },
                     ].map((s) => (
-                      <div key={s.label} className="bg-white/5 rounded-lg px-3 py-2.5">
-                        <p className="text-gray-500 text-[11px] mb-0.5">{s.label}</p>
-                        <p className="text-white text-sm tabular-nums">{s.value}</p>
+                      <div key={s.label} className="bg-mist rounded-lg px-3 py-2.5">
+                        <p className="text-faint text-[11px] mb-0.5">{s.label}</p>
+                        <p className="text-ink text-sm tabular-nums">{s.value}</p>
                       </div>
                     ))}
                   </div>
                   {selectedOverview.tier_breakdown.length > 0 && (
                     <div>
-                      <h4 className="text-white text-sm font-semibold mb-2">Tiers</h4>
+                      <h4 className="text-ink text-sm font-semibold mb-2">Tiers</h4>
                       <div className="space-y-2">
                         {selectedOverview.tier_breakdown.map((t) => (
                           <div
                             key={t.id}
-                            className="flex items-center justify-between gap-2 bg-white/5 rounded-lg px-3 py-2"
+                            className="flex items-center justify-between gap-2 bg-mist rounded-lg px-3 py-2"
                           >
                             <div className="min-w-0">
-                              <p className="text-white text-xs font-medium truncate">{t.name}</p>
-                              <p className="text-gray-500 text-[11px] tabular-nums">
+                              <p className="text-ink text-xs font-medium truncate">{t.name}</p>
+                              <p className="text-faint text-[11px] tabular-nums">
                                 {Number(t.price) > 0 ? formatNaira(Number(t.price)) : "Free"}
                               </p>
                             </div>
-                            <p className="shrink-0 text-gray-300 text-xs tabular-nums">
+                            <p className="shrink-0 text-[#3B4252] text-xs tabular-nums">
                               {t.sold} sold
                               {t.remaining !== null ? ` · ${t.remaining} left` : ""}
                             </p>
@@ -545,14 +545,14 @@ export default function AdminEventsPage() {
                 href={publicHref(`/discover/${selected.slug}`)}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-block text-xs font-semibold text-blue-400 hover:text-blue-300"
+                className="inline-block text-xs font-semibold text-brand-dark hover:text-brand-dark"
               >
                 View public event page
               </a>
 
               {(can.moderate || can.delete) && <div>
-                <h4 className="text-white text-sm font-semibold mb-2">Moderation</h4>
-                {actionError && <p className="text-red-400 text-xs mb-2">{actionError}</p>}
+                <h4 className="text-ink text-sm font-semibold mb-2">Moderation</h4>
+                {actionError && <p className="text-red-600 text-xs mb-2">{actionError}</p>}
                 <div className="flex items-center gap-2 flex-wrap">
                   {can.moderate && <button
                     onClick={() =>
@@ -564,8 +564,8 @@ export default function AdminEventsPage() {
                     disabled={updatingId === selected.id}
                     className={`text-xs font-semibold px-3 py-2 rounded-lg transition-colors disabled:opacity-50 ${
                       selected.is_active
-                        ? "text-yellow-400 bg-yellow-500/10 hover:bg-yellow-500/20"
-                        : "text-green-400 bg-green-500/10 hover:bg-green-500/20"
+                        ? "text-amber-700 bg-yellow-500/10 hover:bg-yellow-500/20"
+                        : "text-green-700 bg-green-500/10 hover:bg-green-500/20"
                     }`}
                   >
                     {selected.is_active ? "Suspend event" : "Reactivate event"}
@@ -573,7 +573,7 @@ export default function AdminEventsPage() {
                   {can.delete && <button
                     onClick={() => setConfirming({ event: selected, action: "delete" })}
                     disabled={updatingId === selected.id}
-                    className="text-xs font-semibold text-red-400 bg-red-500/10 hover:bg-red-500/20 disabled:opacity-50 px-3 py-2 rounded-lg transition-colors"
+                    className="text-xs font-semibold text-red-600 bg-red-500/10 hover:bg-red-500/20 disabled:opacity-50 px-3 py-2 rounded-lg transition-colors"
                   >
                     Delete event
                   </button>}
@@ -582,36 +582,36 @@ export default function AdminEventsPage() {
 
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <h4 className="text-white text-sm font-semibold">
+                  <h4 className="text-ink text-sm font-semibold">
                     Attendees{attendees ? ` (${attendees.length})` : ""}
                   </h4>
                   {attendees && attendees.length > 0 && (
                     <button
                       onClick={() => downloadAttendeesCsv(selected, attendees)}
-                      className="text-xs font-semibold text-blue-400 bg-blue-500/10 hover:bg-blue-500/20 px-3 py-1.5 rounded-lg transition-colors"
+                      className="text-xs font-semibold text-brand-dark bg-blue-500/10 hover:bg-blue-500/20 px-3 py-1.5 rounded-lg transition-colors"
                     >
                       Export CSV
                     </button>
                   )}
                 </div>
                 {attendeesLoading ? (
-                  <p className="text-gray-500 text-sm">Loading…</p>
+                  <p className="text-faint text-sm">Loading…</p>
                 ) : attendeesError ? (
-                  <p className="text-gray-500 text-sm">{attendeesError}</p>
+                  <p className="text-faint text-sm">{attendeesError}</p>
                 ) : attendees && attendees.length > 0 ? (
                   <div className="space-y-2">
                     {attendees.map((a) => (
                       <div
                         key={a.ticket_id}
-                        className="flex items-center justify-between gap-2 bg-white/5 rounded-lg px-3 py-2"
+                        className="flex items-center justify-between gap-2 bg-mist rounded-lg px-3 py-2"
                       >
                         <div className="min-w-0">
-                          <p className="text-white text-xs font-medium truncate">{a.current_owner_name}</p>
-                          <p className="text-gray-500 text-[11px] truncate">{a.current_owner_email}</p>
+                          <p className="text-ink text-xs font-medium truncate">{a.current_owner_name}</p>
+                          <p className="text-faint text-[11px] truncate">{a.current_owner_email}</p>
                         </div>
                         <span
                           className={`shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                            a.checked_in ? "bg-green-500/10 text-green-400" : "bg-gray-500/10 text-gray-400"
+                            a.checked_in ? "bg-green-500/10 text-green-700" : "bg-gray-500/10 text-muted"
                           }`}
                         >
                           {a.checked_in ? "Checked in" : "Not checked in"}
@@ -620,7 +620,7 @@ export default function AdminEventsPage() {
                     ))}
                   </div>
                 ) : (
-                  <p className="text-gray-500 text-sm">No attendees yet.</p>
+                  <p className="text-faint text-sm">No attendees yet.</p>
                 )}
               </div>
             </div>
@@ -631,14 +631,14 @@ export default function AdminEventsPage() {
       {/* Suspend/reactivate/delete confirmation modal */}
       {confirming && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/70" onClick={() => setConfirming(null)} />
-          <div className="relative w-full max-w-sm bg-[#1a1d27] border border-white/10 rounded-xl p-6 shadow-2xl">
-            <h3 className="text-white font-semibold text-sm mb-2">
+          <div className="absolute inset-0 bg-ink/50" onClick={() => setConfirming(null)} />
+          <div className="relative w-full max-w-sm bg-white border border-line rounded-xl p-6 shadow-[0_20px_50px_rgba(20,22,28,0.14)]">
+            <h3 className="text-ink font-semibold text-sm mb-2">
               {confirming.action === "suspend" && "Suspend this event?"}
               {confirming.action === "reactivate" && "Reactivate this event?"}
               {confirming.action === "delete" && "Delete this event?"}
             </h3>
-            <p className="text-gray-400 text-xs leading-relaxed mb-5">
+            <p className="text-muted text-xs leading-relaxed mb-5">
               {confirming.action === "suspend" &&
                 `${confirming.event.name} will be hidden from discovery and can't accept new registrations.`}
               {confirming.action === "reactivate" &&
@@ -649,7 +649,7 @@ export default function AdminEventsPage() {
             <div className="flex items-center justify-end gap-2">
               <button
                 onClick={() => setConfirming(null)}
-                className="text-xs font-semibold text-gray-300 hover:text-white px-3 py-2 rounded-lg hover:bg-white/5 transition-colors"
+                className="text-xs font-semibold text-[#3B4252] hover:text-ink px-3 py-2 rounded-lg hover:bg-mist transition-colors"
               >
                 Cancel
               </button>
@@ -657,10 +657,10 @@ export default function AdminEventsPage() {
                 onClick={() => runAction(confirming.event, confirming.action)}
                 className={`text-xs font-semibold px-3 py-2 rounded-lg transition-colors ${
                   confirming.action === "delete"
-                    ? "text-red-400 bg-red-500/10 hover:bg-red-500/20"
+                    ? "text-red-600 bg-red-500/10 hover:bg-red-500/20"
                     : confirming.action === "suspend"
-                      ? "text-yellow-400 bg-yellow-500/10 hover:bg-yellow-500/20"
-                      : "text-green-400 bg-green-500/10 hover:bg-green-500/20"
+                      ? "text-amber-700 bg-yellow-500/10 hover:bg-yellow-500/20"
+                      : "text-green-700 bg-green-500/10 hover:bg-green-500/20"
                 }`}
               >
                 {confirming.action === "suspend" && "Confirm suspend"}
