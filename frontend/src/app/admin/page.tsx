@@ -109,6 +109,12 @@ function fillActivity(rows: ActivityPoint[], days: number): ActivityChartPoint[]
   return out;
 }
 
+// Byro's stamp colours, in order of size; "Other" is always the quiet grey.
+const CATEGORY_COLORS = ["#3669F6", "#FFC93C", "#D0668E", "#2F9E6E", "#C9971C", "#14161C", "#8FB4FF"];
+function categoryColor(name: string, index: number) {
+  return name === "Other" ? "#C9D0DC" : CATEGORY_COLORS[index % CATEGORY_COLORS.length];
+}
+
 function fmtNaira(n: number) {
   return `₦${n.toLocaleString()}`;
 }
@@ -140,6 +146,7 @@ export default function AdminDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [revenueRangeDays, setRevenueRangeDays] = useState(7);
+  const [hoverCategory, setHoverCategory] = useState<string | null>(null);
   const [activityRangeDays, setActivityRangeDays] = useState(30);
   const [activity, setActivity] = useState<ActivityChartPoint[]>([]);
   const [activityLoading, setActivityLoading] = useState(true);
@@ -234,7 +241,7 @@ export default function AdminDashboardPage() {
   const activeEvents = summary?.active_events ?? events.filter((e) => e.is_active).length;
   const paidEvents = events.filter(isPaidEvent).length;
 
-  const maxCategory = Math.max(1, ...categoryData.map((c) => c.count));
+  const totalCategorised = Math.max(1, categoryData.reduce((sum, c) => sum + c.count, 0));
   const sortedCategories = [...categoryData].sort((x, y) => y.count - x.count);
   const ticketsInRange = activity.reduce((sum, p) => sum + p.tickets, 0);
   const eventsInRange = activity.reduce((sum, p) => sum + p.events, 0);
@@ -394,20 +401,53 @@ export default function AdminDashboardPage() {
         {!loading && sortedCategories.length === 0 ? (
           <p className="text-muted text-sm mt-4">No events yet. They show up here once organisers create them.</p>
         ) : (
-          <ul className="mt-4 space-y-3">
-            {sortedCategories.map((c) => (
-              <li key={c.name} className="grid grid-cols-[minmax(0,9rem)_1fr_2rem] items-center gap-3 text-sm">
-                <span className="truncate font-semibold text-[#3B4252]" title={c.name}>{c.name}</span>
-                <span className="h-2.5 rounded-full bg-mist overflow-hidden">
-                  <span
-                    className="block h-full rounded-full bg-brand"
-                    style={{ width: `${(c.count / maxCategory) * 100}%` }}
-                  />
-                </span>
-                <span className="text-right font-bold tabular-nums text-ink">{c.count}</span>
-              </li>
-            ))}
-          </ul>
+          <>
+            <p className="text-muted text-sm mt-1">
+              {sortedCategories[0] && (
+                <>
+                  <b className="text-ink">{sortedCategories[0].name}</b> leads with {sortedCategories[0].count} of {totalCategorised} events
+                </>
+              )}
+            </p>
+            <div
+              className="mt-4 flex h-4 w-full gap-[3px] overflow-hidden rounded-full"
+              role="img"
+              aria-label="Share of events by category"
+            >
+              {sortedCategories.map((c, i) => (
+                <span
+                  key={c.name}
+                  className="h-full transition-opacity first:rounded-l-full last:rounded-r-full"
+                  style={{
+                    width: `${(c.count / totalCategorised) * 100}%`,
+                    background: categoryColor(c.name, i),
+                    opacity: hoverCategory && hoverCategory !== c.name ? 0.25 : 1,
+                  }}
+                />
+              ))}
+            </div>
+            <ul className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">
+              {sortedCategories.map((c, i) => (
+                <li
+                  key={c.name}
+                  onMouseEnter={() => setHoverCategory(c.name)}
+                  onMouseLeave={() => setHoverCategory(null)}
+                  className="rounded-2xl bg-mist px-4 py-3.5"
+                >
+                  <p className="flex items-center gap-2 text-sm font-bold text-[#3B4252]">
+                    <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: categoryColor(c.name, i) }} />
+                    <span className="truncate" title={c.name}>{c.name}</span>
+                  </p>
+                  <p className="mt-1 flex items-baseline gap-2">
+                    <span className="font-display text-3xl font-extrabold tabular-nums text-ink">{c.count}</span>
+                    <span className="text-xs font-bold tabular-nums text-faint">
+                      {Math.round((c.count / totalCategorised) * 100)}%
+                    </span>
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </>
         )}
       </section>
     </div>
