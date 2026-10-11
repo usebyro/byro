@@ -164,6 +164,11 @@ function ProfilePageContent() {
       document.getElementById("display_name")?.focus();
       return;
     }
+    if (!form.bio.trim()) {
+      setErrors({ bio: "Add a short bio so people know what you host." });
+      document.getElementById("bio")?.focus();
+      return;
+    }
     setIsSaving(true);
     try {
       // 1. Upload avatar if changed
@@ -360,14 +365,18 @@ function ProfilePageContent() {
                 />
               </Field>
 
-              <Field id="bio" label="Bio" counter={`${form.bio.length}/${BIO_MAX}`}>
+              <Field id="bio" label={<>Bio <span className="text-red-500">*</span></>} error={errors.bio} counter={`${form.bio.length}/${BIO_MAX}`}>
                 <textarea
                   id="bio"
                   value={form.bio}
                   maxLength={BIO_MAX}
                   onChange={(e) => field("bio", e.target.value)}
                   rows={3}
-                  className="w-full rounded-[14px] border border-line bg-white px-3.5 py-3 text-base md:text-[15px] text-ink leading-relaxed resize-none placeholder:text-faint focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/25"
+                  required
+                  aria-invalid={Boolean(errors.bio)}
+                  className={`w-full rounded-[14px] border bg-white px-3.5 py-3 text-base md:text-[15px] text-ink leading-relaxed resize-none placeholder:text-faint focus:outline-none focus:ring-2 ${
+                    errors.bio ? "border-red-500 focus:ring-red-500/25" : "border-line focus:border-brand focus:ring-brand/25"
+                  }`}
                   placeholder="Lagos-based collective throwing rooftop parties and open-mic nights."
                 />
               </Field>

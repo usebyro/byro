@@ -700,6 +700,19 @@ class FollowTests(WorkOSAuthTestCase):
         self.auth(make_token(sub='user_host'))
         self.assertFalse(self.client.get('/api/profile/sundayrunclub/').json()['is_following'])
 
+    def test_bio_cannot_be_blanked(self):
+        self.auth(make_token(sub='user_host'))
+        ok = self.client.patch('/api/profile/me/', {'bio': '  Sunday runs in Lagos.  '}, format='json')
+        self.assertEqual(ok.status_code, 200)
+        self.assertEqual(ok.json()['bio'], 'Sunday runs in Lagos.')
+        for blank in ('', '   '):
+            res = self.client.patch('/api/profile/me/', {'bio': blank}, format='json')
+            self.assertEqual(res.status_code, 400)
+            self.assertIn('bio', res.json())
+        # Leaving the bio out of an update is fine.
+        self.assertEqual(self.client.patch('/api/profile/me/', {'location': 'Lagos'}, format='json').status_code, 200)
+        self.assertEqual(UserProfile.objects.get(handle='sundayrunclub').bio, 'Sunday runs in Lagos.')
+
     def test_deleting_a_user_removes_their_follows(self):
         Follow.objects.create(follower=self.fan, following=self.host)
         self.fan.delete()

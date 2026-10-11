@@ -1342,6 +1342,16 @@ class ProfileViewSet(viewsets.GenericViewSet):
         data['community'] = community_stats(profile.user)
         data['stamps'] = _stamp_payload(stamps_for_user(profile.user)[:60])
         data['stamps_count'] = stamps_for_user(profile.user).count()
+        # Which of this organiser's events the person looking was checked in to ("You were there").
+        data['viewer_attended'] = (
+            list(
+                stamps_for_user(request.user)
+                .filter(organizer=profile.user, event__slug__isnull=False)
+                .values_list('event__slug', flat=True)
+                .distinct()
+            )
+            if request.user.is_authenticated else []
+        )
 
         return Response(data)
 
