@@ -164,6 +164,17 @@ class CommunityStatsTests(CommunityBase):
         self.assertEqual(body['community']['attendees'], 1)
 
 
+    def test_public_profile_lists_the_events_the_viewer_was_at(self):
+        fan = self.fan('fan@example.com')
+        record_stamp(ticket(self.event, email='fan@example.com'))
+        url = '/api/profile/lagosrun/'
+        self.assertEqual(self.client.get(url).json()['viewer_attended'], [])
+        self.client.force_authenticate(self.fan('stranger@example.com'))
+        self.assertEqual(self.client.get(url).json()['viewer_attended'], [])
+        self.client.force_authenticate(fan)
+        self.assertEqual(self.client.get(url).json()['viewer_attended'], [self.event.slug])
+
+
 class DirectoryTests(CommunityBase):
 
     def test_lists_organisers_with_a_live_public_event(self):

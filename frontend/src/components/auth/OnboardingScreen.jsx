@@ -40,7 +40,7 @@ const ORGANIZER_STEPS = [
   {
     title: "About you",
     fields: [
-      { key: "bio", label: "Bio", type: "textarea", placeholder: "Tell people about yourself or your organisation…" },
+      { key: "bio", label: "Bio", type: "textarea", required: true, placeholder: "Tell people about yourself or your organisation…" },
       { key: "location", label: "Location", type: "text", placeholder: "Lagos, Nigeria" },
     ],
   },
@@ -452,7 +452,9 @@ function OrganizerField({ field, value, onChange }) {
   if (field.type === "textarea") {
     return (
       <div>
-        <label className="block text-xs font-semibold text-gray-700 mb-1.5">{field.label}</label>
+        <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+          {field.label} {field.required && <span className="text-red-500">*</span>}
+        </label>
         <textarea
           value={value}
           onChange={(e) => onChange(e.target.value)}

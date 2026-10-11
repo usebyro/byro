@@ -110,6 +110,13 @@ class UserProfileSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("This handle is already taken.")
         return value
 
+    def validate_bio(self, value):
+        # Partial updates that don't touch the bio are fine; clearing or blanking it is not.
+        value = (value or '').strip()
+        if not value:
+            raise serializers.ValidationError("Add a short bio so people know what you host.")
+        return value
+
     def update(self, instance, validated_data):
         # Auto-mark profile complete when display_name is set
         if validated_data.get('display_name') and not instance.is_complete:
