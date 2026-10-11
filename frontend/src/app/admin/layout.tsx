@@ -39,7 +39,7 @@ const navItems = [
 // Grouped by what the admin is doing: looking at the platform, moving money, or checking who did what.
 const navGroups = [
   { title: null, items: navItems.slice(0, 3) },
-  { title: "Money", items: navItems.slice(3, 7) },
+  { title: "Finance", items: navItems.slice(3, 7) },
   { title: "Oversight", items: navItems.slice(7) },
 ];
 

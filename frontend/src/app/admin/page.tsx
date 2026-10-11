@@ -14,6 +14,7 @@ import {
 } from "recharts";
 import { resolveAdminHref } from "@/lib/adminNav";
 import { isPaidEvent } from "@/lib/eventFormat";
+import RangePicker from "@/components/admin/RangePicker";
 
 interface EventTier {
   price: number | string;
@@ -42,17 +43,29 @@ interface RevenueTrendPoint {
   revenue: number;
 }
 
+interface ActivityPoint {
+  date: string;
+  tickets: number;
+  events: number;
+}
+
+interface ActivityChartPoint {
+  day: string;
+  tickets: number;
+  events: number;
+}
+
 interface ChartPoint {
   day: string;
   revenue: number;
 }
 
 const REVENUE_RANGES = [
-  { label: "7D", days: 7 },
-  { label: "30D", days: 30 },
-  { label: "90D", days: 90 },
-  { label: "6M", days: 180 },
-  { label: "1Y", days: 365 },
+  { label: "Last 7 days", short: "7D", days: 7 },
+  { label: "Last 30 days", short: "30D", days: 30 },
+  { label: "Last 90 days", short: "90D", days: 90 },
+  { label: "Last 6 months", short: "6M", days: 180 },
+  { label: "Last year", short: "1Y", days: 365 },
 ];
 
 // The revenue-trend endpoint only returns days that had successful payments, so
@@ -71,6 +84,26 @@ function fillTrend(rows: RevenueTrendPoint[], days: number): ChartPoint[] {
           ? d.toLocaleDateString("en-US", { weekday: "short" })
           : d.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
       revenue: byDate.get(iso) ?? 0,
+    });
+  }
+  return out;
+}
+
+function fillActivity(rows: ActivityPoint[], days: number): ActivityChartPoint[] {
+  const byDate = new Map(rows.map((r) => [r.date, r]));
+  const today = new Date();
+  const out: ActivityChartPoint[] = [];
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    const hit = byDate.get(d.toISOString().slice(0, 10));
+    out.push({
+      day:
+        days <= 14
+          ? d.toLocaleDateString("en-US", { weekday: "short" })
+          : d.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+      tickets: hit?.tickets ?? 0,
+      events: hit?.events ?? 0,
     });
   }
   return out;
@@ -107,6 +140,9 @@ export default function AdminDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [revenueRangeDays, setRevenueRangeDays] = useState(7);
+  const [activityRangeDays, setActivityRangeDays] = useState(30);
+  const [activity, setActivity] = useState<ActivityChartPoint[]>([]);
+  const [activityLoading, setActivityLoading] = useState(true);
 
   // Events power the "Events by category" chart; summary powers the stat cards.
   useEffect(() => {
@@ -162,6 +198,26 @@ export default function AdminDashboardPage() {
     };
   }, [revenueRangeDays]);
 
+  // Tickets sold and events created per day.
+  useEffect(() => {
+    let cancelled = false;
+    setActivityLoading(true);
+    fetch(`/api/admin/analytics/activity-trend?days=${activityRangeDays}`)
+      .then((res) => (res.ok ? res.json() : []))
+      .then((rows: ActivityPoint[]) => {
+        if (!cancelled) setActivity(fillActivity(Array.isArray(rows) ? rows : [], activityRangeDays));
+      })
+      .catch(() => {
+        if (!cancelled) setActivity(fillActivity([], activityRangeDays));
+      })
+      .finally(() => {
+        if (!cancelled) setActivityLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activityRangeDays]);
+
   const categoryData = useMemo(() => {
     const counts: Record<string, number> = {};
     events.forEach((e) => {
@@ -180,8 +236,9 @@ export default function AdminDashboardPage() {
 
   const maxCategory = Math.max(1, ...categoryData.map((c) => c.count));
   const sortedCategories = [...categoryData].sort((x, y) => y.count - x.count);
+  const ticketsInRange = activity.reduce((sum, p) => sum + p.tickets, 0);
+  const eventsInRange = activity.reduce((sum, p) => sum + p.events, 0);
   const trendTotal = revenueTrend.reduce((sum, p) => sum + p.revenue, 0);
-  const rangeLabel = REVENUE_RANGES.find((r) => r.days === revenueRangeDays)?.label;
 
   return (
     <div className="p-5 md:p-8 max-w-[1200px]">
@@ -220,23 +277,10 @@ export default function AdminDashboardPage() {
               {loading || !summary ? "—" : fmtNaira(Number(summary.total_revenue))}
             </p>
             <p className="text-sm text-white/80 mt-2 tabular-nums">
-              {trendLoading ? "Loading…" : `${fmtNaira(trendTotal)} in the last ${rangeLabel === "6M" ? "6 months" : rangeLabel === "1Y" ? "year" : rangeLabel}`}
+              {trendLoading ? "Loading…" : `${fmtNaira(trendTotal)} in this period`}
             </p>
           </div>
-          <div className="flex items-center gap-1 rounded-full bg-white/15 p-1" role="group" aria-label="Revenue range">
-            {REVENUE_RANGES.map((r) => (
-              <button
-                key={r.days}
-                onClick={() => setRevenueRangeDays(r.days)}
-                aria-pressed={revenueRangeDays === r.days}
-                className={`rounded-full px-3 py-1 text-xs font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white ${
-                  revenueRangeDays === r.days ? "bg-white text-brand-dark" : "text-white hover:bg-white/15"
-                }`}
-              >
-                {r.label}
-              </button>
-            ))}
-          </div>
+          <RangePicker value={revenueRangeDays} options={REVENUE_RANGES} onChange={setRevenueRangeDays} onBrand />
         </div>
 
         <div className="h-56 md:h-64 relative mt-6 -mx-2">
@@ -297,6 +341,52 @@ export default function AdminDashboardPage() {
           value={loading || !summary ? "—" : summary.total_tickets_sold.toLocaleString()}
           note="Across all events"
         />
+      </section>
+
+      <section className="rounded-3xl border border-line bg-white p-5 md:p-6 mb-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="font-display text-ink text-lg font-extrabold">Tickets and events</h2>
+            <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
+              <span className="flex items-center gap-2 text-[#3B4252]">
+                <span className="h-2.5 w-2.5 rounded-full bg-brand" />
+                <b className="tabular-nums text-ink">{activityLoading ? "—" : ticketsInRange.toLocaleString()}</b> tickets sold
+              </span>
+              <span className="flex items-center gap-2 text-[#3B4252]">
+                <span className="h-2.5 w-2.5 rounded-full bg-marigold" />
+                <b className="tabular-nums text-ink">{activityLoading ? "—" : eventsInRange.toLocaleString()}</b> events created
+              </span>
+            </div>
+          </div>
+          <RangePicker value={activityRangeDays} options={REVENUE_RANGES} onChange={setActivityRangeDays} />
+        </div>
+        <div className="h-60 relative mt-4 -mx-2">
+          {!activityLoading && activity.every((p) => p.tickets === 0 && p.events === 0) && (
+            <p className="absolute inset-0 flex items-center justify-center text-muted text-sm pointer-events-none z-10">
+              No tickets or events in this period
+            </p>
+          )}
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={activity}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#EDF0F5" vertical={false} />
+              <XAxis
+                dataKey="day"
+                tick={{ fill: "#8A91A0", fontSize: 11 }}
+                axisLine={false}
+                tickLine={false}
+                interval={activityRangeDays > 14 ? Math.ceil(activityRangeDays / 8) : 0}
+              />
+              <YAxis yAxisId="tickets" tick={{ fill: "#8A91A0", fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} width={32} />
+              <YAxis yAxisId="events" orientation="right" tick={{ fill: "#8A91A0", fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} width={32} />
+              <Tooltip
+                contentStyle={{ background: "#fff", border: "1px solid #E3E8F0", borderRadius: 12, fontSize: 12, color: "#14161C", boxShadow: "0 12px 30px rgba(20,22,28,0.12)" }}
+                formatter={(value, name) => [Number(value).toLocaleString(), name === "tickets" ? "Tickets sold" : "Events created"]}
+              />
+              <Line yAxisId="tickets" type="monotone" dataKey="tickets" stroke="#3669F6" strokeWidth={3} dot={activityRangeDays <= 14 ? { r: 3, fill: "#3669F6" } : false} />
+              <Line yAxisId="events" type="monotone" dataKey="events" stroke="#FFC93C" strokeWidth={3} dot={activityRangeDays <= 14 ? { r: 3, fill: "#FFC93C" } : false} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
       </section>
 
       <section className="rounded-3xl border border-line bg-white p-5 md:p-6">
