@@ -36,17 +36,17 @@ export default function NotificationBell() {
       <button
         onClick={() => setOpen((o) => !o)}
         aria-label="Notifications"
-        className="relative text-gray-300 hover:text-white p-1.5 rounded-lg hover:bg-white/5 transition-colors"
+        className="relative text-[#3B4252] hover:text-ink p-1.5 rounded-lg hover:bg-mist transition-colors"
       >
         <HugeiconsIcon icon={Notification03Icon} size={20} color="currentColor" />
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] bg-[#1a1d27] border border-white/10 rounded-xl shadow-2xl z-50 overflow-hidden">
-          <div className="px-4 py-3 border-b border-white/10">
-            <p className="text-white text-sm font-semibold">Notifications</p>
+        <div className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] bg-white border border-line rounded-xl shadow-[0_20px_50px_rgba(20,22,28,0.14)] z-50 overflow-hidden">
+          <div className="px-4 py-3 border-b border-line">
+            <p className="text-ink text-sm font-semibold">Notifications</p>
           </div>
-          <p className="text-gray-500 text-xs text-center py-8 px-4">
+          <p className="text-faint text-xs text-center py-8 px-4">
             Live notifications are coming soon. Check Events and Payouts directly for now.
           </p>
         </div>

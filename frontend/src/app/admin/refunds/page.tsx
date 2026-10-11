@@ -46,10 +46,10 @@ const naira = (n: string | number) => `₦${Number(n).toLocaleString("en-NG", { 
 
 function Stat({ label, value, note, tone }: { label: string; value: string; note?: string; tone?: string }) {
   return (
-    <div className={`bg-[#1a1d27] border border-white/10 rounded-xl px-5 py-4 ${tone ?? ""}`}>
-      <p className="text-gray-400 text-xs mb-1.5">{label}</p>
-      <p className="text-white text-2xl font-semibold tabular-nums">{value}</p>
-      {note && <p className="text-gray-500 text-xs mt-1">{note}</p>}
+    <div className={`bg-white border border-line rounded-xl px-5 py-4 ${tone ?? ""}`}>
+      <p className="text-muted text-xs mb-1.5">{label}</p>
+      <p className="text-ink text-2xl font-semibold tabular-nums">{value}</p>
+      {note && <p className="text-faint text-xs mt-1">{note}</p>}
     </div>
   );
 }
@@ -170,8 +170,8 @@ export default function AdminRefundsPage() {
   return (
     <div className="p-5 md:p-8">
       <div className="mb-6">
-        <h1 className="text-white text-xl font-bold">Refunds</h1>
-        <p className="text-gray-400 text-sm mt-1">
+        <h1 className="text-ink text-xl font-bold">Refunds</h1>
+        <p className="text-muted text-sm mt-1">
           Events organisers have cancelled, and the ticket price owed back to each buyer. Check the Paystack
           balance, then send. Byro&apos;s service fee and Paystack&apos;s charge are never refunded.
         </p>
@@ -179,7 +179,7 @@ export default function AdminRefundsPage() {
 
       {error && (
         <div role="alert" className="mb-6 bg-red-500/5 border border-red-500/20 rounded-xl px-4 py-3">
-          <p className="text-red-300 text-xs">{error}</p>
+          <p className="text-red-700 text-xs">{error}</p>
         </div>
       )}
 
@@ -205,10 +205,10 @@ export default function AdminRefundsPage() {
       </div>
 
       {loading ? (
-        <p className="text-gray-500 text-sm text-center py-8">Loading…</p>
+        <p className="text-faint text-sm text-center py-8">Loading…</p>
       ) : events.length === 0 ? (
-        <div className="bg-[#1a1d27] border border-white/10 rounded-xl p-6">
-          <p className="text-gray-500 text-sm text-center py-4">No cancelled events have refunds yet.</p>
+        <div className="bg-white border border-line rounded-xl p-6">
+          <p className="text-faint text-sm text-center py-4">No cancelled events have refunds yet.</p>
         </div>
       ) : (
         <div className="space-y-5">
@@ -217,11 +217,11 @@ export default function AdminRefundsPage() {
             const busy = sending === e.event_id;
             const sentCount = p.processing + p.processed;
             return (
-              <section key={e.event_id} className="bg-[#1a1d27] border border-white/10 rounded-xl p-4 md:p-6">
+              <section key={e.event_id} className="bg-white border border-line rounded-xl p-4 md:p-6">
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div className="min-w-0">
-                    <h2 className="text-white font-semibold truncate">{e.name}</h2>
-                    <p className="text-gray-500 text-xs mt-0.5">Organiser: {e.owner_email}</p>
+                    <h2 className="text-ink font-semibold truncate">{e.name}</h2>
+                    <p className="text-faint text-xs mt-0.5">Organiser: {e.owner_email}</p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     {p.awaiting > 0 && can.payouts && (
@@ -229,7 +229,7 @@ export default function AdminRefundsPage() {
                         type="button"
                         disabled={busy}
                         onClick={() => setConfirm({ event: e })}
-                        className="h-9 px-4 rounded-lg bg-[#4F6EF7] text-white text-xs font-semibold hover:bg-blue-600 disabled:opacity-50"
+                        className="h-9 px-4 rounded-lg bg-brand text-white text-xs font-semibold hover:bg-brand-dark disabled:opacity-50"
                       >
                         Send {p.awaiting} refund{p.awaiting === 1 ? "" : "s"} · {naira(p.awaiting_amount)}
                       </button>
@@ -239,35 +239,35 @@ export default function AdminRefundsPage() {
                         type="button"
                         disabled={busy}
                         onClick={() => retry(e)}
-                        className="h-9 px-4 rounded-lg border border-white/15 text-gray-200 text-xs font-semibold hover:bg-white/5 disabled:opacity-50"
+                        className="h-9 px-4 rounded-lg border border-line text-[#3B4252] text-xs font-semibold hover:bg-mist disabled:opacity-50"
                       >
                         Retry {p.failed} failed
                       </button>
                     )}
                     {p.awaiting > 0 && !can.payouts && (
-                      <span className="text-xs text-gray-500">An admin needs to send these.</span>
+                      <span className="text-xs text-faint">An admin needs to send these.</span>
                     )}
                   </div>
                 </div>
 
                 <dl className="mt-5 grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
-                  <div><dt className="text-gray-500 text-xs">Total owed</dt><dd className="text-white tabular-nums">{naira(p.total_amount)} <span className="text-gray-500 text-xs">({p.total_refunds})</span></dd></div>
-                  <div><dt className="text-gray-500 text-xs">Awaiting approval</dt><dd className="text-yellow-300 tabular-nums">{p.awaiting}</dd></div>
-                  <div><dt className="text-gray-500 text-xs">Sent to Paystack</dt><dd className="text-gray-200 tabular-nums">{sentCount}</dd></div>
-                  <div><dt className="text-gray-500 text-xs">Returned to buyers</dt><dd className="text-green-400 tabular-nums">{p.processed} <span className="text-gray-500 text-xs">{naira(p.processed_amount)}</span></dd></div>
-                  <div><dt className="text-gray-500 text-xs">Need attention</dt><dd className={`tabular-nums ${p.failed ? "text-red-400" : "text-gray-400"}`}>{p.failed}</dd></div>
+                  <div><dt className="text-faint text-xs">Total owed</dt><dd className="text-ink tabular-nums">{naira(p.total_amount)} <span className="text-faint text-xs">({p.total_refunds})</span></dd></div>
+                  <div><dt className="text-faint text-xs">Awaiting approval</dt><dd className="text-amber-700 tabular-nums">{p.awaiting}</dd></div>
+                  <div><dt className="text-faint text-xs">Sent to Paystack</dt><dd className="text-[#3B4252] tabular-nums">{sentCount}</dd></div>
+                  <div><dt className="text-faint text-xs">Returned to buyers</dt><dd className="text-green-700 tabular-nums">{p.processed} <span className="text-faint text-xs">{naira(p.processed_amount)}</span></dd></div>
+                  <div><dt className="text-faint text-xs">Need attention</dt><dd className={`tabular-nums ${p.failed ? "text-red-600" : "text-muted"}`}>{p.failed}</dd></div>
                 </dl>
 
                 {busy && (
-                  <p className="mt-4 text-xs text-gray-400" aria-live="polite">
+                  <p className="mt-4 text-xs text-muted" aria-live="polite">
                     Sending refunds… {sentCount} of {p.total_refunds} sent. Keep this page open.
                   </p>
                 )}
 
                 {e.problems.length > 0 && (
-                  <div className="mt-5 border-t border-white/5 pt-4">
-                    <p className="text-gray-300 text-xs font-medium mb-1">Refunds that need you</p>
-                    <p className="text-gray-500 text-xs mb-3">
+                  <div className="mt-5 border-t border-hairline pt-4">
+                    <p className="text-[#3B4252] text-xs font-medium mb-1">Refunds that need you</p>
+                    <p className="text-faint text-xs mb-3">
                       If Paystack didn&apos;t capture the buyer&apos;s bank details (it can happen with transfers and
                       USSD), open the payment reference in your Paystack dashboard and enter their account there.
                       If Paystack&apos;s balance was too low, top it up and press Retry.
@@ -275,7 +275,7 @@ export default function AdminRefundsPage() {
                     <div className="overflow-x-auto">
                       <table className="w-full text-xs">
                         <thead>
-                          <tr className="text-left text-gray-500">
+                          <tr className="text-left text-faint">
                             <th className="pb-2 pr-4 font-medium">Buyer</th>
                             <th className="pb-2 pr-4 font-medium">Amount</th>
                             <th className="pb-2 pr-4 font-medium">Status</th>
@@ -283,14 +283,14 @@ export default function AdminRefundsPage() {
                             <th className="pb-2 font-medium">Paystack reference</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-white/5">
+                        <tbody className="divide-y divide-hairline">
                           {e.problems.map((r) => (
                             <tr key={r.refund_id}>
-                              <td className="py-2 pr-4 text-gray-200">{r.email}</td>
-                              <td className="py-2 pr-4 text-gray-200 tabular-nums">{naira(r.amount)}</td>
-                              <td className="py-2 pr-4 text-red-300">{r.status === "needs_attention" ? "Needs attention" : "Failed"}</td>
-                              <td className="py-2 pr-4 text-gray-400 max-w-[260px]">{r.reason || "—"}</td>
-                              <td className="py-2 text-gray-400 font-mono break-all">{r.reference}</td>
+                              <td className="py-2 pr-4 text-[#3B4252]">{r.email}</td>
+                              <td className="py-2 pr-4 text-[#3B4252] tabular-nums">{naira(r.amount)}</td>
+                              <td className="py-2 pr-4 text-red-700">{r.status === "needs_attention" ? "Needs attention" : "Failed"}</td>
+                              <td className="py-2 pr-4 text-muted max-w-[260px]">{r.reason || "—"}</td>
+                              <td className="py-2 text-muted font-mono break-all">{r.reference}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -305,34 +305,34 @@ export default function AdminRefundsPage() {
       )}
 
       {confirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4" role="dialog" aria-modal="true" aria-label="Send refunds">
-          <div className="w-full max-w-md rounded-xl border border-white/10 bg-[#1a1d27] p-5">
-            <h3 className="text-white font-semibold">Send these refunds?</h3>
-            <p className="text-gray-300 text-sm mt-3">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 px-4" role="dialog" aria-modal="true" aria-label="Send refunds">
+          <div className="w-full max-w-md rounded-xl border border-line bg-white p-5">
+            <h3 className="text-ink font-semibold">Send these refunds?</h3>
+            <p className="text-[#3B4252] text-sm mt-3">
               {confirm.event.progress.awaiting} buyer{confirm.event.progress.awaiting === 1 ? "" : "s"} of{" "}
-              <b className="text-white">{confirm.event.name}</b> will get{" "}
-              <b className="text-white">{naira(confirm.event.progress.awaiting_amount)}</b> back, the ticket price
+              <b className="text-ink">{confirm.event.name}</b> will get{" "}
+              <b className="text-ink">{naira(confirm.event.progress.awaiting_amount)}</b> back, the ticket price
               they paid, on the card or bank account they used. Byro&apos;s service fee and Paystack&apos;s charge are
               not refunded.
             </p>
-            <p className="text-gray-400 text-xs mt-3">
+            <p className="text-muted text-xs mt-3">
               Paystack balance: {data?.paystack_balance != null ? naira(data.paystack_balance) : "couldn't be checked"}.
             </p>
             {confirm.lowBalance && (
-              <p role="alert" className="mt-3 rounded-lg border border-yellow-500/30 bg-yellow-500/5 px-3 py-2 text-xs text-yellow-200">
+              <p role="alert" className="mt-3 rounded-lg border border-yellow-500/30 bg-yellow-500/5 px-3 py-2 text-xs text-amber-700">
                 {confirm.lowBalance} Refunds can also be taken from your next payout, but any Paystack can&apos;t
                 cover will fail and can be retried after you top up.
               </p>
             )}
             <div className="mt-5 flex justify-end gap-2">
-              <button type="button" onClick={() => setConfirm(null)} className="h-9 px-4 rounded-lg border border-white/15 text-gray-200 text-xs font-semibold hover:bg-white/5">
+              <button type="button" onClick={() => setConfirm(null)} className="h-9 px-4 rounded-lg border border-line text-[#3B4252] text-xs font-semibold hover:bg-mist">
                 Cancel
               </button>
               <button
                 type="button"
                 disabled={sending === confirm.event.event_id}
                 onClick={() => send(confirm.event, Boolean(confirm.lowBalance))}
-                className="h-9 px-4 rounded-lg bg-[#4F6EF7] text-white text-xs font-semibold hover:bg-blue-600 disabled:opacity-50"
+                className="h-9 px-4 rounded-lg bg-brand text-white text-xs font-semibold hover:bg-brand-dark disabled:opacity-50"
               >
                 {confirm.lowBalance ? "Send anyway" : "Send refunds"}
               </button>

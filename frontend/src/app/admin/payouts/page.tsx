@@ -43,10 +43,10 @@ function destinationOf(p: PayoutRequest) {
 function StatusBadge({ status }: { status: PayoutStatus }) {
   const style =
     status === "processed"
-      ? "bg-green-500/10 text-green-400"
+      ? "bg-green-500/10 text-green-700"
       : status === "rejected"
-        ? "bg-red-500/10 text-red-400"
-        : "bg-yellow-500/10 text-yellow-400";
+        ? "bg-red-500/10 text-red-600"
+        : "bg-yellow-500/10 text-amber-700";
   const dot =
     status === "processed" ? "bg-green-400" : status === "rejected" ? "bg-red-400" : "bg-yellow-400";
   return (
@@ -131,68 +131,68 @@ export default function AdminPayoutsPage() {
   return (
     <div className="p-5 md:p-8">
       <div className="mb-6">
-        <h1 className="text-white text-xl font-bold">Payouts</h1>
-        <p className="text-gray-400 text-sm mt-1">Review and process organiser withdrawal requests</p>
+        <h1 className="text-ink text-xl font-bold">Payouts</h1>
+        <p className="text-muted text-sm mt-1">Review and process organiser withdrawal requests</p>
       </div>
 
       {error && (
         <div className="mb-6 bg-red-500/5 border border-red-500/20 rounded-xl px-4 py-3">
-          <p className="text-red-300 text-xs">{error}</p>
+          <p className="text-red-700 text-xs">{error}</p>
         </div>
       )}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <div className="bg-[#1a1d27] border border-white/10 rounded-xl px-5 py-4 border-l-2 border-l-yellow-500/50">
-          <p className="text-gray-400 text-xs mb-1.5">Outstanding</p>
-          <p className="text-white text-2xl font-semibold tabular-nums">{fmtNaira(outstandingAmount)}</p>
-          <p className="text-gray-500 text-xs mt-1">{pending.length} pending</p>
+        <div className="bg-white border border-line rounded-xl px-5 py-4 border-l-2 border-l-yellow-500/50">
+          <p className="text-muted text-xs mb-1.5">Outstanding</p>
+          <p className="text-ink text-2xl font-semibold tabular-nums">{fmtNaira(outstandingAmount)}</p>
+          <p className="text-faint text-xs mt-1">{pending.length} pending</p>
         </div>
-        <div className="bg-[#1a1d27] border border-white/10 rounded-xl px-5 py-4 border-l-2 border-l-green-500/50">
-          <p className="text-gray-400 text-xs mb-1.5">Total paid out</p>
-          <p className="text-white text-2xl font-semibold tabular-nums">{fmtNaira(paidOutAmount)}</p>
-          <p className="text-gray-500 text-xs mt-1">{processed.length} processed</p>
+        <div className="bg-white border border-line rounded-xl px-5 py-4 border-l-2 border-l-green-500/50">
+          <p className="text-muted text-xs mb-1.5">Total paid out</p>
+          <p className="text-ink text-2xl font-semibold tabular-nums">{fmtNaira(paidOutAmount)}</p>
+          <p className="text-faint text-xs mt-1">{processed.length} processed</p>
         </div>
-        <div className="bg-[#1a1d27] border border-white/10 rounded-xl px-5 py-4">
-          <p className="text-gray-400 text-xs mb-1.5">Total volume</p>
-          <p className="text-white text-2xl font-semibold tabular-nums">{fmtNaira(totalVolume)}</p>
-          <p className="text-gray-500 text-xs mt-1">{payouts.length} requests, all-time</p>
+        <div className="bg-white border border-line rounded-xl px-5 py-4">
+          <p className="text-muted text-xs mb-1.5">Total volume</p>
+          <p className="text-ink text-2xl font-semibold tabular-nums">{fmtNaira(totalVolume)}</p>
+          <p className="text-faint text-xs mt-1">{payouts.length} requests, all-time</p>
         </div>
-        <div className="bg-[#1a1d27] border border-white/10 rounded-xl px-5 py-4">
-          <p className="text-gray-400 text-xs mb-1.5">Rejected</p>
-          <p className="text-white text-2xl font-semibold tabular-nums">{rejected.length}</p>
-          <p className="text-gray-500 text-xs mt-1">{fmtNaira(sumOf(rejected))} requested</p>
+        <div className="bg-white border border-line rounded-xl px-5 py-4">
+          <p className="text-muted text-xs mb-1.5">Rejected</p>
+          <p className="text-ink text-2xl font-semibold tabular-nums">{rejected.length}</p>
+          <p className="text-faint text-xs mt-1">{fmtNaira(sumOf(rejected))} requested</p>
         </div>
       </div>
 
-      <div className="bg-[#1a1d27] border border-white/10 rounded-xl p-4 md:p-6">
+      <div className="bg-white border border-line rounded-xl p-4 md:p-6">
         {loading ? (
-          <p className="text-gray-500 text-sm text-center py-8">Loading…</p>
+          <p className="text-faint text-sm text-center py-8">Loading…</p>
         ) : payouts.length === 0 ? (
-          <p className="text-gray-500 text-sm text-center py-8">No payout requests yet.</p>
+          <p className="text-faint text-sm text-center py-8">No payout requests yet.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-white/5 text-left">
-                  <th className="pb-3 pr-6 text-xs text-gray-500 font-medium whitespace-nowrap">Organiser</th>
-                  <th className="pb-3 pr-6 text-xs text-gray-500 font-medium whitespace-nowrap">Event</th>
-                  <th className="pb-3 pr-6 text-xs text-gray-500 font-medium whitespace-nowrap">Amount</th>
-                  <th className="pb-3 pr-6 text-xs text-gray-500 font-medium whitespace-nowrap">Destination</th>
-                  <th className="pb-3 pr-6 text-xs text-gray-500 font-medium whitespace-nowrap">Requested</th>
-                  <th className="pb-3 pr-6 text-xs text-gray-500 font-medium whitespace-nowrap">Status</th>
-                  <th className="pb-3 text-xs text-gray-500 font-medium whitespace-nowrap">Action</th>
+                <tr className="border-b border-hairline text-left">
+                  <th className="pb-3 pr-6 text-xs text-faint font-medium whitespace-nowrap">Organiser</th>
+                  <th className="pb-3 pr-6 text-xs text-faint font-medium whitespace-nowrap">Event</th>
+                  <th className="pb-3 pr-6 text-xs text-faint font-medium whitespace-nowrap">Amount</th>
+                  <th className="pb-3 pr-6 text-xs text-faint font-medium whitespace-nowrap">Destination</th>
+                  <th className="pb-3 pr-6 text-xs text-faint font-medium whitespace-nowrap">Requested</th>
+                  <th className="pb-3 pr-6 text-xs text-faint font-medium whitespace-nowrap">Status</th>
+                  <th className="pb-3 text-xs text-faint font-medium whitespace-nowrap">Action</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/5">
+              <tbody className="divide-y divide-hairline">
                 {payouts.map((p) => (
                   <tr key={p.id} className="group">
                     <td className="py-3 pr-6">
-                      <p className="text-white font-medium truncate max-w-[160px]">{p.user_email}</p>
+                      <p className="text-ink font-medium truncate max-w-[160px]">{p.user_email}</p>
                     </td>
-                    <td className="py-3 pr-6 text-gray-400 truncate max-w-[160px]">{p.event_name || "—"}</td>
-                    <td className="py-3 pr-6 text-gray-200 whitespace-nowrap font-medium tabular-nums">{fmtNaira(p.amount)}</td>
-                    <td className="py-3 pr-6 text-gray-400 truncate max-w-[220px] capitalize" title={destinationOf(p)}>{destinationOf(p)}</td>
-                    <td className="py-3 pr-6 text-gray-400 whitespace-nowrap">{fmtDate(p.requested_at)}</td>
+                    <td className="py-3 pr-6 text-muted truncate max-w-[160px]">{p.event_name || "—"}</td>
+                    <td className="py-3 pr-6 text-[#3B4252] whitespace-nowrap font-medium tabular-nums">{fmtNaira(p.amount)}</td>
+                    <td className="py-3 pr-6 text-muted truncate max-w-[220px] capitalize" title={destinationOf(p)}>{destinationOf(p)}</td>
+                    <td className="py-3 pr-6 text-muted whitespace-nowrap">{fmtDate(p.requested_at)}</td>
                     <td className="py-3 pr-6">
                       <StatusBadge status={p.status} />
                     </td>
@@ -203,14 +203,14 @@ export default function AdminPayoutsPage() {
                             <button
                               onClick={() => setConfirming({ payout: p, action: "processed" })}
                               disabled={updatingId === p.id}
-                              className="text-xs font-semibold text-blue-400 hover:text-blue-300 bg-blue-500/10 hover:bg-blue-500/20 disabled:opacity-50 px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap"
+                              className="text-xs font-semibold text-brand-dark hover:text-brand-dark bg-blue-500/10 hover:bg-blue-500/20 disabled:opacity-50 px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap"
                             >
                               {updatingId === p.id ? "Updating…" : "Mark as processed"}
                             </button>
                             <button
                               onClick={() => setConfirming({ payout: p, action: "rejected" })}
                               disabled={updatingId === p.id}
-                              className="text-xs font-semibold text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 disabled:opacity-50 px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap"
+                              className="text-xs font-semibold text-red-600 hover:text-red-700 bg-red-500/10 hover:bg-red-500/20 disabled:opacity-50 px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap"
                             >
                               Reject
                             </button>
@@ -223,7 +223,7 @@ export default function AdminPayoutsPage() {
                           onClick={() => setConfirming({ payout: p, action: "delete" })}
                           disabled={updatingId === p.id}
                           title="Delete this payout request"
-                          className="text-xs font-semibold text-gray-500 hover:text-red-400 hover:bg-red-500/10 disabled:opacity-50 px-2 py-1.5 rounded-lg transition-colors whitespace-nowrap"
+                          className="text-xs font-semibold text-faint hover:text-red-600 hover:bg-red-500/10 disabled:opacity-50 px-2 py-1.5 rounded-lg transition-colors whitespace-nowrap"
                         >
                           Delete
                         </button>}
@@ -240,22 +240,22 @@ export default function AdminPayoutsPage() {
       {confirming && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div
-            className="absolute inset-0 bg-black/70"
+            className="absolute inset-0 bg-ink/50"
             onClick={() => setConfirming(null)}
           />
-          <div className="relative w-full max-w-sm bg-[#1a1d27] border border-white/10 rounded-xl p-6 shadow-2xl">
-            <h3 className="text-white font-semibold text-sm mb-2">
+          <div className="relative w-full max-w-sm bg-white border border-line rounded-xl p-6 shadow-[0_20px_50px_rgba(20,22,28,0.14)]">
+            <h3 className="text-ink font-semibold text-sm mb-2">
               {confirming.action === "processed"
                 ? "Mark payout as processed?"
                 : confirming.action === "rejected"
                   ? "Reject this payout request?"
                   : "Delete this payout request?"}
             </h3>
-            <div className="bg-white/5 rounded-lg px-3 py-2.5 mb-4 space-y-1">
-              <p className="text-white text-sm font-medium truncate">{confirming.payout.user_email}</p>
-              <p className="text-gray-400 text-xs tabular-nums">{fmtNaira(confirming.payout.amount)} to {destinationOf(confirming.payout)}</p>
+            <div className="bg-mist rounded-lg px-3 py-2.5 mb-4 space-y-1">
+              <p className="text-ink text-sm font-medium truncate">{confirming.payout.user_email}</p>
+              <p className="text-muted text-xs tabular-nums">{fmtNaira(confirming.payout.amount)} to {destinationOf(confirming.payout)}</p>
             </div>
-            <p className="text-gray-500 text-xs leading-relaxed mb-5">
+            <p className="text-faint text-xs leading-relaxed mb-5">
               {confirming.action === "processed"
                 ? "This confirms the funds have already been sent outside Byro. This cannot be undone here."
                 : confirming.action === "rejected"
@@ -265,7 +265,7 @@ export default function AdminPayoutsPage() {
             <div className="flex items-center justify-end gap-2">
               <button
                 onClick={() => setConfirming(null)}
-                className="text-xs font-semibold text-gray-300 hover:text-white px-3 py-2 rounded-lg hover:bg-white/5 transition-colors"
+                className="text-xs font-semibold text-[#3B4252] hover:text-ink px-3 py-2 rounded-lg hover:bg-mist transition-colors"
               >
                 Cancel
               </button>
@@ -277,8 +277,8 @@ export default function AdminPayoutsPage() {
                 }
                 className={`text-xs font-semibold px-3 py-2 rounded-lg transition-colors ${
                   confirming.action === "processed"
-                    ? "text-blue-400 bg-blue-500/10 hover:bg-blue-500/20"
-                    : "text-red-400 bg-red-500/10 hover:bg-red-500/20"
+                    ? "text-brand-dark bg-blue-500/10 hover:bg-blue-500/20"
+                    : "text-red-600 bg-red-500/10 hover:bg-red-500/20"
                 }`}
               >
                 {confirming.action === "processed"

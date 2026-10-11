@@ -4,8 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  BarChart,
-  Bar,
   LineChart,
   Line,
   XAxis,
@@ -53,6 +51,8 @@ const REVENUE_RANGES = [
   { label: "7D", days: 7 },
   { label: "30D", days: 30 },
   { label: "90D", days: 90 },
+  { label: "6M", days: 180 },
+  { label: "1Y", days: 365 },
 ];
 
 // The revenue-trend endpoint only returns days that had successful payments, so
@@ -74,30 +74,6 @@ function fillTrend(rows: RevenueTrendPoint[], days: number): ChartPoint[] {
     });
   }
   return out;
-}
-
-function StatCard({
-  label,
-  value,
-  sublabel,
-  emphasize,
-}: {
-  label: string;
-  value: string | number;
-  sublabel?: string;
-  emphasize?: boolean;
-}) {
-  return (
-    <div
-      className={`bg-[#1a1d27] border border-white/10 rounded-xl px-5 py-4 ${
-        emphasize ? "border-l-2 border-l-[#4F6EF7]/60" : ""
-      }`}
-    >
-      <p className="text-gray-400 text-xs mb-1.5">{label}</p>
-      <p className={`text-white font-semibold tabular-nums ${emphasize ? "text-3xl" : "text-2xl"}`}>{value}</p>
-      {sublabel && <p className="text-gray-500 text-xs mt-1">{sublabel}</p>}
-    </div>
-  );
 }
 
 function fmtNaira(n: number) {
@@ -202,122 +178,158 @@ export default function AdminDashboardPage() {
   const activeEvents = summary?.active_events ?? events.filter((e) => e.is_active).length;
   const paidEvents = events.filter(isPaidEvent).length;
 
+  const maxCategory = Math.max(1, ...categoryData.map((c) => c.count));
+  const sortedCategories = [...categoryData].sort((x, y) => y.count - x.count);
+  const trendTotal = revenueTrend.reduce((sum, p) => sum + p.revenue, 0);
+  const rangeLabel = REVENUE_RANGES.find((r) => r.days === revenueRangeDays)?.label;
+
   return (
-    <div className="p-5 md:p-8">
-      <div className="mb-8">
-        <h1 className="text-white text-xl font-bold">Overview</h1>
-        <p className="text-gray-400 text-sm mt-1">Platform activity at a glance</p>
+    <div className="p-5 md:p-8 max-w-[1200px]">
+      <div className="mb-6">
+        <h1 className="font-display text-ink text-3xl font-extrabold tracking-tight">Overview</h1>
       </div>
 
-      {error && <p className="text-red-400 text-sm mb-6">{error}</p>}
+      {error && <p className="text-red-600 text-sm mb-6">{error}</p>}
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <StatCard label="Total Events" value={loading ? "—" : totalEvents} sublabel={`${loading ? "—" : activeEvents} active · ${summary?.private_events ?? 0} private · ${summary?.draft_events ?? 0} drafts`} />
-        <StatCard label="Paid Events" value={loading ? "—" : paidEvents} sublabel={`${loading ? "—" : events.length - paidEvents} free`} />
-        <StatCard
-          label="Tickets Sold"
+      {pendingPayouts ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-marigold bg-butter px-5 py-4 mb-5">
+          <div>
+            <p className="text-ink font-bold text-sm">
+              {pendingPayouts} payout{pendingPayouts === 1 ? "" : "s"} waiting for approval
+            </p>
+            <p className="text-muted text-xs mt-0.5">Organisers are waiting to withdraw their earnings.</p>
+          </div>
+          <Link
+            href={resolveAdminHref(pathname, "/payouts")}
+            className="rounded-full bg-ink px-4 py-2 text-xs font-bold text-white hover:bg-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
+          >
+            Review payouts
+          </Link>
+        </div>
+      ) : (
+        <p className="mb-5 rounded-2xl bg-mint px-5 py-3.5 text-sm font-semibold text-stamp-green">
+          {pendingPayouts === 0 ? "No payouts waiting for approval." : "Checking payouts…"}
+        </p>
+      )}
+
+      <section className="rounded-3xl bg-brand text-white p-5 md:p-8 mb-5 overflow-hidden">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-bold text-white/80">Total revenue</p>
+            <p className="font-display text-5xl md:text-7xl font-extrabold tracking-tight tabular-nums mt-1">
+              {loading || !summary ? "—" : fmtNaira(Number(summary.total_revenue))}
+            </p>
+            <p className="text-sm text-white/80 mt-2 tabular-nums">
+              {trendLoading ? "Loading…" : `${fmtNaira(trendTotal)} in the last ${rangeLabel === "6M" ? "6 months" : rangeLabel === "1Y" ? "year" : rangeLabel}`}
+            </p>
+          </div>
+          <div className="flex items-center gap-1 rounded-full bg-white/15 p-1" role="group" aria-label="Revenue range">
+            {REVENUE_RANGES.map((r) => (
+              <button
+                key={r.days}
+                onClick={() => setRevenueRangeDays(r.days)}
+                aria-pressed={revenueRangeDays === r.days}
+                className={`rounded-full px-3 py-1 text-xs font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white ${
+                  revenueRangeDays === r.days ? "bg-white text-brand-dark" : "text-white hover:bg-white/15"
+                }`}
+              >
+                {r.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="h-56 md:h-64 relative mt-6 -mx-2">
+          {!trendLoading && revenueTrend.every((p) => p.revenue === 0) && (
+            <p className="absolute inset-0 flex items-center justify-center text-white/80 text-sm pointer-events-none z-10">
+              No revenue in this period
+            </p>
+          )}
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={revenueTrend}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.18)" vertical={false} />
+              <XAxis
+                dataKey="day"
+                tick={{ fill: "rgba(255,255,255,0.8)", fontSize: 11 }}
+                axisLine={false}
+                tickLine={false}
+                interval={revenueRangeDays > 14 ? Math.ceil(revenueRangeDays / 8) : 0}
+              />
+              <YAxis
+                tick={{ fill: "rgba(255,255,255,0.8)", fontSize: 11 }}
+                axisLine={false}
+                tickLine={false}
+                tickFormatter={fmtNairaCompact}
+                domain={[0, (max: number) => Math.max(max, 1000)]}
+                allowDecimals={false}
+              />
+              <Tooltip
+                cursor={{ stroke: "rgba(255,255,255,0.4)" }}
+                contentStyle={{ background: "#fff", border: "none", borderRadius: 12, fontSize: 12, color: "#14161C", boxShadow: "0 12px 30px rgba(20,22,28,0.25)" }}
+                formatter={(value) => [fmtNaira(Number(value)), "Revenue"]}
+              />
+              <Line
+                type="monotone"
+                dataKey="revenue"
+                stroke="#fff"
+                strokeWidth={3}
+                dot={revenueRangeDays <= 14 ? { r: 3.5, fill: "#fff", stroke: "#3669F6", strokeWidth: 2 } : false}
+                activeDot={{ r: 5, fill: "#FFC93C", stroke: "#fff", strokeWidth: 2 }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      </section>
+
+      <section className="grid grid-cols-1 md:grid-cols-3 rounded-3xl border border-line bg-white mb-5 md:divide-x divide-y md:divide-y-0 divide-line">
+        <Stat
+          label="Events"
+          value={loading ? "—" : totalEvents}
+          note={`${loading ? "—" : activeEvents} active, ${summary?.private_events ?? 0} private, ${summary?.draft_events ?? 0} drafts`}
+        />
+        <Stat
+          label="Paid events"
+          value={loading ? "—" : paidEvents}
+          note={`${loading ? "—" : events.length - paidEvents} free`}
+        />
+        <Stat
+          label="Tickets sold"
           value={loading || !summary ? "—" : summary.total_tickets_sold.toLocaleString()}
+          note="Across all events"
         />
-        <StatCard
-          label="Revenue"
-          value={loading || !summary ? "—" : fmtNaira(Number(summary.total_revenue))}
-          emphasize
-        />
-      </div>
+      </section>
 
-      <div className="flex items-center justify-between bg-[#1a1d27] border border-white/10 rounded-xl px-5 py-4 mb-8">
-        <div>
-          <p className="text-white font-semibold text-sm">
-            {pendingPayouts ?? "—"} pending payout{pendingPayouts === 1 ? "" : "s"}
-          </p>
-          <p className="text-gray-400 text-xs mt-0.5">Organisers waiting for withdrawal approval</p>
-        </div>
-        <Link
-          href={resolveAdminHref(pathname, "/payouts")}
-          className="text-xs font-semibold text-blue-400 hover:text-blue-300 bg-blue-500/10 px-3 py-2 rounded-lg transition-colors"
-        >
-          Review payouts
-        </Link>
-      </div>
+      <section className="rounded-3xl border border-line bg-white p-5 md:p-6">
+        <h2 className="font-display text-ink text-lg font-extrabold">Events by category</h2>
+        {!loading && sortedCategories.length === 0 ? (
+          <p className="text-muted text-sm mt-4">No events yet. They show up here once organisers create them.</p>
+        ) : (
+          <ul className="mt-4 space-y-3">
+            {sortedCategories.map((c) => (
+              <li key={c.name} className="grid grid-cols-[minmax(0,9rem)_1fr_2rem] items-center gap-3 text-sm">
+                <span className="truncate font-semibold text-[#3B4252]" title={c.name}>{c.name}</span>
+                <span className="h-2.5 rounded-full bg-mist overflow-hidden">
+                  <span
+                    className="block h-full rounded-full bg-brand"
+                    style={{ width: `${(c.count / maxCategory) * 100}%` }}
+                  />
+                </span>
+                <span className="text-right font-bold tabular-nums text-ink">{c.count}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    </div>
+  );
+}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="bg-[#1a1d27] border border-white/10 rounded-xl p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-white font-semibold text-sm">Events by category</h2>
-          </div>
-          <div className="h-64">
-            {!loading && categoryData.length === 0 ? (
-              <div className="h-full flex items-center justify-center">
-                <p className="text-gray-500 text-sm">No events yet</p>
-              </div>
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={categoryData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                  <XAxis dataKey="name" tick={{ fill: "#9ca3af", fontSize: 11 }} interval={0} angle={-20} textAnchor="end" height={60} />
-                  <YAxis tick={{ fill: "#9ca3af", fontSize: 11 }} allowDecimals={false} />
-                  <Tooltip contentStyle={{ background: "#1a1d27", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 12 }} />
-                  <Bar dataKey="count" fill="#4F6EF7" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-        </div>
-
-        <div className="bg-[#1a1d27] border border-white/10 rounded-xl p-5">
-          <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
-            <div className="flex items-center gap-2">
-              <h2 className="text-white font-semibold text-sm">Revenue</h2>
-              {trendLoading && (
-                <span className="text-[10px] text-gray-500 bg-white/5 px-2 py-0.5 rounded-full">Loading…</span>
-              )}
-            </div>
-            <div className="flex items-center gap-1">
-              {REVENUE_RANGES.map((r) => (
-                <button
-                  key={r.days}
-                  onClick={() => setRevenueRangeDays(r.days)}
-                  className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg transition-colors ${
-                    revenueRangeDays === r.days
-                      ? "bg-blue-600/20 text-blue-400"
-                      : "text-gray-400 hover:text-white hover:bg-white/5"
-                  }`}
-                >
-                  {r.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="h-64 relative">
-            {!trendLoading && revenueTrend.every((p) => p.revenue === 0) && (
-              <p className="absolute inset-0 flex items-center justify-center text-gray-500 text-sm pointer-events-none z-10">
-                No revenue in this period
-              </p>
-            )}
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={revenueTrend}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                <XAxis
-                  dataKey="day"
-                  tick={{ fill: "#9ca3af", fontSize: 11 }}
-                  interval={revenueRangeDays > 14 ? Math.ceil(revenueRangeDays / 8) : 0}
-                />
-                <YAxis
-                  tick={{ fill: "#9ca3af", fontSize: 11 }}
-                  tickFormatter={fmtNairaCompact}
-                  domain={[0, (max: number) => Math.max(max, 1000)]}
-                  allowDecimals={false}
-                />
-                <Tooltip
-                  contentStyle={{ background: "#1a1d27", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 12 }}
-                  formatter={(value) => [fmtNaira(Number(value)), "Revenue"]}
-                />
-                <Line type="monotone" dataKey="revenue" stroke="#4F6EF7" strokeWidth={2} dot={revenueRangeDays <= 14} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      </div>
+function Stat({ label, value, note }: { label: string; value: string | number; note: string }) {
+  return (
+    <div className="px-5 py-5 md:px-6">
+      <p className="text-sm font-bold text-muted">{label}</p>
+      <p className="font-display text-4xl font-extrabold tabular-nums text-ink mt-1">{value}</p>
+      <p className="text-xs text-faint mt-1">{note}</p>
     </div>
   );
 }
