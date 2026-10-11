@@ -131,7 +131,7 @@ export default function AdminPayoutsPage() {
   return (
     <div className="p-5 md:p-8">
       <div className="mb-6">
-        <h1 className="text-ink text-xl font-bold">Payouts</h1>
+        <h1 className="font-display text-ink text-3xl font-extrabold tracking-tight">Payouts</h1>
         <p className="text-muted text-sm mt-1">Review and process organiser withdrawal requests</p>
       </div>
 

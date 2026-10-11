@@ -366,7 +366,7 @@ export default function AdminEventsPage() {
   return (
     <div className="p-5 md:p-8">
       <div className="mb-8">
-        <h1 className="text-ink text-xl font-bold">Events</h1>
+        <h1 className="font-display text-ink text-3xl font-extrabold tracking-tight">Events</h1>
         <p className="text-muted text-sm mt-1">All events on the platform</p>
       </div>
 
