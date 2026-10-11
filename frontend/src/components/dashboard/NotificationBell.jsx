@@ -4,23 +4,16 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import API from "@/services/api";
 import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  Notification01Icon,
-  Ticket01Icon,
-  Wallet01Icon,
-  CheckmarkCircle02Icon,
-  UserAdd01Icon,
-  Alert02Icon,
-} from "@hugeicons/core-free-icons";
+import { Notification01Icon } from "@hugeicons/core-free-icons";
 
-const TYPE_META = {
-  ticket_sale: { icon: Ticket01Icon, color: "#4F6EF7", bg: "bg-[#4F6EF7]/10" },
-  new_follower: { icon: UserAdd01Icon, color: "#D0668E", bg: "bg-[#D0668E]/10" },
-  payout_processed: { icon: CheckmarkCircle02Icon, color: "#16a34a", bg: "bg-green-500/10" },
-  payout_rejected: { icon: Wallet01Icon, color: "#d97706", bg: "bg-amber-500/10" },
-  event_status: { icon: Alert02Icon, color: "#d97706", bg: "bg-amber-500/10" },
+// A quiet colour per type instead of an icon.
+const KIND_DOT = {
+  ticket_sale: "bg-[#4F6EF7]",
+  new_follower: "bg-[#D0668E]",
+  payout_processed: "bg-green-500",
+  payout_rejected: "bg-amber-500",
+  event_status: "bg-amber-500",
 };
-const FALLBACK_META = { icon: Notification01Icon, color: "#4F6EF7", bg: "bg-[#4F6EF7]/10" };
 
 const POLL_MS = 60_000;
 
@@ -137,7 +130,6 @@ export default function NotificationBell() {
               <p className="text-gray-400 text-xs text-center py-8">No notifications yet</p>
             ) : (
               items.map((n) => {
-                const meta = TYPE_META[n.kind] || FALLBACK_META;
                 return (
                   <button
                     type="button"
@@ -147,13 +139,10 @@ export default function NotificationBell() {
                       n.read ? "" : "bg-[#4F6EF7]/[0.03]"
                     }`}
                   >
-                    <div className={`shrink-0 w-8 h-8 rounded-lg flex items-center justify-center ${meta.bg}`}>
-                      <HugeiconsIcon icon={meta.icon} size={16} color={meta.color} />
-                    </div>
+                    <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${KIND_DOT[n.kind] || "bg-[#4F6EF7]"} ${n.read ? "opacity-30" : ""}`} />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <p className="text-gray-900 text-xs font-bold truncate">{n.title}</p>
-                        {!n.read && <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-[#4F6EF7]" />}
+                        <p className={`text-gray-900 text-xs truncate ${n.read ? "font-semibold" : "font-extrabold"}`}>{n.title}</p>
                       </div>
                       {n.body && <p className="text-gray-500 text-[11px] leading-snug mt-0.5">{n.body}</p>}
                       <span className="mt-1 block text-xs text-gray-400">{timeAgo(n.created_at)}</span>

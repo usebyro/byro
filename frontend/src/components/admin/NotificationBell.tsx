@@ -3,12 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  Notification03Icon,
-  Wallet01Icon,
-  Money01Icon,
-  Calendar03Icon,
-} from "@hugeicons/core-free-icons";
+import { Notification03Icon } from "@hugeicons/core-free-icons";
 import { resolveAdminHref } from "@/lib/adminNav";
 
 interface AdminNotification {
@@ -21,10 +16,11 @@ interface AdminNotification {
   created_at: string;
 }
 
-const KIND_ICON: Record<string, typeof Wallet01Icon> = {
-  payout_request: Wallet01Icon,
-  refunds_pending: Money01Icon,
-  event_created: Calendar03Icon,
+// A quiet colour per type instead of an icon: marigold needs action, blue is for information.
+const KIND_DOT: Record<string, string> = {
+  payout_request: "bg-marigold",
+  refunds_pending: "bg-marigold",
+  event_created: "bg-brand",
 };
 
 const POLL_MS = 60_000;
@@ -153,13 +149,10 @@ export default function NotificationBell() {
                     n.read ? "" : "bg-brand/[0.04]"
                   }`}
                 >
-                  <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-brand/10 text-brand-dark">
-                    <HugeiconsIcon icon={KIND_ICON[n.kind] ?? Notification03Icon} size={16} color="currentColor" />
-                  </span>
+                  <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${KIND_DOT[n.kind] ?? "bg-brand"} ${n.read ? "opacity-30" : ""}`} />
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center gap-2">
-                      <span className="truncate text-[13px] font-bold text-ink">{n.title}</span>
-                      {!n.read && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-brand" />}
+                      <span className={`truncate text-[13px] text-ink ${n.read ? "font-semibold" : "font-extrabold"}`}>{n.title}</span>
                     </span>
                     {n.body && <span className="mt-0.5 block text-xs leading-snug text-muted">{n.body}</span>}
                     <span className="mt-1 block text-xs text-faint">{timeAgo(n.created_at)}</span>
