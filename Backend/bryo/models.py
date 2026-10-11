@@ -1107,3 +1107,31 @@ def create_user_profile(sender, instance, created, **kwargs):
     """Auto-create a UserProfile the first time a user record is saved."""
     if created:
         UserProfile.objects.get_or_create(user=instance)
+
+
+class Notification(models.Model):
+    """One item in a person's in-app notification bell.
+
+    `audience` says which bell it belongs to: an organiser's dashboard or the
+    admin panel. The same person can be both, and each sees only their own.
+    `link` is a path inside that area (e.g. /dashboard/payouts, or /payouts in the admin).
+    """
+
+    AUDIENCE_ORGANISER = 'organiser'
+    AUDIENCE_ADMIN = 'admin'
+
+    recipient = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='notifications')
+    audience = models.CharField(max_length=12, default=AUDIENCE_ORGANISER)
+    kind = models.CharField(max_length=32)
+    title = models.CharField(max_length=140)
+    body = models.CharField(max_length=255, blank=True)
+    link = models.CharField(max_length=255, blank=True)
+    read_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at', '-id']
+        indexes = [models.Index(fields=['recipient', 'audience', 'read_at', '-created_at'])]
+
+    def __str__(self):
+        return f"{self.kind} for {self.recipient_id}"

@@ -32,6 +32,7 @@ from .models import (
     TicketTier, PayoutRequest, PromoCode, MerchItem, Follow, AdminAction, AdminMember, ActivityLog,
 )
 from .activity import log_activity
+from .notifications import notify, notify_admins, ticket_sale
 from .community import (
     community_stats, follow_organizer, notify_followers_in_background, record_stamp,
     stamps_for_user, unfollow_from_token,
@@ -822,6 +823,8 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                 target_type='event', target_id=event.pk, target_label=event.name,
                 detail=f"{len(tickets)} ticket(s)",
             )
+            if tickets:
+                ticket_sale(event, len(tickets))
 
             if apps.posthog_client is not None:
                 apps.posthog_client.capture(
@@ -1049,6 +1052,7 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                                 target_label=payment.event.name,
                                 detail=f"{len(new_tickets)} ticket(s), {payment.currency} {payment.amount}",
                             )
+                            ticket_sale(payment.event, len(new_tickets), paid_amount=payment.amount)
                         if apps.posthog_client is not None:
                             apps.posthog_client.capture(
                                 'payment_completed',
@@ -1178,6 +1182,7 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                             target_label=payment.event.name,
                             detail=f"{len(new_tickets)} ticket(s), {payment.currency} {payment.amount}",
                         )
+                        ticket_sale(payment.event, len(new_tickets), paid_amount=payment.amount)
                     if apps.posthog_client is not None:
                         apps.posthog_client.capture(
                             'payment_completed',
@@ -2083,6 +2088,11 @@ class EventViewSet(viewsets.ModelViewSet):
             'event.created', request=request, target_type='event',
             target_id=serializer.instance.pk, target_label=serializer.instance.name,
         )
+        if not serializer.instance.is_draft:
+            notify_admins(
+                'event_created', f"New event: {serializer.instance.name}",
+                body=request.user.email, link='/events',
+            )
 
         if apps.posthog_client is not None:
             apps.posthog_client.capture(
@@ -2379,6 +2389,8 @@ class EventViewSet(viewsets.ModelViewSet):
                     follow_organizer(linked_user, event)
             except InsufficientCapacityError as e:
                 return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+            ticket_sale(event, 1)
 
             serializer = TicketSerializer(ticket, context={'request': request})
             ticket_url = request.build_absolute_uri(
@@ -3300,6 +3312,10 @@ class PayoutRequestView(APIView):
             target_id=payout.pk, target_label=payout.event.name if payout.event else '',
             detail=f"{payout.amount} via {payout.method}",
         )
+        notify_admins(
+            'payout_request', f"Payout request: ₦{float(payout.amount):,.0f}",
+            body=f"{request.user.email}{', ' + payout.event.name if payout.event else ''}", link='/payouts',
+        )
 
         if apps.posthog_client is not None:
             apps.posthog_client.capture(
@@ -3490,6 +3506,14 @@ class AdminPayoutView(APIView):
             'payout', payout.pk,
             payout.user.email if payout.user_id else '', str(payout.amount),
         )
+
+        if new_status in ('processed', 'rejected') and payout.user_id:
+            notify(
+                payout.user,
+                'payout_processed' if new_status == 'processed' else 'payout_rejected',
+                f"Payout of ₦{float(payout.amount):,.0f} " + ('paid' if new_status == 'processed' else 'was not approved'),
+                body=payout.event.name if payout.event else '', link='/dashboard/payouts',
+            )
 
         if new_status == 'processed':
             try:

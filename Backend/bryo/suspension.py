@@ -57,6 +57,13 @@ def notify_event_status_change(event, suspended):
             owner_name = (profile.display_name if profile else '') or owner.get_full_name() or owner.email
             build = organizer_event_suspended_email if suspended else organizer_event_reinstated_email
             _send(owner.email, build(name=owner_name, event_url=event_url, **details))
+            from .notifications import notify
+            notify(
+                owner, 'event_status',
+                f"{event.name} was " + ('suspended' if suspended else 'reinstated'),
+                body='Check your email for details.' if suspended else 'It is live again.',
+                link=f"/dashboard/events/{event.slug}",
+            )
 
         build = event_suspended_email if suspended else event_reinstated_email
         for email, name in _attendees(event):

@@ -35,6 +35,9 @@ from .views import (
     AdminTeamView,
     AdminTeamDetailView,
 )
+from .notifications import (
+    MyNotificationsView, MyNotificationsReadView, AdminNotificationsView, AdminNotificationsReadView,
+)
 from .newsletter_views import NewsletterSubscribeView
 from .auth_views import (
     MagicAuthSendView,
@@ -116,6 +119,10 @@ urlpatterns = [
 
     # Admin — analytics
     path('api/admin/analytics/summary/', AdminAnalyticsSummaryView.as_view(), name='admin-analytics-summary'),
+    path('api/notifications/', MyNotificationsView.as_view(), name='notifications'),
+    path('api/notifications/read/', MyNotificationsReadView.as_view(), name='notifications-read'),
+    path('api/admin/notifications/', AdminNotificationsView.as_view(), name='admin-notifications'),
+    path('api/admin/notifications/read/', AdminNotificationsReadView.as_view(), name='admin-notifications-read'),
     path('api/admin/analytics/activity-trend/', AdminAnalyticsActivityTrendView.as_view(), name='admin-analytics-activity-trend'),
     path('api/admin/analytics/revenue-trend/', AdminAnalyticsRevenueTrendView.as_view(), name='admin-analytics-revenue-trend'),
 
