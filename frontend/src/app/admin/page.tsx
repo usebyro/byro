@@ -61,11 +61,11 @@ interface ChartPoint {
 }
 
 const REVENUE_RANGES = [
-  { label: "Last 7 days", short: "7D", days: 7 },
-  { label: "Last 30 days", short: "30D", days: 30 },
-  { label: "Last 90 days", short: "90D", days: 90 },
-  { label: "Last 6 months", short: "6M", days: 180 },
-  { label: "Last year", short: "1Y", days: 365 },
+  { label: "7D", days: 7 },
+  { label: "30D", days: 30 },
+  { label: "90D", days: 90 },
+  { label: "6M", days: 180 },
+  { label: "1Y", days: 365 },
 ];
 
 // The revenue-trend endpoint only returns days that had successful payments, so
