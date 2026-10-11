@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
@@ -28,6 +28,22 @@ const Stroke = ({ d, size = 18 }) => (
   </svg>
 );
 
+// In the collapsed rail the label stays in the DOM for screen readers, and shows as a tooltip on hover and keyboard focus.
+const RailLabel = ({ label, collapsed }) =>
+  collapsed ? (
+    <>
+      <span className="sr-only">{label}</span>
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute left-full z-50 ml-3 whitespace-nowrap rounded-lg bg-ink px-2.5 py-1.5 text-xs font-bold text-white opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100 motion-reduce:transition-none"
+      >
+        {label}
+      </span>
+    </>
+  ) : (
+    <span className="truncate">{label}</span>
+  );
+
 function StudioShell({ children }) {
   const pathname = usePathname();
   const router   = useRouter();
@@ -37,6 +53,8 @@ function StudioShell({ children }) {
 
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const menuButtonRef = useRef(null);
+  const closeButtonRef = useRef(null);
 
   // Close the mobile drawer whenever the route changes
   const [prevPathname, setPrevPathname] = useState(pathname);
@@ -54,6 +72,18 @@ function StudioShell({ children }) {
     }
   }, [token, pathname, router]);
 
+  useEffect(() => {
+    if (!mobileOpen) return;
+    closeButtonRef.current?.focus();
+    const opener = menuButtonRef.current;
+    const onKey = (e) => e.key === "Escape" && setMobileOpen(false);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      opener?.focus();
+    };
+  }, [mobileOpen]);
+
   const handleLogout = () => {
     dispatch(signOut());
     router.push("/");
@@ -61,8 +91,9 @@ function StudioShell({ children }) {
 
   if (!token) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
-        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-brand" />
+      <div role="status" className="min-h-dvh flex items-center justify-center bg-white">
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-brand motion-reduce:animate-none" />
+        <span className="sr-only">Loading…</span>
       </div>
     );
   }
@@ -82,8 +113,9 @@ function StudioShell({ children }) {
         {!closeMobile && (
           <button
             onClick={() => setIsCollapsed(!isCollapsed)}
-            className="hidden h-[34px] w-[34px] items-center justify-center rounded-full text-muted transition-[background-color,scale] hover:bg-paper active:scale-[0.97] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand md:flex"
+            className="hidden h-11 w-11 items-center justify-center rounded-full text-muted transition-[background-color,scale] hover:bg-paper active:scale-[0.97] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand md:flex"
             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            aria-expanded={!collapsed}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <rect x="3" y="4" width="18" height="16" rx="3" />
@@ -94,8 +126,9 @@ function StudioShell({ children }) {
 
         {closeMobile && (
           <button
+            ref={closeButtonRef}
             onClick={closeMobile}
-            className="flex h-[34px] w-[34px] items-center justify-center rounded-full text-muted hover:bg-paper md:hidden"
+            className="flex h-11 w-11 items-center justify-center rounded-full text-muted hover:bg-paper focus:outline-none focus-visible:ring-2 focus-visible:ring-brand md:hidden"
             aria-label="Close menu"
           >
             <HugeiconsIcon icon={Cancel01Icon} size={18} color="currentColor" />
@@ -105,14 +138,15 @@ function StudioShell({ children }) {
 
       <Link
         href={communityHref}
-        title={collapsed ? communityName : "View your community page"}
-        className={`flex h-14 shrink-0 items-center rounded-xl border border-line bg-white transition-[background-color,scale] hover:bg-paper active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
+        title={collapsed ? undefined : "View your community page"}
+        className={`group relative flex h-14 shrink-0 items-center rounded-xl border border-line bg-white transition-[background-color,scale] hover:bg-paper active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
           collapsed ? "justify-center" : "gap-2.5 px-2.5"
         }`}
       >
         <span aria-hidden="true" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-ink font-display text-sm font-bold text-white">
           {communityName.trim().charAt(0).toUpperCase()}
         </span>
+        {collapsed && <RailLabel label={communityName} collapsed />}
         {!collapsed && (
           <>
             <span className="flex min-w-0 flex-1 flex-col">
@@ -133,16 +167,15 @@ function StudioShell({ children }) {
             <Link
               key={item.href}
               href={item.href}
-              title={collapsed ? item.label : ""}
               aria-current={active ? "page" : undefined}
-              className={`flex h-[42px] items-center rounded-xl text-[15px] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
+              className={`group relative flex h-[42px] items-center rounded-xl text-[15px] transition-[background-color,color,scale] active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
                 collapsed ? "justify-center" : "gap-3 px-3"
               } ${active ? "bg-[#EEF3FF] font-extrabold text-brand-dark" : "font-semibold text-[#3B4252] hover:bg-paper"}`}
             >
               <span className={active ? "text-brand-dark" : "text-muted"}>
                 <Stroke d={item.icon} />
               </span>
-              {!collapsed && <span>{item.label}</span>}
+              <RailLabel label={item.label} collapsed={collapsed} />
             </Link>
           );
         })}
@@ -152,13 +185,12 @@ function StudioShell({ children }) {
 
       <Link
         href="/home"
-        title={collapsed ? "Switch to attending" : ""}
-        className={`flex h-[42px] shrink-0 items-center rounded-xl text-sm font-bold text-muted transition-colors hover:bg-paper focus:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
+        className={`group relative flex h-[42px] shrink-0 items-center rounded-xl text-sm font-bold text-muted transition-[background-color,scale] hover:bg-paper active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
           collapsed ? "justify-center" : "gap-3 px-3"
         }`}
       >
         <Stroke d="M7 7h11l-3-3M17 17H6l3 3" />
-        {!collapsed && <span>Switch to attending</span>}
+        <RailLabel label="Switch to attending" collapsed={collapsed} />
       </Link>
     </>
   );
@@ -166,56 +198,50 @@ function StudioShell({ children }) {
   const sidebarPad = "flex flex-col gap-[18px] px-3.5 pb-5 pt-[18px]";
 
   return (
-    <div className="flex h-screen overflow-hidden bg-white">
+    <div className="flex h-dvh overflow-hidden bg-white">
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[60] focus:rounded-full focus:bg-ink focus:px-4 focus:py-2.5 focus:text-sm focus:font-bold focus:text-white"
+      >
+        Skip to content
+      </a>
 
-      <aside className={`${sidebarPad} hidden shrink-0 border-r border-hairline bg-white transition-[width] duration-300 md:flex ${
+      <aside aria-label="Sidebar" className={`${sidebarPad} hidden shrink-0 border-r border-hairline bg-white transition-[width] duration-300 motion-reduce:transition-none md:flex ${
         isCollapsed ? "w-[76px]" : "w-[248px]"
       }`}>
         {renderSidebarContent(isCollapsed)}
       </aside>
 
       {mobileOpen && (
-        <div className="md:hidden fixed inset-0 z-50 flex">
+        <div className="md:hidden fixed inset-0 z-50 flex overscroll-contain" role="dialog" aria-modal="true" aria-label="Menu">
           <div
             className="absolute inset-0 bg-black/40 backdrop-blur-[2px] transition-opacity duration-300"
             onClick={() => setMobileOpen(false)}
           />
-          <aside className={`${sidebarPad} relative z-10 h-full w-[264px] max-w-[84vw] bg-white shadow-2xl animate-slide-in-left`}>
+          <aside className={`${sidebarPad} relative z-10 h-full w-[264px] max-w-[84vw] overflow-y-auto overscroll-contain bg-white shadow-2xl animate-slide-in-left motion-reduce:animate-none`}>
             {renderSidebarContent(false, () => setMobileOpen(false))}
           </aside>
         </div>
       )}
 
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden" inert={mobileOpen}>
 
         <header className="flex h-16 shrink-0 items-center gap-3 border-b border-hairline bg-white px-4 sm:px-8 lg:px-12">
           <button
+            ref={menuButtonRef}
             onClick={() => setMobileOpen(true)}
-            className="rounded-lg p-2 text-muted transition-colors hover:bg-paper hover:text-ink md:hidden"
+            className="flex h-11 w-11 items-center justify-center rounded-lg text-muted transition-colors hover:bg-paper hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-brand md:hidden"
             aria-label="Open menu"
           >
             <HugeiconsIcon icon={Menu01Icon} size={20} color="currentColor" />
           </button>
-
-          <label className="flex h-10 w-full max-w-[380px] items-center gap-2 rounded-full border border-paper bg-paper px-3.5 focus-within:border-brand focus-within:ring-2 focus-within:ring-brand/25">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5B6272" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <circle cx="11" cy="11" r="7" />
-              <path d="M20 20l-3.5-3.5" />
-            </svg>
-            <input
-              type="search"
-              placeholder="Search events, people, orders"
-              aria-label="Search the dashboard"
-              className="w-full min-w-0 bg-transparent text-sm text-ink placeholder:text-muted focus:outline-none"
-            />
-          </label>
 
           <div className="flex-1" />
           <NotificationBell />
           <UserMenu user={user} onLogout={handleLogout} size="sm" />
         </header>
 
-        <main className="flex-1 overflow-y-auto bg-white">
+        <main id="main" tabIndex={-1} className="flex-1 overflow-y-auto bg-white focus:outline-none">
           {children}
         </main>
       </div>

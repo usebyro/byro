@@ -15,10 +15,10 @@ const FONT = { fontFamily: 'var(--font-body), system-ui, -apple-system, "Segoe U
 const BIO_MAX = 500;
 
 const SOCIALS = [
-  { key: "twitter",   label: "X",         prefix: "x.com/",           placeholder: "handle",   icon: FaXTwitter },
-  { key: "instagram", label: "Instagram", prefix: "instagram.com/",   placeholder: "handle",   icon: FaInstagram },
-  { key: "linkedin",  label: "LinkedIn",  prefix: "linkedin.com/in/", placeholder: "username", icon: FaLinkedinIn },
-  { key: "telegram",  label: "Telegram",  prefix: "t.me/",            placeholder: "handle",   icon: FaTelegram },
+  { key: "twitter",   label: "X",         prefix: "x.com/",           placeholder: "handle…",   icon: FaXTwitter },
+  { key: "instagram", label: "Instagram", prefix: "instagram.com/",   placeholder: "handle…",   icon: FaInstagram },
+  { key: "linkedin",  label: "LinkedIn",  prefix: "linkedin.com/in/", placeholder: "username…", icon: FaLinkedinIn },
+  { key: "telegram",  label: "Telegram",  prefix: "t.me/",            placeholder: "handle…",   icon: FaTelegram },
 ];
 
 const EMPTY_FORM = {
@@ -173,6 +173,12 @@ function ProfilePageContent() {
       document.getElementById("bio")?.focus();
       return;
     }
+    if (savedForm.handle && form.handle !== savedForm.handle) {
+      const ok = window.confirm(
+        `Change your page link to usebyro.com/u/${form.handle || "…"}?\n\nOld links to usebyro.com/u/${savedForm.handle} will stop working.`
+      );
+      if (!ok) return;
+    }
     setIsSaving(true);
     try {
       // 1. Upload avatar if changed
@@ -293,7 +299,7 @@ function ProfilePageContent() {
               <span className="flex h-[72px] w-[72px] shrink-0 items-center justify-center overflow-hidden rounded-full bg-ink font-display text-[28px] font-bold text-white">
                 {avatarSrc ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={avatarSrc} alt="" className="h-full w-full object-cover" />
+                  <img src={avatarSrc} alt="" width={72} height={72} className="h-full w-full object-cover" />
                 ) : (
                   initialOf(form.display_name)
                 )}
@@ -308,7 +314,7 @@ function ProfilePageContent() {
               <div className="relative h-[140px] overflow-hidden rounded-xl bg-mist">
                 {coverSrc && (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={coverSrc} alt="Your cover" className="h-full w-full object-cover" />
+                  <img src={coverSrc} alt="Your cover" width={800} height={140} className="h-full w-full object-cover" />
                 )}
                 <FileButton onChange={handleCoverImageChange} className="absolute bottom-3 right-3 !h-9 !text-[13px]">
                   {coverSrc ? "Change cover" : "Add cover"}
@@ -323,25 +329,27 @@ function ProfilePageContent() {
               <Field id="display_name" label="Name" error={errors.display_name}>
                 <input
                   id="display_name"
+                  name="display_name"
                   type="text"
                   value={form.display_name}
                   maxLength={100}
                   onChange={(e) => field("display_name", e.target.value)}
                   aria-invalid={Boolean(errors.display_name)}
                   className={inputCls}
-                  placeholder="Eko Live Entertainment"
+                  placeholder="Eko Live Entertainment…"
                   autoComplete="organization"
                 />
               </Field>
               <Field id="location" label="Location">
                 <input
                   id="location"
+                  name="location"
                   type="text"
                   value={form.location}
                   maxLength={100}
                   onChange={(e) => field("location", e.target.value)}
                   className={inputCls}
-                  placeholder="Lagos, Nigeria"
+                  placeholder="Lagos, Nigeria…"
                   autoComplete="address-level2"
                 />
               </Field>
@@ -355,13 +363,15 @@ function ProfilePageContent() {
                 maxLength={50}
                 invalid={Boolean(errors.handle)}
                 onChange={(v) => field("handle", v.toLowerCase().replace(/[^a-z0-9_-]/g, ""))}
-                placeholder="eko-live"
+                placeholder="eko-live…"
               />
             </Field>
 
             <Field id="bio" label={<>Bio <span className="text-red-500">*</span></>} error={errors.bio} counter={`${form.bio.length} / ${BIO_MAX}`}>
               <textarea
                 id="bio"
+                name="bio"
+                autoComplete="off"
                 value={form.bio}
                 maxLength={BIO_MAX}
                 onChange={(e) => field("bio", e.target.value)}
@@ -371,7 +381,7 @@ function ProfilePageContent() {
                 className={`h-24 w-full resize-y rounded-xl border bg-white px-3.5 py-3 text-base leading-normal text-ink placeholder:text-faint focus:outline-none focus:ring-2 md:text-[15px] ${
                   errors.bio ? "border-red-500 focus:ring-red-500/25" : "border-[#CBD3DF] focus:border-brand focus:ring-brand/25"
                 }`}
-                placeholder="Lagos-based collective throwing rooftop parties and open-mic nights."
+                placeholder="Lagos-based collective throwing rooftop parties and open-mic nights…"
               />
             </Field>
           </Section>
@@ -393,6 +403,8 @@ function ProfilePageContent() {
               <Field id="website" label="Website">
                 <input
                   id="website"
+                  name="website"
+                  autoComplete="off"
                   type="url"
                   inputMode="url"
                   value={form.website}
@@ -402,7 +414,7 @@ function ProfilePageContent() {
                   autoCorrect="off"
                   spellCheck={false}
                   className={inputCls}
-                  placeholder="https://example.com"
+                  placeholder="https://example.com…"
                 />
               </Field>
               {extrasVisible &&
@@ -442,11 +454,11 @@ function ProfilePageContent() {
                 aria-checked={form.is_public}
                 aria-labelledby="listing-label"
                 onClick={() => field("is_public", !form.is_public)}
-                className={`flex h-[26px] w-11 shrink-0 rounded-full p-[3px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 ${
-                  form.is_public ? "justify-end bg-brand" : "justify-start bg-[#C9D0DC]"
+                className={`flex h-[26px] w-11 shrink-0 rounded-full p-[3px] transition-colors motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 ${
+                  form.is_public ? "bg-brand" : "bg-[#C9D0DC]"
                 }`}
               >
-                <span className="h-5 w-5 rounded-full bg-white shadow-[0_1px_2px_rgba(20,22,28,0.2)]" />
+                <span className={`h-5 w-5 rounded-full bg-white shadow-[0_1px_2px_rgba(20,22,28,0.2)] transition-transform duration-150 ease-out motion-reduce:transition-none ${form.is_public ? "translate-x-[18px]" : "translate-x-0"}`} />
               </button>
             </div>
           </Section>
@@ -515,14 +527,14 @@ function ProfilePreview({ form, avatarSrc, coverSrc, stats, publicPath }) {
         <div className="relative h-[110px] bg-mist">
           {coverSrc && (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={coverSrc} alt="" className="h-full w-full object-cover" />
+            <img src={coverSrc} alt="" width={320} height={110} className="h-full w-full object-cover" />
           )}
         </div>
         <div className="flex flex-col gap-2 px-5 pb-5">
           <span className="-mt-8 flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border-[3px] border-white bg-ink font-display text-2xl font-bold text-white">
             {avatarSrc ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={avatarSrc} alt="" className="h-full w-full object-cover" />
+              <img src={avatarSrc} alt="" width={64} height={64} className="h-full w-full object-cover" />
             ) : (
               initialOf(name)
             )}
@@ -626,6 +638,8 @@ function PrefixInput({ id, prefix, value, onChange, placeholder, maxLength, inva
       </span>
       <input
         id={id}
+        name={id}
+        autoComplete="off"
         type="text"
         value={value}
         maxLength={maxLength}
