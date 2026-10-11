@@ -1,23 +1,28 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import API from "@/services/api";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Notification01Icon,
   Ticket01Icon,
   Wallet01Icon,
   CheckmarkCircle02Icon,
+  UserAdd01Icon,
+  Alert02Icon,
 } from "@hugeicons/core-free-icons";
 
 const TYPE_META = {
-  ticket_purchase: { icon: Ticket01Icon, color: "#4F6EF7", bg: "bg-[#4F6EF7]/10" },
-  payout_request: { icon: Wallet01Icon, color: "#d97706", bg: "bg-amber-500/10" },
+  ticket_sale: { icon: Ticket01Icon, color: "#4F6EF7", bg: "bg-[#4F6EF7]/10" },
+  new_follower: { icon: UserAdd01Icon, color: "#D0668E", bg: "bg-[#D0668E]/10" },
   payout_processed: { icon: CheckmarkCircle02Icon, color: "#16a34a", bg: "bg-green-500/10" },
+  payout_rejected: { icon: Wallet01Icon, color: "#d97706", bg: "bg-amber-500/10" },
+  event_status: { icon: Alert02Icon, color: "#d97706", bg: "bg-amber-500/10" },
 };
+const FALLBACK_META = { icon: Notification01Icon, color: "#4F6EF7", bg: "bg-[#4F6EF7]/10" };
 
-function fmtNaira(n) {
-  return `₦${n.toLocaleString()}`;
-}
+const POLL_MS = 60_000;
 
 function timeAgo(iso) {
   const then = new Date(iso).getTime();
@@ -35,9 +40,30 @@ function timeAgo(iso) {
 export default function NotificationBell() {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState([]);
+  const [unread, setUnread] = useState(0);
   const containerRef = useRef(null);
+  const router = useRouter();
 
-  const unread = useMemo(() => items.filter((n) => !n.read).length, [items]);
+  const load = useCallback(async () => {
+    try {
+      const data = await API.getNotifications();
+      setItems(data.results || []);
+      setUnread(data.unread || 0);
+    } catch {
+      // Keep whatever we had; the next poll tries again.
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+    const timer = setInterval(load, POLL_MS);
+    const onFocus = () => load();
+    window.addEventListener("focus", onFocus);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [load]);
 
   useEffect(() => {
     if (!open) return;
@@ -57,8 +83,25 @@ export default function NotificationBell() {
     };
   }, [open]);
 
-  const markAllRead = () =>
+  const markAllRead = async () => {
     setItems((prev) => prev.map((n) => ({ ...n, read: true })));
+    setUnread(0);
+    try {
+      await API.markNotificationsRead();
+    } catch {
+      load();
+    }
+  };
+
+  const openItem = async (n) => {
+    setOpen(false);
+    if (!n.read) {
+      setItems((prev) => prev.map((x) => (x.id === n.id ? { ...x, read: true } : x)));
+      setUnread((u) => Math.max(0, u - 1));
+      API.markNotificationsRead([n.id]).catch(() => load());
+    }
+    if (n.link) router.push(n.link);
+  };
 
   return (
     <div ref={containerRef} className="relative">
@@ -94,11 +137,13 @@ export default function NotificationBell() {
               <p className="text-gray-400 text-xs text-center py-8">No notifications yet</p>
             ) : (
               items.map((n) => {
-                const meta = TYPE_META[n.type] || TYPE_META.ticket_purchase;
+                const meta = TYPE_META[n.kind] || FALLBACK_META;
                 return (
-                  <div
+                  <button
+                    type="button"
                     key={n.id}
-                    className={`flex gap-3 px-4 py-3 border-b border-gray-50 last:border-b-0 ${
+                    onClick={() => openItem(n)}
+                    className={`flex w-full gap-3 px-4 py-3 text-left border-b border-gray-50 last:border-b-0 hover:bg-gray-50 ${
                       n.read ? "" : "bg-[#4F6EF7]/[0.03]"
                     }`}
                   >
@@ -110,15 +155,10 @@ export default function NotificationBell() {
                         <p className="text-gray-900 text-xs font-bold truncate">{n.title}</p>
                         {!n.read && <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-[#4F6EF7]" />}
                       </div>
-                      <p className="text-gray-500 text-[11px] leading-snug mt-0.5">{n.message}</p>
-                      <div className="flex items-center gap-2 mt-1">
-                        {typeof n.amount === "number" && (
-                          <span className="text-[11px] font-semibold text-gray-700">{fmtNaira(n.amount)}</span>
-                        )}
-                        <span className="text-xs text-gray-400">{timeAgo(n.createdAt)}</span>
-                      </div>
+                      {n.body && <p className="text-gray-500 text-[11px] leading-snug mt-0.5">{n.body}</p>}
+                      <span className="mt-1 block text-xs text-gray-400">{timeAgo(n.created_at)}</span>
                     </div>
-                  </div>
+                  </button>
                 );
               })
             )}

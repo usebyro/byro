@@ -611,6 +611,25 @@ const API = {
     }
   },
 
+  // The organiser's notification bell.
+  getNotifications: async () => {
+    try {
+      const response = await axiosInstance.get("notifications/");
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  markNotificationsRead: async (ids) => {
+    try {
+      const response = await axiosInstance.post("notifications/read/", ids ? { ids } : {});
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
   // The signed-in user's passport of stamps.
   getMyStamps: async () => {
     try {
