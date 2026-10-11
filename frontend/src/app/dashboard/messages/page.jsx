@@ -103,7 +103,7 @@ export default function MessagesPage() {
     "w-full rounded-xl border-[1.5px] border-[#CBD3DF] bg-white px-3.5 text-[15px] text-ink focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/25";
 
   return (
-    <div className="mx-auto flex max-w-[1200px] flex-col gap-7">
+    <div className="flex flex-col gap-7 px-4 pb-12 pt-8 md:px-8 lg:px-12">
       <div>
         <h1 className="font-display text-[28px] font-bold leading-tight tracking-[-0.03em] text-ink md:text-[32px]">Messages</h1>
         <p className="mt-1.5 text-[15px] text-muted">Email the people in your community. Replies come to your inbox.</p>
@@ -248,7 +248,7 @@ export default function MessagesPage() {
           </div>
         </section>
 
-        <aside aria-label="Email preview" className="flex w-full shrink-0 flex-col gap-2.5 lg:w-[400px]">
+        <aside aria-label="Email preview" className="flex w-full shrink-0 flex-col gap-2.5 lg:w-[420px]">
           <span className="text-sm font-bold text-muted">Preview</span>
           <div className="rounded-[20px] bg-mist p-4">
             <div className="overflow-hidden rounded-xl bg-white">

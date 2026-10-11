@@ -4,13 +4,10 @@ import { useState, useEffect, useRef, Suspense } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { Camera01Icon } from "@hugeicons/core-free-icons";
 import { FaGlobe, FaXTwitter, FaInstagram, FaLinkedinIn, FaTelegram } from "react-icons/fa6";
 import { authSuccess } from "@/redux/auth/authSlice";
 import API from "@/services/api";
 import { toast } from "sonner";
-import Avatar from "@/components/ui/Avatar";
 
 // Body text uses the app's Nunito Sans (loaded in the root layout); headings use Bricolage via font-display.
 const FONT = { fontFamily: 'var(--font-body), system-ui, -apple-system, "Segoe UI", sans-serif' };
@@ -50,9 +47,9 @@ const toForm = (data) => ({
   is_public:    data?.is_public !== false,
 });
 
-// 16px on phones so iOS doesn't zoom on focus, 46px tall to match the rest of the redesign.
+// 16px on phones so iOS doesn't zoom on focus, 44px tall.
 const inputCls =
-  "w-full h-[46px] rounded-[14px] border border-line bg-white px-3.5 text-base md:text-[15px] text-ink " +
+  "w-full h-11 rounded-xl border border-[#CBD3DF] bg-white px-3.5 text-base md:text-[15px] text-ink " +
   "placeholder:text-faint focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/25";
 
 function ProfilePageContent() {
@@ -68,6 +65,7 @@ function ProfilePageContent() {
   const [savedForm, setSavedForm] = useState(EMPTY_FORM);
   const [errors,    setErrors]    = useState({});
   const [showMoreLinks, setShowMoreLinks] = useState(false);
+  const [stats, setStats] = useState(null);
 
   const [avatarFile,        setAvatarFile]        = useState(null);
   const [avatarPreview,     setAvatarPreview]     = useState("");
@@ -77,6 +75,12 @@ function ProfilePageContent() {
   useEffect(() => {
     document.title = "Profile | Byro";
   }, []);
+
+  // Followers and events shown in the preview.
+  useEffect(() => {
+    if (!token) return;
+    API.getCommunityStats().then(setStats).catch(() => {});
+  }, [token]);
 
   // ── Load profile ──
   useEffect(() => {
@@ -247,196 +251,190 @@ function ProfilePageContent() {
   const coverSrc   = coverImagePreview || null;
   const publicPath = savedForm.handle ? `/u/${savedForm.handle}` : null;
 
-  const hasLinks = [...SOCIALS.map((x) => x.key), "website"].some((k) => form[k].trim());
-  const checks = [
-    { label: "Photo",       done: Boolean(avatarSrc) },
-    { label: "Bio",         done: Boolean(form.bio.trim()) },
-    { label: "Location",    done: Boolean(form.location.trim()) },
-    { label: "Links",       done: hasLinks },
-    { label: "Cover image", done: Boolean(coverSrc) },
-  ];
-
   // X, Instagram and Website are always there; LinkedIn and Telegram appear when used or asked for.
   const mainSocials  = SOCIALS.filter((x) => x.key === "twitter" || x.key === "instagram");
   const extraSocials = SOCIALS.filter((x) => x.key === "linkedin" || x.key === "telegram");
   const extrasVisible = showMoreLinks || extraSocials.some((x) => form[x.key].trim());
 
   return (
-    <div style={FONT} className="p-4 md:p-8 max-w-[1180px] mx-auto text-ink">
-      <header className="mb-6 md:mb-8 flex flex-wrap items-end gap-x-4 gap-y-3">
-        <div className="flex-1 min-w-[240px]">
-          <h1 className="font-display text-[32px] md:text-[40px] leading-tight font-bold tracking-[-0.03em]">Profile</h1>
-          <p className="text-base text-muted mt-1.5">Changes show on the right as you type.</p>
+    <div style={FONT} className="px-4 pb-12 pt-8 text-ink md:px-8 lg:px-12">
+      <header className="mb-3 flex flex-wrap items-end gap-x-3 gap-y-3">
+        <div className="min-w-[240px] flex-1">
+          <h1 className="font-display text-[28px] font-bold leading-[1.1] tracking-[-0.03em] md:text-[32px]">Profile</h1>
+          <p className="mt-1.5 text-[15px] text-muted">This is your community page. The preview updates as you type.</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {publicPath && (
-            <Link
-              href={publicPath}
-              target="_blank"
-              className="inline-flex items-center h-[46px] px-[18px] rounded-full border border-line text-sm font-bold text-ink hover:bg-mist focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
-            >
-              View public page
-            </Link>
-          )}
-          {dirty && (
-            <button
-              type="button"
-              onClick={handleDiscard}
-              disabled={isSaving}
-              className="h-[46px] px-4 rounded-full text-sm font-bold text-muted hover:text-ink hover:bg-mist disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
-            >
-              Discard
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={!dirty || isSaving}
-            title="Save changes (Ctrl or Cmd + S)"
-            className="h-[46px] px-[22px] rounded-full bg-brand text-[15px] font-bold text-white hover:bg-brand-dark disabled:bg-line disabled:text-faint disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
-          >
-            {isSaving ? "Saving…" : "Save changes"}
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={handleDiscard}
+          disabled={!dirty || isSaving}
+          className="h-11 rounded-full border border-line bg-white px-5 text-[15px] font-bold text-ink transition-[background-color,scale] hover:bg-paper active:scale-[0.97] disabled:cursor-not-allowed disabled:border-0 disabled:bg-hairline disabled:text-muted disabled:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+        >
+          Discard
+        </button>
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={!dirty || isSaving}
+          title="Save changes (Ctrl or Cmd + S)"
+          className="h-11 rounded-full bg-brand px-5 text-[15px] font-bold text-white transition-[background-color,scale] hover:bg-brand-dark active:scale-[0.97] disabled:cursor-not-allowed disabled:bg-hairline disabled:text-muted disabled:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
+        >
+          {isSaving ? "Saving…" : "Save changes"}
+        </button>
       </header>
 
       <p className="sr-only" aria-live="polite">
         {dirty ? `${changeCount} unsaved change${changeCount === 1 ? "" : "s"}` : ""}
       </p>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_420px] gap-7 items-start">
-        {/* ── Preview and profile strength: first on phones, sticky on desktop ── */}
-        <aside className="lg:col-start-2 lg:row-start-1 lg:sticky lg:top-6 flex flex-col gap-3.5">
-          <ProfilePreview
-            form={form}
-            avatarSrc={avatarSrc}
-            coverSrc={coverSrc}
-            onAvatarChange={handleAvatarChange}
-            onCoverChange={handleCoverImageChange}
-          />
-          <ProfileStrength checks={checks} />
-        </aside>
-
-        <div className="lg:col-start-1 lg:row-start-1 min-w-0 flex flex-col gap-[18px]">
-          <Card title="About">
-            <div className="grid gap-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <Field id="display_name" label="Name or community name" error={errors.display_name}>
-                  <input
-                    id="display_name"
-                    type="text"
-                    value={form.display_name}
-                    maxLength={100}
-                    onChange={(e) => field("display_name", e.target.value)}
-                    aria-invalid={Boolean(errors.display_name)}
-                    className={inputCls}
-                    placeholder="Eko Live Entertainment"
-                    autoComplete="organization"
-                  />
-                </Field>
-                <Field id="location" label="Location">
-                  <input
-                    id="location"
-                    type="text"
-                    value={form.location}
-                    maxLength={100}
-                    onChange={(e) => field("location", e.target.value)}
-                    className={inputCls}
-                    placeholder="Lagos, Nigeria"
-                    autoComplete="address-level2"
-                  />
-                </Field>
+      <div className="grid grid-cols-1 items-start gap-x-10 gap-y-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="min-w-0">
+          <Section title="Photo and cover" hint="Shown at the top of your community page.">
+            <div className="flex items-center gap-4">
+              <span className="flex h-[72px] w-[72px] shrink-0 items-center justify-center overflow-hidden rounded-full bg-ink font-display text-[28px] font-bold text-white">
+                {avatarSrc ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={avatarSrc} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  initialOf(form.display_name)
+                )}
+              </span>
+              <div className="flex flex-col gap-1.5">
+                <FileButton onChange={handleAvatarChange}>{avatarSrc ? "Change photo" : "Add photo"}</FileButton>
+                <span className="text-[13px] leading-normal text-muted">Square, at least 400 × 400px.</span>
               </div>
+            </div>
+            <div className="flex flex-col gap-2">
+              <span className="text-sm font-bold">Cover</span>
+              <div className="relative h-[140px] overflow-hidden rounded-xl bg-mist">
+                {coverSrc && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={coverSrc} alt="Your cover" className="h-full w-full object-cover" />
+                )}
+                <FileButton onChange={handleCoverImageChange} className="absolute bottom-3 right-3 !h-9 !text-[13px]">
+                  {coverSrc ? "Change cover" : "Add cover"}
+                </FileButton>
+              </div>
+              <span className="text-[13px] leading-normal text-muted">A photo from one of your events works best. 1600 × 500px.</span>
+            </div>
+          </Section>
 
-              <Field
-                id="handle"
-                label="Handle"
-                error={errors.handle}
-                hint={form.handle ? undefined : "Letters, numbers, dashes and underscores."}
-              >
-                <PrefixInput
-                  id="handle"
-                  prefix="usebyro.com/u/"
-                  value={form.handle}
-                  maxLength={50}
-                  invalid={Boolean(errors.handle)}
-                  onChange={(v) => field("handle", v.toLowerCase().replace(/[^a-z0-9_-]/g, ""))}
-                  placeholder="eko-live"
+          <Section title="About" hint="Who you are and where people can find you.">
+            <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
+              <Field id="display_name" label="Name" error={errors.display_name}>
+                <input
+                  id="display_name"
+                  type="text"
+                  value={form.display_name}
+                  maxLength={100}
+                  onChange={(e) => field("display_name", e.target.value)}
+                  aria-invalid={Boolean(errors.display_name)}
+                  className={inputCls}
+                  placeholder="Eko Live Entertainment"
+                  autoComplete="organization"
                 />
               </Field>
-
-              <Field id="bio" label={<>Bio <span className="text-red-500">*</span></>} error={errors.bio} counter={`${form.bio.length}/${BIO_MAX}`}>
-                <textarea
-                  id="bio"
-                  value={form.bio}
-                  maxLength={BIO_MAX}
-                  onChange={(e) => field("bio", e.target.value)}
-                  rows={3}
-                  required
-                  aria-invalid={Boolean(errors.bio)}
-                  className={`w-full rounded-[14px] border bg-white px-3.5 py-3 text-base md:text-[15px] text-ink leading-relaxed resize-none placeholder:text-faint focus:outline-none focus:ring-2 ${
-                    errors.bio ? "border-red-500 focus:ring-red-500/25" : "border-line focus:border-brand focus:ring-brand/25"
-                  }`}
-                  placeholder="Lagos-based collective throwing rooftop parties and open-mic nights."
+              <Field id="location" label="Location">
+                <input
+                  id="location"
+                  type="text"
+                  value={form.location}
+                  maxLength={100}
+                  onChange={(e) => field("location", e.target.value)}
+                  className={inputCls}
+                  placeholder="Lagos, Nigeria"
+                  autoComplete="address-level2"
                 />
               </Field>
             </div>
-          </Card>
 
-          <Card title="Links" description="Leave any blank to hide it.">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {mainSocials.map((x) => (
-                <LinkInput
-                  key={x.key}
-                  id={x.key}
-                  name={x.label}
-                  icon={x.icon}
-                  value={form[x.key]}
-                  onChange={(v) => field(x.key, v)}
-                  placeholder={x.prefix + x.placeholder}
-                />
-              ))}
-              <LinkInput
-                id="website"
-                name="Website"
-                icon={FaGlobe}
-                value={form.website}
-                onChange={(v) => field("website", v)}
-                placeholder="https://example.com"
-                type="url"
-                inputMode="url"
+            <Field id="handle" label="Handle" error={errors.handle} hint="Changing this breaks old links to your page.">
+              <PrefixInput
+                id="handle"
+                prefix="usebyro.com/u/"
+                value={form.handle}
+                maxLength={50}
+                invalid={Boolean(errors.handle)}
+                onChange={(v) => field("handle", v.toLowerCase().replace(/[^a-z0-9_-]/g, ""))}
+                placeholder="eko-live"
               />
+            </Field>
+
+            <Field id="bio" label={<>Bio <span className="text-red-500">*</span></>} error={errors.bio} counter={`${form.bio.length} / ${BIO_MAX}`}>
+              <textarea
+                id="bio"
+                value={form.bio}
+                maxLength={BIO_MAX}
+                onChange={(e) => field("bio", e.target.value)}
+                rows={3}
+                required
+                aria-invalid={Boolean(errors.bio)}
+                className={`h-24 w-full resize-y rounded-xl border bg-white px-3.5 py-3 text-base leading-normal text-ink placeholder:text-faint focus:outline-none focus:ring-2 md:text-[15px] ${
+                  errors.bio ? "border-red-500 focus:ring-red-500/25" : "border-[#CBD3DF] focus:border-brand focus:ring-brand/25"
+                }`}
+                placeholder="Lagos-based collective throwing rooftop parties and open-mic nights."
+              />
+            </Field>
+          </Section>
+
+          <Section title="Links" hint="Leave any blank to hide it.">
+            <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
+              {mainSocials.map((x) => (
+                <Field key={x.key} id={x.key} label={x.label}>
+                  <PrefixInput
+                    id={x.key}
+                    prefix={x.prefix}
+                    value={form[x.key]}
+                    maxLength={100}
+                    onChange={(v) => field(x.key, v)}
+                    placeholder={x.placeholder}
+                  />
+                </Field>
+              ))}
+              <Field id="website" label="Website">
+                <input
+                  id="website"
+                  type="url"
+                  inputMode="url"
+                  value={form.website}
+                  maxLength={100}
+                  onChange={(e) => field("website", e.target.value)}
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  className={inputCls}
+                  placeholder="https://example.com"
+                />
+              </Field>
               {extrasVisible &&
                 extraSocials.map((x) => (
-                  <LinkInput
-                    key={x.key}
-                    id={x.key}
-                    name={x.label}
-                    icon={x.icon}
-                    value={form[x.key]}
-                    onChange={(v) => field(x.key, v)}
-                    placeholder={x.prefix + x.placeholder}
-                  />
+                  <Field key={x.key} id={x.key} label={x.label}>
+                    <PrefixInput
+                      id={x.key}
+                      prefix={x.prefix}
+                      value={form[x.key]}
+                      maxLength={100}
+                      onChange={(v) => field(x.key, v)}
+                      placeholder={x.placeholder}
+                    />
+                  </Field>
                 ))}
-              {!extrasVisible && (
-                <button
-                  type="button"
-                  onClick={() => setShowMoreLinks(true)}
-                  className="h-[46px] rounded-[14px] border border-dashed border-[#C9D0DC] bg-white text-sm font-bold text-[#3B4252] hover:bg-mist focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
-                >
-                  + Add LinkedIn or Telegram
-                </button>
-              )}
             </div>
-          </Card>
+            {!extrasVisible && (
+              <button
+                type="button"
+                onClick={() => setShowMoreLinks(true)}
+                className="h-11 self-start rounded-full border border-dashed border-[#C9D0DC] bg-white px-4 text-sm font-bold text-[#3B4252] transition-colors hover:bg-paper focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+              >
+                + Add LinkedIn or Telegram
+              </button>
+            )}
+          </Section>
 
-          <Card title="Visibility">
-            <label className="flex items-start justify-between gap-6 cursor-pointer min-h-[44px]">
-              <span id="listing-label">
-                <span className="block text-[15px] font-bold text-ink">List community publicly</span>
-                <span className="block text-sm text-muted mt-0.5">
-                  Your profile will be publicly listed on the community page
-                </span>
+          <Section title="Visibility" hint="Control where your page shows up." last>
+            <div className="flex items-center gap-3.5">
+              <span id="listing-label" className="flex flex-1 flex-col gap-0.5">
+                <span className="text-[15px] font-bold">List on the communities page</span>
+                <span className="text-[13px] leading-normal text-muted">People can find you in byro&apos;s community directory.</span>
               </span>
               <button
                 type="button"
@@ -444,19 +442,17 @@ function ProfilePageContent() {
                 aria-checked={form.is_public}
                 aria-labelledby="listing-label"
                 onClick={() => field("is_public", !form.is_public)}
-                className={`shrink-0 mt-0.5 w-12 h-7 md:w-11 md:h-[26px] rounded-full transition-colors relative focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-brand ${
-                  form.is_public ? "bg-brand" : "bg-[#C9D0DC]"
+                className={`flex h-[26px] w-11 shrink-0 rounded-full p-[3px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 ${
+                  form.is_public ? "justify-end bg-brand" : "justify-start bg-[#C9D0DC]"
                 }`}
               >
-                <span
-                  className={`absolute top-0.5 left-0.5 w-6 h-6 md:w-5 md:h-5 md:top-[3px] md:left-[3px] bg-white rounded-full shadow-sm transition-transform motion-reduce:transition-none ${
-                    form.is_public ? "translate-x-5" : "translate-x-0"
-                  }`}
-                />
+                <span className="h-5 w-5 rounded-full bg-white shadow-[0_1px_2px_rgba(20,22,28,0.2)]" />
               </button>
-            </label>
-          </Card>
+            </div>
+          </Section>
         </div>
+
+        <ProfilePreview form={form} avatarSrc={avatarSrc} coverSrc={coverSrc} stats={stats} publicPath={publicPath} />
       </div>
 
       {/* ── Phones: the header buttons scroll away, so keep Save in reach while there is something to save ── */}
@@ -501,8 +497,10 @@ export default function ProfilePage() {
   );
 }
 
-/* ── Live preview of the public /u/<handle> header. Photos are changed right here. ── */
-function ProfilePreview({ form, avatarSrc, coverSrc, onAvatarChange, onCoverChange }) {
+const initialOf = (name) => (name || "").trim().charAt(0).toUpperCase() || "?";
+
+/* ── Live preview of the public /u/<handle> header. Photos are changed in the fields on the left. ── */
+function ProfilePreview({ form, avatarSrc, coverSrc, stats, publicPath }) {
   const name = form.display_name.trim();
 
   const links = [
@@ -511,135 +509,107 @@ function ProfilePreview({ form, avatarSrc, coverSrc, onAvatarChange, onCoverChan
   ].filter(Boolean);
 
   return (
-    <div className="rounded-[26px] border border-line bg-white overflow-hidden">
-      {/* Cover: a dashed "add" button until there is one */}
-      {coverSrc ? (
-        <div className="relative h-[130px]">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={coverSrc} alt="" className="absolute inset-0 w-full h-full object-cover" />
-          <label className="absolute right-3 bottom-3 inline-flex items-center gap-1.5 h-9 px-3 rounded-full bg-white/95 text-[13px] font-bold text-ink shadow-sm cursor-pointer hover:bg-white focus-within:ring-2 focus-within:ring-brand">
-            <HugeiconsIcon icon={Camera01Icon} size={14} color="currentColor" />
-            Change cover
-            <input type="file" accept="image/*" className="sr-only" onChange={onCoverChange} />
-          </label>
+    <aside aria-label="Preview" className="flex flex-col gap-2.5 lg:sticky lg:top-0">
+      <span className="text-sm font-bold text-muted">Preview</span>
+      <div className="overflow-hidden rounded-[20px] border border-line bg-white">
+        <div className="relative h-[110px] bg-mist">
+          {coverSrc && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={coverSrc} alt="" className="h-full w-full object-cover" />
+          )}
         </div>
-      ) : (
-        <label className="flex h-[130px] w-full items-center justify-center border-b border-dashed border-[#C9D0DC] bg-paper text-sm font-bold text-[#3B4252] cursor-pointer hover:bg-mist focus-within:ring-2 focus-within:ring-inset focus-within:ring-brand">
-          + Add cover image · 1200×400
-          <input type="file" accept="image/*" className="sr-only" onChange={onCoverChange} />
-        </label>
-      )}
-
-      <div className="px-[22px] pb-[22px] flex flex-col gap-2">
-        <div className="relative -mt-[42px] w-[84px] h-[84px]">
-          <Avatar
-            src={avatarSrc}
-            name={name}
-            className="w-[84px] h-[84px] rounded-full ring-4 ring-white shadow-[0_6px_20px_rgba(20,22,28,0.10)] text-3xl"
-          />
-          <label className="absolute -right-1 -bottom-1 w-9 h-9 md:w-8 md:h-8 rounded-full bg-white border border-line shadow-sm flex items-center justify-center text-ink cursor-pointer hover:bg-mist focus-within:ring-2 focus-within:ring-brand">
-            <HugeiconsIcon icon={Camera01Icon} size={15} color="currentColor" />
-            <span className="sr-only">{avatarSrc ? "Change profile photo" : "Add profile photo"}</span>
-            <input type="file" accept="image/*" className="sr-only" onChange={onAvatarChange} />
-          </label>
-        </div>
-
-        <h2 className={`font-display text-[26px] font-bold leading-tight break-words ${name ? "text-ink" : "text-faint"}`}>
-          {name || "Your name"}
-        </h2>
-        <p className="text-sm text-muted break-words">
-          {form.handle ? `@${form.handle}` : "Choose a handle"}
-          {form.location.trim() ? ` · ${form.location.trim()}` : ""}
-        </p>
-        <p className={`text-[15px] leading-relaxed break-words line-clamp-5 ${form.bio.trim() ? "text-ink" : "text-faint"}`}>
-          {form.bio.trim() || "Add a short bio so people know what you host."}
-        </p>
-
-        {links.length > 0 && (
-          <ul className="mt-1 flex flex-wrap gap-2">
-            {links.map(({ key, label, icon: Icon }) => (
-              <li key={key} title={label} className="w-10 h-10 rounded-full border border-line text-ink flex items-center justify-center">
-                <Icon className="w-4 h-4" aria-hidden="true" />
-                <span className="sr-only">{label}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-
-      <div className={`px-[22px] py-3 border-t text-sm font-semibold flex items-center gap-2 ${
-        form.is_public ? "bg-mint border-[#D3EEDF] text-[#1F6B47]" : "bg-paper border-line text-muted"
-      }`}>
-        <span className={`w-2 h-2 rounded-full shrink-0 ${form.is_public ? "bg-stamp-green" : "bg-faint"}`} />
-        {form.is_public ? "Listed on the community page" : "Not listed. Only people with your link can find you."}
-      </div>
-    </div>
-  );
-}
-
-function ProfileStrength({ checks }) {
-  const done = checks.filter((c) => c.done).length;
-  return (
-    <div className="rounded-[22px] border border-line bg-white p-5 flex flex-col gap-2.5">
-      <div className="flex items-baseline justify-between">
-        <span className="text-[15px] font-extrabold">Profile strength</span>
-        <span className="text-sm font-extrabold text-brand-dark">{done} of {checks.length}</span>
-      </div>
-      <div
-        className="h-2 rounded-full bg-hairline overflow-hidden"
-        role="progressbar"
-        aria-valuemin={0}
-        aria-valuemax={checks.length}
-        aria-valuenow={done}
-        aria-label="Profile strength"
-      >
-        <div className="h-2 bg-brand transition-[width] motion-reduce:transition-none" style={{ width: `${(done / checks.length) * 100}%` }} />
-      </div>
-      <ul className="flex flex-col gap-2.5 mt-1">
-        {checks.map((c) => (
-          <li key={c.label} className={`flex items-center gap-2.5 text-sm font-semibold ${c.done ? "text-muted" : "text-ink"}`}>
-            <span
-              aria-hidden="true"
-              className={`w-[18px] h-[18px] rounded-full border-[1.5px] flex items-center justify-center ${
-                c.done ? "border-stamp-green bg-stamp-green" : "border-[#C9D0DC] bg-white"
-              }`}
-            >
-              {c.done && (
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
-              )}
+        <div className="flex flex-col gap-2 px-5 pb-5">
+          <span className="-mt-8 flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border-[3px] border-white bg-ink font-display text-2xl font-bold text-white">
+            {avatarSrc ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={avatarSrc} alt="" className="h-full w-full object-cover" />
+            ) : (
+              initialOf(name)
+            )}
+          </span>
+          <span className={`break-words font-display text-[22px] font-bold leading-tight tracking-[-0.02em] ${name ? "text-ink" : "text-faint"}`}>
+            {name || "Your name"}
+          </span>
+          <span className="break-words text-[13px] text-muted">
+            {form.location.trim() || (form.handle ? `@${form.handle}` : "Add a location")}
+          </span>
+          <span className={`line-clamp-5 break-words text-sm leading-normal ${form.bio.trim() ? "text-[#3B4252]" : "text-faint"}`}>
+            {form.bio.trim() || "Add a short bio so people know what you host."}
+          </span>
+          {stats && (
+            <span className="text-[13px] text-muted">
+              <b className="text-ink">{Number(stats.followers ?? 0).toLocaleString()}</b> followers{"  "}
+              <b className="text-ink">{Number(stats.events_held ?? 0).toLocaleString()}</b> events
             </span>
-            {c.label}
-            <span className="sr-only">{c.done ? " (done)" : " (to do)"}</span>
-          </li>
-        ))}
-      </ul>
-    </div>
+          )}
+          {links.length > 0 && (
+            <ul className="flex flex-wrap gap-1.5">
+              {links.map(({ key, label, icon: Icon }) => (
+                <li key={key} title={label} className="flex h-8 w-8 items-center justify-center rounded-full border border-line text-ink">
+                  <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+                  <span className="sr-only">{label}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <div className={`flex items-center gap-2 border-t px-5 py-3 text-[13px] font-semibold ${
+          form.is_public ? "border-[#D3EEDF] bg-mint text-[#1F6B47]" : "border-line bg-paper text-muted"
+        }`}>
+          <span className={`h-2 w-2 shrink-0 rounded-full ${form.is_public ? "bg-stamp-green" : "bg-faint"}`} />
+          {form.is_public ? "Listed on the communities page" : "Not listed. Only people with your link can find you."}
+        </div>
+      </div>
+      {publicPath && (
+        <Link
+          href={publicPath}
+          target="_blank"
+          className="inline-flex items-center gap-1.5 self-start text-sm font-bold text-brand-dark hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+        >
+          View public page
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M14 4h6v6M20 4l-9 9M18 14v6H4V6h6" />
+          </svg>
+        </Link>
+      )}
+    </aside>
   );
 }
 
-function Card({ title, description, children }) {
+/* One settings group: the title on the left, the fields on the right. */
+function Section({ title, hint, last = false, children }) {
   return (
-    <section className="rounded-3xl border border-line bg-white p-5 md:p-6 flex flex-col gap-4">
-      <div>
-        <h2 className="font-display text-xl font-bold">{title}</h2>
-        {description && <p className="text-sm text-muted mt-1">{description}</p>}
+    <section className={`grid grid-cols-1 gap-x-8 gap-y-4 py-7 md:grid-cols-[200px_minmax(0,1fr)] ${last ? "" : "border-b border-hairline"} first:pt-4`}>
+      <div className="flex flex-col gap-1">
+        <h2 className="font-display text-[17px] font-bold">{title}</h2>
+        {hint && <p className="text-[13px] leading-normal text-muted">{hint}</p>}
       </div>
-      {children}
+      <div className="flex min-w-0 flex-col gap-[18px]">{children}</div>
     </section>
+  );
+}
+
+// A button that opens the file picker.
+function FileButton({ onChange, className = "", children }) {
+  return (
+    <label className={`inline-flex h-10 cursor-pointer items-center justify-center self-start rounded-full border border-line bg-white px-[18px] text-sm font-bold text-ink transition-[background-color,scale] hover:bg-paper active:scale-[0.97] focus-within:ring-2 focus-within:ring-brand ${className}`}>
+      {children}
+      <input type="file" accept="image/*" className="sr-only" onChange={onChange} />
+    </label>
   );
 }
 
 function Field({ id, label, hint, error, counter, children }) {
   return (
     <div className="min-w-0">
-      <label htmlFor={id} className="block text-sm font-bold text-ink mb-1.5">{label}</label>
+      <label htmlFor={id} className="mb-2 block text-sm font-bold">{label}</label>
       {children}
       {error ? (
         <p className="mt-1.5 text-sm text-red-600" role="alert">{error}</p>
       ) : hint ? (
-        <p className="mt-1.5 text-sm text-muted">{hint}</p>
+        <p className="mt-1.5 text-[13px] leading-normal text-muted">{hint}</p>
       ) : null}
-      {counter && <p className="mt-1 text-xs text-muted text-right">{counter}</p>}
+      {counter && <p className="mt-1.5 text-right text-[13px] text-muted">{counter}</p>}
     </div>
   );
 }
@@ -647,11 +617,11 @@ function Field({ id, label, hint, error, counter, children }) {
 function PrefixInput({ id, prefix, value, onChange, placeholder, maxLength, invalid = false }) {
   return (
     <div
-      className={`flex rounded-[14px] border bg-white overflow-hidden focus-within:ring-2 ${
-        invalid ? "border-red-500 focus-within:ring-red-500/25" : "border-line focus-within:border-brand focus-within:ring-brand/25"
+      className={`flex h-11 overflow-hidden rounded-xl border bg-white focus-within:ring-2 ${
+        invalid ? "border-red-500 focus-within:ring-red-500/25" : "border-[#CBD3DF] focus-within:border-brand focus-within:ring-brand/25"
       }`}
     >
-      <span className="flex items-center px-3 bg-paper border-r border-line text-sm text-muted whitespace-nowrap select-none">
+      <span className="flex select-none items-center whitespace-nowrap border-r border-line bg-paper px-3 text-sm text-muted">
         {prefix}
       </span>
       <input
@@ -664,35 +634,9 @@ function PrefixInput({ id, prefix, value, onChange, placeholder, maxLength, inva
         autoCapitalize="none"
         autoCorrect="off"
         spellCheck={false}
-        className="flex-1 min-w-0 h-[46px] px-3.5 text-base md:text-[15px] text-ink placeholder:text-faint focus:outline-none"
+        className="min-w-0 flex-1 px-3 text-base text-ink placeholder:text-faint focus:outline-none md:text-[15px]"
         placeholder={placeholder}
       />
     </div>
-  );
-}
-
-// A single link field: brand icon on the left, then the value. The icon is the label for screen readers.
-function LinkInput({ id, name, icon: Icon, value, onChange, placeholder, type = "text", inputMode }) {
-  return (
-    <label
-      htmlFor={id}
-      className="h-[46px] px-3.5 rounded-[14px] border border-line bg-white flex items-center gap-2.5 focus-within:border-brand focus-within:ring-2 focus-within:ring-brand/25"
-    >
-      <Icon className="w-4 h-4 shrink-0 text-ink" aria-hidden="true" />
-      <span className="sr-only">{name}</span>
-      <input
-        id={id}
-        type={type}
-        inputMode={inputMode}
-        value={value}
-        maxLength={100}
-        onChange={(e) => onChange(e.target.value)}
-        autoCapitalize="none"
-        autoCorrect="off"
-        spellCheck={false}
-        className="w-full min-w-0 bg-transparent text-base md:text-[15px] text-ink placeholder:text-faint focus:outline-none"
-        placeholder={placeholder}
-      />
-    </label>
   );
 }
