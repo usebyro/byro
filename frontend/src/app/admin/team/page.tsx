@@ -26,13 +26,13 @@ const ROLES: { value: Role; label: string; hint: string }[] = [
 ];
 
 const ROLE_STYLE: Record<Role, string> = {
-  owner: "bg-indigo-500/15 text-indigo-300",
-  admin: "bg-blue-500/15 text-brand-dark",
+  owner: "bg-ink text-white",
+  admin: "bg-brand/10 text-brand-dark",
   viewer: "bg-mist text-muted",
 };
 
 const AVATAR_COLORS = [
-  "bg-brand", "bg-teal-600", "bg-pink-500", "bg-violet-600", "bg-emerald-600", "bg-orange-600",
+  "bg-brand", "bg-stamp-pink", "bg-stamp-green", "bg-stamp-gold", "bg-ink",
 ];
 
 function formatShortDate(dateStr: string | null) {
@@ -68,7 +68,7 @@ function Avatar({ m }: { m: AdminTeamMember }) {
   return (
     <span
       aria-hidden
-      className={`w-8 h-8 rounded-full shrink-0 flex items-center justify-center text-[11px] font-semibold text-ink ${color}`}
+      className={`w-8 h-8 rounded-full shrink-0 flex items-center justify-center text-[11px] font-bold text-white ${color}`}
     >
       {name.slice(0, 2).toUpperCase()}
     </span>
@@ -77,7 +77,7 @@ function Avatar({ m }: { m: AdminTeamMember }) {
 
 function RoleBadge({ role }: { role: Role }) {
   return (
-    <span className={`inline-flex text-xs px-2 py-0.5 rounded font-medium capitalize ${ROLE_STYLE[role]}`}>
+    <span className={`inline-flex text-xs px-2.5 py-0.5 rounded-full font-bold capitalize ${ROLE_STYLE[role]}`}>
       {role}
     </span>
   );
@@ -266,7 +266,7 @@ export default function AdminTeamPage() {
       <td className="py-3 pr-4 text-sm whitespace-nowrap">
         {isOnline(m.last_seen) ? (
           <span className="inline-flex items-center gap-1.5 text-[#3B4252]">
-            <span className="w-1.5 h-1.5 rounded-full bg-green-400" />
+            <span className="w-1.5 h-1.5 rounded-full bg-stamp-green" />
             Online
           </span>
         ) : (
@@ -301,8 +301,13 @@ export default function AdminTeamPage() {
     );
 
   return (
-    <div className="p-5 md:p-10 max-w-5xl">
-      <h1 className="text-ink text-2xl font-semibold mb-6">Members</h1>
+    <div className="p-5 md:p-8">
+      <div className="mb-8">
+        <h1 className="font-display text-ink text-3xl font-extrabold tracking-tight">Team</h1>
+        <p className="text-muted text-sm mt-1">
+          {members.length} {members.length === 1 ? "person" : "people"} on the admin team
+        </p>
+      </div>
 
       <div className="flex flex-wrap items-center gap-2 mb-6">
         <label className="flex items-center gap-2 w-full sm:w-80 bg-mist border border-line rounded-lg px-3 py-2 focus-within:ring-1 focus-within:ring-brand/40">
@@ -329,7 +334,7 @@ export default function AdminTeamPage() {
         {can.manage_team && (
           <button
             onClick={() => setInviteOpen(true)}
-            className="ml-auto text-sm font-semibold text-ink bg-indigo-500 hover:bg-indigo-400 px-4 py-2 rounded-lg transition-colors"
+            className="ml-auto text-sm font-bold text-white bg-brand hover:bg-brand-dark px-4 py-2 rounded-full transition-colors"
           >
             Invite
           </button>
@@ -427,7 +432,7 @@ export default function AdminTeamPage() {
               <button
                 type="submit"
                 disabled={inviting || !inviteEmail.trim()}
-                className="text-xs font-semibold text-ink bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 px-4 py-2 rounded-lg transition-colors"
+                className="text-xs font-bold text-white bg-brand hover:bg-brand-dark disabled:opacity-50 px-4 py-2 rounded-full transition-colors"
               >
                 {inviting ? "Adding…" : "Add to team"}
               </button>
@@ -453,7 +458,7 @@ export default function AdminTeamPage() {
               </button>
               <button
                 onClick={() => handleRemove(removing)}
-                className="text-xs font-semibold text-red-600 bg-red-500/10 hover:bg-red-500/20 px-3 py-2 rounded-lg transition-colors"
+                className="text-xs font-bold text-red-600 bg-red-500/10 hover:bg-red-500/20 px-4 py-2 rounded-full transition-colors"
               >
                 Remove
               </button>

@@ -68,7 +68,7 @@ export default function AdminAuditLogPage() {
   return (
     <div className="p-5 md:p-8">
       <div className="mb-8">
-        <h1 className="text-ink text-xl font-bold">Audit log</h1>
+        <h1 className="font-display text-ink text-3xl font-extrabold tracking-tight">Audit log</h1>
         <p className="text-muted text-sm mt-1">Every action taken from the admin panel, newest first</p>
       </div>
 

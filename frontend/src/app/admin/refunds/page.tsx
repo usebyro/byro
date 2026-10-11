@@ -170,7 +170,7 @@ export default function AdminRefundsPage() {
   return (
     <div className="p-5 md:p-8">
       <div className="mb-6">
-        <h1 className="text-ink text-xl font-bold">Refunds</h1>
+        <h1 className="font-display text-ink text-3xl font-extrabold tracking-tight">Refunds</h1>
         <p className="text-muted text-sm mt-1">
           Events organisers have cancelled, and the ticket price owed back to each buyer. Check the Paystack
           balance, then send. Byro&apos;s service fee and Paystack&apos;s charge are never refunded.

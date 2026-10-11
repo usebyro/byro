@@ -60,7 +60,7 @@ export default function AdminPromosPage() {
   return (
     <div className="p-5 md:p-8">
       <div className="mb-8">
-        <h1 className="text-ink text-xl font-bold">Promo codes</h1>
+        <h1 className="font-display text-ink text-3xl font-extrabold tracking-tight">Promo codes</h1>
         <p className="text-muted text-sm mt-1">Every code on the platform, with usage</p>
       </div>
 
