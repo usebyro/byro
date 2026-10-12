@@ -1,3 +1,4 @@
+import { SITE_URL } from "@/lib/site";
 import PublicProfileClient from "./PublicProfileClient";
 
 const API_BASE = (() => {
@@ -5,7 +6,6 @@ const API_BASE = (() => {
   return raw.endsWith("/api") ? raw + "/" : raw + "/api/";
 })();
 
-const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://usebyro.com").replace(/\/+$/, "");
 
 async function fetchProfileData(handle) {
   try {
@@ -35,6 +35,7 @@ export async function generateMetadata({ params }) {
   return {
     title: `${name} | Byro`,
     description: bio,
+    alternates: { canonical: pageUrl },
     openGraph: {
       type: "profile",
       url: pageUrl,

@@ -1,7 +1,12 @@
+import type { Metadata } from "next";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import type { EventLike } from "@/lib/eventFormat";
 import { Hero, TrendingEvents, StampsSection, HostsSection, TrustRow, CommunitySection, CommunitiesStrip } from "@/components/landing";
+
+export const metadata: Metadata = {
+  alternates: { canonical: "/" },
+};
 
 type Event = EventLike & { id: number; is_active?: boolean };
 

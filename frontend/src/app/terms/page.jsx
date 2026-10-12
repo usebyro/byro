@@ -3,7 +3,8 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 
 export const metadata = {
-  title: "Terms of Service | Byro",
+  title: "Terms of Service",
+  alternates: { canonical: "/terms" },
   description: "Read Byro's Terms of Service.",
 };
 

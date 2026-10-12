@@ -3,7 +3,8 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 
 export const metadata = {
-  title: "Privacy Policy | Byro",
+  title: "Privacy Policy",
+  alternates: { canonical: "/privacy" },
   description:
     "How Byro collects, uses, shares and protects your personal data, including data received from Google sign-in.",
 };

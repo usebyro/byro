@@ -7,6 +7,7 @@ import type {BlogPost} from './blog-data'
 
 export const metadata: Metadata = {
   title: 'Blog',
+  alternates: {canonical: '/blog'},
   description:
     'Stories from the scene — guides for organisers, what-is-on roundups, and the culture behind the events.',
 }
