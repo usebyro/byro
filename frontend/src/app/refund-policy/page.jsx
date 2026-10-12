@@ -2,7 +2,8 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 
 export const metadata = {
-  title: "Refund Policy | Byro",
+  title: "Refund Policy",
+  alternates: { canonical: "/refund-policy" },
   description: "Read Byro's Refund Policy for ticket purchases.",
 };
 

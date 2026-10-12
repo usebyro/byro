@@ -1,4 +1,5 @@
 import "./globals.css";
+import { SITE_URL } from '@/lib/site';
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Script from "next/script";
@@ -17,7 +18,6 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://usebyro.com").replace(/\/+$/, "");
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -27,7 +27,6 @@ export const metadata: Metadata = {
   },
   description:
     "Create communities. Discover events. Create memories. Byro is the community events platform built for organisers and attendees.",
-  alternates: { canonical: "/" },
   keywords: [
     "community events",
     "discover events",
@@ -41,7 +40,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     locale: "en_US",
-    url: "https://usebyro.com",
+    url: SITE_URL,
     siteName: "Byro",
     title: "Byro. Build Communities and Discover Events",
     description:

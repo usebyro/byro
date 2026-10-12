@@ -1,3 +1,4 @@
+import { SITE_URL } from "@/lib/site";
 import { Suspense } from "react";
 import ViewEventClient from "./ViewEventClient";
 import { fetchShareEvent, shareImageUrl, shareDescription } from "@/lib/eventShare";
@@ -8,7 +9,6 @@ const API_BASE = (() => {
   return raw.endsWith("/api") ? raw + "/" : raw + "/api/";
 })();
 
-const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://usebyro.com").replace(/\/+$/, "");
 
 async function fetchEventData(slug) {
   try {
