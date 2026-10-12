@@ -114,7 +114,7 @@ export default function StudioPayouts() {
         );
       }
     } catch {
-      toast.error("Couldn't load payout history.");
+      toast.error("Couldn't load payout history");
     } finally {
       setLoadingPayouts(false);
     }
@@ -145,7 +145,7 @@ export default function StudioPayouts() {
       const res = await API.getBanks("nigeria");
       setBanks(Array.isArray(res?.data) ? res.data : []);
     } catch {
-      toast.error("Couldn't load the bank list. Please try again.");
+      toast.error("Couldn't load banks", { description: "Please try again." });
     } finally {
       setLoadingBanks(false);
     }
@@ -197,33 +197,33 @@ export default function StudioPayouts() {
   const saveBankDetails = (e) => {
     e.preventDefault();
     if (!bankForm.bankCode || !bankForm.accountNumber || !bankForm.accountName) {
-      toast.error("Select a bank and enter your account number to confirm your details.");
+      toast.error("Bank details needed", { description: "Select a bank and enter your account number." });
       return;
     }
     setBankDetails(bankForm);
     localStorage.setItem(BANK_DETAILS_STORAGE_KEY, JSON.stringify(bankForm));
     setBankModalOpen(false);
-    toast.success("Bank details saved.");
+    toast.success("Bank details saved");
   };
 
   const submitWithdrawal = async (e) => {
     e.preventDefault();
     const amount = parseFloat(withdrawAmount);
     if (!withdrawAmount || isNaN(amount) || amount <= 0) {
-      toast.error("Please enter a valid amount.");
+      toast.error("Enter a valid amount");
       return;
     }
     const available = balance ? Number(balance.available) : 0;
     if (available <= 0) {
-      toast.error("You have no funds available to withdraw.");
+      toast.error("No funds to withdraw");
       return;
     }
     if (amount > available) {
-      toast.error(`Amount exceeds your available balance of ${fmt(available)}.`);
+      toast.error("Amount too high", { description: `Your balance is ${fmt(available)}.` });
       return;
     }
     if (!bankDetails.bankName || !bankDetails.accountNumber || !bankDetails.accountName) {
-      toast.error("Add your bank details before withdrawing.");
+      toast.error("Add bank details first");
       setWithdrawModalOpen(false);
       openBankModal();
       return;
@@ -239,13 +239,13 @@ export default function StudioPayouts() {
         account_number: bankDetails.accountNumber,
         account_name: bankDetails.accountName,
       });
-      toast.success("Withdrawal request submitted!");
+      toast.success("Withdrawal requested");
       setWithdrawAmount("");
       setWithdrawModalOpen(false);
       loadPayouts();
       loadBalance();
     } catch (err) {
-      toast.error(err?.message || "Failed to submit withdrawal request. Please try again.");
+      toast.error("Couldn't submit request", { description: err?.message || "Please try again." });
     } finally {
       setSubmitting(false);
     }

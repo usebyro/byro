@@ -50,10 +50,10 @@ export default function CancelEventDialog({ open, onClose, slug, eventName, onCa
     setBusy(true);
     try {
       const result = await API.cancelEvent(slug, reason.trim());
-      toast.success("Event cancelled. Your attendees are being told.");
+      toast.success("Event cancelled", { description: "Attendees are being told." });
       onCancelled?.(result);
     } catch (err) {
-      toast.error(err?.message || "Couldn't cancel the event. Try again.");
+      toast.error("Couldn't cancel event", { description: err?.message || "Try again." });
     } finally {
       setBusy(false);
     }

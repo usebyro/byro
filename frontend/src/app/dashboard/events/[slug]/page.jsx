@@ -209,10 +209,10 @@ export default function StudioEventPage() {
     setDeleting(true);
     try {
       await API.deleteEvent(slug);
-      toast.success("Event deleted.");
+      toast.success("Event deleted");
       router.push("/dashboard/events");
     } catch (err) {
-      toast.error(err?.message || "Failed to delete.");
+      toast.error("Couldn't delete event", { description: err?.message });
       setDeleting(false);
       setShowDelete(false);
       setDeleteConfirm("");
@@ -234,7 +234,7 @@ export default function StudioEventPage() {
     const code = discountForm.code.trim().toUpperCase();
     if (!code || !discountForm.value || savingDiscount) return;
     if (discountCodes.some((d) => d.code === code)) {
-      toast.error("That code already exists for this event.");
+      toast.error("Code already exists");
       return;
     }
     setSavingDiscount(true);
@@ -247,11 +247,11 @@ export default function StudioEventPage() {
         expires_at: discountForm.expiresAt || null,
       });
       setDiscountCodes((prev) => [mapPromoFromApi(created), ...prev]);
-      toast.success(`Discount code ${code} created.`);
+      toast.success("Discount code created", { description: code });
       setShowDiscountModal(false);
       resetDiscountForm();
     } catch (err) {
-      toast.error(err?.message || "Failed to create discount code.");
+      toast.error("Couldn't create code", { description: err?.message });
     } finally {
       setSavingDiscount(false);
     }
@@ -265,7 +265,7 @@ export default function StudioEventPage() {
       const updated = await API.updatePromoCode(slug, id, { active: !current.active });
       setDiscountCodes((prev) => prev.map((d) => (d.id === id ? mapPromoFromApi(updated) : d)));
     } catch (err) {
-      toast.error(err?.message || "Failed to update discount code.");
+      toast.error("Couldn't update code", { description: err?.message });
     }
   };
 
@@ -278,7 +278,7 @@ export default function StudioEventPage() {
       setDiscountCodes((prev) => prev.filter((d) => d.id !== id));
       setDiscountToDelete(null);
     } catch (err) {
-      toast.error(err?.message || "Failed to delete discount code.");
+      toast.error("Couldn't delete code", { description: err?.message });
     } finally {
       setDeletingDiscount(false);
     }
@@ -286,7 +286,7 @@ export default function StudioEventPage() {
 
   const copyDiscountCode = (code) => {
     navigator.clipboard?.writeText(code);
-    toast.success(`${code} copied to clipboard.`);
+    toast.success("Code copied", { description: code });
   };
 
   const getDiscountStatus = (d) => {
@@ -629,8 +629,8 @@ export default function StudioEventPage() {
                         onClick={() => {
                           navigator.clipboard
                             .writeText(`${window.location.origin}/discover/${slug}`)
-                            .then(() => toast.success("Link copied!"))
-                            .catch(() => toast.error("Couldn't copy the link."));
+                            .then(() => toast.success("Link copied"))
+                            .catch(() => toast.error("Couldn't copy link"));
                         }}
                         className="inline-block mt-4 bg-[#4F6EF7] text-white text-xs font-semibold px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
                       >

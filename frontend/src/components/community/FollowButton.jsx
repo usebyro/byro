@@ -47,7 +47,7 @@ export default function FollowButton({ handle, initialFollowing = false, onChang
         trackFollow({ handle, following: data.following });
         onChange?.(data.followers_count, data.following);
       })
-      .catch((err) => toast.error(err?.message || "Couldn't follow. Try again."));
+      .catch((err) => toast.error("Couldn't follow", { description: err?.message || "Try again." }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, pending, handle]);
 
@@ -74,7 +74,7 @@ export default function FollowButton({ handle, initialFollowing = false, onChang
       onChange?.(data.followers_count, data.following);
     } catch (err) {
       setFollowing(!next);
-      toast.error(err?.message || "Couldn't update that. Try again.");
+      toast.error("Couldn't update follow", { description: err?.message || "Try again." });
     } finally {
       setBusy(false);
     }
