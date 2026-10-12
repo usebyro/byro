@@ -1089,3 +1089,35 @@ class SeedLoadtestTests(TestCase):
         self.assertFalse(Event.objects.filter(slug__startswith='lt-').exists())
         self.assertFalse(Ticket.objects.filter(current_owner_email__endswith='@loadtest.invalid').exists())
         self.assertFalse(get_user_model().objects.filter(email__endswith='@loadtest.invalid').exists())
+
+
+class ProfileExtrasTests(WorkOSAuthTestCase):
+    """Category and WhatsApp on the profile, and removing the photo."""
+
+    def setUp(self):
+        super().setUp()
+        self.host = User.objects.create_user(email='host2@example.com', workos_id='user_host2')
+        UserProfile.objects.filter(user=self.host).update(handle='gdgoc', display_name='GDGoC')
+        self.auth(make_token(sub='user_host2'))
+
+    def test_category_and_whatsapp_save_and_show_publicly(self):
+        res = self.client.patch('/api/profile/me/', {'category': 'tech', 'whatsapp': 'chat.whatsapp.com/K3x9QnUL2'}, format='json')
+        self.assertEqual(res.status_code, 200)
+        public = self.client.get('/api/profile/gdgoc/').json()
+        self.assertEqual((public['category'], public['whatsapp']), ('tech', 'chat.whatsapp.com/K3x9QnUL2'))
+
+    def test_unknown_category_is_refused_and_blank_is_allowed(self):
+        self.assertEqual(self.client.patch('/api/profile/me/', {'category': 'crypto-bros'}, format='json').status_code, 400)
+        self.assertEqual(self.client.patch('/api/profile/me/', {'category': ''}, format='json').status_code, 200)
+
+    def test_photo_can_be_removed(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        png = (b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89'
+               b'\x00\x00\x00\rIDATx\x9cc\xf8\xff\xff?\x00\x05\xfe\x02\xfe\xa7\x9a\xa0\xa0\x00\x00\x00\x00IEND\xaeB`\x82')
+        up = self.client.post('/api/profile/me/avatar/', {'avatar': SimpleUploadedFile('a.png', png, content_type='image/png')}, format='multipart')
+        self.assertEqual(up.status_code, 200)
+        self.assertTrue(UserProfile.objects.get(user=self.host).avatar)
+        res = self.client.delete('/api/profile/me/avatar/')
+        self.assertEqual(res.status_code, 200)
+        self.assertIsNone(res.json()['avatar_url'])
+        self.assertFalse(UserProfile.objects.get(user=self.host).avatar)

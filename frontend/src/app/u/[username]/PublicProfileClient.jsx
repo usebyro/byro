@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
-import { FaXTwitter, FaInstagram, FaLinkedinIn, FaTelegram } from "react-icons/fa6";
+import { FaXTwitter, FaInstagram, FaLinkedinIn, FaTelegram, FaWhatsapp } from "react-icons/fa6";
 import API from "@/services/api";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
@@ -12,6 +12,9 @@ import EventImage from "@/components/brand/EventImage";
 import { categoryTone, dayParts, eventInitials, formatTime, priceLabel } from "@/lib/eventFormat";
 
 const PAST_PAGE = 6;
+
+// What the organiser picked for their community; matches the backend's UserProfile.CATEGORY_CHOICES.
+const CATEGORY_LABELS = { tech: "Tech", music: "Music", fitness: "Fitness", faith: "Faith", food: "Food", art_culture: "Art and culture" };
 
 const socialLink =
   "flex h-10 w-10 items-center justify-center rounded-full border border-line text-ink transition-[background-color,scale] hover:bg-mist active:scale-[0.96] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand";
@@ -119,7 +122,7 @@ export default function PublicProfileClient({ username }) {
     : upcomingEvents.find((e) => e.event_image_url) || events.find((e) => e.event_image_url) || null;
   const merchItems = profile.merch_items || [];
   const categoryLabels = [...new Set(events.map((e) => e.category).filter(Boolean))].map((c) => categoryTone(c).label);
-  const meta = [profile.location, categoryLabels[0]].filter(Boolean).join(" · ") || `@${profile.handle || username}`;
+  const meta = [profile.location, CATEGORY_LABELS[profile.category] || categoryLabels[0]].filter(Boolean).join(" · ") || `@${profile.handle || username}`;
 
   // Events of this community the signed-in viewer was checked in to.
   const attended = new Set(profile.viewer_attended || []);
@@ -127,6 +130,7 @@ export default function PublicProfileClient({ username }) {
 
   const socials = [
     profile.instagram && { label: "Instagram", href: `https://instagram.com/${profile.instagram}`, icon: <FaInstagram size={17} aria-hidden="true" /> },
+    profile.whatsapp && { label: "WhatsApp group", href: /^https?:\/\//i.test(profile.whatsapp) ? profile.whatsapp : `https://${profile.whatsapp}`, icon: <FaWhatsapp size={17} aria-hidden="true" /> },
     profile.twitter && { label: "X", href: `https://x.com/${profile.twitter}`, icon: <FaXTwitter size={16} aria-hidden="true" /> },
     profile.telegram && { label: "Telegram", href: `https://t.me/${profile.telegram}`, icon: <FaTelegram size={17} aria-hidden="true" /> },
     profile.linkedin && { label: "LinkedIn", href: `https://linkedin.com/in/${profile.linkedin}`, icon: <FaLinkedinIn size={16} aria-hidden="true" /> },

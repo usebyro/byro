@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, Suspense } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { FaGlobe, FaXTwitter, FaInstagram, FaLinkedinIn, FaTelegram } from "react-icons/fa6";
+import { FaGlobe, FaXTwitter, FaInstagram, FaLinkedinIn, FaTelegram, FaWhatsapp } from "react-icons/fa6";
 import { authSuccess } from "@/redux/auth/authSlice";
 import API from "@/services/api";
 import { toast } from "sonner";
@@ -15,11 +15,23 @@ const FONT = { fontFamily: 'var(--font-body), system-ui, -apple-system, "Segoe U
 const BIO_MAX = 500;
 
 const SOCIALS = [
-  { key: "twitter",   label: "X",         prefix: "x.com/",           placeholder: "handle…",   icon: FaXTwitter },
-  { key: "instagram", label: "Instagram", prefix: "instagram.com/",   placeholder: "handle…",   icon: FaInstagram },
-  { key: "linkedin",  label: "LinkedIn",  prefix: "linkedin.com/in/", placeholder: "username…", icon: FaLinkedinIn },
-  { key: "telegram",  label: "Telegram",  prefix: "t.me/",            placeholder: "handle…",   icon: FaTelegram },
+  { key: "instagram", label: "Instagram",       prefix: "instagram.com/",   placeholder: "handle…",   icon: FaInstagram },
+  { key: "twitter",   label: "X",               prefix: "x.com/",           placeholder: "handle…",   icon: FaXTwitter },
+  { key: "whatsapp",  label: "WhatsApp group",  icon: FaWhatsapp },
+  { key: "linkedin",  label: "LinkedIn",        prefix: "linkedin.com/in/", placeholder: "username…", icon: FaLinkedinIn },
+  { key: "telegram",  label: "Telegram",        prefix: "t.me/",            placeholder: "handle…",   icon: FaTelegram },
 ];
+
+// Same list as the backend's UserProfile.CATEGORY_CHOICES.
+const CATEGORIES = [
+  { value: "tech", label: "Tech" },
+  { value: "music", label: "Music" },
+  { value: "fitness", label: "Fitness" },
+  { value: "faith", label: "Faith" },
+  { value: "food", label: "Food" },
+  { value: "art_culture", label: "Art and culture" },
+];
+const categoryLabel = (value) => CATEGORIES.find((c) => c.value === value)?.label || "";
 
 const EMPTY_FORM = {
   display_name: "",
@@ -31,6 +43,8 @@ const EMPTY_FORM = {
   instagram:    "",
   linkedin:     "",
   telegram:     "",
+  whatsapp:     "",
+  category:     "",
   is_public:    true,
 };
 
@@ -44,6 +58,8 @@ const toForm = (data) => ({
   instagram:    data?.instagram    || "",
   linkedin:     data?.linkedin     || "",
   telegram:     data?.telegram     || "",
+  whatsapp:     data?.whatsapp     || "",
+  category:     data?.category     || "",
   is_public:    data?.is_public !== false,
 });
 
@@ -64,7 +80,7 @@ function ProfilePageContent() {
   const [form,      setForm]      = useState(EMPTY_FORM);
   const [savedForm, setSavedForm] = useState(EMPTY_FORM);
   const [errors,    setErrors]    = useState({});
-  const [showMoreLinks, setShowMoreLinks] = useState(false);
+  const [avatarRemoved, setAvatarRemoved] = useState(false);
   const [stats, setStats] = useState(null);
 
   const [avatarFile,        setAvatarFile]        = useState(null);
@@ -137,7 +153,14 @@ function ProfilePageContent() {
     const file = e.target.files?.[0];
     if (!file) return;
     setAvatarFile(file);
+    setAvatarRemoved(false);
     setAvatarPreview(URL.createObjectURL(file));
+  };
+
+  const removeAvatar = () => {
+    setAvatarFile(null);
+    setAvatarRemoved(true);
+    setAvatarPreview("");
   };
 
   const handleCoverImageChange = (e) => {
@@ -149,7 +172,7 @@ function ProfilePageContent() {
 
   const changeCount =
     Object.keys(EMPTY_FORM).filter((k) => form[k] !== savedForm[k]).length +
-    (avatarFile ? 1 : 0) +
+    (avatarFile || avatarRemoved ? 1 : 0) +
     (coverImageFile ? 1 : 0);
   const dirty = changeCount > 0;
 
@@ -157,12 +180,17 @@ function ProfilePageContent() {
     setForm(savedForm);
     setErrors({});
     setAvatarFile(null);
+    setAvatarRemoved(false);
     setCoverImageFile(null);
     setAvatarPreview(profile?.avatar_url || "");
     setCoverImagePreview(profile?.cover_image_url || "");
   };
 
   const handleSave = async () => {
+    if (!dirty) {
+      toast.info("Nothing to save");
+      return;
+    }
     if (!form.display_name.trim()) {
       setErrors({ display_name: "Add a display name so people know who you are." });
       document.getElementById("display_name")?.focus();
@@ -186,6 +214,12 @@ function ProfilePageContent() {
         const res = await API.uploadAvatar(avatarFile);
         setAvatarPreview(res.avatar_url);
         setAvatarFile(null);
+      }
+
+      // 1a. Remove the photo if asked
+      if (avatarRemoved && !avatarFile) {
+        await API.removeAvatar();
+        setAvatarRemoved(false);
       }
 
       // 1b. Upload cover image if changed
@@ -257,10 +291,8 @@ function ProfilePageContent() {
   const coverSrc   = coverImagePreview || null;
   const publicPath = savedForm.handle ? `/u/${savedForm.handle}` : null;
 
-  // X, Instagram and Website are always there; LinkedIn and Telegram appear when used or asked for.
-  const mainSocials  = SOCIALS.filter((x) => x.key === "twitter" || x.key === "instagram");
-  const extraSocials = SOCIALS.filter((x) => x.key === "linkedin" || x.key === "telegram");
-  const extrasVisible = showMoreLinks || extraSocials.some((x) => form[x.key].trim());
+  // Instagram, X, WhatsApp and Website are always there. LinkedIn and Telegram only show if already filled in.
+  const extraSocials = SOCIALS.filter((x) => (x.key === "linkedin" || x.key === "telegram") && form[x.key].trim());
 
   return (
     <div style={FONT} className="px-4 pb-12 pt-8 text-ink md:px-8 lg:px-12">
@@ -272,7 +304,7 @@ function ProfilePageContent() {
         <button
           type="button"
           onClick={handleDiscard}
-          disabled={!dirty || isSaving}
+          disabled={isSaving}
           className="h-11 rounded-full border border-line bg-white px-5 text-[15px] font-bold text-ink transition-[background-color,scale] hover:bg-paper active:scale-[0.97] disabled:cursor-not-allowed disabled:border-0 disabled:bg-hairline disabled:text-muted disabled:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
         >
           Discard
@@ -280,7 +312,7 @@ function ProfilePageContent() {
         <button
           type="button"
           onClick={handleSave}
-          disabled={!dirty || isSaving}
+          disabled={isSaving}
           title="Save changes (Ctrl or Cmd + S)"
           className="h-11 rounded-full bg-brand px-5 text-[15px] font-bold text-white transition-[background-color,scale] hover:bg-brand-dark active:scale-[0.97] disabled:cursor-not-allowed disabled:bg-hairline disabled:text-muted disabled:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
         >
@@ -305,7 +337,18 @@ function ProfilePageContent() {
                 )}
               </span>
               <div className="flex flex-col gap-1.5">
-                <FileButton onChange={handleAvatarChange}>{avatarSrc ? "Change photo" : "Add photo"}</FileButton>
+                <span className="flex items-center gap-2">
+                  <FileButton onChange={handleAvatarChange}>{avatarSrc ? "Change photo" : "Add photo"}</FileButton>
+                  {avatarSrc && (
+                    <button
+                      type="button"
+                      onClick={removeAvatar}
+                      className="h-10 rounded-full px-3.5 text-sm font-bold text-muted transition-[background-color,color] hover:bg-paper hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </span>
                 <span className="text-[13px] leading-normal text-muted">Square, at least 400 × 400px.</span>
               </div>
             </div>
@@ -340,18 +383,26 @@ function ProfilePageContent() {
                   autoComplete="organization"
                 />
               </Field>
-              <Field id="location" label="Location">
-                <input
-                  id="location"
-                  name="location"
-                  type="text"
-                  value={form.location}
-                  maxLength={100}
-                  onChange={(e) => field("location", e.target.value)}
-                  className={inputCls}
-                  placeholder="Lagos, Nigeria…"
-                  autoComplete="address-level2"
-                />
+              <Field id="category" label="Category">
+                <div className="relative">
+                  <select
+                    id="category"
+                    name="category"
+                    value={form.category}
+                    onChange={(e) => field("category", e.target.value)}
+                    className={`${inputCls} appearance-none pr-10`}
+                  >
+                    <option value="">Choose one…</option>
+                    {CATEGORIES.map((c) => (
+                      <option key={c.value} value={c.value}>
+                        {c.label}
+                      </option>
+                    ))}
+                  </select>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5B6272" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true" className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2">
+                    <path d="M6 9l6 6 6-6" />
+                  </svg>
+                </div>
               </Field>
             </div>
 
@@ -364,6 +415,20 @@ function ProfilePageContent() {
                 invalid={Boolean(errors.handle)}
                 onChange={(v) => field("handle", v.toLowerCase().replace(/[^a-z0-9_-]/g, ""))}
                 placeholder="eko-live…"
+              />
+            </Field>
+
+            <Field id="location" label="Location">
+              <input
+                id="location"
+                name="location"
+                type="text"
+                value={form.location}
+                maxLength={100}
+                onChange={(e) => field("location", e.target.value)}
+                className={inputCls}
+                placeholder="Lagos, Nigeria…"
+                autoComplete="address-level2"
               />
             </Field>
 
@@ -388,18 +453,37 @@ function ProfilePageContent() {
 
           <Section title="Links" hint="Leave any blank to hide it.">
             <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
-              {mainSocials.map((x) => (
-                <Field key={x.key} id={x.key} label={x.label}>
-                  <PrefixInput
-                    id={x.key}
-                    prefix={x.prefix}
-                    value={form[x.key]}
-                    maxLength={100}
-                    onChange={(v) => field(x.key, v)}
-                    placeholder={x.placeholder}
-                  />
-                </Field>
-              ))}
+              {["instagram", "twitter"].map((key) => {
+                const x = SOCIALS.find((o) => o.key === key);
+                return (
+                  <Field key={x.key} id={x.key} label={x.label}>
+                    <PrefixInput
+                      id={x.key}
+                      prefix={x.prefix}
+                      value={form[x.key]}
+                      maxLength={100}
+                      onChange={(v) => field(x.key, v)}
+                      placeholder={x.placeholder}
+                    />
+                  </Field>
+                );
+              })}
+              <Field id="whatsapp" label="WhatsApp group">
+                <input
+                  id="whatsapp"
+                  name="whatsapp"
+                  autoComplete="off"
+                  type="text"
+                  value={form.whatsapp}
+                  maxLength={100}
+                  onChange={(e) => field("whatsapp", e.target.value)}
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  className={inputCls}
+                  placeholder="chat.whatsapp.com/…"
+                />
+              </Field>
               <Field id="website" label="Website">
                 <input
                   id="website"
@@ -417,29 +501,19 @@ function ProfilePageContent() {
                   placeholder="https://example.com…"
                 />
               </Field>
-              {extrasVisible &&
-                extraSocials.map((x) => (
-                  <Field key={x.key} id={x.key} label={x.label}>
-                    <PrefixInput
-                      id={x.key}
-                      prefix={x.prefix}
-                      value={form[x.key]}
-                      maxLength={100}
-                      onChange={(v) => field(x.key, v)}
-                      placeholder={x.placeholder}
-                    />
-                  </Field>
-                ))}
+              {extraSocials.map((x) => (
+                <Field key={x.key} id={x.key} label={x.label}>
+                  <PrefixInput
+                    id={x.key}
+                    prefix={x.prefix}
+                    value={form[x.key]}
+                    maxLength={100}
+                    onChange={(v) => field(x.key, v)}
+                    placeholder={x.placeholder}
+                  />
+                </Field>
+              ))}
             </div>
-            {!extrasVisible && (
-              <button
-                type="button"
-                onClick={() => setShowMoreLinks(true)}
-                className="h-11 self-start rounded-full border border-dashed border-[#C9D0DC] bg-white px-4 text-sm font-bold text-[#3B4252] transition-colors hover:bg-paper focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
-              >
-                + Add LinkedIn or Telegram
-              </button>
-            )}
           </Section>
 
           <Section title="Visibility" hint="Control where your page shows up." last>
@@ -531,7 +605,7 @@ function ProfilePreview({ form, avatarSrc, coverSrc, stats, publicPath }) {
           )}
         </div>
         <div className="flex flex-col gap-2 px-5 pb-5">
-          <span className="-mt-8 flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border-[3px] border-white bg-ink font-display text-2xl font-bold text-white">
+          <span className="relative -mt-8 flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border-[3px] border-white bg-ink font-display text-2xl font-bold text-white">
             {avatarSrc ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={avatarSrc} alt="" width={64} height={64} className="h-full w-full object-cover" />
@@ -543,7 +617,7 @@ function ProfilePreview({ form, avatarSrc, coverSrc, stats, publicPath }) {
             {name || "Your name"}
           </span>
           <span className="break-words text-[13px] text-muted">
-            {form.location.trim() || (form.handle ? `@${form.handle}` : "Add a location")}
+            {[form.location.trim(), categoryLabel(form.category)].filter(Boolean).join(" · ") || (form.handle ? `@${form.handle}` : "Add a location")}
           </span>
           <span className={`line-clamp-5 break-words text-sm leading-normal ${form.bio.trim() ? "text-[#3B4252]" : "text-faint"}`}>
             {form.bio.trim() || "Add a short bio so people know what you host."}
@@ -564,12 +638,6 @@ function ProfilePreview({ form, avatarSrc, coverSrc, stats, publicPath }) {
               ))}
             </ul>
           )}
-        </div>
-        <div className={`flex items-center gap-2 border-t px-5 py-3 text-[13px] font-semibold ${
-          form.is_public ? "border-[#D3EEDF] bg-mint text-[#1F6B47]" : "border-line bg-paper text-muted"
-        }`}>
-          <span className={`h-2 w-2 shrink-0 rounded-full ${form.is_public ? "bg-stamp-green" : "bg-faint"}`} />
-          {form.is_public ? "Listed on the communities page" : "Not listed. Only people with your link can find you."}
         </div>
       </div>
       {publicPath && (

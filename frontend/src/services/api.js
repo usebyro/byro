@@ -542,6 +542,15 @@ const API = {
     }
   },
 
+  removeAvatar: async () => {
+    try {
+      const response = await axiosInstance.delete("profile/me/avatar/");
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
   uploadAvatar: async (file) => {
     try {
       const body = new FormData();

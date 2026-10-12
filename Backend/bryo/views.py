@@ -1303,10 +1303,17 @@ class ProfileViewSet(viewsets.GenericViewSet):
             apps.posthog_client.capture('profile_updated')
         return Response(serializer.data)
 
-    @action(detail=False, methods=['POST'], url_path='me/avatar',
+    @action(detail=False, methods=['POST', 'DELETE'], url_path='me/avatar',
             parser_classes=[MultiPartParser, FormParser])
     def upload_avatar(self, request):
         profile = self._get_or_create_profile(request.user)
+        if request.method == 'DELETE':
+            # Remove the photo; the page falls back to the community's initial.
+            if profile.avatar:
+                profile.avatar.delete(save=False)
+            profile.avatar = None
+            profile.save(update_fields=['avatar'])
+            return Response({'avatar_url': None})
         if 'avatar' not in request.FILES:
             return Response({'error': 'No avatar file provided'}, status=status.HTTP_400_BAD_REQUEST)
         profile.avatar = request.FILES['avatar']
