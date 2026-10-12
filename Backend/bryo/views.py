@@ -35,7 +35,7 @@ from . import messaging
 from .activity import log_activity
 from .notifications import notify, notify_admins, ticket_sale
 from .community import (
-    community_stats, follow_organizer, notify_followers_in_background, record_stamp,
+    community_stats, event_host_name, follow_organizer, notify_followers_in_background, record_stamp,
     stamps_for_user, unfollow_from_token,
 )
 from .pricing import calculate_ticket_fees, FEE_RATE, PAYSTACK_FEE_CAP
@@ -234,7 +234,7 @@ def send_ticket_confirmation_email(ticket, customer_name, customer_email, event)
         ticket_id=str(ticket.ticket_id),
         qr_data=str(ticket.qr_token),
         tier_name=ticket.tier.name if ticket.tier else None,
-        hosted_by=event.hosted_by,
+        hosted_by=event_host_name(event),
         price_label=_money(price) if price else "Free",
         attendee_email=ticket.current_owner_email,
     )
@@ -1395,7 +1395,7 @@ def _stamp_payload(stamps):
             'event_slug': e.slug,
             'day': e.day,
             'category': e.category,
-            'organizer_name': (oprofile.display_name if oprofile else '') or e.hosted_by,
+            'organizer_name': (oprofile.display_name if oprofile else '') or event_host_name(e),
             'organizer_handle': oprofile.handle if oprofile else None,
             'earned_at': st.created_at,
         })
