@@ -262,9 +262,9 @@ export default function MessagesPage() {
     setTesting(true);
     try {
       const res = await API.sendMessage(payload({ test: true }));
-      toast.success(`Test sent to ${res.sent_to}`);
+      toast.success("Test sent", { description: res.sent_to });
     } catch (err) {
-      toast.error(err?.message || "Couldn’t send the test. Try again.");
+      toast.error("Couldn’t send test", { description: err?.message || "Try again." });
     } finally {
       setTesting(false);
     }
@@ -276,13 +276,13 @@ export default function MessagesPage() {
     setSending(true);
     try {
       await API.sendMessage(payload());
-      toast.success(`Sending to ${people(count)}`);
+      toast.success("Message queued", { description: `Going to ${people(count)}` });
       setSubject(BLANK.subject);
       setBody(BLANK.body);
       setAttach(false);
       await load();
     } catch (err) {
-      toast.error(err?.message || "Couldn’t send that. Try again.");
+      toast.error("Couldn’t send message", { description: err?.message || "Try again." });
     } finally {
       setSending(false);
     }

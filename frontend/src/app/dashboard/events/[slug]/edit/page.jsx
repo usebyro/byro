@@ -24,14 +24,14 @@ export default function DashboardEditEventPage() {
       .then((data) => {
         // Owners and manager co-hosts can edit. Check-in-only co-hosts cannot.
         if (!data?.role?.can_edit) {
-          toast.error("You don't have permission to edit this event");
+          toast.error("Couldn't open editor", { description: "You don't have permission to edit this event." });
           router.replace(`/dashboard/events/${slug}`);
           return;
         }
         setEventData(data);
       })
       .catch(() => {
-        toast.error("Failed to load event");
+        toast.error("Couldn't load event");
         router.replace("/dashboard/events");
       })
       .finally(() => setLoading(false));

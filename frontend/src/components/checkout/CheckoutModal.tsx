@@ -382,12 +382,12 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
   const handlePayment = async () => {
     const attendeeError = validateAttendees();
     if (attendeeError) {
-      toast.error(attendeeError);
+      toast.error("Check attendee details", { description: attendeeError });
       return;
     }
 
     if (!agreed) {
-      toast.error("Please agree to Byro's Terms and Refund policy to continue.");
+      toast.error("Agree to the terms", { description: "Accept Byro's Terms and Refund policy to continue." });
       return;
     }
 
@@ -452,12 +452,12 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
         // The purchase is counted on /payment/callback, once Paystack confirms it was paid.
         window.location.href = result.data.authorization_url;
       } else {
-        toast.error("Could not get payment link. Please try again.");
+        toast.error("Couldn't get payment link", { description: "Please try again." });
       }
     } catch (err: unknown) {
       console.error("Payment error:", err);
-      const message = err instanceof Error ? err.message : "Payment failed. Please try again.";
-      toast.error(message);
+      const message = err instanceof Error ? err.message : "Please try again.";
+      toast.error("Payment didn't go through", { description: message });
       resetTs();
     } finally {
       setIsProcessing(false);
@@ -1202,7 +1202,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                       if (step === 2) {
                         const err = validateAttendees();
                         if (err) {
-                          toast.error(err);
+                          toast.error("Check attendee details", { description: err });
                           return;
                         }
                       }

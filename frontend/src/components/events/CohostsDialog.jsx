@@ -69,11 +69,11 @@ export default function CohostsDialog({ open, onClose, slug, ownerEmail, cohosts
     setInviting(true);
     try {
       const res = await API.addCohost(slug, email.trim(), role);
-      toast.success(res?.message || "Invitation sent");
+      toast.success("Invitation sent", { description: res?.message });
       setEmail("");
       onChanged();
     } catch (err) {
-      toast.error(err?.message || "Couldn't send that invite.");
+      toast.error("Couldn't send invite", { description: err?.message });
     } finally {
       setInviting(false);
     }
@@ -87,7 +87,7 @@ export default function CohostsDialog({ open, onClose, slug, ownerEmail, cohosts
       toast.success("Permissions updated");
       onChanged();
     } catch (err) {
-      toast.error(err?.message || "Couldn't update permissions.");
+      toast.error("Couldn't update permissions", { description: err?.message });
     } finally {
       setBusyId(null);
     }
@@ -101,7 +101,7 @@ export default function CohostsDialog({ open, onClose, slug, ownerEmail, cohosts
       setConfirmId(null);
       onChanged();
     } catch (err) {
-      toast.error(err?.message || "Couldn't remove that co-host.");
+      toast.error("Couldn't remove co-host", { description: err?.message });
     } finally {
       setBusyId(null);
     }
@@ -110,8 +110,8 @@ export default function CohostsDialog({ open, onClose, slug, ownerEmail, cohosts
   const copyEventLink = () => {
     navigator.clipboard
       .writeText(`${window.location.origin}/discover/${slug}`)
-      .then(() => toast.success("Link copied!"))
-      .catch(() => toast.error("Couldn't copy the link."));
+      .then(() => toast.success("Link copied"))
+      .catch(() => toast.error("Couldn't copy link"));
   };
 
   const shown = showAll ? cohosts : cohosts.slice(0, VISIBLE_AT_FIRST);

@@ -341,7 +341,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
   const handleImageChange = useCallback((e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!file.type.startsWith("image/")) { toast.error("Please upload an image file"); return; }
+    if (!file.type.startsWith("image/")) { toast.error("Upload an image file"); return; }
     if (file.size > 5 * 1024 * 1024) { toast.error("Image must be under 5MB"); return; }
     setIsImageLoading(true);
     setEventImage(file);
@@ -408,7 +408,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
 
   const handleSubmit = async (isDraft = false) => {
     if (capacity.trim() && !/^[1-9]\d*$/.test(capacity.trim())) {
-      toast.error("Total capacity must be a whole number of 1 or more, or empty for no limit.");
+      toast.error("Use a whole number", { description: "Capacity must be 1 or more, or empty for no limit." });
       setOpen((o) => ({ ...o, tiers: true }));
       return;
     }
@@ -417,7 +417,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
     if (!eventName.trim()) { toast.error("Event name is required"); return; }
     if (!date.trim()) { toast.error("Event date is required"); return; }
     if (!timeFrom) { toast.error("Start time is required"); return; }
-    if (!venue.trim() && !virtualLink.trim()) { toast.error("Please add a venue or virtual link"); return; }
+    if (!venue.trim() && !virtualLink.trim()) { toast.error("Add a venue or link"); return; }
 
     const formattedDate = formatDateForServer(date);
     if (!formattedDate) return;
@@ -426,7 +426,8 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
       const filled = q.options.map((o) => o.trim()).filter(Boolean);
       if (!q.question.trim() || (q.kind === "choice" && filled.length < 2)) {
         setOpen((o) => ({ ...o, details: false, date: false, tiers: false, questions: true }));
-        toast.error(!q.question.trim() ? "Write each attendee question, or remove the empty one" : `"${q.question.trim()}" needs at least two choices`);
+        if (!q.question.trim()) toast.error("Question missing", { description: "Write each attendee question, or remove the empty one." });
+        else toast.error("Add two choices", { description: `"${q.question.trim()}" needs at least two choices.` });
         return;
       }
     }
@@ -438,7 +439,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
       let stored = localStorage.getItem("authToken");
       if (!stored) { try { const raw = localStorage.getItem("token"); stored = raw ? JSON.parse(raw) : null; } catch { stored = null; } }
       if (stored) API.setAuthToken(stored);
-      else { toast.error("Please log in to create an event"); return; }
+      else { toast.error("Log in to continue", { description: "You need an account to create an event." }); return; }
     }
 
     /* Derive ticket_price from first tier */
@@ -553,7 +554,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
           const results = await Promise.allSettled(tierOps);
           const failures = results.filter((r) => r.status === "rejected");
           if (failures.length > 0) {
-            toast.error(`Event saved but ${failures.length} tier change(s) failed: ${failures[0]?.reason?.message || "unknown error"}`);
+            toast.error("Some tiers didn't save", { description: `Event saved. ${failures.length} tier change(s) failed: ${failures[0]?.reason?.message || "unknown error"}` });
           }
         }
 
@@ -562,7 +563,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
           try {
             await API.saveFormQuestions(slug, questionPayload);
           } catch (qErr) {
-            toast.error(`Event saved but the attendee questions weren't: ${qErr?.message || "unknown error"}`);
+            toast.error("Questions didn't save", { description: `Event saved, questions weren't: ${qErr?.message || "unknown error"}` });
           }
         }
 
@@ -571,7 +572,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
           trackCreateEvent({ eventName, category });
         }
 
-        toast.success(editSlug ? "Event updated!" : isDraft ? "Draft saved!" : "Event published!");
+        toast.success(editSlug ? "Event updated" : isDraft ? "Draft saved" : "Event published");
         if (editSlug) {
           // Publishing a draft is the moment to show the share modal.
           const justPublished = wasDraft && !isDraft;
@@ -584,7 +585,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
       }
     } catch (err) {
       console.error(err);
-      toast.error(err.message || "Failed to save event");
+      toast.error("Couldn't save event", { description: err.message });
     } finally {
       setIsSubmitting(false);
     }

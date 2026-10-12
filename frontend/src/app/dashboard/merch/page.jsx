@@ -61,7 +61,7 @@ export default function MerchPage() {
     axiosInstance
       .get("merch/")
       .then((res) => setItems(Array.isArray(res.data) ? res.data : res.data?.results ?? []))
-      .catch(() => toast.error("Couldn't load your merch."))
+      .catch(() => toast.error("Couldn't load merch"))
       .finally(() => setLoading(false));
   };
 
@@ -107,7 +107,7 @@ export default function MerchPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.name.trim()) {
-      toast.error("Give this item a name.");
+      toast.error("Item needs a name");
       return;
     }
 
@@ -132,7 +132,7 @@ export default function MerchPage() {
       closeModal();
       loadItems();
     } catch (err) {
-      toast.error(err?.response?.data?.detail || "Couldn't save this item.");
+      toast.error("Couldn't save item", { description: err?.response?.data?.detail });
     } finally {
       setSaving(false);
     }
@@ -145,7 +145,7 @@ export default function MerchPage() {
         prev.map((i) => (i.id === item.id ? { ...i, is_active: !i.is_active } : i))
       );
     } catch {
-      toast.error("Couldn't update this item.");
+      toast.error("Couldn't update item");
     }
   };
 
@@ -157,7 +157,7 @@ export default function MerchPage() {
       setItems((prev) => prev.filter((i) => i.id !== item.id));
       toast.success("Removed");
     } catch {
-      toast.error("Couldn't remove this item.");
+      toast.error("Couldn't remove item");
     } finally {
       setDeletingId(null);
     }

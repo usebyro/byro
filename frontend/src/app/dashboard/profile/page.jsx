@@ -124,7 +124,7 @@ function ProfilePageContent() {
   // ── Welcome new users into profile setup ──
   useEffect(() => {
     if (searchParams.get("onboarding") === "1") {
-      toast.message("Welcome to Byro!", { description: "Let's finish setting up your profile." });
+      toast.message("Welcome to Byro", { description: "Let's finish setting up your profile." });
     }
   }, [searchParams]);
 
@@ -211,9 +211,9 @@ function ProfilePageContent() {
 
       toast.success("Changes saved");
     } catch (err) {
-      const message = err?.message || "Couldn't save your changes. Try again.";
+      const message = err?.message || "Try again.";
       if (/handle/i.test(message)) setErrors({ handle: message });
-      toast.error(message);
+      toast.error("Couldn't save changes", { description: message });
     } finally {
       setIsSaving(false);
     }

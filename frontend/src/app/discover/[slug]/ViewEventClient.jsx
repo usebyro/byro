@@ -133,7 +133,7 @@ export default function ViewEventClient({ slug }) {
         } else {
           console.error(err);
           setError(err.message || "Failed to load event");
-          toast.error(err.message || "Failed to load event");
+          toast.error("Couldn't load event", { description: err.message });
         }
       } finally {
         setLoading(false);
@@ -167,11 +167,11 @@ export default function ViewEventClient({ slug }) {
     e.preventDefault();
     try {
       await API.transferTicket(ticketId, { to_user_name: transferName, to_user_email: transferEmail });
-      toast.success(`Ticket transfer sent to ${transferName}`);
+      toast.success("Ticket sent", { description: `To ${transferName}` });
       setShowTransfer(false);
       setTransferEmail(""); setTransferName("");
     } catch (err) {
-      toast.error(err.message || "Transfer failed");
+      toast.error("Couldn't transfer ticket", { description: err.message });
     }
   }, [ticketId, transferName, transferEmail]);
 
@@ -182,7 +182,7 @@ export default function ViewEventClient({ slug }) {
       setRegistered(false); setTicketId(null);
       toast.success("Registration cancelled");
     } catch (err) {
-      toast.error(err.message || "Failed to cancel");
+      toast.error("Couldn't cancel registration", { description: err.message });
     }
   }, [ticketId]);
 

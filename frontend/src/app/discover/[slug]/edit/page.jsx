@@ -19,14 +19,14 @@ export default function EditEventPage() {
       .then((data) => {
         // Check the user has permission to edit
         if (!data?.role?.can_edit) {
-          toast.error("You don't have permission to edit this event");
+          toast.error("Couldn't open editor", { description: "You don't have permission to edit this event." });
           router.push(`/discover/${slug}`);
           return;
         }
         setEventData(data);
       })
       .catch(() => {
-        toast.error("Failed to load event");
+        toast.error("Couldn't load event");
         router.push("/home");
       })
       .finally(() => setLoading(false));

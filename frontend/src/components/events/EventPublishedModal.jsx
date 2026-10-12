@@ -97,10 +97,10 @@ export default function EventPublishedModal({ event, onClose }) {
       .writeText(link("copy_link"))
       .then(() => {
         setCopied(true);
-        toast.success("Link copied!");
+        toast.success("Link copied");
         setTimeout(() => setCopied(false), 2000);
       })
-      .catch(() => toast.error("Couldn't copy the link."));
+      .catch(() => toast.error("Couldn't copy link"));
   };
 
   return (
