@@ -126,6 +126,13 @@ class UserProfile(models.Model):
     instagram = models.CharField(max_length=100, blank=True)
     linkedin = models.CharField(max_length=100, blank=True)
     telegram = models.CharField(max_length=100, blank=True)
+    whatsapp = models.CharField(max_length=100, blank=True)  # a group or chat link, e.g. chat.whatsapp.com/XXXX
+    # What kind of community this is, shown beside the location on the community page.
+    CATEGORY_CHOICES = [
+        ('tech', 'Tech'), ('music', 'Music'), ('fitness', 'Fitness'),
+        ('faith', 'Faith'), ('food', 'Food'), ('art_culture', 'Art and culture'),
+    ]
+    category = models.CharField(max_length=20, choices=CATEGORY_CHOICES, blank=True)
 
     # Saved bank details for payout pre-fill
     bank_name = models.CharField(max_length=100, blank=True, default="")

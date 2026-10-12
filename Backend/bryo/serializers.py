@@ -53,7 +53,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
             'avatar', 'avatar_url',
             'cover_image', 'cover_image_url',
             'location', 'website',
-            'twitter', 'instagram', 'linkedin', 'telegram',
+            'twitter', 'instagram', 'linkedin', 'telegram', 'whatsapp', 'category',
             'is_complete', 'is_public',
             'followers_count', 'following_count', 'is_following',
             'created_at', 'updated_at',
