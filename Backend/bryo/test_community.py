@@ -341,6 +341,28 @@ class MessageTests(CommunityBase):
         self.assertEqual((m.status, m.sent_count, m.failed_count), ('sent', 1, 1))
         self.assertEqual(sorted(calls), ['a@example.com', 'b@example.com'])
 
+    def test_no_automatic_greeting_and_name_tag_is_opt_in(self):
+        person = self.follower('ada@example.com')
+        UserProfile.objects.filter(user=person).update(display_name='Ada Obi')
+        self.post(body='Doors open at 6.')
+        html, text = self.mail.call_args_list[0].args[2], self.mail.call_args_list[0].args[3]
+        self.assertNotIn('Hi ', html)
+        self.assertNotIn('Hi', text.split('\n')[0])
+        self.assertTrue(text.startswith('Doors open at 6.'))
+        self.mail.reset_mock()
+        self.post(subject='See you, {{name}}', body='Hi {{ Name }},\n\nDoors open at 6.')
+        args = self.mail.call_args_list[0].args
+        self.assertEqual(args[1], 'See you, Ada')
+        self.assertIn('Hi Ada,', args[3])
+        self.assertNotIn('{{', args[2])
+
+    def test_name_tag_falls_back_to_there(self):
+        from .emails import merge_name
+        self.assertEqual(merge_name('Hi {{name}},', ''), 'Hi there,')
+        self.assertEqual(merge_name('Hi {{name}},', None), 'Hi there,')
+        self.assertEqual(merge_name('Hi {{name}},', '  Chidi  Eze '), 'Hi Chidi,')
+        self.assertEqual(merge_name('No tag here', 'Ada'), 'No tag here')
+
 
 class SenderNameTests(CommunityBase):
     def test_display_name_cannot_break_the_from_header(self):

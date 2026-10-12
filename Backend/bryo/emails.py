@@ -522,9 +522,21 @@ def follower_new_event_email(name, organizer_name, event_name, date, time, locat
     return {"subject": f"{organizer_name} is hosting {event_name}", "html": html, "text": text}
 
 
+def merge_name(text, name):
+    """Swap {{name}} for the recipient's first name, or "there" when we don't have one. Organisers opt in by typing it."""
+    import re
+    first = (str(name or "").strip().split() or [""])[0] or "there"
+    return re.sub(r"\{\{\s*name\s*\}\}", lambda _m: first, str(text or ""), flags=re.IGNORECASE)
+
+
 def organizer_message_email(name, organizer_name, kind, subject, body, event=None, unfollow_url=None,
                             community_url=None, is_test=False):
-    """An organiser's own message to their community. `event` (a dict) adds an event card with a Get tickets button."""
+    """
+    An organiser's own message to their community, exactly as they wrote it. There is no automatic greeting;
+    {{name}} in the subject or message becomes the recipient's first name. `event` (a dict) adds an event card.
+    """
+    subject = merge_name(subject, name)
+    body = merge_name(body, name)
     paragraphs = [p.strip() for p in str(body or "").replace("\r\n", "\n").split("\n\n") if p.strip()]
     text_paras = "\n\n".join(paragraphs)
     html_paras = "".join(_lead(_h(p).replace("\n", "<br>")) for p in paragraphs)
@@ -547,15 +559,14 @@ def organizer_message_email(name, organizer_name, kind, subject, body, event=Non
             if unfollow_url else ""
         )
         footer = f"You&#8217;re getting this because you follow {organiser} on byro.{unfollow}"
-    hello = f"Hi {_h(name)}," if name else "Hi,"
     html = _shell(
         badge,
         _h(subject),
-        _lead(hello) + html_paras + card,
+        html_paras + card,
         footer,
         preheader=paragraphs[0][:110] if paragraphs else subject,
     )
-    text = f"{'Hi ' + name + ',' if name else 'Hi,'}\n\n{text_paras}\n"
+    text = f"{text_paras}\n"
     if event:
         text += f"\nGet tickets: {event['url']}\n"
     if kind != "update" and unfollow_url:

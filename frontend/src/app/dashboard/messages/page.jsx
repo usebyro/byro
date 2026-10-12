@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import API from "@/services/api";
 import EventImage from "@/components/brand/EventImage";
@@ -11,16 +11,13 @@ const KINDS = [
   { id: "update", title: "Event update", sub: "Venue or time changes. Goes to ticket holders." },
 ];
 
-const DRAFTS = {
-  announce: {
-    subject: "",
-    body: "Hi,\n\n",
-  },
-  update: {
-    subject: "",
-    body: "Hi,\n\nQuick update: ",
-  },
-};
+// Where each kind of message starts: blank, so the organiser writes it in their own words.
+const BLANK = { subject: "", body: "" };
+
+// {{name}} becomes each person's first name when the email is sent.
+const NAME_TAG = "{{name}}";
+const SAMPLE_NAME = "Ada";
+const withSample = (text) => text.replace(/\{\{\s*name\s*\}\}/gi, SAMPLE_NAME);
 
 // Arrow keys move the selection through a radio group, as native radios do.
 function radioKeys(count, index, select) {
@@ -51,10 +48,11 @@ export default function MessagesPage() {
   const [kind, setKind] = useState("announce");
   const [audience, setAudience] = useState("followers");
   const [eventSlug, setEventSlug] = useState("");
-  const [subject, setSubject] = useState(DRAFTS.announce.subject);
-  const [body, setBody] = useState(DRAFTS.announce.body);
+  const [subject, setSubject] = useState(BLANK.subject);
+  const [body, setBody] = useState(BLANK.body);
   const [attach, setAttach] = useState(false);
   const [attachSlug, setAttachSlug] = useState("");
+  const bodyRef = useRef(null);
 
   useEffect(() => {
     document.title = "Messages | Byro";
@@ -115,12 +113,12 @@ export default function MessagesPage() {
 
   const pickKind = (id) => {
     setKind(id);
-    setSubject(DRAFTS[id].subject);
-    setBody(DRAFTS[id].body);
+    setSubject(BLANK.subject);
+    setBody(BLANK.body);
     if (id === "update") setAttach(false);
   };
 
-  const draftDirty = subject.trim() !== "" || body !== DRAFTS[kind].body;
+  const draftDirty = subject.trim() !== "" || body.trim() !== "";
   useEffect(() => {
     if (!draftDirty) return;
     const guard = (e) => {
@@ -132,7 +130,7 @@ export default function MessagesPage() {
   }, [draftDirty]);
 
   const left = data?.announcements_left ?? 0;
-  const hasDraft = subject.trim() && body.trim() && body.trim() !== DRAFTS[kind].body.trim();
+  const hasDraft = Boolean(subject.trim() && body.trim());
   const canSend = Boolean(hasDraft && activeAudience && (activeAudience.count ?? 0) > 0 && (!isAnnounce || left > 0));
 
   const payload = (extra = {}) => ({
@@ -144,6 +142,18 @@ export default function MessagesPage() {
     body: body.trim(),
     ...extra,
   });
+
+  // Put {{name}} where the cursor is, so the organiser can greet people by first name if they want to.
+  const insertName = () => {
+    const el = bodyRef.current;
+    const start = el?.selectionStart ?? body.length;
+    const end = el?.selectionEnd ?? body.length;
+    setBody(body.slice(0, start) + NAME_TAG + body.slice(end));
+    requestAnimationFrame(() => {
+      el?.focus();
+      el?.setSelectionRange(start + NAME_TAG.length, start + NAME_TAG.length);
+    });
+  };
 
   const sendTest = async () => {
     setTesting(true);
@@ -164,8 +174,8 @@ export default function MessagesPage() {
     try {
       await API.sendMessage(payload());
       toast.success(`Sending to ${people(count)}`);
-      setSubject(DRAFTS[kind].subject);
-      setBody(DRAFTS[kind].body);
+      setSubject(BLANK.subject);
+      setBody(BLANK.body);
       setAttach(false);
       await load();
     } catch (err) {
@@ -280,6 +290,7 @@ export default function MessagesPage() {
           <label className={`flex flex-col gap-2 ${label}`}>
             Message
             <textarea
+              ref={bodyRef}
               value={body}
               onChange={(e) => setBody(e.target.value)}
               name="body"
@@ -290,6 +301,18 @@ export default function MessagesPage() {
               className={`${field} resize-none py-3 font-medium leading-[1.55]`}
             />
           </label>
+          <div className="-mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+            <button
+              type="button"
+              onClick={insertName}
+              className="h-8 rounded-full border border-line bg-white px-3 text-[13px] font-bold text-ink transition-[background-color,scale] hover:bg-paper active:scale-[0.97] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+            >
+              Add first name
+            </button>
+            <span className="text-[13px] text-muted">
+              Adds <code className="rounded bg-mist px-1 py-0.5 text-[12px] text-ink">{NAME_TAG}</code>, which becomes each person’s first name. Optional.
+            </span>
+          </div>
 
           {isAnnounce && events.length > 0 && (
             <div className="flex flex-col gap-3">
@@ -362,10 +385,10 @@ export default function MessagesPage() {
                 <span className="text-[13px] text-muted">
                   <b className="text-ink">{brand}</b> via byro
                 </span>
-                <span className={`text-[15px] font-extrabold ${subject.trim() ? "text-ink" : "text-faint"}`}>{subject.trim() || "Subject"}</span>
+                <span className={`text-[15px] font-extrabold ${subject.trim() ? "text-ink" : "text-faint"}`}>{withSample(subject).trim() || "Subject"}</span>
               </div>
               <div className="flex flex-col gap-3.5 p-[18px]">
-                <p className="m-0 whitespace-pre-line break-words text-sm leading-[1.6] text-[#3B4252]">{body}</p>
+                <p className={`m-0 whitespace-pre-line break-words text-sm leading-[1.6] ${body.trim() ? "text-[#3B4252]" : "text-faint"}`}>{body.trim() ? withSample(body) : "Your message will show here."}</p>
                 {showCard && attachEvent && (
                   <div className="overflow-hidden rounded-xl border border-line">
                     <div className="relative h-[110px]">
