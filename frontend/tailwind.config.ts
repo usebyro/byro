@@ -46,6 +46,10 @@ export default {
         'main-section': "url('/assets/mainsection.png')",
       },
       keyframes: {
+        'menu-in': {
+          '0%': { opacity: '0', transform: 'translateY(-4px) scale(0.97)' },
+          '100%': { opacity: '1', transform: 'translateY(0) scale(1)' },
+        },
         float: {
           '0%, 100%': { transform: 'translateY(0px)' },
           '50%': { transform: 'translateY(-10px)' },
@@ -62,6 +66,7 @@ export default {
         },
       },
       animation: {
+        'menu-in': 'menu-in 150ms cubic-bezier(0.23, 1, 0.32, 1) both',
         float: 'float 3s ease-in-out infinite',
         bounce: 'bounce 1s infinite',
       },

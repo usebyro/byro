@@ -38,6 +38,109 @@ const people = (count) => `${n(count)} ${count === 1 ? "person" : "people"}`;
 const KIND_LABEL = { announce: "Announcement", update: "Event update" };
 const AUDIENCE_LABEL = { followers: "All followers", members: "Members", regulars: "Regulars" };
 
+// A menu of who the message goes to, with the number of people each choice reaches.
+function AudiencePicker({ audiences, active, onPick }) {
+  const [open, setOpen] = useState(false);
+  const wrap = useRef(null);
+  const trigger = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e) => {
+      if (!wrap.current?.contains(e.target)) setOpen(false);
+    };
+    const onKey = (e) => {
+      if (e.key === "Escape") {
+        setOpen(false);
+        trigger.current?.focus();
+      }
+    };
+    document.addEventListener("pointerdown", onDown);
+    document.addEventListener("keydown", onKey);
+    wrap.current?.querySelector('[role="option"][aria-selected="true"]')?.focus();
+    return () => {
+      document.removeEventListener("pointerdown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  const moveFocus = (e) => {
+    const options = [...wrap.current.querySelectorAll('[role="option"]')];
+    const i = options.indexOf(document.activeElement);
+    const to = { ArrowDown: i + 1, ArrowUp: i - 1, Home: 0, End: options.length - 1 }[e.key];
+    if (e.key === "Tab") return setOpen(false);
+    if (to === undefined) return;
+    e.preventDefault();
+    options[Math.min(options.length - 1, Math.max(0, to))]?.focus();
+  };
+
+  const count = (c) => `${n(c)} ${c === 1 ? "person" : "people"}`;
+
+  return (
+    <div ref={wrap} className="relative">
+      <button
+        ref={trigger}
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label={`Send to: ${active?.label}, ${count(active?.count)}`}
+        onClick={() => setOpen((v) => !v)}
+        onKeyDown={(e) => {
+          if (e.key === "ArrowDown" && !open) {
+            e.preventDefault();
+            setOpen(true);
+          }
+        }}
+        className="flex h-12 w-full items-center gap-2.5 rounded-xl border border-[#CBD3DF] bg-white pl-4 pr-3.5 text-left text-ink transition-[background-color,scale] hover:bg-paper active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+      >
+        <span className="min-w-0 flex-1 truncate text-[15px] font-bold">{active?.label}</span>
+        <span className="shrink-0 text-sm text-muted">{count(active?.count)}</span>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5B6272" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true" className={`shrink-0 transition-transform duration-150 motion-reduce:transition-none ${open ? "rotate-180" : ""}`}>
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </button>
+      {open && (
+        <div
+          role="listbox"
+          aria-label="Audience"
+          onKeyDown={moveFocus}
+          className="absolute left-0 right-0 top-[calc(100%+6px)] z-20 origin-top animate-menu-in rounded-xl border border-line bg-white p-1.5 shadow-[0_12px_32px_rgba(20,22,28,0.12)] motion-reduce:animate-none"
+        >
+          {audiences.map((a) => {
+            const on = active?.id === a.id;
+            return (
+              <button
+                key={a.id}
+                type="button"
+                role="option"
+                aria-selected={on}
+                tabIndex={-1}
+                onClick={() => {
+                  onPick(a.id);
+                  setOpen(false);
+                  trigger.current?.focus();
+                }}
+                className={`flex min-h-[52px] w-full items-center gap-3 rounded-lg px-3 text-left text-ink transition-colors hover:bg-paper focus:bg-paper focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand ${on ? "bg-paper" : ""}`}
+              >
+                <span className="flex min-w-0 flex-1 flex-col">
+                  <span className="truncate text-[15px] font-bold">{a.label}</span>
+                  <span className="text-[13px] text-muted">{a.sub}</span>
+                </span>
+                <span className="shrink-0 text-sm font-bold text-muted">{n(a.count)}</span>
+                <span className={`flex w-4 shrink-0 text-brand-dark ${on ? "opacity-100" : "opacity-0"}`} aria-hidden="true">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M5 12l5 5 9-10" />
+                  </svg>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function MessagesPage() {
   const [data, setData] = useState(null);
   const [dashboard, setDashboard] = useState(null);
@@ -238,39 +341,17 @@ export default function MessagesPage() {
           <div className="flex flex-col gap-2">
             <span className={label}>Send to</span>
             {loading ? (
-              <div className="h-[168px] animate-pulse rounded-xl bg-mist" />
+              <div className="h-12 animate-pulse rounded-xl bg-mist" />
             ) : audiences.length === 0 ? (
               <p className="rounded-xl border border-line px-4 py-4 text-sm text-muted">
                 No one to send an event update to yet. Ticket holders show up here once an event has sales.
               </p>
             ) : (
-              <div role="radiogroup" aria-label="Audience" className="flex flex-col overflow-hidden rounded-xl border border-line">
-                {audiences.map((a, i) => {
-                  const on = activeAudience?.id === a.id;
-                  const choose = (id) => (isAnnounce ? setAudience(id) : setEventSlug(id));
-                  return (
-                    <button
-                      key={a.id}
-                      type="button"
-                      role="radio"
-                      aria-checked={on}
-                      tabIndex={on ? 0 : -1}
-                      onClick={() => choose(a.id)}
-                      onKeyDown={radioKeys(audiences.length, i, (to) => choose(audiences[to].id))}
-                      className={`flex h-14 items-center gap-3 px-4 text-left text-ink transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand ${
-                        i > 0 ? "border-t border-hairline" : ""
-                      } ${on ? "bg-paper" : "bg-white hover:bg-paper"}`}
-                    >
-                      <span aria-hidden="true" className={`h-[18px] w-[18px] shrink-0 rounded-full ${on ? "border-[6px] border-brand" : "border-2 border-[#A9B3C2]"}`} />
-                      <span className="flex min-w-0 flex-1 flex-col">
-                        <span className="truncate text-[15px] font-bold">{a.label}</span>
-                        <span className="text-[13px] text-muted">{a.sub}</span>
-                      </span>
-                      <span className="text-[15px] font-extrabold">{n(a.count)}</span>
-                    </button>
-                  );
-                })}
-              </div>
+              <AudiencePicker
+                audiences={audiences}
+                active={activeAudience}
+                onPick={(id) => (isAnnounce ? setAudience(id) : setEventSlug(id))}
+              />
             )}
           </div>
 
