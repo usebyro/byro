@@ -71,6 +71,28 @@ def _organizer_name(owner):
     return (profile.display_name if profile else '') or owner.get_full_name() or 'An organiser'
 
 
+def event_host_name(event):
+    """
+    What to show as "Hosted by": the organiser's community name, read at the time so renaming it updates every
+    ticket and page. Never an email address (older events saved the organiser's email in `hosted_by`).
+    """
+    owner = event.owner if event.owner_id else None
+    profile = getattr(owner, 'profile', None) if owner else None
+    name = ((profile.display_name if profile else '') or '').strip()
+    if name:
+        return name
+    legacy = (event.hosted_by or '').strip()
+    if legacy and '@' not in legacy:
+        return legacy
+    return (profile.handle if profile and profile.handle else '') or 'Byro'
+
+
+def host_name_for_new_event(user):
+    """The name to store on a new event when the organiser didn't give one. Never their email."""
+    profile = _profile_of(user)
+    return ((profile.display_name if profile else '') or user.get_full_name() or (profile.handle if profile else '') or '').strip()
+
+
 def _is_announceable(event):
     return bool(
         event.owner_id and event.is_active and not event.is_draft and not event.cancelled_at

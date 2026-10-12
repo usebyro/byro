@@ -6,7 +6,8 @@ from django.contrib.auth import get_user_model
 from .community import (
     community_stats, notify_followers, record_stamp, unfollow_from_token, unfollow_token,
 )
-from .models import Follow, Message, Stamp, Ticket, UserProfile
+from .community import event_host_name, host_name_for_new_event
+from .models import Event, Follow, Message, Stamp, Ticket, UserProfile
 from .test_checkin import ticket
 from .test_payments import PaymentTestBase, make_event
 
@@ -373,3 +374,60 @@ class SenderNameTests(CommunityBase):
         self.assertNotIn('\r', evil)
         self.assertEqual(evil.count('<'), 1)
         self.assertTrue(_display_from('').startswith('Byro <'))
+
+
+class HostNameTests(CommunityBase):
+    """'Hosted by' is the community name, never the organiser's email."""
+
+    def setUp(self):
+        super().setUp()
+        # What older events saved: the organiser's email.
+        Event.objects.filter(pk=self.event.pk).update(hosted_by=self.owner.email)
+        self.event.refresh_from_db()
+
+    def rename(self, name):
+        UserProfile.objects.filter(user=self.owner).update(display_name=name)
+        self.event = Event.objects.select_related('owner__profile').get(pk=self.event.pk)
+
+    def test_uses_the_community_name_and_follows_a_rename(self):
+        self.assertEqual(event_host_name(self.event), 'Lagos Run Club')
+        self.rename('Lagos Run Crew')
+        self.assertEqual(event_host_name(self.event), 'Lagos Run Crew')
+
+    def test_never_falls_back_to_an_email(self):
+        self.rename('')
+        self.assertEqual(event_host_name(self.event), 'lagosrun')  # the handle
+        UserProfile.objects.filter(user=self.owner).update(handle=None)
+        self.event = Event.objects.select_related('owner__profile').get(pk=self.event.pk)
+        self.assertEqual(event_host_name(self.event), 'Byro')
+
+    def test_a_real_saved_name_is_kept_when_there_is_no_community_name(self):
+        self.rename('')
+        Event.objects.filter(pk=self.event.pk).update(hosted_by='The Run Crew')
+        self.event.refresh_from_db()
+        self.assertEqual(event_host_name(self.event), 'The Run Crew')
+
+    def test_the_public_event_and_the_ticket_show_the_name(self):
+        from .serializers import EventSerializer, TicketSerializer
+        self.assertEqual(EventSerializer(self.event).data['hosted_by'], 'Lagos Run Club')
+        t = ticket(self.event, email='fan@example.com')
+        self.assertEqual(TicketSerializer(t).data['event_hosted_by'], 'Lagos Run Club')
+
+    def test_new_events_never_default_to_the_email(self):
+        self.assertEqual(host_name_for_new_event(self.owner), 'Lagos Run Club')
+        self.rename('')
+        self.assertEqual(host_name_for_new_event(self.owner), 'lagosrun')
+        UserProfile.objects.filter(user=self.owner).update(handle=None)
+        self.assertEqual(host_name_for_new_event(User.objects.get(pk=self.owner.pk)), '')
+
+    def test_clean_up_command_is_a_dry_run_until_applied(self):
+        from io import StringIO
+        from django.core.management import call_command
+        out = StringIO()
+        call_command('fix_hosted_by', stdout=out)
+        self.assertIn('Would update 1', out.getvalue())
+        self.event.refresh_from_db()
+        self.assertEqual(self.event.hosted_by, self.owner.email)
+        call_command('fix_hosted_by', '--apply', stdout=StringIO())
+        self.event.refresh_from_db()
+        self.assertEqual(self.event.hosted_by, 'Lagos Run Club')

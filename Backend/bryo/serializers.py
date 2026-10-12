@@ -11,6 +11,7 @@ from django.contrib.auth import get_user_model
 from django.urls import reverse
 from django.conf import settings
 import re
+from .community import event_host_name, host_name_for_new_event
 
 User = get_user_model()
 
@@ -409,6 +410,11 @@ class EventSerializer(serializers.ModelSerializer):
                 return request.build_absolute_uri(obj.event_image.url)
         return None
     
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data['hosted_by'] = event_host_name(instance)
+        return data
+
     def create(self, validated_data):
         """Set the owner when creating an event"""
         request = self.context.get('request')
@@ -416,7 +422,9 @@ class EventSerializer(serializers.ModelSerializer):
             validated_data['owner'] = request.user
             # Set hosted_by if not provided
             if 'hosted_by' not in validated_data:
-                validated_data['hosted_by'] = request.user.get_full_name() or request.user.email
+                name = host_name_for_new_event(request.user)
+                if name:  # otherwise the model default stands; an email address is never used
+                    validated_data['hosted_by'] = name
         return super().create(validated_data)
 
 
@@ -431,7 +439,7 @@ class TicketSerializer(serializers.ModelSerializer):
     form_answers = EventFormAnswerSerializer(many=True, read_only=True)
     tier_name = serializers.CharField(source='tier.name', read_only=True, default=None)
     tier_price = serializers.DecimalField(source='tier.price', max_digits=10, decimal_places=2, read_only=True, default=None)
-    event_hosted_by = serializers.CharField(source='event.hosted_by', read_only=True)
+    event_hosted_by = serializers.SerializerMethodField()
     ticket_price = serializers.SerializerMethodField()
     event_cancelled_at = serializers.DateTimeField(source='event.cancelled_at', read_only=True)
     event_cancel_reason = serializers.CharField(source='event.cancel_reason', read_only=True)
@@ -474,6 +482,9 @@ class TicketSerializer(serializers.ModelSerializer):
             if request:
                 return request.build_absolute_uri(obj.event.event_image.url)
         return None
+
+    def get_event_hosted_by(self, obj):
+        return event_host_name(obj.event)
 
     def get_ticket_price(self, obj):
         """What this ticket cost: its tier's price, else the event's flat price."""
