@@ -96,8 +96,11 @@ class UserProfileSerializer(serializers.ModelSerializer):
         return None
 
     def validate_handle(self, value):
+        # The handle is the page's address (/u/<handle>), so an update can't clear it.
+        # Updates that don't mention the handle are unaffected.
+        value = (value or '').strip()
         if not value:
-            return value
+            raise serializers.ValidationError("Choose a username for your page.")
         # Allow letters, numbers, underscores, hyphens
         if not re.match(r'^[a-zA-Z0-9_-]+$', value):
             raise serializers.ValidationError(
