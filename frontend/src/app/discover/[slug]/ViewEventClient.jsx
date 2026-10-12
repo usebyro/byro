@@ -242,7 +242,7 @@ export default function ViewEventClient({ slug }) {
     : null;
   const stampCity = (event.location || "").split(",").pop().trim().toUpperCase().slice(0, 12) || "BYRO";
   const stampDate = parts.dd ? `${parts.dd}.${(event.day || "").slice(5, 7)}.${(event.day || "").slice(2, 4)}` : "";
-  const orgInitial = (event.owner_handle || event.owner_email || "B")[0].toUpperCase();
+  const orgInitial = (event.owner_name || event.owner_handle || "B")[0].toUpperCase();
 
   const tiers = realTiers.length > 0
     ? realTiers.map(t => ({ ...t, desc: t.description || "", price: parseFloat(String(t.price)) || 0 }))
@@ -420,7 +420,7 @@ export default function ViewEventClient({ slug }) {
                 <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                   <span className="text-[13px] text-muted">Organised by</span>
                   <span className="truncate text-lg font-extrabold">
-                    {event.owner_handle ? `@${event.owner_handle}` : event.owner_email || "Byro Africa"}
+                    {event.owner_handle ? `@${event.owner_handle}` : event.owner_name || "Byro Africa"}
                   </span>
                   <span className="text-[13px] text-muted">
                     {event.owner_events_count ?? 0} event{event.owner_events_count === 1 ? "" : "s"} hosted

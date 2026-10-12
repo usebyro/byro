@@ -1344,6 +1344,9 @@ class ProfileViewSet(viewsets.GenericViewSet):
         # Public view: strip private fields
         data = serializer.data
         data.pop('auth_provider', None)
+        # The page's address and name identify it; the account's email is private to its owner.
+        if not (request.user.is_authenticated and request.user == profile.user):
+            data.pop('email', None)
 
         merch = MerchItem.objects.filter(owner=profile.user, is_active=True)
         data['merch_items'] = MerchItemSerializer(merch, many=True, context={'request': request}).data

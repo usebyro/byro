@@ -7,7 +7,7 @@ from .community import (
     community_stats, notify_followers, record_stamp, unfollow_from_token, unfollow_token,
 )
 from .community import event_host_name, host_name_for_new_event
-from .models import Event, Follow, Message, Stamp, Ticket, UserProfile
+from .models import Event, EventCoHost, Follow, Message, Stamp, Ticket, UserProfile
 from .test_checkin import ticket
 from .test_payments import PaymentTestBase, make_event
 
@@ -431,3 +431,62 @@ class HostNameTests(CommunityBase):
         call_command('fix_hosted_by', '--apply', stdout=StringIO())
         self.event.refresh_from_db()
         self.assertEqual(self.event.hosted_by, 'Lagos Run Club')
+
+
+class EmailPrivacyTests(CommunityBase):
+    """Organiser and co-host email addresses never reach the public."""
+
+    def setUp(self):
+        super().setUp()
+        self.cohost = self.fan('cohost@example.com')
+        EventCoHost.objects.create(event=self.event, user=self.cohost, status='accepted', invited_email='cohost@example.com', added_by=self.owner)
+        EventCoHost.objects.create(event=self.event, invited_email='pending@example.com', status='pending', added_by=self.owner)
+        self.url = f'/api/events/{self.event.slug}/'
+
+    def body(self, user=None):
+        self.client.force_authenticate(user)
+        return self.client.get(self.url).json()
+
+    def test_signed_out_visitors_see_no_emails(self):
+        data = self.body(None)
+        self.assertIsNone(data['owner_email'])
+        self.assertEqual(data['cohosts'], [])
+        raw = str(data)
+        for email in (self.owner.email, 'cohost@example.com', 'pending@example.com'):
+            self.assertNotIn(email, raw)
+        self.assertEqual(data['owner_handle'], 'lagosrun')
+        self.assertEqual(data['owner_name'], 'Lagos Run Club')
+
+    def test_other_signed_in_users_see_no_emails(self):
+        data = self.body(self.fan('stranger@example.com'))
+        self.assertIsNone(data['owner_email'])
+        self.assertEqual(data['cohosts'], [])
+
+    def test_the_owner_and_accepted_cohosts_still_see_them(self):
+        owner_view = self.body(self.owner)
+        self.assertEqual(owner_view['owner_email'], self.owner.email)
+        self.assertEqual(len(owner_view['cohosts']), 2)
+        self.assertEqual(self.body(self.cohost)['owner_email'], self.owner.email)
+
+    def test_staff_see_them(self):
+        staff = User.objects.create_user(email='staff@example.com', is_staff=True)
+        self.assertEqual(self.body(staff)['owner_email'], self.owner.email)
+
+    def test_the_events_list_is_covered_too(self):
+        self.client.force_authenticate(None)
+        rows = self.client.get('/api/events/').json()
+        rows = rows['results'] if isinstance(rows, dict) else rows
+        self.assertTrue(rows)
+        self.assertNotIn(self.owner.email, str(rows))
+
+    def test_public_profile_has_no_email_unless_you_are_the_owner(self):
+        self.client.force_authenticate(None)
+        self.assertNotIn('email', self.client.get('/api/profile/lagosrun/').json())
+        self.client.force_authenticate(self.fan('stranger@example.com'))
+        self.assertNotIn('email', self.client.get('/api/profile/lagosrun/').json())
+        self.client.force_authenticate(self.owner)
+        self.assertEqual(self.client.get('/api/profile/lagosrun/').json()['email'], self.owner.email)
+
+    def test_directory_and_public_pages_carry_no_emails(self):
+        self.client.force_authenticate(None)
+        self.assertNotIn(self.owner.email, str(self.client.get('/api/communities/').json()))
