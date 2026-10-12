@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { FaGlobe, FaXTwitter, FaInstagram, FaLinkedinIn, FaTelegram, FaWhatsapp } from "react-icons/fa6";
 import { authSuccess } from "@/redux/auth/authSlice";
+import { handleProblem } from "@/lib/handle";
 import API from "@/services/api";
 import { toast } from "sonner";
 
@@ -194,6 +195,12 @@ function ProfilePageContent() {
     if (!form.display_name.trim()) {
       setErrors({ display_name: "Add a display name so people know who you are." });
       document.getElementById("display_name")?.focus();
+      return;
+    }
+    const handleIssue = handleProblem(form.handle);
+    if (handleIssue) {
+      setErrors({ handle: handleIssue });
+      document.getElementById("handle")?.focus();
       return;
     }
     if (!form.bio.trim()) {
@@ -406,13 +413,14 @@ function ProfilePageContent() {
               </Field>
             </div>
 
-            <Field id="handle" label="Handle" error={errors.handle} hint="Changing this breaks old links to your page.">
+            <Field id="handle" label={<>Handle <span className="text-red-500">*</span></>} error={errors.handle} hint="Changing this breaks old links to your page.">
               <PrefixInput
                 id="handle"
                 prefix="usebyro.com/u/"
                 value={form.handle}
                 maxLength={50}
                 invalid={Boolean(errors.handle)}
+                required
                 onChange={(v) => field("handle", v.toLowerCase().replace(/[^a-z0-9_-]/g, ""))}
                 placeholder="eko-live…"
               />
@@ -694,7 +702,7 @@ function Field({ id, label, hint, error, counter, children }) {
   );
 }
 
-function PrefixInput({ id, prefix, value, onChange, placeholder, maxLength, invalid = false }) {
+function PrefixInput({ id, prefix, value, onChange, placeholder, maxLength, invalid = false, required = false }) {
   return (
     <div
       className={`flex h-11 overflow-hidden rounded-xl border bg-white focus-within:ring-2 ${
@@ -713,6 +721,7 @@ function PrefixInput({ id, prefix, value, onChange, placeholder, maxLength, inva
         maxLength={maxLength}
         onChange={(e) => onChange(e.target.value)}
         aria-invalid={invalid}
+        required={required}
         autoCapitalize="none"
         autoCorrect="off"
         spellCheck={false}

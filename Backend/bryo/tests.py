@@ -1121,3 +1121,15 @@ class ProfileExtrasTests(WorkOSAuthTestCase):
         self.assertEqual(res.status_code, 200)
         self.assertIsNone(res.json()['avatar_url'])
         self.assertFalse(UserProfile.objects.get(user=self.host).avatar)
+
+
+    def test_handle_cannot_be_cleared_but_other_updates_still_work(self):
+        for blank in ('', '   ', None):
+            res = self.client.patch('/api/profile/me/', {'handle': blank}, format='json')
+            self.assertEqual(res.status_code, 400, blank)
+            self.assertIn('handle', res.json())
+        self.assertEqual(UserProfile.objects.get(user=self.host).handle, 'gdgoc')
+        # Not mentioning the handle is fine, and a real new one is accepted.
+        self.assertEqual(self.client.patch('/api/profile/me/', {'location': 'Yaba'}, format='json').status_code, 200)
+        self.assertEqual(self.client.patch('/api/profile/me/', {'handle': ' gdgoc-lagos '}, format='json').status_code, 200)
+        self.assertEqual(UserProfile.objects.get(user=self.host).handle, 'gdgoc-lagos')
