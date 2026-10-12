@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Script from "next/script";
 import { Providers } from "@/redux/Providers";
-import { Toaster } from 'sonner';
+import AppToaster from '@/components/ui/AppToaster';
 import { displayFont, bodyFont } from "@/components/brand/fonts";
 import CookieBanner from "@/components/CookieBanner";
 
@@ -162,12 +162,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             ]),
           }}
         />
-        <Toaster
-          position="top-right"
-          richColors
-          duration={3000}
-         
-        />
+        <AppToaster />
 
         <Providers>
           <div className="flex flex-col min-h-screen">
