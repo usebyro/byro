@@ -153,3 +153,12 @@ input[type=number] {
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
+
+/* Toasts: no sliding or fading for people who ask for less motion. */
+@media (prefers-reduced-motion: reduce) {
+  [data-sonner-toast] {
+    transition: none !important;
+    animation: none !important;
+  }
+}
