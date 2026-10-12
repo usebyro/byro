@@ -972,6 +972,41 @@ class Stamp(models.Model):
         return f"{self.email} @ {self.event_id}"
 
 
+class Message(models.Model):
+    """An email an organiser sent to part of their community (Dashboard > Messages)."""
+    KIND_ANNOUNCE = 'announce'   # news; goes to followers, who can unfollow
+    KIND_UPDATE = 'update'       # venue or time changes; goes to an event's ticket holders
+    KIND_CHOICES = [(KIND_ANNOUNCE, 'Announcement'), (KIND_UPDATE, 'Event update')]
+    AUDIENCE_CHOICES = [
+        ('followers', 'All followers'),
+        ('members', 'Members'),
+        ('regulars', 'Regulars'),
+        ('event', 'Ticket holders'),
+    ]
+    STATUS_CHOICES = [('sending', 'Sending'), ('sent', 'Sent'), ('failed', 'Failed')]
+
+    organizer = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='messages_sent')
+    kind = models.CharField(max_length=10, choices=KIND_CHOICES)
+    audience = models.CharField(max_length=10, choices=AUDIENCE_CHOICES)
+    event = models.ForeignKey('Event', null=True, blank=True, on_delete=models.SET_NULL, related_name='messages')
+    subject = models.CharField(max_length=200)
+    body = models.TextField(max_length=5000)
+    attach_event = models.BooleanField(default=False)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='sending')
+    recipients_count = models.PositiveIntegerField(default=0)
+    sent_count = models.PositiveIntegerField(default=0)
+    failed_count = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    sent_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [models.Index(fields=['organizer', '-created_at'])]
+
+    def __str__(self):
+        return f"{self.get_kind_display()} from {self.organizer_id}: {self.subject}"
+
+
 class AdminMember(models.Model):
     """Who may use the admin panel, and what they may do there.
 

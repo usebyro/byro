@@ -2,7 +2,7 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from . import views
 from .views import (
-    CommunityDashboardView, MyStampsView, CommunityDirectoryView, UnfollowByTokenView,
+    CommunityDashboardView, MessagesView, MyStampsView, CommunityDirectoryView, UnfollowByTokenView,
     WaitListViewSet,
     EventViewSet,
     TicketViewSet,
@@ -79,6 +79,7 @@ urlpatterns = [
     # Dashboard
     path('api/dashboard/', DashboardView.as_view(), name='dashboard'),
     path('api/dashboard/community/', CommunityDashboardView.as_view(), name='dashboard-community'),
+    path('api/dashboard/messages/', MessagesView.as_view(), name='dashboard-messages'),
     path('api/stamps/', MyStampsView.as_view(), name='my-stamps'),
     path('api/communities/', CommunityDirectoryView.as_view(), name='community-directory'),
     path('api/community/unfollow/', UnfollowByTokenView.as_view(), name='community-unfollow'),

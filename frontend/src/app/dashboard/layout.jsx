@@ -153,9 +153,6 @@ function StudioShell({ children }) {
               <span className="truncate text-sm font-extrabold">{communityName}</span>
               <span className="text-xs text-muted">Organiser</span>
             </span>
-            <span className="flex text-[#8A91A0]">
-              <Stroke d="M14 4h6v6M20 4l-9 9M18 14v6H4V6h6" size={15} />
-            </span>
           </>
         )}
       </Link>
