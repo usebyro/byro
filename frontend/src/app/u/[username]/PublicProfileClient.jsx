@@ -48,14 +48,10 @@ export default function PublicProfileClient({ username }) {
           ? eventsRes.results
           : [];
 
-        // Filter events by profile owner email or display name match
-        const filtered = allEvents.filter((evt) => {
-          const isOwner = evt.owner_email === profileData.email;
-          const isHost =
-            evt.hosted_by?.toLowerCase().includes(profileData.display_name?.toLowerCase()) ||
-            evt.hosted_by?.toLowerCase().includes(profileData.handle?.toLowerCase());
-          return isOwner || isHost;
-        });
+        // This community's events: matched by its handle. Email addresses are private, so the
+        // server doesn't send them and the page doesn't rely on them.
+        const handle = (profileData.handle || username || "").toLowerCase();
+        const filtered = allEvents.filter((evt) => (evt.owner_handle || "").toLowerCase() === handle);
 
         setEvents(filtered);
       } catch (err) {

@@ -416,6 +416,17 @@ class EventSerializer(serializers.ModelSerializer):
     def to_representation(self, instance):
         data = super().to_representation(instance)
         data['hosted_by'] = event_host_name(instance)
+
+        # Email addresses are private. The organiser, their accepted co-hosts and staff see them;
+        # everyone else (including signed-out visitors) gets a blank owner email and no co-host list.
+        # `owner_name` and `owner_handle` are what public pages should show.
+        role = data.get('role') or {}
+        request = self.context.get('request')
+        user = getattr(request, 'user', None)
+        is_staff = bool(user and user.is_authenticated and (user.is_staff or user.is_superuser))
+        if not (role.get('is_owner') or role.get('is_cohost') or is_staff):
+            data['owner_email'] = None
+            data['cohosts'] = []
         return data
 
     def create(self, validated_data):
