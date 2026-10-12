@@ -17,7 +17,13 @@ BREVO_PORT = 587
 BREVO_USER = "b075ee001@smtp-brevo.com"
 
 
-def send_email(to, subject, html, text=None, attachments=None):
+def _display_from(from_name):
+    """'Name via Byro <hello@…>' for mail sent on someone's behalf. The name is user-supplied, so strip anything that could break the header."""
+    clean = "".join(ch for ch in str(from_name or "") if ch.isprintable() and ch not in '"<>\\').strip()[:60]
+    return f"{clean} via Byro <hello@usebyro.com>" if clean else FROM
+
+
+def send_email(to, subject, html, text=None, attachments=None, reply_to=None, from_name=None):
     """
     Send an email using Resend (primary).
     Falls back to Brevo SMTP if Resend's daily limit (100/day free tier) is hit.
@@ -29,6 +35,8 @@ def send_email(to, subject, html, text=None, attachments=None):
         text (str, optional): Plain-text fallback body.
         attachments (list[dict], optional): Each dict is
             {"filename": str, "content": bytes, "content_type": str}.
+        reply_to (str, optional): Where replies go. Defaults to Byro support.
+        from_name (str, optional): Shown as "<name> via Byro" when sending for an organiser.
     """
     if getattr(settings, "LOADTEST_MODE", False):
         return {"provider": "loadtest", "id": None}  # DEBUG-only: send nothing
@@ -37,8 +45,8 @@ def send_email(to, subject, html, text=None, attachments=None):
 
     try:
         params = {
-            "from": FROM,
-            "reply_to": REPLY_TO,
+            "from": _display_from(from_name),
+            "reply_to": reply_to or REPLY_TO,
             "to": [to] if isinstance(to, str) else to,
             "subject": subject,
             "html": html,
@@ -63,17 +71,17 @@ def send_email(to, subject, html, text=None, attachments=None):
         err_str = str(err).lower()
         if "429" in err_str or "rate" in err_str or "limit" in err_str or "too many" in err_str:
             logger.warning(f"[mailer] Resend limit hit, falling back to Brevo — {err}")
-            return _send_via_brevo(to, subject, html, text, attachments)
+            return _send_via_brevo(to, subject, html, text, attachments, reply_to=reply_to, from_name=from_name)
         raise
 
 
-def _send_via_brevo(to, subject, html, text=None, attachments=None):
+def _send_via_brevo(to, subject, html, text=None, attachments=None, reply_to=None, from_name=None):
     """Fallback: send via Brevo SMTP."""
     msg = MIMEMultipart("mixed")
     msg["Subject"] = subject
-    msg["From"] = FROM
+    msg["From"] = _display_from(from_name)
     msg["To"] = to if isinstance(to, str) else ", ".join(to)
-    msg["Reply-To"] = REPLY_TO
+    msg["Reply-To"] = reply_to or REPLY_TO
 
     body = MIMEMultipart("alternative")
     if text:

@@ -223,6 +223,8 @@ REST_FRAMEWORK = {
         'newsletter': '10/hour',
         # Follow/unfollow is cheap but easy to script; this stops rapid toggling.
         'follow': '120/hour',
+        # Each send emails real people; this is generous for tests and drafts, tight for abuse.
+        'message': '30/hour',
     },
 }
 

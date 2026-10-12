@@ -6,7 +6,7 @@ from django.contrib.auth import get_user_model
 from .community import (
     community_stats, notify_followers, record_stamp, unfollow_from_token, unfollow_token,
 )
-from .models import Follow, Stamp, Ticket, UserProfile
+from .models import Follow, Message, Stamp, Ticket, UserProfile
 from .test_checkin import ticket
 from .test_payments import PaymentTestBase, make_event
 
@@ -200,3 +200,154 @@ class DirectoryTests(CommunityBase):
         Follow.objects.create(follower=fan, following=self.owner)
         self.client.force_authenticate(fan)
         self.assertTrue(self.client.get('/api/communities/').json()['results'][0]['is_following'])
+
+
+class MessageTests(CommunityBase):
+    URL = '/api/dashboard/messages/'
+
+    def setUp(self):
+        super().setUp()
+        self.client.force_authenticate(self.owner)
+        # Send inline so the tests can look at the result.
+        for target in ('bryo.messaging.deliver_in_background',):
+            p = patch(target, side_effect=lambda m, r: __import__('bryo.messaging', fromlist=['x']).deliver(m, r))
+            p.start()
+            self.addCleanup(p.stop)
+        p = patch('bryo.messaging.send_email')
+        self.mail = p.start()
+        self.addCleanup(p.stop)
+
+    def follower(self, email, events=0):
+        person = self.fan(email)
+        Follow.objects.create(follower=person, following=self.owner)
+        for _ in range(events):
+            record_stamp(ticket(make_event(self.owner), email=email))
+        return person
+
+    def post(self, **kw):
+        body = dict(kind='announce', audience='followers', subject='Hello', body='News for you.')
+        body.update(kw)
+        return self.client.post(self.URL, body, format='json')
+
+    def sent_to(self):
+        return sorted(c.args[0] for c in self.mail.call_args_list)
+
+    def test_announcement_reaches_followers_with_an_unfollow_link(self):
+        self.follower('a@example.com')
+        self.follower('b@example.com')
+        res = self.post()
+        self.assertEqual(res.status_code, 201)
+        self.assertEqual(self.sent_to(), ['a@example.com', 'b@example.com'])
+        self.assertIn('/unfollow?t=', self.mail.call_args_list[0].args[2])
+        m = Message.objects.get()
+        self.assertEqual((m.status, m.recipients_count, m.sent_count, m.failed_count), ('sent', 2, 2, 0))
+
+    def test_members_and_regulars_are_followers_who_showed_up(self):
+        self.follower('never@example.com')
+        self.follower('once@example.com', events=1)
+        self.follower('often@example.com', events=3)
+        counts = self.client.get(self.URL).json()['audiences']
+        self.assertEqual(counts, {'followers': 3, 'members': 2, 'regulars': 1})
+        self.post(audience='members')
+        self.assertEqual(self.sent_to(), ['often@example.com', 'once@example.com'])
+        self.mail.reset_mock()
+        self.post(audience='regulars')
+        self.assertEqual(self.sent_to(), ['often@example.com'])
+
+    def test_someone_who_unfollowed_is_not_emailed(self):
+        gone = self.follower('gone@example.com')
+        self.follower('stays@example.com')
+        Follow.objects.filter(follower=gone).delete()
+        self.post()
+        self.assertEqual(self.sent_to(), ['stays@example.com'])
+
+    def test_event_update_goes_to_ticket_holders_only_and_cannot_be_unfollowed(self):
+        ticket(self.event, email='holder@example.com')
+        ticket(self.event, email='unpaid@example.com', status='pending')
+        ticket(self.event, email='refunded@example.com', status='refunded')
+        self.follower('follower@example.com')
+        res = self.post(kind='update', audience='event', event=self.event.slug)
+        self.assertEqual(res.status_code, 201)
+        self.assertEqual(self.sent_to(), ['holder@example.com'])
+        self.assertNotIn('unfollow', self.mail.call_args_list[0].args[2].lower())
+
+    def test_two_announcements_a_week(self):
+        self.follower('a@example.com')
+        self.assertEqual(self.post().status_code, 201)
+        self.assertEqual(self.post().status_code, 201)
+        res = self.post()
+        self.assertEqual(res.status_code, 400)
+        self.assertEqual(self.client.get(self.URL).json()['announcements_left'], 0)
+        ticket(self.event, email='holder@example.com')
+        self.assertEqual(self.post(kind='update', audience='event', event=self.event.slug).status_code, 201)
+
+    def test_test_send_goes_only_to_the_organiser_and_is_not_saved(self):
+        self.follower('a@example.com')
+        res = self.post(test=True)
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(self.sent_to(), [self.owner.email])
+        self.assertTrue(self.mail.call_args_list[0].args[1].startswith('[Test]'))
+        self.assertEqual(Message.objects.count(), 0)
+
+    def test_nothing_to_send_and_bad_input_are_refused(self):
+        self.assertEqual(self.post().status_code, 400)  # no followers yet
+        self.follower('a@example.com')
+        self.assertEqual(self.post(subject='  ').status_code, 400)
+        self.assertEqual(self.post(body='').status_code, 400)
+        self.assertEqual(self.post(audience='everyone').status_code, 400)
+        self.assertEqual(self.post(kind='update', audience='event').status_code, 400)  # no event
+        self.assertEqual(Message.objects.count(), 0)
+
+    def test_cannot_message_another_organisers_event(self):
+        ticket(self.event, email='holder@example.com')
+        self.client.force_authenticate(self.fan('rival@example.com'))
+        res = self.post(kind='update', audience='event', event=self.event.slug)
+        self.assertEqual(res.status_code, 400)
+        self.mail.assert_not_called()
+
+    def test_signed_out_cannot_use_it(self):
+        self.client.force_authenticate(None)
+        self.assertIn(self.client.get(self.URL).status_code, (401, 403))
+        self.assertIn(self.post().status_code, (401, 403))
+
+    def test_event_card_is_attached_when_asked(self):
+        self.follower('a@example.com')
+        self.post(attach_event=True, event=self.event.slug)
+        self.assertIn(f'/discover/{self.event.slug}', self.mail.call_args_list[0].args[2])
+        self.mail.reset_mock()
+        self.post()
+        self.assertNotIn('/discover/', self.mail.call_args_list[0].args[2])
+
+    def test_replies_go_to_the_organiser_and_the_sender_name_is_theirs(self):
+        self.follower('a@example.com')
+        self.post()
+        kwargs = self.mail.call_args_list[0].kwargs
+        self.assertEqual(kwargs['reply_to'], self.owner.email)
+        self.assertEqual(kwargs['from_name'], 'Lagos Run Club')
+
+    def test_one_bounce_is_counted_and_the_rest_still_go(self):
+        self.follower('a@example.com')
+        self.follower('b@example.com')
+        calls = []
+
+        def flaky(to, *a, **k):
+            calls.append(to)
+            if to == 'a@example.com':
+                raise RuntimeError('bounce')
+
+        self.mail.side_effect = flaky
+        self.post()
+        m = Message.objects.get()
+        self.assertEqual((m.status, m.sent_count, m.failed_count), ('sent', 1, 1))
+        self.assertEqual(sorted(calls), ['a@example.com', 'b@example.com'])
+
+
+class SenderNameTests(CommunityBase):
+    def test_display_name_cannot_break_the_from_header(self):
+        from .mailer import _display_from
+        self.assertEqual(_display_from('Lagos Run Club'), 'Lagos Run Club via Byro <hello@usebyro.com>')
+        evil = _display_from('Evil"\r\nBcc: x@y.com <a@b.c>')
+        self.assertNotIn('\n', evil)
+        self.assertNotIn('\r', evil)
+        self.assertEqual(evil.count('<'), 1)
+        self.assertTrue(_display_from('').startswith('Byro <'))

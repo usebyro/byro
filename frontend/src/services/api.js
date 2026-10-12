@@ -611,6 +611,25 @@ const API = {
     }
   },
 
+  // Messages: audience sizes, the weekly allowance and what was sent. POST sends (or, with test, previews to yourself).
+  getMessages: async () => {
+    try {
+      const response = await axiosInstance.get("dashboard/messages/");
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  sendMessage: async (payload) => {
+    try {
+      const response = await axiosInstance.post("dashboard/messages/", payload);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
   // The organiser's notification bell.
   getNotifications: async () => {
     try {

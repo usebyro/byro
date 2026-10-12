@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import API from "@/services/api";
 import EventImage from "@/components/brand/EventImage";
 import { dayParts, formatTime } from "@/lib/eventFormat";
@@ -34,16 +35,18 @@ function radioKeys(count, index, select) {
   };
 }
 
-// Flip to true once the send endpoint exists.
-const SENDING_READY = false;
-
 const n = (v) => (v == null ? "—" : Number(v).toLocaleString());
+const people = (count) => `${n(count)} ${count === 1 ? "person" : "people"}`;
+
+const KIND_LABEL = { announce: "Announcement", update: "Event update" };
+const AUDIENCE_LABEL = { followers: "All followers", members: "Members", regulars: "Regulars" };
 
 export default function MessagesPage() {
-  const [community, setCommunity] = useState(null);
+  const [data, setData] = useState(null);
   const [dashboard, setDashboard] = useState(null);
-  const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+  const [testing, setTesting] = useState(false);
 
   const [kind, setKind] = useState("announce");
   const [audience, setAudience] = useState("followers");
@@ -57,46 +60,58 @@ export default function MessagesPage() {
     document.title = "Messages | Byro";
   }, []);
 
+  const load = useCallback(() => API.getMessages().then(setData).catch(() => {}), []);
+
   useEffect(() => {
-    Promise.allSettled([API.getCommunityStats(), API.getDashboard(), API.getDashboardAnalytics()])
-      .then(([c, d, a]) => {
-        setCommunity(c.status === "fulfilled" ? c.value : null);
+    Promise.allSettled([API.getMessages(), API.getDashboard()])
+      .then(([m, d]) => {
+        setData(m.status === "fulfilled" ? m.value : null);
         setDashboard(d.status === "fulfilled" ? d.value : null);
-        setAnalytics(a.status === "fulfilled" ? a.value : null);
       })
       .finally(() => setLoading(false));
   }, []);
 
+  // While a message is going out, check back until it has finished.
+  const goingOut = Boolean(data?.sent?.some((m) => m.status === "sending"));
+  useEffect(() => {
+    if (!goingOut) return;
+    const id = setInterval(load, 4000);
+    return () => clearInterval(id);
+  }, [goingOut, load]);
+
+  // Events with their photo, date and venue, for the event card in the preview.
   const events = useMemo(() => {
     const up = dashboard?.hosting?.upcoming || [];
     const past = dashboard?.hosting?.past || [];
     return [...up, ...past].filter((e) => e.slug && e.is_active !== false && !e.is_draft);
   }, [dashboard]);
 
-  // Ticket holders per event come from the same analytics the Events page shows.
-  const holders = (slug) => analytics?.events?.[slug]?.sold ?? null;
-
-  const eventsWithTickets = events.filter((e) => (holders(e.slug) ?? 0) > 0);
-  const chosenEvent = eventsWithTickets.find((e) => e.slug === eventSlug) || eventsWithTickets[0] || null;
-  const attachEvent = events.find((e) => e.slug === attachSlug) || events[0] || null;
-
   const isAnnounce = kind === "announce";
+  const holderEvents = data?.events || [];
+  const chosenHolder = holderEvents.find((e) => e.slug === eventSlug) || holderEvents[0] || null;
+
   const audiences = isAnnounce
     ? [
-        { id: "followers", label: "All followers", sub: "Everyone who follows you", count: community?.followers },
-        { id: "members", label: "Members", sub: "Came to at least one event", count: community?.attendees },
-        { id: "regulars", label: "Regulars", sub: "Came to 3 or more events", count: community?.regulars },
+        { id: "followers", label: "All followers", sub: "Everyone who follows you", count: data?.audiences?.followers },
+        { id: "members", label: "Members", sub: "Followers who came to at least one event", count: data?.audiences?.members },
+        { id: "regulars", label: "Regulars", sub: "Followers who came to 3 or more events", count: data?.audiences?.regulars },
       ]
-    : eventsWithTickets.map((e) => ({
+    : holderEvents.map((e) => ({
         id: e.slug,
         label: `${e.name} ticket holders`,
-        sub: `${dayParts(e.day).short}`,
-        count: holders(e.slug),
+        sub: dayParts(e.day).short,
+        count: e.holders,
       }));
 
   const activeAudience = isAnnounce
     ? audiences.find((a) => a.id === audience) || audiences[0]
-    : audiences.find((a) => a.id === (chosenEvent?.slug)) || audiences[0] || null;
+    : audiences.find((a) => a.id === chosenHolder?.slug) || null;
+
+  // The card in the email: the event being updated, or the one picked for an announcement.
+  const attachEvent = isAnnounce
+    ? events.find((e) => e.slug === attachSlug) || events[0] || null
+    : events.find((e) => e.slug === chosenHolder?.slug) || null;
+  const showCard = isAnnounce ? attach : true;
 
   const pickKind = (id) => {
     setKind(id);
@@ -116,12 +131,60 @@ export default function MessagesPage() {
     return () => window.removeEventListener("beforeunload", guard);
   }, [draftDirty]);
 
-  const canSend = subject.trim() && body.trim() && activeAudience && (activeAudience.count ?? 0) > 0;
+  const left = data?.announcements_left ?? 0;
+  const hasDraft = subject.trim() && body.trim() && body.trim() !== DRAFTS[kind].body.trim();
+  const canSend = Boolean(hasDraft && activeAudience && (activeAudience.count ?? 0) > 0 && (!isAnnounce || left > 0));
+
+  const payload = (extra = {}) => ({
+    kind,
+    audience: isAnnounce ? activeAudience?.id : "event",
+    event: isAnnounce ? (attach ? attachEvent?.slug : undefined) : activeAudience?.id,
+    attach_event: showCard,
+    subject: subject.trim(),
+    body: body.trim(),
+    ...extra,
+  });
+
+  const sendTest = async () => {
+    setTesting(true);
+    try {
+      const res = await API.sendMessage(payload({ test: true }));
+      toast.success(`Test sent to ${res.sent_to}`);
+    } catch (err) {
+      toast.error(err?.message || "Couldn’t send the test. Try again.");
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  const send = async () => {
+    const count = activeAudience?.count ?? 0;
+    if (!window.confirm(`Send “${subject.trim()}” to ${people(count)}?\n\nThis can’t be undone.`)) return;
+    setSending(true);
+    try {
+      await API.sendMessage(payload());
+      toast.success(`Sending to ${people(count)}`);
+      setSubject(DRAFTS[kind].subject);
+      setBody(DRAFTS[kind].body);
+      setAttach(false);
+      await load();
+    } catch (err) {
+      toast.error(err?.message || "Couldn’t send that. Try again.");
+    } finally {
+      setSending(false);
+    }
+  };
 
   const brand = dashboard?.profile?.display_name || "Your community";
   const footer = isAnnounce
-    ? `You get this because you follow ${brand} on byro. Unsubscribe.`
+    ? `You get this because you follow ${brand} on byro. Unfollow.`
     : "You get this because you have a ticket for this event.";
+
+  const footNote = isAnnounce
+    ? left > 0
+      ? `${left} of ${data?.announcements_per_week ?? 2} announcements left this week`
+      : "You’ve used this week’s announcements. Event updates still go out."
+    : "Event updates always reach ticket holders";
 
   const label = "text-sm font-bold text-[#3B4252]";
   const field =
@@ -228,7 +291,7 @@ export default function MessagesPage() {
             />
           </label>
 
-          {events.length > 0 && (
+          {isAnnounce && events.length > 0 && (
             <div className="flex flex-col gap-3">
               <button
                 type="button"
@@ -263,26 +326,30 @@ export default function MessagesPage() {
           )}
 
           <div className="flex flex-wrap items-center gap-2.5 border-t border-hairline pt-4">
-            <span className="min-w-0 flex-1 text-[13px] text-muted">
-              {SENDING_READY
-                ? isAnnounce
-                  ? "People can unsubscribe from announcements"
-                  : "Event updates always reach ticket holders"
-                : "Sending isn’t available yet. Your draft stays here until it is."}
-            </span>
-            <button type="button" disabled={!SENDING_READY} title={SENDING_READY ? undefined : "Coming soon"} className="h-11 rounded-full border border-line bg-white px-5 text-[15px] font-bold text-ink transition-[background-color,scale] hover:bg-paper active:scale-[0.97] disabled:cursor-not-allowed disabled:border-0 disabled:bg-hairline disabled:text-muted disabled:active:scale-100">
-              Send me a test
+            <span className="min-w-0 flex-1 text-[13px] text-muted">{footNote}</span>
+            <button
+              type="button"
+              onClick={sendTest}
+              disabled={testing || sending || !hasDraft || (!isAnnounce && !activeAudience)}
+              className="h-11 rounded-full border border-line bg-white px-5 text-[15px] font-bold text-ink transition-[background-color,scale] hover:bg-paper active:scale-[0.97] disabled:cursor-not-allowed disabled:border-0 disabled:bg-hairline disabled:text-muted disabled:active:scale-100"
+            >
+              {testing ? "Sending test…" : "Send me a test"}
             </button>
-            <button type="button" disabled={!SENDING_READY} title={SENDING_READY ? undefined : "Coming soon"} className="h-11 rounded-full border border-line bg-white px-5 text-[15px] font-bold text-ink transition-[background-color,scale] hover:bg-paper active:scale-[0.97] disabled:cursor-not-allowed disabled:border-0 disabled:bg-hairline disabled:text-muted disabled:active:scale-100">
+            <button
+              type="button"
+              disabled
+              title="Coming soon"
+              className="h-11 rounded-full bg-hairline px-5 text-[15px] font-bold text-muted disabled:cursor-not-allowed"
+            >
               Schedule
             </button>
             <button
               type="button"
-              disabled={!SENDING_READY || !canSend}
-              title={SENDING_READY ? undefined : "Coming soon"}
+              onClick={send}
+              disabled={!canSend || sending}
               className="h-11 rounded-full bg-brand px-5 text-[15px] font-bold text-white transition-[background-color,scale] hover:bg-brand-dark active:scale-[0.97] disabled:cursor-not-allowed disabled:bg-hairline disabled:text-muted disabled:active:scale-100"
             >
-              {activeAudience ? `Send to ${n(activeAudience.count)}` : "Send"}
+              {sending ? "Sending…" : activeAudience ? `Send to ${n(activeAudience.count)}` : "Send"}
             </button>
           </div>
         </section>
@@ -299,7 +366,7 @@ export default function MessagesPage() {
               </div>
               <div className="flex flex-col gap-3.5 p-[18px]">
                 <p className="m-0 whitespace-pre-line break-words text-sm leading-[1.6] text-[#3B4252]">{body}</p>
-                {attach && attachEvent && (
+                {showCard && attachEvent && (
                   <div className="overflow-hidden rounded-xl border border-line">
                     <div className="relative h-[110px]">
                       <EventImage event={attachEvent} sizes="400px" />
@@ -326,13 +393,43 @@ export default function MessagesPage() {
 
       <section aria-label="Sent messages" className="flex flex-col">
         <h2 className="mb-2 font-display text-[22px] font-bold">Sent</h2>
-        <div className="flex h-10 items-center border-b border-hairline text-[13px] font-bold text-muted">
-          <span className="flex-1">Message</span>
-          <span className="w-20 text-right sm:w-[120px]">Sent to</span>
-          <span className="hidden w-[120px] text-right sm:block">Opened</span>
-          <span className="hidden w-[140px] text-right md:block">Tickets sold</span>
-        </div>
-        <p className="py-8 text-[15px] text-muted">Nothing sent yet. Messages you send will show up here with how many people opened them.</p>
+        {data?.sent?.length ? (
+          <table className="w-full border-collapse text-left">
+            <thead>
+              <tr className="h-10 border-b border-hairline text-[13px] font-bold text-muted">
+                <th scope="col" className="font-bold">Message</th>
+                <th scope="col" className="w-28 text-right font-bold sm:w-40">Sent to</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.sent.map((m) => (
+                <tr key={m.id} className="h-16 border-b border-hairline">
+                  <td className="min-w-0 py-2 pr-3">
+                    <span className="block truncate text-[15px] font-bold">{m.subject}</span>
+                    <span className="block truncate text-[13px] text-muted">
+                      {KIND_LABEL[m.kind]} · {new Date(m.created_at).toLocaleDateString("en-NG", { day: "numeric", month: "short" })} ·{" "}
+                      {m.audience === "event" ? `${m.event_name || "Event"} ticket holders` : AUDIENCE_LABEL[m.audience]}
+                    </span>
+                  </td>
+                  <td className="text-right text-[15px] font-bold">
+                    {m.status === "sending" ? (
+                      <span className="text-muted">Sending…</span>
+                    ) : m.status === "failed" ? (
+                      <span className="text-red-600">Failed</span>
+                    ) : (
+                      <>
+                        {n(m.sent)}
+                        {m.failed > 0 && <span className="block text-[13px] font-semibold text-red-600">{n(m.failed)} didn’t arrive</span>}
+                      </>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <p className="py-8 text-[15px] text-muted">{loading ? "Loading…" : "Nothing sent yet. Messages you send will show up here."}</p>
+        )}
       </section>
     </div>
   );

@@ -29,8 +29,9 @@ from django.contrib.auth import get_user_model
 from .models import (
     WaitList, Event, Ticket, TicketTransfer,
     EventCoHost, Payment, Refund, UserProfile, EventFormQuestion, EventFormAnswer,
-    TicketTier, PayoutRequest, PromoCode, MerchItem, Follow, AdminAction, AdminMember, ActivityLog,
+    TicketTier, PayoutRequest, PromoCode, MerchItem, Follow, AdminAction, AdminMember, ActivityLog, Message,
 )
+from . import messaging
 from .activity import log_activity
 from .notifications import notify, notify_admins, ticket_sale
 from .community import (
@@ -1420,6 +1421,100 @@ class CommunityDashboardView(APIView):
         since = timezone.now() - timedelta(days=30)
         stats['new_followers_30d'] = Follow.objects.filter(following=request.user, created_at__gte=since).count()
         return Response(stats)
+
+
+class MessagesView(APIView):
+    """
+    GET  /api/dashboard/messages/ — who each audience reaches right now, the weekly allowance, and sent messages.
+    POST /api/dashboard/messages/ — send one. {kind, audience, event?, attach_event?, subject, body, test?}
+    With test=true it emails only the organiser and saves nothing.
+    """
+    permission_classes = [IsAuthenticated]
+    throttle_scope = 'message'
+
+    def get_throttles(self):
+        # Only sends are limited; the page reads this often while a message goes out.
+        return super().get_throttles() if self.request.method == 'POST' else []
+
+    @staticmethod
+    def _row(m):
+        return {
+            'id': m.pk, 'kind': m.kind, 'audience': m.audience, 'subject': m.subject, 'status': m.status,
+            'event_name': m.event.name if m.event_id else '',
+            'recipients': m.recipients_count, 'sent': m.sent_count, 'failed': m.failed_count,
+            'created_at': m.created_at, 'sent_at': m.sent_at,
+        }
+
+    def get(self, request):
+        sent = Message.objects.filter(organizer=request.user).select_related('event')[:20]
+        return Response({
+            'audiences': messaging.audience_counts(request.user),
+            'events': messaging.holder_events(request.user),
+            'announcements_left': messaging.announcements_left(request.user),
+            'announcements_per_week': messaging.MAX_ANNOUNCEMENTS_PER_WEEK,
+            'sent': [self._row(m) for m in sent],
+        })
+
+    def post(self, request):
+        data = request.data
+        kind = data.get('kind')
+        which = data.get('audience')
+        subject = str(data.get('subject') or '').strip()
+        body = str(data.get('body') or '').strip()
+        is_test = bool(data.get('test'))
+        attach = bool(data.get('attach_event'))
+
+        def bad(msg):
+            return Response({'error': msg}, status=status.HTTP_400_BAD_REQUEST)
+
+        if kind not in (Message.KIND_ANNOUNCE, Message.KIND_UPDATE):
+            return bad('Choose what you are sending.')
+        if not subject or len(subject) > 200:
+            return bad('Add a subject of up to 200 characters.')
+        if not body or len(body) > 5000:
+            return bad('Add a message of up to 5,000 characters.')
+
+        event = None
+        slug = data.get('event')
+        if kind == Message.KIND_UPDATE:
+            which = 'event'
+            attach = True
+        elif which not in ('followers', 'members', 'regulars'):
+            return bad('Choose who to send it to.')
+        if slug:
+            event = Event.objects.filter(slug=slug, owner=request.user, is_active=True, is_draft=False).first()
+            if not event:
+                return bad('That event was not found.')
+        if (kind == Message.KIND_UPDATE or attach) and not event:
+            return bad('Choose an event.')
+        if not attach:
+            event = event if kind == Message.KIND_UPDATE else None
+
+        message = Message(
+            organizer=request.user, kind=kind, audience=which, event=event, subject=subject,
+            body=body, attach_event=attach,
+        )
+
+        if is_test:
+            if not request.user.email:
+                return bad('Your account has no email address to send a test to.')
+            try:
+                messaging.send_test(message, request.user.email)
+            except Exception:
+                logger.exception('Could not send a test message')
+                return Response({'error': 'Could not send the test. Try again.'}, status=status.HTTP_502_BAD_GATEWAY)
+            return Response({'sent_to': request.user.email})
+
+        if kind == Message.KIND_ANNOUNCE and not messaging.announcements_left(request.user):
+            return bad(f'You have used your {messaging.MAX_ANNOUNCEMENTS_PER_WEEK} announcements for this week.')
+        recipients = messaging.audience(request.user, kind, which, event if kind == Message.KIND_UPDATE else None)
+        if not recipients:
+            return bad('There is no one to send this to yet.')
+
+        message.recipients_count = len(recipients)
+        message.save()
+        messaging.deliver_in_background(message, recipients)
+        return Response(self._row(message), status=status.HTTP_201_CREATED)
 
 
 class UnfollowByTokenView(APIView):

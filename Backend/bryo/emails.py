@@ -522,6 +522,48 @@ def follower_new_event_email(name, organizer_name, event_name, date, time, locat
     return {"subject": f"{organizer_name} is hosting {event_name}", "html": html, "text": text}
 
 
+def organizer_message_email(name, organizer_name, kind, subject, body, event=None, unfollow_url=None,
+                            community_url=None, is_test=False):
+    """An organiser's own message to their community. `event` (a dict) adds an event card with a Get tickets button."""
+    paragraphs = [p.strip() for p in str(body or "").replace("\r\n", "\n").split("\n\n") if p.strip()]
+    text_paras = "\n\n".join(paragraphs)
+    html_paras = "".join(_lead(_h(p).replace("\n", "<br>")) for p in paragraphs)
+    organiser = _h(organizer_name)
+    card = ""
+    if event:
+        when = " \u00b7 ".join(x for x in [event.get("date"), event.get("time")] if x)
+        rows = [("Date", _h(when))] if when else []
+        if event.get("location"):
+            rows.append(("Venue", _h(event["location"])))
+        card = (_rows(rows) if rows else "") + _btn_row(_btn(event["url"], "Get tickets"))
+    elif community_url:
+        card = _btn_row(_btn(community_url, f"See {organiser}", primary=False))
+    badge = _badge("Event update", BRAND, BRAND_BG) if kind == "update" else _badge("Announcement", BRAND, BRAND_BG)
+    if kind == "update":
+        footer = "You&#8217;re getting this because you have a ticket for this event."
+    else:
+        unfollow = (
+            f' <a href="{unfollow_url}" style="color:{MUTED};text-decoration:underline;">Unfollow</a> to stop these emails.'
+            if unfollow_url else ""
+        )
+        footer = f"You&#8217;re getting this because you follow {organiser} on byro.{unfollow}"
+    hello = f"Hi {_h(name)}," if name else "Hi,"
+    html = _shell(
+        badge,
+        _h(subject),
+        _lead(hello) + html_paras + card,
+        footer,
+        preheader=paragraphs[0][:110] if paragraphs else subject,
+    )
+    text = f"{'Hi ' + name + ',' if name else 'Hi,'}\n\n{text_paras}\n"
+    if event:
+        text += f"\nGet tickets: {event['url']}\n"
+    if kind != "update" and unfollow_url:
+        text += f"\nUnfollow: {unfollow_url}\n"
+    text += f"\n{organizer_name} via byro"
+    return {"subject": f"[Test] {subject}" if is_test else subject, "html": html, "text": text}
+
+
 def cohost_invite_email(event_name, inviter_name, event_url, is_new_user=False, role="manager", invitee_email="",
                         date="", time="", location=""):
     """Invite to co-host. Managers can edit; check-in helpers can only see guests and check them in."""
