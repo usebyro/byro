@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { resolveAdminHref } from "@/lib/adminNav";
 import { formatNaira } from "@/lib/eventFormat";
 
 interface AdminPayment {
@@ -35,6 +38,7 @@ function formatDateTime(s: string | null) {
 }
 
 export default function AdminPaymentsPage() {
+  const pathname = usePathname();
   const [payments, setPayments] = useState<AdminPayment[]>([]);
   const [count, setCount] = useState(0);
   const [status, setStatus] = useState("");
@@ -116,7 +120,9 @@ export default function AdminPaymentsPage() {
               {payments.map((p) => (
                 <tr key={p.id}>
                   <td className="py-3 pr-6">
-                    <p className="text-ink truncate max-w-[200px]">{p.customer_name || p.customer_email}</p>
+                    <Link href={resolveAdminHref(pathname, `/payments/${p.id}`)} className="block text-ink font-semibold truncate max-w-[200px] hover:underline">
+                      {p.customer_name || p.customer_email}
+                    </Link>
                     <p className="text-faint text-xs truncate max-w-[200px]">{p.paystack_reference}</p>
                   </td>
                   <td className="py-3 pr-6 text-muted">

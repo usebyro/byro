@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { useAdminMe } from "@/components/admin/AdminMe";
 import { publicHref } from "@/lib/adminNav";
@@ -67,6 +68,15 @@ async function post(url: string, body?: unknown) {
 }
 
 export default function AdminSupportPage() {
+  return (
+    <Suspense fallback={null}>
+      <SupportPage />
+    </Suspense>
+  );
+}
+
+function SupportPage() {
+  const params = useSearchParams();
   const me = useAdminMe();
   const canAct = me.can.moderate;
   const [q, setQ] = useState("");
@@ -75,9 +85,9 @@ export default function AdminSupportPage() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
 
-  const search = async (e?: React.FormEvent) => {
+  const search = async (e?: React.FormEvent, override?: string) => {
     e?.preventDefault();
-    const term = q.trim();
+    const term = (override ?? q).trim();
     if (term.length < 3) {
       setError("Type at least 3 characters of a name, email, ticket ID or payment reference.");
       return;
@@ -105,6 +115,17 @@ export default function AdminSupportPage() {
       setBusy("");
     }
   };
+
+  // Opened from a payment page with ?q=<reference>: search straight away.
+  const started = useRef(false);
+  useEffect(() => {
+    const initial = params.get("q");
+    if (started.current || !initial) return;
+    started.current = true;
+    setQ(initial);
+    search(undefined, initial);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params]);
 
   const resend = (t: SupportTicket) =>
     act(`resend-${t.ticket_id}`, async () => {

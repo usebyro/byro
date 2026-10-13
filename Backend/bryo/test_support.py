@@ -122,3 +122,77 @@ class OrderRefundTests(SupportBase):
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.json()['status'], Refund.STATUS_FAILED)
         self.assertIn('already refunded', res.json()['failure_reason'])
+
+
+class PaymentDetailTests(SupportBase):
+
+    def test_the_detail_shows_money_buyer_tickets_and_organiser(self):
+        data = self.client.get(f'/api/admin/payments/{self.order.pk}/').json()
+        self.assertEqual(data['reference'], self.order.paystack_reference)
+        self.assertEqual((data['subtotal'], data['service_fee'], data['refundable']), ('5000.00', '250.00', '5000.00'))
+        self.assertEqual(len(data['tickets']), 2)
+        self.assertEqual(data['organizer']['email'], self.owner.email)
+        self.assertIsNone(data['refund'])
+
+    def test_strangers_cannot_open_it(self):
+        self.client.force_authenticate(User.objects.create_user(email='rando@example.com'))
+        self.assertEqual(self.client.get(f'/api/admin/payments/{self.order.pk}/').status_code, 403)
+
+
+def paystack_says(status='success', amount_kobo=None):
+    from .test_payments import FakeResponse
+    def fake(url, **kw):
+        return FakeResponse({'status': True, 'data': {
+            'status': status, 'amount': amount_kobo, 'currency': 'NGN', 'channel': 'card',
+            'gateway_response': 'Approved', 'customer': {'email': 'buyer@example.com'},
+        }})
+    return patch('bryo.views.requests.get', side_effect=fake)
+
+
+class PaystackCheckTests(SupportBase):
+
+    def setUp(self):
+        super().setUp()
+        from .test_payments import make_payment
+        # Paid at Paystack, but Byro never completed it: no tickets yet.
+        self.stuck = make_payment(self.event, reference='EVT-stuck-0001', amount='5250.00', seats=2)
+
+    def url(self, p=None):
+        return f'/api/admin/payments/{(p or self.stuck).pk}/paystack/'
+
+    def test_compare_with_paystack(self):
+        with paystack_says(amount_kobo=525000):
+            data = self.client.get(self.url()).json()
+        self.assertEqual((data['paystack']['status'], data['byro']['status']), ('success', 'pending'))
+        self.assertTrue(data['amount_matches'])
+        self.assertTrue(data['can_issue_tickets'])
+
+    def test_issue_tickets_for_a_payment_paystack_confirms(self):
+        self.ticket_email.reset_mock()
+        with paystack_says(amount_kobo=525000):
+            res = self.client.post(self.url())
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json()['issued'], 2)
+        self.stuck.refresh_from_db()
+        self.assertEqual(self.stuck.status, 'successful')
+        self.assertEqual(Ticket.objects.filter(payment=self.stuck, payment_status='paid').count(), 2)
+        self.assertTrue(AdminAction.objects.filter(action=AdminAction.ACTION_ORDER_FULFILLED).exists())
+        # Doing it again issues nothing more
+        with paystack_says(amount_kobo=525000):
+            self.assertEqual(self.client.post(self.url()).status_code, 400)
+        self.assertEqual(Ticket.objects.filter(payment=self.stuck).count(), 2)
+
+    def test_refuses_when_paystack_has_not_been_paid_or_the_amount_differs(self):
+        with paystack_says(status='abandoned', amount_kobo=525000):
+            self.assertEqual(self.client.post(self.url()).status_code, 400)
+        with paystack_says(amount_kobo=100):
+            res = self.client.post(self.url())
+        self.assertEqual(res.status_code, 400)
+        self.assertIn('amount', res.json()['error'])
+        self.assertFalse(Ticket.objects.filter(payment=self.stuck).exists())
+
+    def test_viewers_can_check_but_not_issue(self):
+        self.client.force_authenticate(self.viewer)
+        with paystack_says(amount_kobo=525000):
+            self.assertEqual(self.client.get(self.url()).status_code, 200)
+            self.assertEqual(self.client.post(self.url()).status_code, 403)
