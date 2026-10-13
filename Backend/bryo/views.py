@@ -4512,13 +4512,22 @@ class AdminAuditLogView(APIView):
 
 
 class AdminUserDetailView(APIView):
-    """PATCH /api/admin/users/<pk>/ — { role, is_active }.
+    """GET   /api/admin/users/<pk>/ — everything about one person: events, tickets, spending, payouts, follows.
+    PATCH /api/admin/users/<pk>/ — { role, is_active }.
 
-    Admins can suspend/reactivate; changing a user's role needs an owner.
+    Anyone on the team can look. Admins can suspend/reactivate; changing a user's role needs an owner.
     """
     permission_classes = [IsAdminMember]
     min_role = 'admin'
+    method_roles = {'GET': 'viewer'}
     User = get_user_model()
+
+    def get(self, request, pk):
+        from .accounts import summary
+        user = self.User.objects.filter(pk=pk).first()
+        if not user:
+            return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(summary(user))
 
     def patch(self, request, pk):
         try:
@@ -4558,6 +4567,36 @@ class AdminUserDetailView(APIView):
             'id': user.pk, 'email': user.email, 'role': profile.role,
             'is_active': user.is_active,
         })
+
+
+class AdminUserDeleteView(APIView):
+    """
+    POST /api/admin/users/<pk>/delete/ {confirm_email} — delete an account on request (owners only).
+    The account is anonymised: name, email, photo, links and follows are removed and it can't sign in.
+    Payments and event history are kept for Byro's records. Refused while anything is still owed or live.
+    """
+    permission_classes = [IsAdminMember]
+    min_role = AdminMember.ROLE_OWNER
+
+    def post(self, request, pk):
+        from .accounts import anonymise, delete_blockers
+        user = User.objects.filter(pk=pk).first()
+        if not user:
+            return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+        if user.email.endswith('@deleted.usebyro.com'):
+            return Response({'error': 'This account is already deleted.'}, status=status.HTTP_400_BAD_REQUEST)
+        if user == request.user:
+            return Response({'error': "You can't delete your own account here."}, status=status.HTTP_400_BAD_REQUEST)
+        if (request.data.get('confirm_email') or '').strip().lower() != user.email.lower():
+            return Response({'error': "Type the person's email address exactly to confirm."},
+                            status=status.HTTP_400_BAD_REQUEST)
+        blockers = delete_blockers(user)
+        if blockers:
+            return Response({'error': blockers[0], 'blockers': blockers}, status=status.HTTP_400_BAD_REQUEST)
+        old = user.email
+        anonymise(user)
+        _log_admin_action(request, AdminAction.ACTION_USER_DELETED, 'user', user.pk, old, 'anonymised on request')
+        return Response({'deleted': True})
 
 
 class AdminMeView(APIView):
