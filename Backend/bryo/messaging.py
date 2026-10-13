@@ -27,7 +27,7 @@ def announcements_left(organizer):
     since = timezone.now() - timedelta(days=7)
     used = Message.objects.filter(
         organizer=organizer, kind=Message.KIND_ANNOUNCE, created_at__gte=since,
-    ).exclude(status='failed').count()
+    ).exclude(status__in=('failed', 'cancelled')).count()
     return max(0, MAX_ANNOUNCEMENTS_PER_WEEK - used)
 
 
@@ -152,6 +152,32 @@ def deliver(message, recipients):
     except Exception:
         logger.exception('Could not deliver message %s', getattr(message, 'pk', None))
         Message.objects.filter(pk=getattr(message, 'pk', None)).update(status='failed', sent_at=timezone.now())
+
+
+def send_due(now=None):
+    """
+    Send every scheduled message whose time has come. Run by `manage.py send_scheduled_messages` on a cron.
+
+    Each message is claimed (scheduled -> sending) before it is sent, so two runs at once never send it twice.
+    The audience is worked out at send time: someone who unfollowed since it was scheduled is left out.
+    Returns how many messages were sent.
+    """
+    now = now or timezone.now()
+    done = 0
+    due = Message.objects.filter(status='scheduled', scheduled_for__lte=now).select_related('organizer', 'event')
+    for message in due:
+        if not Message.objects.filter(pk=message.pk, status='scheduled').update(status='sending'):
+            continue  # another run took it, or it was cancelled
+        event = message.event
+        if message.kind == Message.KIND_UPDATE and (not event or not event.is_active or event.is_draft):
+            Message.objects.filter(pk=message.pk).update(status='failed', sent_at=timezone.now())
+            continue
+        recipients = audience(message.organizer, message.kind, message.audience,
+                              event if message.kind == Message.KIND_UPDATE else None)
+        Message.objects.filter(pk=message.pk).update(recipients_count=len(recipients))
+        deliver(message, recipients)
+        done += 1
+    return done
 
 
 def deliver_in_background(message, recipients):

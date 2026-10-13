@@ -990,7 +990,10 @@ class Message(models.Model):
         ('regulars', 'Regulars'),
         ('event', 'Ticket holders'),
     ]
-    STATUS_CHOICES = [('sending', 'Sending'), ('sent', 'Sent'), ('failed', 'Failed')]
+    STATUS_CHOICES = [
+        ('scheduled', 'Scheduled'), ('sending', 'Sending'), ('sent', 'Sent'),
+        ('failed', 'Failed'), ('cancelled', 'Cancelled'),
+    ]
 
     organizer = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='messages_sent')
     kind = models.CharField(max_length=10, choices=KIND_CHOICES)
@@ -1005,6 +1008,8 @@ class Message(models.Model):
     failed_count = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
     sent_at = models.DateTimeField(null=True, blank=True)
+    # When a scheduled message should go out. Empty for messages sent straight away.
+    scheduled_for = models.DateTimeField(null=True, blank=True, db_index=True)
 
     class Meta:
         ordering = ['-created_at']

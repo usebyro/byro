@@ -35,6 +35,14 @@ function radioKeys(count, index, select) {
 const n = (v) => (v == null ? "—" : Number(v).toLocaleString());
 const people = (count) => `${n(count)} ${count === 1 ? "person" : "people"}`;
 
+// Value for a datetime-local input, in the organiser's own time zone.
+const toLocalInput = (d) => {
+  const pad = (x) => String(x).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+const whenLabel = (iso) =>
+  new Date(iso).toLocaleString("en-NG", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+
 const KIND_LABEL = { announce: "Announcement", update: "Event update" };
 const AUDIENCE_LABEL = { followers: "All followers", members: "Members", regulars: "Regulars" };
 
@@ -147,6 +155,11 @@ export default function MessagesPage() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [scheduleAt, setScheduleAt] = useState("");
+  const [scheduling, setScheduling] = useState(false);
+  // "Now" for checking the chosen time; refreshed when the picker opens or changes.
+  const [now, setNow] = useState(0);
 
   const [kind, setKind] = useState("announce");
   const [audience, setAudience] = useState("followers");
@@ -285,6 +298,58 @@ export default function MessagesPage() {
       toast.error("Couldn’t send message", { description: err?.message || "Try again." });
     } finally {
       setSending(false);
+    }
+  };
+
+  const openSchedule = () => {
+    setNow(Date.now());
+    if (!scheduleAt) {
+      // Default: tomorrow at 10:00.
+      const d = new Date();
+      d.setDate(d.getDate() + 1);
+      d.setHours(10, 0, 0, 0);
+      setScheduleAt(toLocalInput(d));
+    }
+    setScheduleOpen((v) => !v);
+  };
+
+  const scheduleError = (() => {
+    if (!scheduleAt) return "Pick a date and time.";
+    const t = new Date(scheduleAt).getTime();
+    if (Number.isNaN(t)) return "Pick a date and time.";
+    if (t < now + 5 * 60 * 1000) return "Pick a time at least 5 minutes from now.";
+    if (t > now + 30 * 24 * 60 * 60 * 1000) return "You can schedule up to 30 days ahead.";
+    return "";
+  })();
+
+  const schedule = async () => {
+    if (scheduleError) return;
+    const iso = new Date(scheduleAt).toISOString();
+    setScheduling(true);
+    try {
+      await API.sendMessage(payload({ scheduled_for: iso }));
+      toast.success("Message scheduled", { description: whenLabel(iso) });
+      setSubject(BLANK.subject);
+      setBody(BLANK.body);
+      setAttach(false);
+      setScheduleOpen(false);
+      setScheduleAt("");
+      await load();
+    } catch (err) {
+      toast.error("Couldn’t schedule message", { description: err?.message || "Try again." });
+    } finally {
+      setScheduling(false);
+    }
+  };
+
+  const cancelScheduled = async (m) => {
+    if (!window.confirm(`Cancel “${m.subject}”? It won’t be sent.`)) return;
+    try {
+      await API.cancelScheduledMessage(m.id);
+      toast.success("Message cancelled");
+      await load();
+    } catch (err) {
+      toast.error("Couldn’t cancel message", { description: err?.message || "Try again." });
     }
   };
 
@@ -441,9 +506,13 @@ export default function MessagesPage() {
             </button>
             <button
               type="button"
-              disabled
-              title="Coming soon"
-              className="h-11 rounded-full bg-hairline px-5 text-[15px] font-bold text-muted disabled:cursor-not-allowed"
+              onClick={openSchedule}
+              aria-expanded={scheduleOpen}
+              aria-controls="schedule-panel"
+              disabled={!canSend || sending || scheduling}
+              className={`h-11 rounded-full border px-5 text-[15px] font-bold transition-[background-color,scale] active:scale-[0.97] disabled:cursor-not-allowed disabled:border-0 disabled:bg-hairline disabled:text-muted disabled:active:scale-100 ${
+                scheduleOpen ? "border-brand bg-[#EEF3FF] text-brand-dark" : "border-line bg-white text-ink hover:bg-paper"
+              }`}
             >
               Schedule
             </button>
@@ -456,6 +525,47 @@ export default function MessagesPage() {
               {sending ? "Sending…" : activeAudience ? `Send to ${n(activeAudience.count)}` : "Send"}
             </button>
           </div>
+
+          {scheduleOpen && canSend && (
+            <div id="schedule-panel" className="flex flex-col gap-3 rounded-xl border border-line bg-paper p-4">
+              <label className="flex flex-col gap-2 text-sm font-bold text-[#3B4252]">
+                Send on
+                <input
+                  type="datetime-local"
+                  name="scheduled_for"
+                  value={scheduleAt}
+                  min={toLocalInput(new Date(now + 5 * 60 * 1000))}
+                  onChange={(e) => {
+                    setNow(Date.now());
+                    setScheduleAt(e.target.value);
+                  }}
+                  aria-invalid={Boolean(scheduleError)}
+                  aria-describedby="schedule-hint"
+                  className="h-11 w-full max-w-xs rounded-xl border-[1.5px] border-[#CBD3DF] bg-white px-3.5 text-[15px] font-semibold text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/25"
+                />
+              </label>
+              <p id="schedule-hint" className={`text-[13px] ${scheduleError ? "text-red-600" : "text-muted"}`}>
+                {scheduleError || `Goes out ${whenLabel(scheduleAt)}, your time. Anyone who unfollows before then won’t get it.`}
+              </p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={schedule}
+                  disabled={Boolean(scheduleError) || scheduling}
+                  className="h-10 rounded-full bg-brand px-4 text-sm font-bold text-white transition-[background-color,scale] hover:bg-brand-dark active:scale-[0.97] disabled:cursor-not-allowed disabled:bg-hairline disabled:text-muted"
+                >
+                  {scheduling ? "Scheduling…" : "Schedule message"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setScheduleOpen(false)}
+                  className="h-10 rounded-full px-4 text-sm font-bold text-muted transition-colors hover:bg-white hover:text-ink"
+                >
+                  Not now
+                </button>
+              </div>
+            </div>
+          )}
         </section>
 
         <aside aria-label="Email preview" className="flex w-full shrink-0 flex-col gap-2.5 lg:w-[420px]">
@@ -496,7 +606,7 @@ export default function MessagesPage() {
       </div>
 
       <section aria-label="Sent messages" className="flex flex-col">
-        <h2 className="mb-2 font-display text-[22px] font-bold">Sent</h2>
+        <h2 className="mb-2 font-display text-[22px] font-bold">Sent and scheduled</h2>
         {data?.sent?.length ? (
           <table className="w-full border-collapse text-left">
             <thead>
@@ -511,12 +621,29 @@ export default function MessagesPage() {
                   <td className="min-w-0 py-2 pr-3">
                     <span className="block truncate text-[15px] font-bold">{m.subject}</span>
                     <span className="block truncate text-[13px] text-muted">
-                      {KIND_LABEL[m.kind]} · {new Date(m.created_at).toLocaleDateString("en-NG", { day: "numeric", month: "short" })} ·{" "}
+                      {KIND_LABEL[m.kind]} ·{" "}
+                      {m.status === "scheduled" || m.status === "cancelled"
+                        ? whenLabel(m.scheduled_for)
+                        : new Date(m.sent_at || m.created_at).toLocaleDateString("en-NG", { day: "numeric", month: "short" })}{" "}
+                      ·{" "}
                       {m.audience === "event" ? `${m.event_name || "Event"} ticket holders` : AUDIENCE_LABEL[m.audience]}
                     </span>
                   </td>
                   <td className="text-right text-[15px] font-bold">
-                    {m.status === "sending" ? (
+                    {m.status === "scheduled" ? (
+                      <span className="flex flex-col items-end gap-1">
+                        <span className="text-[13px] font-bold text-brand-dark">Scheduled</span>
+                        <button
+                          type="button"
+                          onClick={() => cancelScheduled(m)}
+                          className="text-[13px] font-bold text-muted underline-offset-2 hover:text-ink hover:underline"
+                        >
+                          Cancel
+                        </button>
+                      </span>
+                    ) : m.status === "cancelled" ? (
+                      <span className="text-[13px] font-semibold text-muted">Cancelled</span>
+                    ) : m.status === "sending" ? (
                       <span className="text-muted">Sending…</span>
                     ) : m.status === "failed" ? (
                       <span className="text-red-600">Failed</span>
@@ -532,7 +659,7 @@ export default function MessagesPage() {
             </tbody>
           </table>
         ) : (
-          <p className="py-8 text-[15px] text-muted">{loading ? "Loading…" : "Nothing sent yet. Messages you send will show up here."}</p>
+          <p className="py-8 text-[15px] text-muted">{loading ? "Loading…" : "Nothing sent yet. Messages you send or schedule will show up here."}</p>
         )}
       </section>
     </div>

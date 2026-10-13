@@ -208,6 +208,8 @@ class MessageTests(CommunityBase):
 
     def setUp(self):
         super().setUp()
+        from django.core.cache import cache
+        cache.clear()  # the per-hour send limit lives in the cache; start each test fresh
         self.client.force_authenticate(self.owner)
         # Send inline so the tests can look at the result.
         for target in ('bryo.messaging.deliver_in_background',):
@@ -364,6 +366,84 @@ class MessageTests(CommunityBase):
         self.assertEqual(merge_name('Hi {{name}},', '  Chidi  Eze '), 'Hi Chidi,')
         self.assertEqual(merge_name('No tag here', 'Ada'), 'No tag here')
 
+
+    def when(self, **delta):
+        from datetime import timedelta
+        from django.utils import timezone
+        return (timezone.now() + timedelta(**delta)).isoformat()
+
+    def test_scheduling_saves_it_without_sending(self):
+        self.follower('a@example.com')
+        res = self.post(scheduled_for=self.when(hours=2))
+        self.assertEqual(res.status_code, 201)
+        self.assertEqual(res.json()['status'], 'scheduled')
+        self.mail.assert_not_called()
+        self.assertEqual(Message.objects.get().status, 'scheduled')
+
+    def test_schedule_time_limits(self):
+        self.follower('a@example.com')
+        self.assertEqual(self.post(scheduled_for=self.when(minutes=1)).status_code, 400)
+        self.assertEqual(self.post(scheduled_for=self.when(days=31)).status_code, 400)
+        self.assertEqual(self.post(scheduled_for='next tuesday').status_code, 400)
+        self.assertEqual(Message.objects.count(), 0)
+
+    def test_due_messages_go_out_once_to_the_current_audience(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        from .messaging import send_due
+        stays = self.follower('stays@example.com')
+        gone = self.follower('gone@example.com')
+        self.post(scheduled_for=self.when(hours=1))
+        Follow.objects.filter(follower=gone).delete()
+        self.assertEqual(send_due(), 0)  # not due yet
+        later = timezone.now() + timedelta(hours=2)
+        self.assertEqual(send_due(now=later), 1)
+        self.assertEqual(self.sent_to(), ['stays@example.com'])
+        m = Message.objects.get()
+        self.assertEqual((m.status, m.recipients_count, m.sent_count), ('sent', 1, 1))
+        self.assertEqual(send_due(now=later), 0)  # never twice
+        self.assertEqual(len(self.mail.call_args_list), 1)
+
+    def test_cancel_a_scheduled_message(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        from .messaging import send_due
+        self.follower('a@example.com')
+        mid = self.post(scheduled_for=self.when(hours=1)).json()['id']
+        self.assertEqual(self.client.delete(f'{self.URL}{mid}/').status_code, 200)
+        self.assertEqual(Message.objects.get().status, 'cancelled')
+        self.assertEqual(send_due(now=timezone.now() + timedelta(hours=2)), 0)
+        self.mail.assert_not_called()
+        # Cancelling again, or someone else's message, is refused.
+        self.assertEqual(self.client.delete(f'{self.URL}{mid}/').status_code, 400)
+
+    def test_cannot_cancel_another_organisers_message(self):
+        self.follower('a@example.com')
+        mid = self.post(scheduled_for=self.when(hours=1)).json()['id']
+        self.client.force_authenticate(self.fan('rival@example.com'))
+        self.assertEqual(self.client.delete(f'{self.URL}{mid}/').status_code, 400)
+        self.assertEqual(Message.objects.get().status, 'scheduled')
+
+    def test_scheduled_announcements_count_toward_the_weekly_limit_and_cancelled_ones_free_it(self):
+        self.follower('a@example.com')
+        first = self.post(scheduled_for=self.when(hours=1)).json()['id']
+        self.post(scheduled_for=self.when(hours=2))
+        self.assertEqual(self.post().status_code, 400)
+        self.client.delete(f'{self.URL}{first}/')
+        self.assertEqual(self.post().status_code, 201)
+
+    def test_the_command_sends_due_messages(self):
+        from io import StringIO
+        from django.core.management import call_command
+        from datetime import timedelta
+        from django.utils import timezone
+        self.follower('a@example.com')
+        self.post(scheduled_for=self.when(hours=1))
+        Message.objects.update(scheduled_for=timezone.now() - timedelta(minutes=1))
+        out = StringIO()
+        call_command('send_scheduled_messages', stdout=out)
+        self.assertIn('Sent 1', out.getvalue())
+        self.assertEqual(self.sent_to(), ['a@example.com'])
 
 class SenderNameTests(CommunityBase):
     def test_display_name_cannot_break_the_from_header(self):

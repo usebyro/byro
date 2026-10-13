@@ -1435,9 +1435,11 @@ class CommunityDashboardView(APIView):
 
 class MessagesView(APIView):
     """
-    GET  /api/dashboard/messages/ — who each audience reaches right now, the weekly allowance, and sent messages.
-    POST /api/dashboard/messages/ — send one. {kind, audience, event?, attach_event?, subject, body, test?}
-    With test=true it emails only the organiser and saves nothing.
+    GET    /api/dashboard/messages/ — who each audience reaches right now, the weekly allowance, and messages.
+    POST   /api/dashboard/messages/ — send one. {kind, audience, event?, attach_event?, subject, body, test?, scheduled_for?}
+           With test=true it emails only the organiser and saves nothing.
+           With scheduled_for (ISO time, 5 minutes to 30 days ahead) it is saved and sent then by the cron job.
+    DELETE /api/dashboard/messages/<id>/ — cancel a scheduled message that has not gone out yet.
     """
     permission_classes = [IsAuthenticated]
     throttle_scope = 'message'
@@ -1452,7 +1454,7 @@ class MessagesView(APIView):
             'id': m.pk, 'kind': m.kind, 'audience': m.audience, 'subject': m.subject, 'status': m.status,
             'event_name': m.event.name if m.event_id else '',
             'recipients': m.recipients_count, 'sent': m.sent_count, 'failed': m.failed_count,
-            'created_at': m.created_at, 'sent_at': m.sent_at,
+            'created_at': m.created_at, 'sent_at': m.sent_at, 'scheduled_for': m.scheduled_for,
         }
 
     def get(self, request):
@@ -1515,6 +1517,20 @@ class MessagesView(APIView):
                 return Response({'error': 'Could not send the test. Try again.'}, status=status.HTTP_502_BAD_GATEWAY)
             return Response({'sent_to': request.user.email})
 
+        when = None
+        if data.get('scheduled_for'):
+            from django.utils.dateparse import parse_datetime
+            when = parse_datetime(str(data.get('scheduled_for')))
+            if when is None:
+                return bad('Choose a valid date and time.')
+            if timezone.is_naive(when):
+                when = timezone.make_aware(when)
+            now = timezone.now()
+            if when < now + timedelta(minutes=5):
+                return bad('Schedule it at least 5 minutes from now.')
+            if when > now + timedelta(days=30):
+                return bad('You can schedule up to 30 days ahead.')
+
         if kind == Message.KIND_ANNOUNCE and not messaging.announcements_left(request.user):
             return bad(f'You have used your {messaging.MAX_ANNOUNCEMENTS_PER_WEEK} announcements for this week.')
         recipients = messaging.audience(request.user, kind, which, event if kind == Message.KIND_UPDATE else None)
@@ -1522,9 +1538,22 @@ class MessagesView(APIView):
             return bad('There is no one to send this to yet.')
 
         message.recipients_count = len(recipients)
+        if when:
+            # Saved now, sent by `send_scheduled_messages`; who it reaches is worked out again then.
+            message.status = 'scheduled'
+            message.scheduled_for = when
+            message.save()
+            return Response(self._row(message), status=status.HTTP_201_CREATED)
         message.save()
         messaging.deliver_in_background(message, recipients)
         return Response(self._row(message), status=status.HTTP_201_CREATED)
+
+    def delete(self, request, pk=None):
+        cancelled = Message.objects.filter(pk=pk, organizer=request.user, status='scheduled').update(status='cancelled')
+        if not cancelled:
+            return Response({'error': 'Only a scheduled message that has not gone out yet can be cancelled.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        return Response({'cancelled': True})
 
 
 class UnfollowByTokenView(APIView):
