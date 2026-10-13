@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { FaInstagram, FaXTwitter } from "react-icons/fa6";
+import { FaInstagram, FaTiktok, FaXTwitter } from "react-icons/fa6";
 import API from "@/services/api";
 
 const footerLinks = [
@@ -41,6 +41,7 @@ const footerLinks = [
 const socials = [
   { label: "Instagram", href: "https://instagram.com/usebyro_", icon: FaInstagram },
   { label: "X", href: "https://x.com/usebyro", icon: FaXTwitter },
+  { label: "TikTok", href: "https://www.tiktok.com/@usebyro_", icon: FaTiktok },
 ];
 
 const Footer = () => {
