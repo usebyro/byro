@@ -1,6 +1,7 @@
 "use client";
 
 import { useAdminMe } from "@/components/admin/AdminMe";
+import UserDetails from "@/components/admin/UserDetails";
 import { useEffect, useMemo, useState, useCallback } from "react";
 
 interface AdminUser {
@@ -399,6 +400,15 @@ export default function AdminUsersPage() {
                 </button> : <p className="text-faint text-xs">Your role can&apos;t change account access.</p>}
                 {statusError && <p className="text-red-600 text-xs mt-2">{statusError}</p>}
               </div>
+
+              <UserDetails
+                key={selected.id}
+                userId={selected.id}
+                onDeleted={() => {
+                  setUsers((prev) => prev.filter((u) => u.id !== selected.id));
+                  setSelected(null);
+                }}
+              />
             </div>
           </div>
         </div>

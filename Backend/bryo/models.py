@@ -1065,6 +1065,7 @@ class AdminAction(models.Model):
     ACTION_USER_SUSPENDED = 'user.suspended'
     ACTION_USER_REACTIVATED = 'user.reactivated'
     ACTION_USER_ROLE_CHANGED = 'user.role_changed'
+    ACTION_USER_DELETED = 'user.deleted'
     ACTION_PAYOUT_PROCESSED = 'payout.processed'
     ACTION_PAYOUT_REJECTED = 'payout.rejected'
     ACTION_PAYOUT_DELETED = 'payout.deleted'
@@ -1089,6 +1090,7 @@ class AdminAction(models.Model):
         (ACTION_USER_SUSPENDED, 'User suspended'),
         (ACTION_USER_REACTIVATED, 'User reactivated'),
         (ACTION_USER_ROLE_CHANGED, 'User role changed'),
+        (ACTION_USER_DELETED, 'Account deleted (anonymised)'),
         (ACTION_PAYOUT_PROCESSED, 'Payout processed'),
         (ACTION_PAYOUT_REJECTED, 'Payout rejected'),
         (ACTION_PAYOUT_DELETED, 'Payout deleted'),
