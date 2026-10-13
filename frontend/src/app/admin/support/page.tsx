@@ -1,0 +1,311 @@
+"use client";
+
+import { useState } from "react";
+import { toast } from "sonner";
+import { useAdminMe } from "@/components/admin/AdminMe";
+import { publicHref } from "@/lib/adminNav";
+import { formatNaira } from "@/lib/eventFormat";
+
+interface SupportTicket {
+  ticket_id: string;
+  holder_name: string;
+  holder_email: string;
+  buyer_email: string;
+  status: string;
+  tier: string;
+  checked_in: boolean;
+  checked_in_at: string | null;
+  transferred: boolean;
+}
+
+interface SupportOrder {
+  key: string;
+  payment: null | {
+    id: string;
+    reference: string;
+    status: string;
+    amount: string;
+    channel: string | null;
+    customer_name: string;
+    customer_email: string;
+    created_at: string;
+    paid_at: string | null;
+    refundable: string;
+  };
+  refund: null | { status: string; amount: string; reason: string; failure_reason: string };
+  event: { name: string; slug: string; day: string; cancelled: boolean };
+  tickets: SupportTicket[];
+}
+
+const TICKET_STATUS: Record<string, { label: string; style: string }> = {
+  paid: { label: "Paid", style: "bg-green-500/10 text-green-700" },
+  free: { label: "Free", style: "bg-green-500/10 text-green-700" },
+  pending: { label: "Unpaid", style: "bg-amber-500/10 text-amber-700" },
+  failed: { label: "Payment failed", style: "bg-red-500/10 text-red-700" },
+  refunded: { label: "Refunded", style: "bg-gray-500/10 text-muted" },
+  cancelled: { label: "Cancelled", style: "bg-gray-500/10 text-muted" },
+};
+
+const REFUND_LABEL: Record<string, string> = {
+  awaiting: "Refund waiting for approval",
+  pending: "Refund queued",
+  submitting: "Refund being sent",
+  processing: "Refund on its way",
+  processed: "Refunded",
+  failed: "Refund failed",
+  needs_attention: "Refund needs attention",
+};
+
+const date = (s: string | null) =>
+  s ? new Date(s).toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
+
+async function post(url: string, body?: unknown) {
+  const res = await fetch(url, { method: "POST", body: body === undefined ? undefined : JSON.stringify(body) });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.error || "Try again.");
+  return data;
+}
+
+export default function AdminSupportPage() {
+  const me = useAdminMe();
+  const canAct = me.can.moderate;
+  const [q, setQ] = useState("");
+  const [orders, setOrders] = useState<SupportOrder[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState("");
+
+  const search = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    const term = q.trim();
+    if (term.length < 3) {
+      setError("Type at least 3 characters of a name, email, ticket ID or payment reference.");
+      return;
+    }
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/admin/support?${new URLSearchParams({ q: term })}`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error);
+      setOrders(data.orders || []);
+    } catch (err) {
+      setError(err instanceof Error && err.message ? err.message : "Couldn't search. Try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const act = async (key: string, fn: () => Promise<void>) => {
+    setBusy(key);
+    try {
+      await fn();
+      await search();
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const resend = (t: SupportTicket) =>
+    act(`resend-${t.ticket_id}`, async () => {
+      try {
+        const data = await post(`/api/admin/support/tickets/${t.ticket_id}/resend`);
+        toast.success("Ticket sent", { description: data.sent_to });
+      } catch (err) {
+        toast.error("Couldn't send ticket", { description: (err as Error).message });
+      }
+    });
+
+  const toggleCheckin = (t: SupportTicket) => {
+    const question = t.checked_in
+      ? `Undo the check-in for ${t.holder_name || t.holder_email}? Their stamp for this event is removed.`
+      : `Check in ${t.holder_name || t.holder_email} now?`;
+    if (!window.confirm(question)) return;
+    return act(`checkin-${t.ticket_id}`, async () => {
+      try {
+        await post(`/api/admin/support/tickets/${t.ticket_id}/checkin`, { checked_in: !t.checked_in });
+        toast.success(t.checked_in ? "Check-in undone" : "Checked in");
+      } catch (err) {
+        toast.error("Couldn't update check-in", { description: (err as Error).message });
+      }
+    });
+  };
+
+  const refund = (o: SupportOrder) => {
+    if (!o.payment) return;
+    const amount = formatNaira(Number(o.payment.refundable));
+    const reason = window.prompt(
+      `Refund ${amount} to ${o.payment.customer_email} for ${o.event.name}?\n\n` +
+        "Byro's fee and the payment charge are kept. The tickets in this order will stop working. " +
+        "This can't be undone.\n\nReason (the buyer sees this):",
+    );
+    if (reason === null) return;
+    if (!reason.trim()) {
+      toast.error("Add a reason", { description: "The buyer sees it in their email." });
+      return;
+    }
+    return act(`refund-${o.key}`, async () => {
+      try {
+        const data = await post(`/api/admin/support/orders/${o.payment!.id}/refund`, { reason: reason.trim() });
+        if (data.status === "failed" || data.status === "needs_attention") {
+          toast.error("Paystack didn't accept the refund", { description: data.failure_reason || "See the Refunds page." });
+        } else {
+          toast.success("Refund sent", { description: `${formatNaira(Number(data.amount))} to ${o.payment!.customer_email}` });
+        }
+      } catch (err) {
+        toast.error("Couldn't refund order", { description: (err as Error).message });
+      }
+    });
+  };
+
+  return (
+    <div className="p-5 md:p-8">
+      <div className="mb-8">
+        <h1 className="font-display text-ink text-3xl font-extrabold tracking-tight">Support</h1>
+        <p className="text-muted text-sm mt-1">Find an order or ticket, then resend it, fix a check-in, or refund it</p>
+      </div>
+
+      <form onSubmit={search} className="mb-6 flex flex-wrap gap-2">
+        <label htmlFor="support-q" className="sr-only">Name, email, ticket ID or payment reference</label>
+        <input
+          id="support-q"
+          type="search"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Name, email, ticket ID or payment reference…"
+          autoComplete="off"
+          spellCheck={false}
+          className="w-full sm:w-96 bg-mist border border-line rounded-lg px-3 py-2 text-sm text-ink placeholder:text-faint focus:outline-none focus:ring-1 focus:ring-brand/40"
+        />
+        <button
+          type="submit"
+          disabled={loading}
+          className="rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white hover:bg-brand-dark disabled:opacity-60"
+        >
+          {loading ? "Searching…" : "Search"}
+        </button>
+      </form>
+
+      {error && <p className="text-red-600 text-sm mb-6">{error}</p>}
+
+      {orders !== null && orders.length === 0 && !loading && (
+        <p className="bg-white border border-line rounded-xl p-6 text-faint text-sm text-center">Nothing found for that search.</p>
+      )}
+
+      <div className="flex flex-col gap-4">
+        {orders?.map((o) => {
+          const p = o.payment;
+          const canRefund = canAct && p && p.status === "successful" && !o.refund && Number(p.refundable) > 0;
+          return (
+            <section key={o.key} className="bg-white border border-line rounded-xl p-5">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <a
+                    href={publicHref(`/discover/${o.event.slug}`)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-display text-lg font-bold text-ink hover:underline"
+                  >
+                    {o.event.name}
+                  </a>
+                  <p className="text-xs text-faint">
+                    {o.event.day}
+                    {o.event.cancelled && <span className="ml-2 font-bold text-red-600">Event cancelled</span>}
+                  </p>
+                </div>
+                {canRefund && (
+                  <button
+                    type="button"
+                    onClick={() => refund(o)}
+                    disabled={busy !== ""}
+                    className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-50 disabled:opacity-50"
+                  >
+                    Refund order
+                  </button>
+                )}
+              </div>
+
+              {p ? (
+                <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-4">
+                  <div><dt className="text-xs text-faint">Buyer</dt><dd className="text-ink truncate">{p.customer_name}<span className="block text-xs text-muted truncate">{p.customer_email}</span></dd></div>
+                  <div><dt className="text-xs text-faint">Paid</dt><dd className="text-ink tabular-nums">{formatNaira(Number(p.amount))}<span className="block text-xs text-muted capitalize">{p.status}{p.channel ? ` · ${p.channel}` : ""}</span></dd></div>
+                  <div><dt className="text-xs text-faint">When</dt><dd className="text-ink">{date(p.paid_at || p.created_at)}</dd></div>
+                  <div><dt className="text-xs text-faint">Reference</dt><dd className="font-mono text-xs text-ink break-all">{p.reference}</dd></div>
+                </dl>
+              ) : (
+                <p className="mt-3 text-sm text-muted">Free registration</p>
+              )}
+
+              {o.refund && (
+                <p className={`mt-3 text-sm font-semibold ${o.refund.status === "failed" || o.refund.status === "needs_attention" ? "text-red-600" : "text-muted"}`}>
+                  {REFUND_LABEL[o.refund.status] || o.refund.status}: {formatNaira(Number(o.refund.amount))}
+                  {o.refund.reason ? ` · ${o.refund.reason}` : ""}
+                  {o.refund.failure_reason ? ` · ${o.refund.failure_reason}` : ""}
+                </p>
+              )}
+
+              <div className="mt-4 overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-hairline text-left">
+                      {["Ticket", "Holder", "Status", "Check-in", ""].map((h, i) => (
+                        <th key={i} className="pb-2 pr-6 text-xs text-faint font-medium">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-hairline">
+                    {o.tickets.map((t) => {
+                      const s = TICKET_STATUS[t.status] || { label: t.status, style: "bg-gray-500/10 text-muted" };
+                      const valid = t.status === "paid" || t.status === "free";
+                      return (
+                        <tr key={t.ticket_id}>
+                          <td className="py-2.5 pr-6">
+                            <span className="text-ink">{t.tier}</span>
+                            <span className="block font-mono text-[11px] text-faint">{t.ticket_id.slice(0, 8)}</span>
+                          </td>
+                          <td className="py-2.5 pr-6 max-w-[220px]">
+                            <span className="text-ink truncate block">{t.holder_name}</span>
+                            <span className="block truncate text-xs text-muted">{t.holder_email}</span>
+                            {t.transferred && <span className="text-[11px] text-faint">Transferred from {t.buyer_email}</span>}
+                          </td>
+                          <td className="py-2.5 pr-6">
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${s.style}`}>{s.label}</span>
+                          </td>
+                          <td className="py-2.5 pr-6 text-muted whitespace-nowrap">
+                            {t.checked_in ? `In · ${date(t.checked_in_at)}` : "Not yet"}
+                          </td>
+                          <td className="py-2.5 whitespace-nowrap text-right">
+                            {canAct && valid && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => resend(t)}
+                                  disabled={busy !== ""}
+                                  className="mr-3 text-xs font-bold text-brand-dark hover:underline disabled:opacity-50"
+                                >
+                                  Resend ticket
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => toggleCheckin(t)}
+                                  disabled={busy !== ""}
+                                  className="text-xs font-bold text-muted hover:text-ink hover:underline disabled:opacity-50"
+                                >
+                                  {t.checked_in ? "Undo check-in" : "Check in"}
+                                </button>
+                              </>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          );
+        })}
+      </div>
+    </div>
+  );
+}

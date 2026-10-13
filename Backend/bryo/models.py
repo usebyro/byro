@@ -270,6 +270,8 @@ class Refund(models.Model):
     ]
 
     payment = models.OneToOneField('Payment', on_delete=models.CASCADE, related_name='refund')
+    # Set when Byro support refunds one order (the event itself is not cancelled). Shown to the buyer.
+    reason = models.CharField(max_length=300, blank=True, default='')
     event = models.ForeignKey('Event', on_delete=models.CASCADE, related_name='refunds')
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     currency = models.CharField(max_length=3, default='NGN')
@@ -1072,6 +1074,10 @@ class AdminAction(models.Model):
     ACTION_TEAM_ROLE_CHANGED = 'team.role_changed'
     ACTION_TEAM_REMOVED = 'team.removed'
     ACTION_MESSAGE_CANCELLED = 'message.cancelled'
+    ACTION_TICKET_RESENT = 'ticket.resent'
+    ACTION_TICKET_CHECKED_IN = 'ticket.checked_in'
+    ACTION_TICKET_CHECKIN_UNDONE = 'ticket.checkin_undone'
+    ACTION_ORDER_REFUNDED = 'order.refunded'
     ACTION_MESSAGING_BLOCKED = 'user.messaging_blocked'
     ACTION_MESSAGING_UNBLOCKED = 'user.messaging_unblocked'
 
@@ -1091,6 +1097,10 @@ class AdminAction(models.Model):
         (ACTION_TEAM_ROLE_CHANGED, 'Team role changed'),
         (ACTION_TEAM_REMOVED, 'Team member removed'),
         (ACTION_MESSAGE_CANCELLED, 'Scheduled message cancelled'),
+        (ACTION_TICKET_RESENT, 'Ticket email resent'),
+        (ACTION_TICKET_CHECKED_IN, 'Ticket checked in by support'),
+        (ACTION_TICKET_CHECKIN_UNDONE, 'Check-in undone by support'),
+        (ACTION_ORDER_REFUNDED, 'Order refunded by support'),
         (ACTION_MESSAGING_BLOCKED, 'Organiser blocked from messaging'),
         (ACTION_MESSAGING_UNBLOCKED, 'Organiser allowed to message again'),
     ]

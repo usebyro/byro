@@ -691,6 +691,32 @@ def payout_completed_email(name, amount, bank_name, account_number, event_name=N
     return {"subject": f"{shown} has been paid to your bank", "html": html, "text": text}
 
 
+def order_refunded_email(name, event_name, refund_amount, reason=""):
+    """To a buyer whose order Byro support refunded. The event itself is still on."""
+    amount = _money(refund_amount)
+    body_html = (
+        _lead(f"Hi {_h(name or 'there')}, we&#8217;ve refunded your order for {_h(event_name)}.")
+        + _rows([("Refund", _h(amount))] + ([("Reason", _h(reason))] if reason else []))
+        + _small("It goes back to the card or account you paid with. Your bank usually shows it within 3 to 10 working days. "
+                 "Byro&#8217;s service fee and the payment charge aren&#8217;t refunded. Your tickets for this order no longer work.")
+    )
+    html = _shell(
+        _badge("Refund", BRAND, BRAND_BG),
+        "Your refund is on its way",
+        body_html,
+        "Questions? Reply to this email or write to support@usebyro.com.",
+        preheader=f"{amount} is on its way back to you.",
+    )
+    text = (
+        f"Hi {name or 'there'},\n\nWe've refunded your order for {event_name}: {amount}."
+        + (f"\nReason: {reason}" if reason else "")
+        + "\n\nIt goes back to the card or account you paid with, usually within 3 to 10 working days. "
+        "Byro's service fee and the payment charge aren't refunded. Your tickets for this order no longer work.\n\n"
+        "Byro Team\nsupport@usebyro.com"
+    )
+    return {"subject": f"Your refund for {event_name}", "html": html, "text": text}
+
+
 def event_cancelled_email(name, event_name, date, time, location, reason, refund_amount=None,
                           refund_state='arranged', event_url=None):
     """
