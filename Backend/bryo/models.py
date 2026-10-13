@@ -127,6 +127,8 @@ class UserProfile(models.Model):
     linkedin = models.CharField(max_length=100, blank=True)
     telegram = models.CharField(max_length=100, blank=True)
     whatsapp = models.CharField(max_length=100, blank=True)  # a group or chat link, e.g. chat.whatsapp.com/XXXX
+    # Set by Byro admins: stops this organiser sending community messages (Dashboard > Messages).
+    messaging_blocked = models.BooleanField(default=False)
     # What kind of community this is, shown beside the location on the community page.
     CATEGORY_CHOICES = [
         ('tech', 'Tech'), ('music', 'Music'), ('fitness', 'Fitness'),
@@ -1069,6 +1071,9 @@ class AdminAction(models.Model):
     ACTION_TEAM_ADDED = 'team.added'
     ACTION_TEAM_ROLE_CHANGED = 'team.role_changed'
     ACTION_TEAM_REMOVED = 'team.removed'
+    ACTION_MESSAGE_CANCELLED = 'message.cancelled'
+    ACTION_MESSAGING_BLOCKED = 'user.messaging_blocked'
+    ACTION_MESSAGING_UNBLOCKED = 'user.messaging_unblocked'
 
     ACTION_CHOICES = [
         (ACTION_EVENT_SUSPENDED, 'Event suspended'),
@@ -1085,6 +1090,9 @@ class AdminAction(models.Model):
         (ACTION_TEAM_ADDED, 'Team member added'),
         (ACTION_TEAM_ROLE_CHANGED, 'Team role changed'),
         (ACTION_TEAM_REMOVED, 'Team member removed'),
+        (ACTION_MESSAGE_CANCELLED, 'Scheduled message cancelled'),
+        (ACTION_MESSAGING_BLOCKED, 'Organiser blocked from messaging'),
+        (ACTION_MESSAGING_UNBLOCKED, 'Organiser allowed to message again'),
     ]
 
     action = models.CharField(max_length=32, choices=ACTION_CHOICES, db_index=True)

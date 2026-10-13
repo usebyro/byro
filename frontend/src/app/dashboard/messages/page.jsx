@@ -247,7 +247,7 @@ export default function MessagesPage() {
 
   const left = data?.announcements_left ?? 0;
   const hasDraft = Boolean(subject.trim() && body.trim());
-  const canSend = Boolean(hasDraft && activeAudience && (activeAudience.count ?? 0) > 0 && (!isAnnounce || left > 0));
+  const canSend = Boolean(!data?.blocked && hasDraft && activeAudience && (activeAudience.count ?? 0) > 0 && (!isAnnounce || left > 0));
 
   const payload = (extra = {}) => ({
     kind,
@@ -374,6 +374,13 @@ export default function MessagesPage() {
         <h1 className="font-display text-[28px] font-bold leading-tight tracking-[-0.03em] text-ink md:text-[32px]">Messages</h1>
         <p className="mt-1.5 text-[15px] text-muted">Email the people in your community. Replies come to your inbox.</p>
       </div>
+
+      {data?.blocked && (
+        <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          <b>Messaging is turned off for your account.</b> You can&apos;t send or schedule messages right now. Email{" "}
+          <a href="mailto:support@usebyro.com" className="font-bold underline">support@usebyro.com</a> if you think this is a mistake.
+        </div>
+      )}
 
       <div className="flex flex-col gap-8 lg:flex-row lg:items-start">
         <section aria-label="New message" className="flex min-w-0 flex-1 flex-col gap-[22px]">
