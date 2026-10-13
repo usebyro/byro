@@ -168,6 +168,11 @@ def send_due(now=None):
     for message in due:
         if not Message.objects.filter(pk=message.pk, status='scheduled').update(status='sending'):
             continue  # another run took it, or it was cancelled
+        profile = getattr(message.organizer, 'profile', None)
+        if profile and profile.messaging_blocked:
+            # Blocked by an admin after it was scheduled: it never goes out.
+            Message.objects.filter(pk=message.pk).update(status='cancelled')
+            continue
         event = message.event
         if message.kind == Message.KIND_UPDATE and (not event or not event.is_active or event.is_draft):
             Message.objects.filter(pk=message.pk).update(status='failed', sent_at=timezone.now())

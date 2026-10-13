@@ -1459,7 +1459,9 @@ class MessagesView(APIView):
 
     def get(self, request):
         sent = Message.objects.filter(organizer=request.user).select_related('event')[:20]
+        sender_profile = UserProfile.objects.filter(user=request.user).first()
         return Response({
+            'blocked': bool(sender_profile and sender_profile.messaging_blocked),
             'audiences': messaging.audience_counts(request.user),
             'events': messaging.holder_events(request.user),
             'announcements_left': messaging.announcements_left(request.user),
@@ -1478,6 +1480,11 @@ class MessagesView(APIView):
 
         def bad(msg):
             return Response({'error': msg}, status=status.HTTP_400_BAD_REQUEST)
+
+        sender_profile = UserProfile.objects.filter(user=request.user).first()
+        if sender_profile and sender_profile.messaging_blocked:
+            return Response({'error': 'Messaging is turned off for your account. Contact support@usebyro.com.'},
+                            status=status.HTTP_403_FORBIDDEN)
 
         if kind not in (Message.KIND_ANNOUNCE, Message.KIND_UPDATE):
             return bad('Choose what you are sending.')
@@ -4101,6 +4108,95 @@ class AdminPaymentsListView(APIView):
                 'paid_at': p.paid_at, 'created_at': p.created_at,
             })
         return Response({'count': qs.count(), 'payments': rows})
+
+
+class AdminMessagesView(APIView):
+    """
+    GET /api/admin/messages/?search=&status= — every organiser message, newest first.
+    Search matches the subject, the organiser's name, handle or email.
+    """
+    permission_classes = [IsAdminMember]
+
+    @staticmethod
+    def row(m, full=False):
+        profile = getattr(m.organizer, 'profile', None)
+        data = {
+            'id': m.pk, 'kind': m.kind, 'audience': m.audience, 'subject': m.subject, 'status': m.status,
+            'event_name': m.event.name if m.event_id else '',
+            'recipients': m.recipients_count, 'sent': m.sent_count, 'failed': m.failed_count,
+            'created_at': m.created_at, 'scheduled_for': m.scheduled_for, 'sent_at': m.sent_at,
+            'organizer': {
+                'id': m.organizer_id,
+                'email': m.organizer.email,
+                'name': (profile.display_name if profile else '') or m.organizer.email,
+                'handle': profile.handle if profile else None,
+                'messaging_blocked': bool(profile and profile.messaging_blocked),
+            },
+        }
+        if full:
+            data['body'] = m.body
+            data['attach_event'] = m.attach_event
+        return data
+
+    def get(self, request):
+        qs = Message.objects.select_related('organizer', 'organizer__profile', 'event').order_by('-created_at')
+        search = (request.query_params.get('search') or '').strip()
+        if search:
+            qs = qs.filter(
+                Q(subject__icontains=search) | Q(organizer__email__icontains=search)
+                | Q(organizer__profile__display_name__icontains=search) | Q(organizer__profile__handle__icontains=search)
+            )
+        wanted = (request.query_params.get('status') or '').strip()
+        if wanted:
+            qs = qs.filter(status=wanted)
+        return Response([self.row(m, full=True) for m in qs[:300]])
+
+
+class AdminMessageDetailView(APIView):
+    """POST /api/admin/messages/<pk>/cancel/ — stop a scheduled message before it goes out."""
+    permission_classes = [IsAdminMember]
+    min_role = AdminMember.ROLE_ADMIN
+
+    def post(self, request, pk):
+        m = Message.objects.select_related('organizer').filter(pk=pk).first()
+        if not m:
+            return Response({'error': 'Message not found.'}, status=status.HTTP_404_NOT_FOUND)
+        if not Message.objects.filter(pk=pk, status='scheduled').update(status='cancelled'):
+            return Response({'error': 'Only a scheduled message that has not gone out yet can be cancelled.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        _log_admin_action(request, AdminAction.ACTION_MESSAGE_CANCELLED, 'message', m.pk, m.subject[:255],
+                          f'from {m.organizer.email}')
+        m.refresh_from_db()
+        return Response(AdminMessagesView.row(m, full=True))
+
+
+class AdminMessagingBlockView(APIView):
+    """
+    POST /api/admin/users/<pk>/messaging/ {blocked: true|false} — stop (or allow again) an organiser
+    sending community messages. Blocking also cancels anything they have scheduled.
+    """
+    permission_classes = [IsAdminMember]
+    min_role = AdminMember.ROLE_ADMIN
+
+    def post(self, request, pk):
+        user = User.objects.filter(pk=pk).first()
+        if not user:
+            return Response({'error': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+        blocked = bool(request.data.get('blocked'))
+        profile, _ = UserProfile.objects.get_or_create(user=user)
+        cancelled = 0
+        if profile.messaging_blocked != blocked:
+            profile.messaging_blocked = blocked
+            profile.save(update_fields=['messaging_blocked'])
+            if blocked:
+                cancelled = Message.objects.filter(organizer=user, status='scheduled').update(status='cancelled')
+            _log_admin_action(
+                request,
+                AdminAction.ACTION_MESSAGING_BLOCKED if blocked else AdminAction.ACTION_MESSAGING_UNBLOCKED,
+                'user', user.pk, user.email,
+                f'{cancelled} scheduled message(s) cancelled' if cancelled else '',
+            )
+        return Response({'messaging_blocked': blocked, 'scheduled_cancelled': cancelled})
 
 
 class AdminPromosListView(APIView):
