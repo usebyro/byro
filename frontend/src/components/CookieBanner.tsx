@@ -68,7 +68,7 @@ export default function CookieBanner() {
 
   if (!ready) return null;
 
-  // Once answered the banner goes away. The choice can be changed from "Cookie settings" in the footer.
+  // Once answered the banner goes away. The choice can be changed on the cookie policy page (/cookies).
   if (!open) return null;
 
   return (

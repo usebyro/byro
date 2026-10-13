@@ -72,8 +72,7 @@ export default function CookiesPage() {
           <section>
             <h2 className="text-lg font-semibold text-gray-900 mb-2">6. Changing your mind</h2>
             <p>
-              You can change your choices at any time with the button above or the &quot;Cookie
-              settings&quot; button at the bottom left of the site. You can also clear cookies in your
+              You can change your choices at any time with the button above. You can also clear cookies in your
               browser settings. Doing so signs you out.
             </p>
             <p className="mt-2">

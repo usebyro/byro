@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { openCookieSettings } from "@/lib/consent";
+import { FaInstagram, FaXTwitter } from "react-icons/fa6";
 import API from "@/services/api";
 
 const footerLinks = [
@@ -33,13 +33,14 @@ const footerLinks = [
       { label: "Refund policy", href: "/refund-policy" },
       { label: "Terms of service", href: "/terms" },
       { label: "Privacy policy", href: "/privacy" },
+      { label: "Cookie policy", href: "/cookies" },
     ],
   },
 ];
 
 const socials = [
-  { label: "Instagram", href: "https://instagram.com/usebyro_" },
-  { label: "X", href: "https://x.com/usebyro" },
+  { label: "Instagram", href: "https://instagram.com/usebyro_", icon: FaInstagram },
+  { label: "X", href: "https://x.com/usebyro", icon: FaXTwitter },
 ];
 
 const Footer = () => {
@@ -119,28 +120,24 @@ const Footer = () => {
           </div>
         </div>
 
-        <div className="mt-12 flex flex-col gap-3 border-t border-line pt-6 text-sm text-faint md:flex-row md:justify-between">
+        <div className="mt-12 flex flex-col gap-3 border-t border-line pt-6 text-sm text-faint md:flex-row md:items-center md:justify-between">
           <p>© {new Date().getFullYear()} Byro Ticketing Solutions. All rights reserved.</p>
-          <p className="flex gap-[18px] font-semibold">
-            <button
-              type="button"
-              onClick={openCookieSettings}
-              className="text-muted transition-colors hover:text-ink"
-            >
-              Cookie settings
-            </button>
-            {socials.map((s) => (
-              <a
-                key={s.label}
-                href={s.href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-muted transition-colors hover:text-ink"
-              >
-                {s.label}
-              </a>
+          <ul className="flex gap-2">
+            {socials.map(({ label, href, icon: Icon }) => (
+              <li key={label}>
+                <a
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={`Byro on ${label}`}
+                  title={label}
+                  className="flex h-10 w-10 items-center justify-center rounded-full border border-line bg-white text-ink transition-[background-color,scale] hover:bg-mist active:scale-[0.96] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                >
+                  <Icon size={17} aria-hidden="true" />
+                </a>
+              </li>
             ))}
-          </p>
+          </ul>
         </div>
       </div>
     </footer>
