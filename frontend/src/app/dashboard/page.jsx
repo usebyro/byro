@@ -198,7 +198,6 @@ export default function StudioDashboard() {
         <StatCard icon={UserMultiple02Icon} label="Avg. fill rate"    value={loading || analytics?.avg_fill_rate == null ? "—" : `${analytics.avg_fill_rate}%`} trend={null} note={analytics && analytics.avg_fill_rate == null ? "Set a capacity to track" : "Tickets sold vs capacity"} iconBg="bg-amber-50"  iconColor="text-amber-600" />
       </div>
 
-      {/* Your community — hidden for now
       <div className="bg-white rounded-xl border border-gray-100/80 shadow-sm p-4">
         <div className="flex items-start justify-between gap-2 mb-3">
           <div>
@@ -229,7 +228,6 @@ export default function StudioDashboard() {
           <p className="text-xs text-gray-400 mt-3">Attendees and regulars fill in as you check guests in at the door.</p>
         )}
       </div>
-      */}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
