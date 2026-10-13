@@ -1078,6 +1078,7 @@ class AdminAction(models.Model):
     ACTION_TICKET_CHECKED_IN = 'ticket.checked_in'
     ACTION_TICKET_CHECKIN_UNDONE = 'ticket.checkin_undone'
     ACTION_ORDER_REFUNDED = 'order.refunded'
+    ACTION_ORDER_FULFILLED = 'order.fulfilled'
     ACTION_MESSAGING_BLOCKED = 'user.messaging_blocked'
     ACTION_MESSAGING_UNBLOCKED = 'user.messaging_unblocked'
 
@@ -1101,6 +1102,7 @@ class AdminAction(models.Model):
         (ACTION_TICKET_CHECKED_IN, 'Ticket checked in by support'),
         (ACTION_TICKET_CHECKIN_UNDONE, 'Check-in undone by support'),
         (ACTION_ORDER_REFUNDED, 'Order refunded by support'),
+        (ACTION_ORDER_FULFILLED, 'Tickets issued by support after Paystack confirmed'),
         (ACTION_MESSAGING_BLOCKED, 'Organiser blocked from messaging'),
         (ACTION_MESSAGING_UNBLOCKED, 'Organiser allowed to message again'),
     ]

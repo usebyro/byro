@@ -4110,6 +4110,128 @@ class AdminPaymentsListView(APIView):
         return Response({'count': qs.count(), 'payments': rows})
 
 
+def _paystack_transaction(reference):
+    """What Paystack says about a payment reference: (data dict, None) or (None, error message)."""
+    try:
+        res = requests.get(
+            f'{settings.PAYSTACK_API_BASE}/transaction/verify/{reference}',
+            headers={'Authorization': f'Bearer {settings.PAYSTACK_SECRET_KEY.strip()}'}, timeout=20,
+        )
+        body = res.json()
+    except Exception as e:  # network, timeout, bad JSON
+        return None, f'Could not reach Paystack: {e}'[:300]
+    if res.status_code == 200 and body.get('status'):
+        return body.get('data') or {}, None
+    return None, (body.get('message') or f'Paystack answered {res.status_code}')[:300]
+
+
+class AdminPaymentDetailView(APIView):
+    """GET /api/admin/payments/<uuid>/ — one order in full: money, buyer, tickets, refund, organiser."""
+    permission_classes = [IsAdminMember]
+
+    def get(self, request, payment_id):
+        p = (Payment.objects.select_related('event', 'event__owner', 'tier', 'promo_code')
+             .filter(pk=payment_id).first())
+        if not p:
+            return Response({'error': 'Payment not found.'}, status=status.HTTP_404_NOT_FOUND)
+        meta = p.metadata or {}
+        refund = Refund.objects.filter(payment=p).first()
+        owner = p.event.owner if p.event_id else None
+        oprofile = getattr(owner, 'profile', None) if owner else None
+        tickets = Ticket.objects.filter(payment=p).select_related('tier').order_by('created_at')
+        return Response({
+            'id': str(p.pk), 'reference': p.paystack_reference, 'status': p.status,
+            'amount': str(p.amount), 'currency': p.currency, 'channel': p.channel,
+            'subtotal': meta.get('subtotal'), 'service_fee': meta.get('service_fee'),
+            'refundable': str(refundable_amount(p)) if p.status == 'successful' else '0',
+            'seats': meta.get('seats') or meta.get('quantity'),
+            'attendees': meta.get('attendees') or [],
+            'promo_code': p.promo_code.code if p.promo_code_id else None,
+            'tier_name': p.tier.name if p.tier_id else None,
+            'customer_name': p.customer_name, 'customer_email': p.customer_email,
+            'created_at': p.created_at, 'paid_at': p.paid_at, 'updated_at': p.updated_at,
+            'event': {
+                'name': p.event.name, 'slug': p.event.slug, 'day': p.event.day,
+                'cancelled': bool(p.event.cancelled_at),
+                'pass_fee_to_attendee': p.event.pass_fee_to_attendee,
+            },
+            'organizer': None if not owner else {
+                'email': owner.email,
+                'name': (oprofile.display_name if oprofile else '') or owner.email,
+                'handle': oprofile.handle if oprofile else None,
+            },
+            'refund': None if not refund else {
+                'status': refund.status, 'amount': str(refund.amount), 'reason': refund.reason,
+                'failure_reason': refund.failure_reason, 'processed_at': refund.processed_at,
+            },
+            'tickets': [_support_ticket(t) for t in tickets],
+        })
+
+
+class AdminPaymentPaystackView(APIView):
+    """
+    GET  /api/admin/payments/<uuid>/paystack/ — what Paystack has for this payment, next to ours.
+    POST /api/admin/payments/<uuid>/paystack/ — issue the tickets for a payment Paystack confirms was paid
+         but Byro never completed (e.g. the buyer closed the page before the callback). Same checks as checkout.
+    """
+    permission_classes = [IsAdminMember]
+    method_roles = {'POST': AdminMember.ROLE_ADMIN}
+
+    def _compare(self, p, data):
+        paid_kobo = int(data.get('amount') or 0)
+        return {
+            'paystack': {
+                'status': data.get('status'), 'amount': str(Decimal(paid_kobo) / 100),
+                'currency': data.get('currency'), 'channel': data.get('channel'),
+                'paid_at': data.get('paid_at') or data.get('paidAt'),
+                'gateway_response': data.get('gateway_response'),
+                'customer_email': (data.get('customer') or {}).get('email'),
+            },
+            'byro': {'status': p.status, 'amount': str(p.amount)},
+            'amount_matches': _paid_amount_ok(paid_kobo, int(p.amount * 100)),
+            'can_issue_tickets': data.get('status') == 'success' and p.status != 'successful'
+                                 and _paid_amount_ok(paid_kobo, int(p.amount * 100)),
+        }
+
+    def get(self, request, payment_id):
+        p = Payment.objects.filter(pk=payment_id).first()
+        if not p:
+            return Response({'error': 'Payment not found.'}, status=status.HTTP_404_NOT_FOUND)
+        data, err = _paystack_transaction(p.paystack_reference)
+        if err:
+            return Response({'error': err}, status=status.HTTP_502_BAD_GATEWAY)
+        return Response(self._compare(p, data))
+
+    def post(self, request, payment_id):
+        p = Payment.objects.select_related('event').filter(pk=payment_id).first()
+        if not p:
+            return Response({'error': 'Payment not found.'}, status=status.HTTP_404_NOT_FOUND)
+        if p.status == 'successful':
+            return Response({'error': 'This order is already complete.'}, status=status.HTTP_400_BAD_REQUEST)
+        data, err = _paystack_transaction(p.paystack_reference)
+        if err:
+            return Response({'error': err}, status=status.HTTP_502_BAD_GATEWAY)
+        check = self._compare(p, data)
+        if not check['can_issue_tickets']:
+            why = ('Paystack does not show this payment as paid.' if data.get('status') != 'success'
+                   else 'The amount Paystack received does not match this order.')
+            return Response({'error': why, **check}, status=status.HTTP_400_BAD_REQUEST)
+
+        stored_uid = (p.metadata or {}).get('user_id')
+        ticket_user = User.objects.filter(pk=stored_uid).first() if stored_uid else None
+        new_tickets, _all = _fulfil_payment(p, ticket_user)
+        p.refresh_from_db()
+        if data.get('channel'):
+            p.channel = data.get('channel')
+            p.save(update_fields=['channel'])
+        if new_tickets:
+            _email_tickets(new_tickets, p.event)
+            ticket_sale(p.event, len(new_tickets), paid_amount=p.amount)
+        _log_admin_action(request, AdminAction.ACTION_ORDER_FULFILLED, 'payment', p.paystack_reference,
+                          p.event.name[:255], f'{len(new_tickets)} ticket(s) to {p.customer_email}')
+        return Response({'issued': len(new_tickets), 'status': p.status})
+
+
 class AdminMessagesView(APIView):
     """
     GET /api/admin/messages/?search=&status= — every organiser message, newest first.
