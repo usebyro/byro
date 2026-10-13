@@ -630,6 +630,15 @@ const API = {
     }
   },
 
+  cancelScheduledMessage: async (id) => {
+    try {
+      const response = await axiosInstance.delete(`dashboard/messages/${id}/`);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
   sendMessage: async (payload) => {
     try {
       const response = await axiosInstance.post("dashboard/messages/", payload);

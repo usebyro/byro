@@ -7,6 +7,7 @@ Nothing here is secret. Keys and passwords stay in the host's environment settin
 
 - [ ] Run migrations: `0038` (yes/no question type), `0039` (event cancellation + refunds), `0040` (refund approval).
 - [ ] Schedule `python manage.py process_refunds` (every 5 minutes) so approved refunds are never left half-sent.
+- [ ] Run migration `0045` (scheduled messages) and schedule `python manage.py send_scheduled_messages` (every 5 minutes). Without it, messages scheduled from Dashboard > Messages never go out.
 - [ ] Production backend settings:
   - `WORKOS_OAUTH_REDIRECT_URI=https://www.usebyro.com/auth/callback` (the site redirects `usebyro.com` -> `www`)
   - `REFUND_ALERT_EMAIL` (defaults to `support@usebyro.com`; this is who is told "refunds are waiting")

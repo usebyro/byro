@@ -80,6 +80,7 @@ urlpatterns = [
     path('api/dashboard/', DashboardView.as_view(), name='dashboard'),
     path('api/dashboard/community/', CommunityDashboardView.as_view(), name='dashboard-community'),
     path('api/dashboard/messages/', MessagesView.as_view(), name='dashboard-messages'),
+    path('api/dashboard/messages/<int:pk>/', MessagesView.as_view(), name='dashboard-message'),
     path('api/stamps/', MyStampsView.as_view(), name='my-stamps'),
     path('api/communities/', CommunityDirectoryView.as_view(), name='community-directory'),
     path('api/community/unfollow/', UnfollowByTokenView.as_view(), name='community-unfollow'),
