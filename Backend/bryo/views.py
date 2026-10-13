@@ -4199,6 +4199,155 @@ class AdminMessagingBlockView(APIView):
         return Response({'messaging_blocked': blocked, 'scheduled_cancelled': cancelled})
 
 
+def _support_ticket(t):
+    return {
+        'ticket_id': str(t.ticket_id),
+        'holder_name': t.current_owner_name, 'holder_email': t.current_owner_email,
+        'buyer_email': t.original_owner_email,
+        'status': t.payment_status, 'tier': t.tier.name if t.tier_id else 'General admission',
+        'checked_in': t.checked_in, 'checked_in_at': t.checked_in_at,
+        'transferred': t.is_transferred, 'created_at': t.created_at,
+    }
+
+
+class AdminSupportLookupView(APIView):
+    """
+    GET /api/admin/support/?q= — find orders and tickets by part of a buyer's or holder's name or email,
+    a payment reference, or a full ticket or order ID. Grouped by order; free tickets are one order each.
+    """
+    permission_classes = [IsAdminMember]
+
+    def get(self, request):
+        import uuid as uuidlib
+        q = (request.query_params.get('q') or '').strip()
+        if len(q) < 3:
+            return Response({'error': 'Type at least 3 characters.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        tickets = Ticket.objects.select_related('event', 'tier', 'payment', 'payment__refund')
+        try:
+            as_uuid = uuidlib.UUID(q)
+        except ValueError:
+            as_uuid = None
+        if as_uuid:
+            found = tickets.filter(Q(ticket_id=as_uuid) | Q(payment_id=as_uuid))
+        else:
+            # Part of a name, email or payment reference is enough ("chidi", "@gmail", "DEMO-0004").
+            found = tickets.filter(
+                Q(current_owner_email__icontains=q) | Q(original_owner_email__icontains=q)
+                | Q(current_owner_name__icontains=q) | Q(original_owner_name__icontains=q)
+                | Q(payment__customer_email__icontains=q) | Q(payment__customer_name__icontains=q)
+                | Q(payment__paystack_reference__icontains=q)
+            )
+        # Show whole orders: a match on one ticket brings in the rest of its order.
+        payment_ids = [pid for pid in found.values_list('payment_id', flat=True)[:200] if pid]
+        found = (found | tickets.filter(payment_id__in=payment_ids)).distinct().order_by('-created_at')[:300]
+
+        orders = {}
+        for t in found:
+            key = str(t.payment_id) if t.payment_id else f'free-{t.ticket_id}'
+            if key not in orders:
+                p = t.payment
+                refund = getattr(p, 'refund', None) if p else None
+                orders[key] = {
+                    'key': key,
+                    'payment': None if not p else {
+                        'id': str(p.pk), 'reference': p.paystack_reference, 'status': p.status,
+                        'amount': str(p.amount), 'currency': p.currency, 'channel': p.channel,
+                        'customer_name': p.customer_name, 'customer_email': p.customer_email,
+                        'created_at': p.created_at, 'paid_at': p.paid_at,
+                        'refundable': str(refundable_amount(p)) if p.status == 'successful' else '0',
+                    },
+                    'refund': None if not refund else {
+                        'status': refund.status, 'amount': str(refund.amount), 'reason': refund.reason,
+                        'failure_reason': refund.failure_reason,
+                    },
+                    'event': {
+                        'name': t.event.name, 'slug': t.event.slug, 'day': t.event.day,
+                        'cancelled': bool(t.event.cancelled_at),
+                    },
+                    'tickets': [],
+                }
+            orders[key]['tickets'].append(_support_ticket(t))
+        return Response({'orders': list(orders.values())})
+
+
+class AdminTicketResendView(APIView):
+    """POST /api/admin/support/tickets/<uuid>/resend/ — email the ticket again to whoever holds it now."""
+    permission_classes = [IsAdminMember]
+    min_role = AdminMember.ROLE_ADMIN
+
+    def post(self, request, ticket_id):
+        t = Ticket.objects.select_related('event').filter(ticket_id=ticket_id).first()
+        if not t:
+            return Response({'error': 'Ticket not found.'}, status=status.HTTP_404_NOT_FOUND)
+        if t.payment_status not in ('paid', 'free'):
+            return Response({'error': 'This ticket is not valid, so there is nothing to resend.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        try:
+            send_ticket_confirmation_email(t, t.current_owner_name, t.current_owner_email, t.event)
+        except Exception:
+            logger.exception('Support could not resend ticket %s', t.ticket_id)
+            return Response({'error': 'Could not send the email. Try again.'}, status=status.HTTP_502_BAD_GATEWAY)
+        _log_admin_action(request, AdminAction.ACTION_TICKET_RESENT, 'ticket', t.ticket_id,
+                          t.event.name[:255], f'to {t.current_owner_email}')
+        return Response({'sent_to': t.current_owner_email})
+
+
+class AdminTicketCheckinView(APIView):
+    """POST /api/admin/support/tickets/<uuid>/checkin/ {checked_in: bool} — check someone in, or undo a mistake."""
+    permission_classes = [IsAdminMember]
+    min_role = AdminMember.ROLE_ADMIN
+
+    def post(self, request, ticket_id):
+        from .models import Stamp
+        t = Ticket.objects.select_related('event').filter(ticket_id=ticket_id).first()
+        if not t:
+            return Response({'error': 'Ticket not found.'}, status=status.HTTP_404_NOT_FOUND)
+        want = bool(request.data.get('checked_in'))
+        if want == t.checked_in:
+            return Response(_support_ticket(t))
+        if want:
+            if t.payment_status not in ('paid', 'free'):
+                return Response({'error': 'This ticket is not valid, so it cannot be checked in.'},
+                                status=status.HTTP_400_BAD_REQUEST)
+            t.checked_in, t.checked_in_at = True, timezone.now()
+            t.save(update_fields=['checked_in', 'checked_in_at'])
+            record_stamp(t)
+            action = AdminAction.ACTION_TICKET_CHECKED_IN
+        else:
+            t.checked_in, t.checked_in_at = False, None
+            t.save(update_fields=['checked_in', 'checked_in_at'])
+            Stamp.objects.filter(ticket=t).delete()  # the stamp was for showing up; they didn't
+            action = AdminAction.ACTION_TICKET_CHECKIN_UNDONE
+        _log_admin_action(request, action, 'ticket', t.ticket_id, t.event.name[:255], t.current_owner_email)
+        return Response(_support_ticket(t))
+
+
+class AdminOrderRefundView(APIView):
+    """
+    POST /api/admin/support/orders/<uuid>/refund/ {reason} — refund one paid order while its event goes ahead.
+    The buyer gets the ticket price back (fees are kept) and is emailed; the tickets stop working.
+    """
+    permission_classes = [IsAdminMember]
+    min_role = AdminMember.ROLE_ADMIN
+
+    def post(self, request, payment_id):
+        from .refunds import refund_order
+        payment = Payment.objects.select_related('event').filter(pk=payment_id).first()
+        if not payment:
+            return Response({'error': 'Order not found.'}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            refund = refund_order(payment, request.data.get('reason'))
+        except EventCancellationError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        _log_admin_action(request, AdminAction.ACTION_ORDER_REFUNDED, 'payment', payment.paystack_reference,
+                          payment.event.name[:255], f'{refund.amount} to {payment.customer_email}: {refund.reason}'[:255])
+        return Response({
+            'status': refund.status, 'amount': str(refund.amount),
+            'failure_reason': refund.failure_reason,
+        })
+
+
 class AdminPromosListView(APIView):
     """GET /api/admin/promos/?search= — every promo code with usage."""
     permission_classes = [IsAdminMember]

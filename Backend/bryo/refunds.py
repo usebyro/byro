@@ -265,7 +265,7 @@ def submit_refund(refund):
     try:
         data = find_paystack_refund(payment.paystack_reference) or create_paystack_refund(
             payment.paystack_reference, refund.amount,
-            f'{refund.event.name} was cancelled',
+            refund.reason or f'{refund.event.name} was cancelled',
         )
     except PaystackUnavailable as e:
         # Could not reach Paystack: leave it to be tried again, until we give up.
@@ -300,7 +300,12 @@ def _notify_refund(refund):
     if refund.notified_at:
         return
     payment = refund.payment
-    if _mail(payment.customer_email, _event_mail(refund.event, payment.customer_name, refund.amount, 'sent')):
+    if refund.event.cancelled_at:
+        mail = _event_mail(refund.event, payment.customer_name, refund.amount, 'sent')
+    else:
+        from .emails import order_refunded_email
+        mail = order_refunded_email(payment.customer_name, refund.event.name, refund.amount, refund.reason)
+    if _mail(payment.customer_email, mail):
         Refund.objects.filter(pk=refund.pk).update(notified_at=timezone.now())
 
 
@@ -443,3 +448,31 @@ def apply_refund_webhook(event_type, data):
     refund.save()
     _notify_refund(refund)
     return True
+
+
+def refund_order(payment, reason):
+    """
+    Refund one paid order while its event goes ahead (Byro support). The buyer gets the ticket price back,
+    the order's tickets stop working, and they no longer count toward the organiser's earnings.
+    Raises EventCancellationError with a plain reason when the order can't be refunded.
+    """
+    from .models import Payment
+
+    reason = (reason or '').strip()[:300]
+    if not reason:
+        raise EventCancellationError('Add a reason. The buyer sees it.')
+    with transaction.atomic():
+        locked = Payment.objects.select_for_update().select_related('event').get(pk=payment.pk)
+        if locked.status != 'successful':
+            raise EventCancellationError('Only a paid order can be refunded.')
+        if Refund.objects.filter(payment=locked).exists():
+            raise EventCancellationError('This order already has a refund.')
+        amount = refundable_amount(locked)
+        if amount <= 0:
+            raise EventCancellationError('There is nothing to refund on this order.')
+        refund = Refund.objects.create(
+            payment=locked, event=locked.event, amount=amount, currency=locked.currency,
+            status=Refund.STATUS_PENDING, reason=reason,
+        )
+        locked.tickets_purchased.filter(payment_status='paid').update(payment_status='refunded')
+    return submit_refund(refund)
