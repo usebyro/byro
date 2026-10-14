@@ -4583,7 +4583,11 @@ class AdminSettingsView(APIView):
         from .models import PlatformSettings
         st = PlatformSettings.get()
         deals = (UserProfile.objects.filter(fee_rate_override__isnull=False).select_related('user')
+                 .annotate(n_events=Count('user__owned_events', distinct=True))
                  .order_by('display_name'))
+        history = AdminAction.objects.filter(
+            action__in=[AdminAction.ACTION_FEE_DEFAULT_CHANGED, AdminAction.ACTION_FEE_OVERRIDE_CHANGED]
+        ).order_by('-created_at')[:15]
         return Response({
             'default_fee_percent': _percent(st.default_fee_rate),
             'max_fee_percent': _percent(MAX_FEE_RATE),
@@ -4591,8 +4595,13 @@ class AdminSettingsView(APIView):
             'organiser_fees': [{
                 'user_id': p.user_id, 'email': p.user.email,
                 'name': p.display_name or p.handle or p.user.email, 'handle': p.handle,
-                'fee_percent': _percent(p.fee_rate_override),
+                'fee_percent': _percent(p.fee_rate_override), 'events': p.n_events,
             } for p in deals],
+            # Who changed which fee, from what to what, newest first.
+            'history': [{
+                'kind': 'default' if h.action == AdminAction.ACTION_FEE_DEFAULT_CHANGED else 'organiser',
+                'who': h.actor_email, 'target': h.target_label, 'change': h.detail, 'at': h.created_at,
+            } for h in history],
         })
 
     def patch(self, request):

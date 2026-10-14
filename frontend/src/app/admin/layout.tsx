@@ -46,7 +46,7 @@ const navItems = [
   { label: "Activity", href: "/activity", icon: Activity01Icon },
   { label: "Audit log", href: "/audit-log", icon: Clock01Icon },
   { label: "Team", href: "/team", icon: UserGroupIcon },
-  { label: "Settings", href: "/settings", icon: Settings01Icon },
+  { label: "Service fee", href: "/settings", icon: Settings01Icon },
 ];
 
 // Grouped by the job: people and their pages, money, the record of who did what, and running the admin itself.
@@ -54,9 +54,9 @@ const pick = (...hrefs: string[]) => hrefs.map((h) => navItems.find((i) => i.hre
 const navGroups = [
   { title: null, items: pick("/", "/events") },
   { title: "People", items: pick("/users", "/communities", "/support", "/messages", "/reports") },
-  { title: "Money", items: pick("/payments", "/payouts", "/refunds", "/promos", "/exports") },
+  { title: "Money", items: pick("/payments", "/payouts", "/refunds", "/promos", "/settings", "/exports") },
   { title: "Records", items: pick("/activity", "/audit-log") },
-  { title: "Admin", items: pick("/team", "/settings") },
+  { title: "Admin", items: pick("/team") },
 ];
 
 function isActive(pathname: string, href: string) {
