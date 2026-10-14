@@ -2,7 +2,7 @@
 
 import { useAdminMe } from "@/components/admin/AdminMe";
 import UserDetails from "@/components/admin/UserDetails";
-import { useConfirm } from "@/components/admin/ui";
+import { SidePanel, useConfirm } from "@/components/admin/ui";
 import { useEffect, useMemo, useState, useCallback } from "react";
 
 interface AdminUser {
@@ -103,6 +103,7 @@ export default function AdminUsersPage() {
   const [savingRole, setSavingRole] = useState(false);
   const [roleError, setRoleError] = useState("");
   const confirm = useConfirm();
+  const closePanel = useCallback(() => setSelected(null), []);
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [statusError, setStatusError] = useState("");
 
@@ -332,99 +333,82 @@ export default function AdminUsersPage() {
       </div>
 
       {selected && (
-        <div className="fixed inset-0 z-50 flex justify-end">
-          <div className="absolute inset-0 bg-ink/50" onClick={() => setSelected(null)} />
-          <div className="relative w-full max-w-md h-full bg-white border-l border-line shadow-[0_20px_50px_rgba(20,22,28,0.14)] overflow-y-auto">
-            <div className="sticky top-0 bg-white border-b border-line px-6 py-4 flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <h3 className="text-ink font-semibold truncate">{selected.display_name || selected.email}</h3>
-                <p className="text-faint text-xs mt-0.5 truncate">{selected.email}</p>
+        <SidePanel title={selected.display_name || selected.email} subtitle={selected.email} onClose={closePanel}>
+          <div className="p-6 space-y-6">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-mist rounded-lg px-3 py-2.5">
+                <p className="text-faint text-[11px] mb-0.5">Handle</p>
+                <p className="text-ink text-sm">{selected.handle ? `@${selected.handle}` : "—"}</p>
               </div>
-              <button
-                onClick={() => setSelected(null)}
-                aria-label="Close"
-                className="shrink-0 text-muted hover:text-ink text-lg leading-none px-1"
+              <div className="bg-mist rounded-lg px-3 py-2.5">
+                <p className="text-faint text-[11px] mb-0.5">Events created</p>
+                <p className="text-ink text-sm tabular-nums">{selected.events_created}</p>
+              </div>
+              <div className="bg-mist rounded-lg px-3 py-2.5">
+                <p className="text-faint text-[11px] mb-0.5">Joined</p>
+                <p className="text-ink text-sm">{formatDate(selected.date_joined)}</p>
+              </div>
+              <div className="bg-mist rounded-lg px-3 py-2.5">
+                <p className="text-faint text-[11px] mb-0.5">Status</p>
+                <StatusBadge isActive={selected.is_active !== false} />
+              </div>
+            </div>
+
+            <div>
+              <h4 className="text-ink text-sm font-semibold mb-2">Role</h4>
+              {!can.manage_roles && (
+                <p className="text-faint text-xs mb-2">Only owners can change a user&apos;s role.</p>
+              )}
+              <div className="flex items-center gap-1 bg-mist rounded-lg p-1 w-fit">
+                {ROLE_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    disabled={savingRole || !can.manage_roles}
+                    onClick={() => changeRole(selected, opt.value)}
+                    className={`text-xs font-semibold px-3 py-1.5 rounded-md transition-colors disabled:opacity-50 ${
+                      selected.role === opt.value
+                        ? "bg-brand/10 text-brand-dark"
+                        : "text-muted hover:text-ink hover:bg-mist"
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              {roleError && <p className="text-red-600 text-xs mt-2">{roleError}</p>}
+            </div>
+
+            <div>
+              <h4 className="text-ink text-sm font-semibold mb-2">Account access</h4>
+              <p className="text-faint text-xs leading-relaxed mb-3">
+                {selected.is_active !== false
+                  ? "This account can sign in and use Byro normally."
+                  : "This account is suspended and cannot sign in."}
+              </p>
+              {can.moderate ? <button
+                onClick={() => askStatus(selected, selected.is_active !== false ? "suspend" : "reactivate")}
+                disabled={updatingStatus}
+                className={`text-xs font-semibold px-3 py-2 rounded-lg transition-colors disabled:opacity-50 ${
+                  selected.is_active !== false
+                    ? "text-red-600 bg-red-500/10 hover:bg-red-500/20"
+                    : "text-green-700 bg-green-500/10 hover:bg-green-500/20"
+                }`}
               >
-                ×
-              </button>
+                {selected.is_active !== false ? "Suspend account" : "Reactivate account"}
+              </button> : <p className="text-faint text-xs">Your role can&apos;t change account access.</p>}
+              {statusError && <p className="text-red-600 text-xs mt-2">{statusError}</p>}
             </div>
 
-            <div className="p-6 space-y-6">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-mist rounded-lg px-3 py-2.5">
-                  <p className="text-faint text-[11px] mb-0.5">Handle</p>
-                  <p className="text-ink text-sm">{selected.handle ? `@${selected.handle}` : "—"}</p>
-                </div>
-                <div className="bg-mist rounded-lg px-3 py-2.5">
-                  <p className="text-faint text-[11px] mb-0.5">Events created</p>
-                  <p className="text-ink text-sm tabular-nums">{selected.events_created}</p>
-                </div>
-                <div className="bg-mist rounded-lg px-3 py-2.5">
-                  <p className="text-faint text-[11px] mb-0.5">Joined</p>
-                  <p className="text-ink text-sm">{formatDate(selected.date_joined)}</p>
-                </div>
-                <div className="bg-mist rounded-lg px-3 py-2.5">
-                  <p className="text-faint text-[11px] mb-0.5">Status</p>
-                  <StatusBadge isActive={selected.is_active !== false} />
-                </div>
-              </div>
-
-              <div>
-                <h4 className="text-ink text-sm font-semibold mb-2">Role</h4>
-                {!can.manage_roles && (
-                  <p className="text-faint text-xs mb-2">Only owners can change a user&apos;s role.</p>
-                )}
-                <div className="flex items-center gap-1 bg-mist rounded-lg p-1 w-fit">
-                  {ROLE_OPTIONS.map((opt) => (
-                    <button
-                      key={opt.value}
-                      disabled={savingRole || !can.manage_roles}
-                      onClick={() => changeRole(selected, opt.value)}
-                      className={`text-xs font-semibold px-3 py-1.5 rounded-md transition-colors disabled:opacity-50 ${
-                        selected.role === opt.value
-                          ? "bg-brand/10 text-brand-dark"
-                          : "text-muted hover:text-ink hover:bg-mist"
-                      }`}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-                {roleError && <p className="text-red-600 text-xs mt-2">{roleError}</p>}
-              </div>
-
-              <div>
-                <h4 className="text-ink text-sm font-semibold mb-2">Account access</h4>
-                <p className="text-faint text-xs leading-relaxed mb-3">
-                  {selected.is_active !== false
-                    ? "This account can sign in and use Byro normally."
-                    : "This account is suspended and cannot sign in."}
-                </p>
-                {can.moderate ? <button
-                  onClick={() => askStatus(selected, selected.is_active !== false ? "suspend" : "reactivate")}
-                  disabled={updatingStatus}
-                  className={`text-xs font-semibold px-3 py-2 rounded-lg transition-colors disabled:opacity-50 ${
-                    selected.is_active !== false
-                      ? "text-red-600 bg-red-500/10 hover:bg-red-500/20"
-                      : "text-green-700 bg-green-500/10 hover:bg-green-500/20"
-                  }`}
-                >
-                  {selected.is_active !== false ? "Suspend account" : "Reactivate account"}
-                </button> : <p className="text-faint text-xs">Your role can&apos;t change account access.</p>}
-                {statusError && <p className="text-red-600 text-xs mt-2">{statusError}</p>}
-              </div>
-
-              <UserDetails
-                key={selected.id}
-                userId={selected.id}
-                onDeleted={() => {
-                  setUsers((prev) => prev.filter((u) => u.id !== selected.id));
-                  setSelected(null);
-                }}
-              />
-            </div>
+            <UserDetails
+              key={selected.id}
+              userId={selected.id}
+              onDeleted={() => {
+                setUsers((prev) => prev.filter((u) => u.id !== selected.id));
+                setSelected(null);
+              }}
+            />
           </div>
-        </div>
+        </SidePanel>
       )}
 
     </div>

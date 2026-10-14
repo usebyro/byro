@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
@@ -49,11 +49,14 @@ const navItems = [
   { label: "Settings", href: "/settings", icon: Settings01Icon },
 ];
 
-// Grouped by what the admin is doing: looking at the platform, moving money, or checking who did what.
+// Grouped by the job: people and their pages, money, the record of who did what, and running the admin itself.
+const pick = (...hrefs: string[]) => hrefs.map((h) => navItems.find((i) => i.href === h)!);
 const navGroups = [
-  { title: null, items: navItems.slice(0, 3) },
-  { title: "Finance", items: navItems.slice(3, 8) },
-  { title: "Oversight", items: navItems.slice(8) },
+  { title: null, items: pick("/", "/events") },
+  { title: "People", items: pick("/users", "/communities", "/support", "/messages", "/reports") },
+  { title: "Money", items: pick("/payments", "/payouts", "/refunds", "/promos", "/exports") },
+  { title: "Records", items: pick("/activity", "/audit-log") },
+  { title: "Admin", items: pick("/team", "/settings") },
 ];
 
 function isActive(pathname: string, href: string) {
@@ -66,6 +69,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const router = useRouter();
   const [me, setMe] = useState<AdminMe | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [openReports, setOpenReports] = useState(0);
+  const menuButton = useRef<HTMLButtonElement>(null);
+  const menuClose = useRef<HTMLButtonElement>(null);
   const isLoginPage = pathname === "/admin/login" || pathname === "/login";
 
   // Close the mobile drawer whenever the route changes
@@ -92,6 +98,34 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       .catch(() => {});
     return () => { cancelled = true; };
   }, [isLoginPage, pathname, router]);
+
+  // How many reports are waiting, for the badge in the menu. Refreshed on each page change.
+  useEffect(() => {
+    if (isLoginPage) return;
+    let cancelled = false;
+    fetch("/api/admin/reports?count_only=1")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!cancelled && data) setOpenReports(Number(data.open) || 0);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoginPage, pathname]);
+
+  // Mobile menu: Escape closes it, focus moves in and back out to the menu button.
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const opener = menuButton.current;
+    menuClose.current?.focus();
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setMobileOpen(false);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      opener?.focus();
+    };
+  }, [mobileOpen]);
 
   const signOut = async () => {
     await fetch("/api/admin-auth", { method: "DELETE" });
@@ -143,7 +177,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                       <span className="absolute -left-3 top-2 bottom-2 w-1 rounded-r-full bg-brand" />
                     )}
                     <HugeiconsIcon icon={item.icon} size={17} color="currentColor" />
-                    {item.label}
+                    <span className="flex-1">{item.label}</span>
+                    {item.href === "/reports" && openReports > 0 && (
+                      <span className="rounded-full bg-danger-strong px-1.5 py-0.5 text-[11px] font-bold leading-none text-white tabular-nums">
+                        <span className="sr-only">, </span>
+                        {openReports}
+                        <span className="sr-only"> open</span>
+                      </span>
+                    )}
                   </Link>
                 );
               })}
@@ -197,9 +238,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <div className="flex items-center gap-1">
           <NotificationBell />
           <button
+            ref={menuButton}
             onClick={() => setMobileOpen(true)}
             aria-label="Open menu"
-            className="text-ink p-1"
+            aria-expanded={mobileOpen}
+            className="flex h-11 w-11 items-center justify-center rounded-full text-ink hover:bg-mist focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
           >
             <HugeiconsIcon icon={Menu01Icon} size={22} color="currentColor" />
           </button>
@@ -211,16 +254,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </div>
 
       {mobileOpen && (
-        <div className="md:hidden fixed inset-0 z-50 flex">
+        <div className="md:hidden fixed inset-0 z-50 flex" role="dialog" aria-modal="true" aria-label="Admin menu">
           <div
-            className="absolute inset-0 bg-ink/40"
+            className="absolute inset-0 bg-ink/40 animate-scrim-in motion-reduce:animate-none"
             onClick={() => setMobileOpen(false)}
           />
-          <aside className="relative w-72 bg-white border-r border-line flex flex-col">
+          <aside className="relative w-72 max-w-[85vw] bg-white border-r border-line flex flex-col overscroll-contain">
             <button
+              ref={menuClose}
               onClick={() => setMobileOpen(false)}
               aria-label="Close menu"
-              className="absolute top-5 right-4 text-muted hover:text-ink"
+              className="absolute top-3 right-3 flex h-11 w-11 items-center justify-center rounded-full text-muted hover:bg-mist hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
             >
               <HugeiconsIcon icon={Cancel01Icon} size={18} color="currentColor" />
             </button>

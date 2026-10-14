@@ -4449,6 +4449,9 @@ class AdminReportsView(APIView):
 
     def get(self, request):
         from .models import Report
+        if request.query_params.get('count_only'):
+            # The admin menu's "Reports" badge: just the number waiting.
+            return Response({'open': Report.objects.filter(status=Report.STATUS_OPEN).count()})
         qs = Report.objects.select_related('event', 'event__owner', 'community', 'community__profile')
         wanted = (request.query_params.get('status') or '').strip()
         if wanted:
