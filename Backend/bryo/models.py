@@ -1137,6 +1137,7 @@ class AdminAction(models.Model):
     ACTION_REPORT_CLOSED = 'report.closed'
     ACTION_EVENT_FEATURED = 'event.featured'
     ACTION_EVENT_UNFEATURED = 'event.unfeatured'
+    ACTION_EXPORT_DOWNLOADED = 'export.downloaded'
     ACTION_MESSAGING_BLOCKED = 'user.messaging_blocked'
     ACTION_MESSAGING_UNBLOCKED = 'user.messaging_unblocked'
 
@@ -1173,6 +1174,7 @@ class AdminAction(models.Model):
         (ACTION_REPORT_CLOSED, 'Report closed'),
         (ACTION_EVENT_FEATURED, 'Event featured'),
         (ACTION_EVENT_UNFEATURED, 'Event no longer featured'),
+        (ACTION_EXPORT_DOWNLOADED, 'Data exported'),
         (ACTION_MESSAGING_BLOCKED, 'Organiser blocked from messaging'),
         (ACTION_MESSAGING_UNBLOCKED, 'Organiser allowed to message again'),
     ]

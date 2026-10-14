@@ -20,6 +20,7 @@ import {
   CustomerSupportIcon,
   UserGroup03Icon,
   Flag01Icon,
+  Download04Icon,
   Menu01Icon,
   Cancel01Icon,
 } from "@hugeicons/core-free-icons";
@@ -35,6 +36,7 @@ const navItems = [
   { label: "Payouts", href: "/payouts", icon: Wallet01Icon },
   { label: "Refunds", href: "/refunds", icon: Money01Icon },
   { label: "Promo codes", href: "/promos", icon: Coupon01Icon },
+  { label: "Exports", href: "/exports", icon: Download04Icon },
   { label: "Reports", href: "/reports", icon: Flag01Icon },
   { label: "Communities", href: "/communities", icon: UserGroup03Icon },
   { label: "Support", href: "/support", icon: CustomerSupportIcon },
@@ -47,8 +49,8 @@ const navItems = [
 // Grouped by what the admin is doing: looking at the platform, moving money, or checking who did what.
 const navGroups = [
   { title: null, items: navItems.slice(0, 3) },
-  { title: "Finance", items: navItems.slice(3, 7) },
-  { title: "Oversight", items: navItems.slice(7) },
+  { title: "Finance", items: navItems.slice(3, 8) },
+  { title: "Oversight", items: navItems.slice(8) },
 ];
 
 function isActive(pathname: string, href: string) {

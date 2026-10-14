@@ -4504,6 +4504,37 @@ class AdminEventFeatureView(APIView):
         return Response({'featured_until': event.featured_until, 'is_featured': bool(days)})
 
 
+class AdminExportView(APIView):
+    """
+    GET /api/admin/export/<kind>/?from=YYYY-MM-DD&to=YYYY-MM-DD — a CSV of payments, payouts, refunds or users.
+    Holds personal and bank details, so it needs an Admin or Owner, and every download is in the audit log.
+    """
+    permission_classes = [IsAdminMember]
+    min_role = AdminMember.ROLE_ADMIN
+
+    def get(self, request, kind):
+        from datetime import date
+        from django.http import HttpResponse
+        from .exports import KINDS, build_csv
+        if kind not in KINDS:
+            return Response({'error': 'Unknown export.'}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            end = date.fromisoformat(request.query_params.get('to') or timezone.localdate().isoformat())
+            start = date.fromisoformat(request.query_params.get('from') or (end - timedelta(days=30)).isoformat())
+        except ValueError:
+            return Response({'error': 'Use dates like 2026-10-01.'}, status=status.HTTP_400_BAD_REQUEST)
+        if start > end:
+            return Response({'error': 'The start date is after the end date.'}, status=status.HTTP_400_BAD_REQUEST)
+        if (end - start).days > 366:
+            return Response({'error': 'Export up to one year at a time.'}, status=status.HTTP_400_BAD_REQUEST)
+        text, count = build_csv(kind, start, end)
+        _log_admin_action(request, AdminAction.ACTION_EXPORT_DOWNLOADED, 'export', kind, f'{kind} {start} to {end}',
+                          f'{count} row(s)')
+        res = HttpResponse('\ufeff' + text, content_type='text/csv; charset=utf-8')  # BOM so Excel reads ₦ correctly
+        res['Content-Disposition'] = f'attachment; filename="byro-{kind}-{start}-to-{end}.csv"'
+        return res
+
+
 class AdminMessagesView(APIView):
     """
     GET /api/admin/messages/?search=&status= — every organiser message, newest first.
