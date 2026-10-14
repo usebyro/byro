@@ -14,6 +14,9 @@ Nothing here is secret. Keys and passwords stay in the host's environment settin
   - `RESEND_API_KEY` must be a live key (the one that was in `frontend/.env` was revoked)
 - [ ] WorkOS (Production) -> Redirects: add `https://www.usebyro.com/auth/callback` and `https://usebyro.com/auth/callback`.
       No trailing full stop (a stray `.` broke the first attempt).
+- [ ] tawk.to -> Admin > Support > Requests (migration `0056`). In tawk.to: Administration -> Settings -> Webhooks ->
+      Create webhook, URL `https://<backend>/api/webhooks/tawk/`, tick Chat Start, Chat End, Chat Transcript Created and
+      New Ticket. Copy its secret key into the backend setting `TAWK_WEBHOOK_SECRET`. Until then the Requests tab shows a warning.
 - [ ] Google Cloud: publish the OAuth app (it only lets test users in while in "Testing").
 - [ ] GA4: mark `purchase`, `sign_up` and `create_event` as key events (Admin -> Events).
 - [ ] Email logo only appears after the frontend deploy (`/assets/images/logo-email.png`).

@@ -1619,6 +1619,36 @@ class ReportView(APIView):
         return Response({'reported': True}, status=status.HTTP_201_CREATED)
 
 
+class TawkWebhookView(APIView):
+    """POST /api/webhooks/tawk/ — chats and offline tickets from tawk.to become support requests in the admin."""
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    def post(self, request):
+        import json as jsonlib
+        from .tawk import handle, signature_ok
+        if not getattr(settings, 'TAWK_WEBHOOK_SECRET', ''):
+            logger.error('tawk.to webhook received but TAWK_WEBHOOK_SECRET is not set')
+            return Response({'error': 'Not configured'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        body = request.body  # the raw bytes tawk.to signed; read before anything parses them
+        if not signature_ok(body, request.headers.get('X-Tawk-Signature', '')):
+            return Response({'error': 'Invalid signature'}, status=status.HTTP_401_UNAUTHORIZED)
+        try:
+            payload = jsonlib.loads(body.decode('utf-8'))
+        except (ValueError, UnicodeDecodeError):
+            return Response({'error': 'Bad JSON'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            req, created = handle(payload)
+        except Exception:
+            logger.exception('Could not handle tawk.to event %s', request.headers.get('X-Hook-Event-Id'))
+            return Response({'error': 'Could not process'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)  # tawk.to retries
+        if req is not None and created:
+            who = req.name or req.email or 'A visitor'
+            kind = 'offline message' if req.source == req.SOURCE_TICKET else 'chat'
+            notify_admins('support_request', f'New {kind} from {who}'[:140], body=(req.subject or req.message)[:200], link='/support')
+        return Response({'ok': True})
+
+
 class UnfollowByTokenView(APIView):
     """POST /api/community/unfollow/ {token} — the unfollow link in a follower email. No login needed."""
     permission_classes = [AllowAny]
@@ -4648,6 +4678,76 @@ class AdminUserFeeView(APIView):
             'fee_percent': _percent(rate) if rate is not None else None,
             'effective_percent': _percent(fee_rate_for(user)),
         })
+
+
+class AdminSupportRequestsView(APIView):
+    """GET /api/admin/support/requests/?status=open&search= — help requests from tawk.to, newest first."""
+    permission_classes = [IsAdminMember]
+
+    @staticmethod
+    def row(r):
+        return {
+            'id': r.pk, 'source': r.source, 'reference': r.reference, 'name': r.name, 'email': r.email,
+            'subject': r.subject, 'message': r.message, 'transcript': r.transcript, 'location': r.location,
+            'page': r.page, 'status': r.status, 'assigned_to_email': r.assigned_to_email,
+            'closed_by_email': r.closed_by_email, 'closed_at': r.closed_at,
+            'created_at': r.created_at, 'updated_at': r.updated_at,
+        }
+
+    def get(self, request):
+        from .models import SupportRequest
+        open_count = SupportRequest.objects.filter(status=SupportRequest.STATUS_OPEN).count()
+        if request.query_params.get('count_only'):
+            return Response({'open': open_count})
+        qs = SupportRequest.objects.all()
+        wanted = request.query_params.get('status')
+        if wanted in ('open', 'done'):
+            qs = qs.filter(status=wanted)
+        if request.query_params.get('mine'):
+            member = getattr(request, 'admin_member', None)
+            qs = qs.filter(assigned_to_email__iexact=member.email if member else '')
+        search = (request.query_params.get('search') or '').strip()
+        if search:
+            qs = qs.filter(Q(name__icontains=search) | Q(email__icontains=search) | Q(subject__icontains=search)
+                           | Q(message__icontains=search) | Q(reference__icontains=search))
+        return Response({
+            'open': open_count,
+            'configured': bool(getattr(settings, 'TAWK_WEBHOOK_SECRET', '')),
+            'requests': [self.row(r) for r in qs[:200]],
+        })
+
+
+class AdminSupportRequestDetailView(APIView):
+    """PATCH /api/admin/support/requests/<pk>/ {status?: open|done, assign?: 'me'|'' } — track a help request."""
+    permission_classes = [IsAdminMember]
+    min_role = AdminMember.ROLE_ADMIN
+
+    def patch(self, request, pk):
+        from .models import SupportRequest
+        r = SupportRequest.objects.filter(pk=pk).first()
+        if not r:
+            return Response({'error': 'Request not found.'}, status=status.HTTP_404_NOT_FOUND)
+        member = getattr(request, 'admin_member', None)
+        me = member.email if member else ''
+        fields = []
+        if 'assign' in request.data:
+            r.assigned_to_email = me if request.data.get('assign') == 'me' else ''
+            fields.append('assigned_to_email')
+        if 'status' in request.data:
+            new = request.data.get('status')
+            if new not in ('open', 'done'):
+                return Response({'error': 'Status must be open or done.'}, status=status.HTTP_400_BAD_REQUEST)
+            if new != r.status:
+                r.status = new
+                r.closed_by_email = me if new == 'done' else ''
+                r.closed_at = timezone.now() if new == 'done' else None
+                fields += ['status', 'closed_by_email', 'closed_at']
+                if new == 'done':
+                    _log_admin_action(request, AdminAction.ACTION_REQUEST_CLOSED, 'request', r.pk,
+                                      (r.email or r.name or 'visitor')[:255], r.subject[:255])
+        if fields:
+            r.save(update_fields=fields + ['updated_at'])
+        return Response(AdminSupportRequestsView.row(r))
 
 
 class AdminMessagesView(APIView):
