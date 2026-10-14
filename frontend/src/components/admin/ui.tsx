@@ -258,6 +258,99 @@ function ConfirmDialog({ options, onClose }: { options: ConfirmOptions; onClose:
   );
 }
 
+/* -------------------------------------------------------------- side panel */
+
+/**
+ * A panel that slides in from the right, for looking at one thing (a user, an event).
+ * Escape or the backdrop closes it, focus moves into it and goes back where it was,
+ * Tab stays inside, and the page behind doesn't scroll.
+ */
+export function SidePanel({
+  title,
+  subtitle,
+  onClose,
+  children,
+}: {
+  title: ReactNode;
+  subtitle?: ReactNode;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  const titleId = useId();
+  const panel = useRef<HTMLDivElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    const before = document.activeElement as HTMLElement | null;
+    closeRef.current?.focus();
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (e: KeyboardEvent) => {
+      // A confirm dialog opened on top owns the keyboard; the panel waits until it closes.
+      if (!panel.current?.contains(document.activeElement)) return;
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onClose();
+      }
+      if (e.key === "Tab" && panel.current) {
+        const items = panel.current.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), input:not([disabled]), select, textarea, [tabindex]:not([tabindex="-1"])',
+        );
+        if (!items.length) return;
+        const first = items[0];
+        const last = items[items.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = overflow;
+      before?.focus?.();
+    };
+  }, [onClose]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end">
+      <div className="absolute inset-0 bg-ink/40 animate-scrim-in motion-reduce:animate-none" onClick={onClose} />
+      <div
+        ref={panel}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        className="relative flex h-full w-full max-w-md flex-col overscroll-contain bg-white shadow-[0_20px_50px_rgba(20,22,28,0.16)] animate-panel-in motion-reduce:animate-none"
+      >
+        <div className="flex shrink-0 items-start justify-between gap-3 border-b border-line px-6 py-4">
+          <div className="min-w-0">
+            <h2 id={titleId} className="truncate font-display text-lg font-bold text-ink">
+              {title}
+            </h2>
+            {subtitle && <p className="mt-0.5 truncate text-sm text-muted">{subtitle}</p>}
+          </div>
+          <button
+            ref={closeRef}
+            type="button"
+            onClick={onClose}
+            aria-label="Close panel"
+            className="-mr-2 flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-muted transition-colors hover:bg-mist hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
+              <path d="M6 6l12 12M18 6L6 18" />
+            </svg>
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto">{children}</div>
+      </div>
+    </div>
+  );
+}
+
 /* ------------------------------------------------------------------- dates */
 
 const DATE = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" });

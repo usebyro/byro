@@ -71,3 +71,8 @@ class ReportTests(AdminBase):
     def test_strangers_cannot_see_reports(self):
         self.as_(self.fan('rando@example.com'))
         self.assertEqual(self.client.get('/api/admin/reports/').status_code, 403)
+
+    def test_the_menu_badge_count(self):
+        self.report()
+        self.as_(self.viewer)
+        self.assertEqual(self.client.get('/api/admin/reports/?count_only=1').json(), {'open': 1})

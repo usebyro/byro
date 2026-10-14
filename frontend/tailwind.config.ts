@@ -56,6 +56,10 @@ export default {
           '0%': { opacity: '0', transform: 'translateY(4px) scale(0.97)' },
           '100%': { opacity: '1', transform: 'translateY(0) scale(1)' },
         },
+        'panel-in': {
+          '0%': { transform: 'translateX(24px)', opacity: '0' },
+          '100%': { transform: 'translateX(0)', opacity: '1' },
+        },
         'scrim-in': {
           '0%': { opacity: '0' },
           '100%': { opacity: '1' },
@@ -83,6 +87,7 @@ export default {
         'menu-in': 'menu-in 150ms cubic-bezier(0.23, 1, 0.32, 1) both',
         'dialog-in': 'dialog-in 180ms cubic-bezier(0.23, 1, 0.32, 1) both',
         'scrim-in': 'scrim-in 150ms ease-out both',
+        'panel-in': 'panel-in 220ms cubic-bezier(0.32, 0.72, 0, 1) both',
         float: 'float 3s ease-in-out infinite',
         bounce: 'bounce 1s infinite',
       },

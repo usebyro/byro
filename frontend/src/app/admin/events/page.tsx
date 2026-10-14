@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { formatNaira, isPaidEvent, priceLabel } from "@/lib/eventFormat";
 import { useAdminMe } from "@/components/admin/AdminMe";
-import { useConfirm } from "@/components/admin/ui";
+import { SidePanel, useConfirm } from "@/components/admin/ui";
 import { publicHref } from "@/lib/adminNav";
 
 interface EventTier {
@@ -262,6 +262,7 @@ export default function AdminEventsPage() {
   const [updatingId, setUpdatingId] = useState<number | null>(null);
   const [actionError, setActionError] = useState("");
   const confirm = useConfirm();
+  const closePanel = useCallback(() => setSelected(null), []);
 
   const [featuring, setFeaturing] = useState(false);
   const isFeatured = (e: Event) => Boolean(e.is_featured);
@@ -497,210 +498,189 @@ export default function AdminEventsPage() {
       </div>
 
       {selected && (
-        <div className="fixed inset-0 z-50 flex justify-end">
-          <div className="absolute inset-0 bg-ink/50" onClick={() => setSelected(null)} />
-          <div className="relative w-full max-w-md h-full bg-white border-l border-line shadow-[0_20px_50px_rgba(20,22,28,0.14)] overflow-y-auto">
-            <div className="sticky top-0 bg-white border-b border-line px-6 py-4 flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <h3 className="text-ink font-semibold truncate">{selected.name}</h3>
-                <p className="text-faint text-xs mt-0.5">
-                  {selected.location
-                    ? `${formatDate(selected.day)}, ${selected.location}`
-                    : `${formatDate(selected.day)}, no location set`}
+        <SidePanel title={selected.name} subtitle={selected.location ? `${formatDate(selected.day)}, ${selected.location}` : `${formatDate(selected.day)}, no location set`} onClose={closePanel}>
+          <div className="p-6 space-y-6">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-mist rounded-lg px-3 py-2.5">
+                <p className="text-faint text-[11px] mb-0.5">Category</p>
+                <p className="text-ink text-sm capitalize">{selected.category?.replace(/_/g, " ") || "—"}</p>
+              </div>
+              <div className="bg-mist rounded-lg px-3 py-2.5">
+                <p className="text-faint text-[11px] mb-0.5">Price</p>
+                <p className="text-ink text-sm tabular-nums">
+                  {priceLabel(selected)}
                 </p>
               </div>
-              <button
-                onClick={() => setSelected(null)}
-                aria-label="Close"
-                className="shrink-0 text-muted hover:text-ink text-lg leading-none px-1"
-              >
-                ×
-              </button>
+              <div className="bg-mist rounded-lg px-3 py-2.5">
+                <p className="text-faint text-[11px] mb-0.5">Status</p>
+                <StatusBadge status={getEventStatus(selected)} />
+              </div>
+              <div className="bg-mist rounded-lg px-3 py-2.5">
+                <p className="text-faint text-[11px] mb-0.5">Created</p>
+                <p className="text-ink text-sm">{formatDateTime(selected.created_at)}</p>
+              </div>
             </div>
 
-            <div className="p-6 space-y-6">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-mist rounded-lg px-3 py-2.5">
-                  <p className="text-faint text-[11px] mb-0.5">Category</p>
-                  <p className="text-ink text-sm capitalize">{selected.category?.replace(/_/g, " ") || "—"}</p>
+            {selectedOverview && (
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { label: "Revenue", value: formatNaira(Number(selectedOverview.revenue)) },
+                    { label: "Tickets sold", value: selectedOverview.tickets_sold },
+                    {
+                      label: "Checked in",
+                      value: `${selectedOverview.checked_in} / ${selectedOverview.tickets_sold}`,
+                    },
+                    { label: "Promo redemptions", value: selectedOverview.promo_redemptions },
+                    { label: "Pending", value: selectedOverview.pending },
+                    { label: "Transferred", value: selectedOverview.transferred },
+                  ].map((s) => (
+                    <div key={s.label} className="bg-mist rounded-lg px-3 py-2.5">
+                      <p className="text-faint text-[11px] mb-0.5">{s.label}</p>
+                      <p className="text-ink text-sm tabular-nums">{s.value}</p>
+                    </div>
+                  ))}
                 </div>
-                <div className="bg-mist rounded-lg px-3 py-2.5">
-                  <p className="text-faint text-[11px] mb-0.5">Price</p>
-                  <p className="text-ink text-sm tabular-nums">
-                    {priceLabel(selected)}
-                  </p>
-                </div>
-                <div className="bg-mist rounded-lg px-3 py-2.5">
-                  <p className="text-faint text-[11px] mb-0.5">Status</p>
-                  <StatusBadge status={getEventStatus(selected)} />
-                </div>
-                <div className="bg-mist rounded-lg px-3 py-2.5">
-                  <p className="text-faint text-[11px] mb-0.5">Created</p>
-                  <p className="text-ink text-sm">{formatDateTime(selected.created_at)}</p>
-                </div>
-              </div>
-
-              {selectedOverview && (
-                <div className="space-y-3">
-                  <div className="grid grid-cols-2 gap-3">
-                    {[
-                      { label: "Revenue", value: formatNaira(Number(selectedOverview.revenue)) },
-                      { label: "Tickets sold", value: selectedOverview.tickets_sold },
-                      {
-                        label: "Checked in",
-                        value: `${selectedOverview.checked_in} / ${selectedOverview.tickets_sold}`,
-                      },
-                      { label: "Promo redemptions", value: selectedOverview.promo_redemptions },
-                      { label: "Pending", value: selectedOverview.pending },
-                      { label: "Transferred", value: selectedOverview.transferred },
-                    ].map((s) => (
-                      <div key={s.label} className="bg-mist rounded-lg px-3 py-2.5">
-                        <p className="text-faint text-[11px] mb-0.5">{s.label}</p>
-                        <p className="text-ink text-sm tabular-nums">{s.value}</p>
-                      </div>
-                    ))}
-                  </div>
-                  {selectedOverview.tier_breakdown.length > 0 && (
-                    <div>
-                      <h4 className="text-ink text-sm font-semibold mb-2">Tiers</h4>
-                      <div className="space-y-2">
-                        {selectedOverview.tier_breakdown.map((t) => (
-                          <div
-                            key={t.id}
-                            className="flex items-center justify-between gap-2 bg-mist rounded-lg px-3 py-2"
-                          >
-                            <div className="min-w-0">
-                              <p className="text-ink text-xs font-medium truncate">{t.name}</p>
-                              <p className="text-faint text-[11px] tabular-nums">
-                                {Number(t.price) > 0 ? formatNaira(Number(t.price)) : "Free"}
-                              </p>
-                            </div>
-                            <p className="shrink-0 text-[#3B4252] text-xs tabular-nums">
-                              {t.sold} sold
-                              {t.remaining !== null ? ` · ${t.remaining} left` : ""}
+                {selectedOverview.tier_breakdown.length > 0 && (
+                  <div>
+                    <h4 className="text-ink text-sm font-semibold mb-2">Tiers</h4>
+                    <div className="space-y-2">
+                      {selectedOverview.tier_breakdown.map((t) => (
+                        <div
+                          key={t.id}
+                          className="flex items-center justify-between gap-2 bg-mist rounded-lg px-3 py-2"
+                        >
+                          <div className="min-w-0">
+                            <p className="text-ink text-xs font-medium truncate">{t.name}</p>
+                            <p className="text-faint text-[11px] tabular-nums">
+                              {Number(t.price) > 0 ? formatNaira(Number(t.price)) : "Free"}
                             </p>
                           </div>
-                        ))}
-                      </div>
+                          <p className="shrink-0 text-[#3B4252] text-xs tabular-nums">
+                            {t.sold} sold
+                            {t.remaining !== null ? ` · ${t.remaining} left` : ""}
+                          </p>
+                        </div>
+                      ))}
                     </div>
-                  )}
-                </div>
-              )}
-
-              <a
-                href={publicHref(`/discover/${selected.slug}`)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-block text-xs font-semibold text-brand-dark hover:text-brand-dark"
-              >
-                View public event page
-              </a>
-
-              {(can.moderate || can.delete) && <div>
-                <h4 className="text-ink text-sm font-semibold mb-2">Moderation</h4>
-                {actionError && <p className="text-red-600 text-xs mb-2">{actionError}</p>}
-                <div className="flex items-center gap-2 flex-wrap">
-                  {can.moderate && <button
-                    onClick={() => askAction(selected, selected.is_active ? "suspend" : "reactivate")}
-                    disabled={updatingId === selected.id}
-                    className={`text-xs font-semibold px-3 py-2 rounded-lg transition-colors disabled:opacity-50 ${
-                      selected.is_active
-                        ? "text-amber-700 bg-yellow-500/10 hover:bg-yellow-500/20"
-                        : "text-green-700 bg-green-500/10 hover:bg-green-500/20"
-                    }`}
-                  >
-                    {selected.is_active ? "Suspend event" : "Reactivate event"}
-                  </button>}
-                  {can.delete && <button
-                    onClick={() => askAction(selected, "delete")}
-                    disabled={updatingId === selected.id}
-                    className="text-xs font-semibold text-red-600 bg-red-500/10 hover:bg-red-500/20 disabled:opacity-50 px-3 py-2 rounded-lg transition-colors"
-                  >
-                    Delete event
-                  </button>}
-                </div>
-              </div>}
-
-              {can.moderate && selected.is_active && !selected.is_draft && selected.visibility !== "private" && (
-                <div>
-                  <h4 className="text-ink text-sm font-semibold mb-1">Featuring</h4>
-                  <p className="text-faint text-xs leading-relaxed mb-3">
-                    {isFeatured(selected)
-                      ? `Shown first on the landing page and Discover until ${new Date(selected.featured_until!).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}.`
-                      : "Show this event first on the landing page and Discover, with a Featured label."}
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {[7, 14, 30].map((d) => (
-                      <button
-                        key={d}
-                        type="button"
-                        onClick={() => feature(selected, d)}
-                        disabled={featuring}
-                        className="text-xs font-semibold px-3 py-2 rounded-lg bg-brand/10 text-brand-dark hover:bg-brand/20 disabled:opacity-50"
-                      >
-                        {isFeatured(selected) ? `Extend: ${d} days from now` : `Feature for ${d} days`}
-                      </button>
-                    ))}
-                    {isFeatured(selected) && (
-                      <button
-                        type="button"
-                        onClick={() => feature(selected, 0)}
-                        disabled={featuring}
-                        className="text-xs font-semibold px-3 py-2 rounded-lg text-muted bg-mist hover:text-ink disabled:opacity-50"
-                      >
-                        Stop featuring
-                      </button>
-                    )}
                   </div>
-                </div>
-              )}
+                )}
+              </div>
+            )}
 
+            <a
+              href={publicHref(`/discover/${selected.slug}`)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block text-xs font-semibold text-brand-dark hover:text-brand-dark"
+            >
+              View public event page
+            </a>
+
+            {(can.moderate || can.delete) && <div>
+              <h4 className="text-ink text-sm font-semibold mb-2">Moderation</h4>
+              {actionError && <p className="text-red-600 text-xs mb-2">{actionError}</p>}
+              <div className="flex items-center gap-2 flex-wrap">
+                {can.moderate && <button
+                  onClick={() => askAction(selected, selected.is_active ? "suspend" : "reactivate")}
+                  disabled={updatingId === selected.id}
+                  className={`text-xs font-semibold px-3 py-2 rounded-lg transition-colors disabled:opacity-50 ${
+                    selected.is_active
+                      ? "text-amber-700 bg-yellow-500/10 hover:bg-yellow-500/20"
+                      : "text-green-700 bg-green-500/10 hover:bg-green-500/20"
+                  }`}
+                >
+                  {selected.is_active ? "Suspend event" : "Reactivate event"}
+                </button>}
+                {can.delete && <button
+                  onClick={() => askAction(selected, "delete")}
+                  disabled={updatingId === selected.id}
+                  className="text-xs font-semibold text-red-600 bg-red-500/10 hover:bg-red-500/20 disabled:opacity-50 px-3 py-2 rounded-lg transition-colors"
+                >
+                  Delete event
+                </button>}
+              </div>
+            </div>}
+
+            {can.moderate && selected.is_active && !selected.is_draft && selected.visibility !== "private" && (
               <div>
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="text-ink text-sm font-semibold">
-                    Attendees{attendees ? ` (${attendees.length})` : ""}
-                  </h4>
-                  {attendees && attendees.length > 0 && (
+                <h4 className="text-ink text-sm font-semibold mb-1">Featuring</h4>
+                <p className="text-faint text-xs leading-relaxed mb-3">
+                  {isFeatured(selected)
+                    ? `Shown first on the landing page and Discover until ${new Date(selected.featured_until!).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}.`
+                    : "Show this event first on the landing page and Discover, with a Featured label."}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {[7, 14, 30].map((d) => (
                     <button
-                      onClick={() => downloadAttendeesCsv(selected, attendees)}
-                      className="text-xs font-semibold text-brand-dark bg-blue-500/10 hover:bg-blue-500/20 px-3 py-1.5 rounded-lg transition-colors"
+                      key={d}
+                      type="button"
+                      onClick={() => feature(selected, d)}
+                      disabled={featuring}
+                      className="text-xs font-semibold px-3 py-2 rounded-lg bg-brand/10 text-brand-dark hover:bg-brand/20 disabled:opacity-50"
                     >
-                      Export CSV
+                      {isFeatured(selected) ? `Extend: ${d} days from now` : `Feature for ${d} days`}
+                    </button>
+                  ))}
+                  {isFeatured(selected) && (
+                    <button
+                      type="button"
+                      onClick={() => feature(selected, 0)}
+                      disabled={featuring}
+                      className="text-xs font-semibold px-3 py-2 rounded-lg text-muted bg-mist hover:text-ink disabled:opacity-50"
+                    >
+                      Stop featuring
                     </button>
                   )}
                 </div>
-                {attendeesLoading ? (
-                  <p className="text-faint text-sm">Loading…</p>
-                ) : attendeesError ? (
-                  <p className="text-faint text-sm">{attendeesError}</p>
-                ) : attendees && attendees.length > 0 ? (
-                  <div className="space-y-2">
-                    {attendees.map((a) => (
-                      <div
-                        key={a.ticket_id}
-                        className="flex items-center justify-between gap-2 bg-mist rounded-lg px-3 py-2"
-                      >
-                        <div className="min-w-0">
-                          <p className="text-ink text-xs font-medium truncate">{a.current_owner_name}</p>
-                          <p className="text-faint text-[11px] truncate">{a.current_owner_email}</p>
-                        </div>
-                        <span
-                          className={`shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                            a.checked_in ? "bg-green-500/10 text-green-700" : "bg-gray-500/10 text-muted"
-                          }`}
-                        >
-                          {a.checked_in ? "Checked in" : "Not checked in"}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-faint text-sm">No attendees yet.</p>
+              </div>
+            )}
+
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-ink text-sm font-semibold">
+                  Attendees{attendees ? ` (${attendees.length})` : ""}
+                </h4>
+                {attendees && attendees.length > 0 && (
+                  <button
+                    onClick={() => downloadAttendeesCsv(selected, attendees)}
+                    className="text-xs font-semibold text-brand-dark bg-blue-500/10 hover:bg-blue-500/20 px-3 py-1.5 rounded-lg transition-colors"
+                  >
+                    Export CSV
+                  </button>
                 )}
               </div>
+              {attendeesLoading ? (
+                <p className="text-faint text-sm">Loading…</p>
+              ) : attendeesError ? (
+                <p className="text-faint text-sm">{attendeesError}</p>
+              ) : attendees && attendees.length > 0 ? (
+                <div className="space-y-2">
+                  {attendees.map((a) => (
+                    <div
+                      key={a.ticket_id}
+                      className="flex items-center justify-between gap-2 bg-mist rounded-lg px-3 py-2"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-ink text-xs font-medium truncate">{a.current_owner_name}</p>
+                        <p className="text-faint text-[11px] truncate">{a.current_owner_email}</p>
+                      </div>
+                      <span
+                        className={`shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                          a.checked_in ? "bg-green-500/10 text-green-700" : "bg-gray-500/10 text-muted"
+                        }`}
+                      >
+                        {a.checked_in ? "Checked in" : "Not checked in"}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-faint text-sm">No attendees yet.</p>
+              )}
             </div>
           </div>
-        </div>
+        </SidePanel>
       )}
 
     </div>
