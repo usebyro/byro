@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useAdminMe } from "@/components/admin/AdminMe";
+import { useConfirm } from "@/components/admin/ui";
 import { publicHref } from "@/lib/adminNav";
 import { formatNaira } from "@/lib/eventFormat";
 
@@ -40,6 +41,7 @@ function Stat({ label, value }: { label: string; value: React.ReactNode }) {
 /** The fuller picture of one person, shown in the Users side panel, with messaging and delete controls. */
 export default function UserDetails({ userId, onDeleted }: { userId: number; onDeleted: () => void }) {
   const me = useAdminMe();
+  const confirm = useConfirm();
   const [data, setData] = useState<Summary | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -67,7 +69,15 @@ export default function UserDetails({ userId, onDeleted }: { userId: number; onD
   const toggleMessaging = async () => {
     if (!data?.profile) return;
     const blocked = !data.profile.messaging_blocked;
-    if (!window.confirm(blocked ? "Stop this person sending community messages? Anything scheduled is cancelled." : "Let this person send messages again?")) return;
+    if (blocked) {
+      const ok = await confirm({
+        title: "Block this person from messaging?",
+        body: "They won't be able to send or schedule community messages. Anything they've already scheduled is cancelled for good.",
+        confirmLabel: "Block messaging",
+        tone: "danger",
+      });
+      if (!ok) return;
+    }
     setBusy(true);
     try {
       const res = await fetch(`/api/admin/users/${userId}/messaging`, { method: "POST", body: JSON.stringify({ blocked }) });
@@ -82,8 +92,12 @@ export default function UserDetails({ userId, onDeleted }: { userId: number; onD
   };
 
   const saveFee = async (value: string | null) => {
-    const label = value === null ? "the default fee" : `a ${value}% fee`;
-    if (!window.confirm(`Put this organiser on ${label}? It applies to their new orders only.`)) return;
+    const ok = await confirm({
+      title: value === null ? "Put this organiser back on the default fee?" : `Give this organiser a ${value}% fee?`,
+      body: "It applies to their new orders straight away. Orders they've already been paid for keep their fee.",
+      confirmLabel: value === null ? "Use default fee" : `Set ${value}% fee`,
+    });
+    if (!ok) return;
     setBusy(true);
     try {
       const res = await fetch(`/api/admin/users/${userId}/fee`, { method: "PATCH", body: JSON.stringify({ fee_percent: value }) });

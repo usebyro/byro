@@ -1,6 +1,7 @@
 "use client";
 
 import { useAdminMe } from "@/components/admin/AdminMe";
+import { useConfirm } from "@/components/admin/ui";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 interface Progress {
@@ -60,7 +61,7 @@ export default function AdminRefundsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [sending, setSending] = useState<number | null>(null);
-  const [confirm, setConfirm] = useState<{ event: EventRefunds; lowBalance?: string } | null>(null);
+  const ask = useConfirm();
   const looping = useRef<Set<number>>(new Set());
 
   const load = useCallback(async () => {
@@ -132,19 +133,46 @@ export default function AdminRefundsPage() {
       const { res, json } = await post(e.event_id, { action: "send", ...(confirmLow ? { confirm_low_balance: true } : {}) });
       if (res.status === 409 && json.code === "low_balance") {
         setSending(null);
-        setConfirm({ event: e, lowBalance: json.error });
+        void askSend(e, json.error);
         return;
       }
       if (!res.ok) throw new Error(json.error || "failed");
-      setConfirm(null);
       setProgress(e.event_id, json);
       setSending(null);
       void drain(e.event_id);
     } catch (err) {
-      setConfirm(null);
       setSending(null);
       setError(err instanceof Error && err.message !== "failed" ? err.message : "Couldn't send those refunds. Please try again.");
     }
+  };
+
+  // Ask before sending money back. If Paystack's balance looks too low, the server says so and we ask again, with the warning.
+  const askSend = async (e: EventRefunds, lowBalance?: string) => {
+    const n = e.progress.awaiting;
+    const ok = await ask({
+      title: lowBalance ? "Paystack's balance looks too low" : `Send ${n} refund${n === 1 ? "" : "s"} for ${e.name}?`,
+      body: (
+        <>
+          <p>
+            {n} buyer{n === 1 ? "" : "s"} get <b className="text-ink">{naira(e.progress.awaiting_amount)}</b> back in total: the
+            ticket price they paid, to the card or bank account they used. Byro&apos;s service fee and Paystack&apos;s charge
+            aren&apos;t refunded. This can&apos;t be undone.
+          </p>
+          <p className="mt-2 text-muted">
+            Paystack balance: {data?.paystack_balance != null ? naira(data.paystack_balance) : "couldn't be checked"}.
+          </p>
+          {lowBalance && (
+            <p className="mt-3 rounded-lg bg-waiting-tint px-3 py-2 text-waiting">
+              {lowBalance} Refunds can also come out of the next payout, but any Paystack can&apos;t cover will fail and can be
+              retried after you top up.
+            </p>
+          )}
+        </>
+      ),
+      confirmLabel: lowBalance ? "Send anyway" : `Send ${naira(e.progress.awaiting_amount)}`,
+      tone: lowBalance ? "danger" : "primary",
+    });
+    if (ok) send(e, Boolean(lowBalance));
   };
 
   const retry = async (e: EventRefunds) => {
@@ -228,7 +256,7 @@ export default function AdminRefundsPage() {
                       <button
                         type="button"
                         disabled={busy}
-                        onClick={() => setConfirm({ event: e })}
+                        onClick={() => askSend(e)}
                         className="h-9 px-4 rounded-lg bg-brand text-white text-xs font-semibold hover:bg-brand-dark disabled:opacity-50"
                       >
                         Send {p.awaiting} refund{p.awaiting === 1 ? "" : "s"} · {naira(p.awaiting_amount)}
@@ -304,42 +332,6 @@ export default function AdminRefundsPage() {
         </div>
       )}
 
-      {confirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 px-4" role="dialog" aria-modal="true" aria-label="Send refunds">
-          <div className="w-full max-w-md rounded-xl border border-line bg-white p-5">
-            <h3 className="text-ink font-semibold">Send these refunds?</h3>
-            <p className="text-[#3B4252] text-sm mt-3">
-              {confirm.event.progress.awaiting} buyer{confirm.event.progress.awaiting === 1 ? "" : "s"} of{" "}
-              <b className="text-ink">{confirm.event.name}</b> will get{" "}
-              <b className="text-ink">{naira(confirm.event.progress.awaiting_amount)}</b> back, the ticket price
-              they paid, on the card or bank account they used. Byro&apos;s service fee and Paystack&apos;s charge are
-              not refunded.
-            </p>
-            <p className="text-muted text-xs mt-3">
-              Paystack balance: {data?.paystack_balance != null ? naira(data.paystack_balance) : "couldn't be checked"}.
-            </p>
-            {confirm.lowBalance && (
-              <p role="alert" className="mt-3 rounded-lg border border-yellow-500/30 bg-yellow-500/5 px-3 py-2 text-xs text-amber-700">
-                {confirm.lowBalance} Refunds can also be taken from your next payout, but any Paystack can&apos;t
-                cover will fail and can be retried after you top up.
-              </p>
-            )}
-            <div className="mt-5 flex justify-end gap-2">
-              <button type="button" onClick={() => setConfirm(null)} className="h-9 px-4 rounded-lg border border-line text-[#3B4252] text-xs font-semibold hover:bg-mist">
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={sending === confirm.event.event_id}
-                onClick={() => send(confirm.event, Boolean(confirm.lowBalance))}
-                className="h-9 px-4 rounded-lg bg-brand text-white text-xs font-semibold hover:bg-brand-dark disabled:opacity-50"
-              >
-                {confirm.lowBalance ? "Send anyway" : "Send refunds"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

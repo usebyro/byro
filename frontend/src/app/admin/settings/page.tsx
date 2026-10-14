@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useAdminMe } from "@/components/admin/AdminMe";
+import { useConfirm } from "@/components/admin/ui";
 import { publicHref } from "@/lib/adminNav";
 import { formatNaira } from "@/lib/eventFormat";
 
@@ -17,6 +18,7 @@ interface Settings {
 export default function AdminSettingsPage() {
   const me = useAdminMe();
   const isOwner = me.role === "owner";
+  const confirm = useConfirm();
   const [data, setData] = useState<Settings | null>(null);
   const [draft, setDraft] = useState("");
   const [error, setError] = useState("");
@@ -47,7 +49,12 @@ export default function AdminSettingsPage() {
 
   const save = async () => {
     if (!data || !changed) return;
-    if (!window.confirm(`Change Byro's default service fee from ${data.default_fee_percent}% to ${pct}%?\n\nIt applies to new orders straight away, for every organiser without a special fee. Orders already paid keep their fee.`)) return;
+    const ok = await confirm({
+      title: `Change the default fee from ${data.default_fee_percent}% to ${pct}%?`,
+      body: "It applies to new orders straight away, for every organiser without a special fee. Orders already paid, and payouts, keep their fee.",
+      confirmLabel: `Change to ${pct}%`,
+    });
+    if (!ok) return;
     setSaving(true);
     try {
       const res = await fetch("/api/admin/settings", { method: "PATCH", body: JSON.stringify({ default_fee_percent: draft.trim() }) });

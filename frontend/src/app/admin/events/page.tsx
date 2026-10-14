@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { formatNaira, isPaidEvent, priceLabel } from "@/lib/eventFormat";
 import { useAdminMe } from "@/components/admin/AdminMe";
+import { useConfirm } from "@/components/admin/ui";
 import { publicHref } from "@/lib/adminNav";
 
 interface EventTier {
@@ -260,9 +261,7 @@ export default function AdminEventsPage() {
 
   const [updatingId, setUpdatingId] = useState<number | null>(null);
   const [actionError, setActionError] = useState("");
-  const [confirming, setConfirming] = useState<
-    { event: Event; action: "suspend" | "reactivate" | "delete" } | null
-  >(null);
+  const confirm = useConfirm();
 
   const [featuring, setFeaturing] = useState(false);
   const isFeatured = (e: Event) => Boolean(e.is_featured);
@@ -335,7 +334,6 @@ export default function AdminEventsPage() {
   const runAction = async (event: Event, action: "suspend" | "reactivate" | "delete") => {
     setUpdatingId(event.id);
     setActionError("");
-    setConfirming(null);
     try {
       if (action === "delete") {
         const res = await fetch(`/api/admin/events/${event.id}`, { method: "DELETE" });
@@ -363,6 +361,31 @@ export default function AdminEventsPage() {
     } finally {
       setUpdatingId(null);
     }
+  };
+
+  // One proper dialog for each action, saying exactly what will happen.
+  const askAction = async (event: Event, action: "suspend" | "reactivate" | "delete") => {
+    const copy = {
+      suspend: {
+        title: `Suspend “${event.name}”?`,
+        body: "It comes off Discover and its page, nobody can buy tickets, and the organiser is told by email. You can reactivate it later.",
+        confirmLabel: "Suspend event",
+        tone: "danger" as const,
+      },
+      reactivate: {
+        title: `Reactivate “${event.name}”?`,
+        body: "It goes back on Byro and can sell tickets again. The organiser is told by email.",
+        confirmLabel: "Reactivate event",
+        tone: "primary" as const,
+      },
+      delete: {
+        title: `Delete “${event.name}” for good?`,
+        body: "The event and its data are removed permanently. This can't be undone. Events with paid tickets or unfinished refunds can't be deleted; suspend them instead.",
+        confirmLabel: "Delete event",
+        tone: "danger" as const,
+      },
+    }[action];
+    if (await confirm(copy)) runAction(event, action);
   };
 
   const selectedOverview = selected ? overview[selected.id] : undefined;
@@ -578,12 +601,7 @@ export default function AdminEventsPage() {
                 {actionError && <p className="text-red-600 text-xs mb-2">{actionError}</p>}
                 <div className="flex items-center gap-2 flex-wrap">
                   {can.moderate && <button
-                    onClick={() =>
-                      setConfirming({
-                        event: selected,
-                        action: selected.is_active ? "suspend" : "reactivate",
-                      })
-                    }
+                    onClick={() => askAction(selected, selected.is_active ? "suspend" : "reactivate")}
                     disabled={updatingId === selected.id}
                     className={`text-xs font-semibold px-3 py-2 rounded-lg transition-colors disabled:opacity-50 ${
                       selected.is_active
@@ -594,7 +612,7 @@ export default function AdminEventsPage() {
                     {selected.is_active ? "Suspend event" : "Reactivate event"}
                   </button>}
                   {can.delete && <button
-                    onClick={() => setConfirming({ event: selected, action: "delete" })}
+                    onClick={() => askAction(selected, "delete")}
                     disabled={updatingId === selected.id}
                     className="text-xs font-semibold text-red-600 bg-red-500/10 hover:bg-red-500/20 disabled:opacity-50 px-3 py-2 rounded-lg transition-colors"
                   >
@@ -685,49 +703,6 @@ export default function AdminEventsPage() {
         </div>
       )}
 
-      {/* Suspend/reactivate/delete confirmation modal */}
-      {confirming && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-ink/50" onClick={() => setConfirming(null)} />
-          <div className="relative w-full max-w-sm bg-white border border-line rounded-xl p-6 shadow-[0_20px_50px_rgba(20,22,28,0.14)]">
-            <h3 className="text-ink font-semibold text-sm mb-2">
-              {confirming.action === "suspend" && "Suspend this event?"}
-              {confirming.action === "reactivate" && "Reactivate this event?"}
-              {confirming.action === "delete" && "Delete this event?"}
-            </h3>
-            <p className="text-muted text-xs leading-relaxed mb-5">
-              {confirming.action === "suspend" &&
-                `${confirming.event.name} will be hidden from discovery and can't accept new registrations.`}
-              {confirming.action === "reactivate" &&
-                `${confirming.event.name} will be visible on the platform again.`}
-              {confirming.action === "delete" &&
-                `${confirming.event.name} and its data will be permanently removed. This cannot be undone.`}
-            </p>
-            <div className="flex items-center justify-end gap-2">
-              <button
-                onClick={() => setConfirming(null)}
-                className="text-xs font-semibold text-[#3B4252] hover:text-ink px-3 py-2 rounded-lg hover:bg-mist transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => runAction(confirming.event, confirming.action)}
-                className={`text-xs font-semibold px-3 py-2 rounded-lg transition-colors ${
-                  confirming.action === "delete"
-                    ? "text-red-600 bg-red-500/10 hover:bg-red-500/20"
-                    : confirming.action === "suspend"
-                      ? "text-amber-700 bg-yellow-500/10 hover:bg-yellow-500/20"
-                      : "text-green-700 bg-green-500/10 hover:bg-green-500/20"
-                }`}
-              >
-                {confirming.action === "suspend" && "Confirm suspend"}
-                {confirming.action === "reactivate" && "Confirm reactivate"}
-                {confirming.action === "delete" && "Confirm delete"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

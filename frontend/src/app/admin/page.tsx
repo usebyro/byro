@@ -51,12 +51,15 @@ interface ActivityPoint {
 
 interface ActivityChartPoint {
   day: string;
+  /** Longer label for the hover box, e.g. "Week of 12 Jan". */
+  label: string;
   tickets: number;
   events: number;
 }
 
 interface ChartPoint {
   day: string;
+  label: string;
   revenue: number;
 }
 
@@ -68,45 +71,60 @@ const REVENUE_RANGES = [
   { label: "1Y", days: 365 },
 ];
 
-// The revenue-trend endpoint only returns days that had successful payments, so
-// zero-fill the gaps to keep the line continuous across the whole range.
-function fillTrend(rows: RevenueTrendPoint[], days: number): ChartPoint[] {
-  const byDate = new Map(rows.map((r) => [r.date, Number(r.revenue) || 0]));
+// The trend endpoints only return days that had activity, so every day in the range is filled with zeros first.
+// Long ranges are then grouped, so a phone-width chart shows a readable line instead of 90-365 spiky points:
+// daily up to a month, weekly up to six months, monthly for a year.
+type Bucket = "day" | "week" | "month";
+
+function bucketFor(days: number): Bucket {
+  if (days <= 31) return "day";
+  if (days <= 180) return "week";
+  return "month";
+}
+
+const isoDay = (d: Date) => d.toISOString().slice(0, 10);
+const SHORT = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short" });
+const WEEKDAY = new Intl.DateTimeFormat("en-GB", { weekday: "short" });
+const MONTH = new Intl.DateTimeFormat("en-GB", { month: "short" });
+const MONTH_YEAR = new Intl.DateTimeFormat("en-GB", { month: "long", year: "numeric" });
+
+/** Group `days` days ending today into buckets, summing `values(dateIso)` into each. */
+function series<K extends string>(days: number, keys: K[], values: (iso: string) => Record<K, number>) {
+  const bucket = bucketFor(days);
   const today = new Date();
-  const out: ChartPoint[] = [];
+  const groups: { start: Date; sums: Record<K, number> }[] = [];
   for (let i = days - 1; i >= 0; i--) {
     const d = new Date(today);
     d.setDate(d.getDate() - i);
-    const iso = d.toISOString().slice(0, 10);
-    out.push({
-      day:
-        days <= 14
-          ? d.toLocaleDateString("en-US", { weekday: "short" })
-          : d.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-      revenue: byDate.get(iso) ?? 0,
-    });
+    const prev = groups[groups.length - 1];
+    const startsNew =
+      !prev ||
+      bucket === "day" ||
+      (bucket === "week" && d.getDay() === 1) || // weeks start on Monday
+      (bucket === "month" && d.getDate() === 1);
+    if (startsNew) groups.push({ start: d, sums: Object.fromEntries(keys.map((k) => [k, 0])) as Record<K, number> });
+    const cur = groups[groups.length - 1];
+    const v = values(isoDay(d));
+    keys.forEach((k) => (cur.sums[k] += v[k] || 0));
   }
-  return out;
+  return groups.map(({ start, sums }) => ({
+    day: bucket === "day" ? (days <= 14 ? WEEKDAY.format(start) : SHORT.format(start)) : bucket === "week" ? SHORT.format(start) : MONTH.format(start),
+    label: bucket === "day" ? SHORT.format(start) : bucket === "week" ? `Week of ${SHORT.format(start)}` : MONTH_YEAR.format(start),
+    ...sums,
+  }));
+}
+
+function fillTrend(rows: RevenueTrendPoint[], days: number): ChartPoint[] {
+  const byDate = new Map(rows.map((r) => [r.date, Number(r.revenue) || 0]));
+  return series(days, ["revenue"], (iso) => ({ revenue: byDate.get(iso) ?? 0 }));
 }
 
 function fillActivity(rows: ActivityPoint[], days: number): ActivityChartPoint[] {
   const byDate = new Map(rows.map((r) => [r.date, r]));
-  const today = new Date();
-  const out: ActivityChartPoint[] = [];
-  for (let i = days - 1; i >= 0; i--) {
-    const d = new Date(today);
-    d.setDate(d.getDate() - i);
-    const hit = byDate.get(d.toISOString().slice(0, 10));
-    out.push({
-      day:
-        days <= 14
-          ? d.toLocaleDateString("en-US", { weekday: "short" })
-          : d.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-      tickets: hit?.tickets ?? 0,
-      events: hit?.events ?? 0,
-    });
-  }
-  return out;
+  return series(days, ["tickets", "events"], (iso) => ({
+    tickets: byDate.get(iso)?.tickets ?? 0,
+    events: byDate.get(iso)?.events ?? 0,
+  }));
 }
 
 // Byro's stamp colours, in order of size; "Other" is always the quiet grey.
@@ -301,16 +319,19 @@ export default function AdminDashboardPage() {
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.18)" vertical={false} />
               <XAxis
                 dataKey="day"
-                tick={{ fill: "rgba(255,255,255,0.8)", fontSize: 11 }}
+                tick={{ fill: "rgba(255,255,255,0.8)", fontSize: 12 }}
                 axisLine={false}
                 tickLine={false}
-                interval={revenueRangeDays > 14 ? Math.ceil(revenueRangeDays / 8) : 0}
+                interval="preserveStartEnd"
+                minTickGap={28}
+                tickMargin={8}
               />
               <YAxis
                 tick={{ fill: "rgba(255,255,255,0.8)", fontSize: 11 }}
                 axisLine={false}
                 tickLine={false}
                 tickFormatter={fmtNairaCompact}
+                width={48}
                 domain={[0, (max: number) => Math.max(max, 1000)]}
                 allowDecimals={false}
               />
@@ -318,13 +339,15 @@ export default function AdminDashboardPage() {
                 cursor={{ stroke: "rgba(255,255,255,0.4)" }}
                 contentStyle={{ background: "#fff", border: "none", borderRadius: 12, fontSize: 12, color: "#14161C", boxShadow: "0 12px 30px rgba(20,22,28,0.25)" }}
                 formatter={(value) => [fmtNaira(Number(value)), "Revenue"]}
+                labelFormatter={(_, payload) => payload?.[0]?.payload?.label ?? ""}
               />
               <Line
                 type="monotone"
                 dataKey="revenue"
                 stroke="#fff"
                 strokeWidth={3}
-                dot={revenueRangeDays <= 14 ? { r: 3.5, fill: "#fff", stroke: "#3669F6", strokeWidth: 2 } : false}
+                dot={revenueTrend.length <= 31 && revenueRangeDays <= 14 ? { r: 3.5, fill: "#fff", stroke: "#3669F6", strokeWidth: 2 } : false}
+                isAnimationActive={false}
                 activeDot={{ r: 5, fill: "#FFC93C", stroke: "#fff", strokeWidth: 2 }}
               />
             </LineChart>
@@ -378,19 +401,22 @@ export default function AdminDashboardPage() {
               <CartesianGrid strokeDasharray="3 3" stroke="#EDF0F5" vertical={false} />
               <XAxis
                 dataKey="day"
-                tick={{ fill: "#8A91A0", fontSize: 11 }}
+                tick={{ fill: "#8A91A0", fontSize: 12 }}
                 axisLine={false}
                 tickLine={false}
-                interval={activityRangeDays > 14 ? Math.ceil(activityRangeDays / 8) : 0}
+                interval="preserveStartEnd"
+                minTickGap={28}
+                tickMargin={8}
               />
               <YAxis yAxisId="tickets" tick={{ fill: "#8A91A0", fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} width={32} />
               <YAxis yAxisId="events" orientation="right" tick={{ fill: "#8A91A0", fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} width={32} />
               <Tooltip
                 contentStyle={{ background: "#fff", border: "1px solid #E3E8F0", borderRadius: 12, fontSize: 12, color: "#14161C", boxShadow: "0 12px 30px rgba(20,22,28,0.12)" }}
                 formatter={(value, name) => [Number(value).toLocaleString(), name === "tickets" ? "Tickets sold" : "Events created"]}
+                labelFormatter={(_, payload) => payload?.[0]?.payload?.label ?? ""}
               />
-              <Line yAxisId="tickets" type="monotone" dataKey="tickets" stroke="#3669F6" strokeWidth={3} dot={activityRangeDays <= 14 ? { r: 3, fill: "#3669F6" } : false} />
-              <Line yAxisId="events" type="monotone" dataKey="events" stroke="#FFC93C" strokeWidth={3} dot={activityRangeDays <= 14 ? { r: 3, fill: "#FFC93C" } : false} />
+              <Line yAxisId="tickets" type="monotone" dataKey="tickets" stroke="#3669F6" strokeWidth={3} dot={activityRangeDays <= 14 ? { r: 3, fill: "#3669F6" } : false} isAnimationActive={false} />
+              <Line yAxisId="events" type="monotone" dataKey="events" stroke="#FFC93C" strokeWidth={3} dot={activityRangeDays <= 14 ? { r: 3, fill: "#FFC93C" } : false} isAnimationActive={false} />
             </LineChart>
           </ResponsiveContainer>
         </div>

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { toast } from "sonner";
 import { useAdminMe } from "@/components/admin/AdminMe";
+import { useConfirm } from "@/components/admin/ui";
 import { publicHref, resolveAdminHref } from "@/lib/adminNav";
 import { formatNaira } from "@/lib/eventFormat";
 
@@ -55,6 +56,7 @@ export default function AdminPaymentDetailPage({ params }: { params: Promise<{ i
   const { id } = use(params);
   const pathname = usePathname();
   const me = useAdminMe();
+  const confirm = useConfirm();
   const [data, setData] = useState<Detail | null>(null);
   const [error, setError] = useState("");
   const [check, setCheck] = useState<Check | null>(null);
@@ -91,7 +93,12 @@ export default function AdminPaymentDetailPage({ params }: { params: Promise<{ i
 
   const issue = async () => {
     if (!data) return;
-    if (!window.confirm(`Paystack shows this as paid. Issue the tickets and email them to ${data.customer_email}?`)) return;
+    const ok = await confirm({
+      title: "Issue the tickets for this order?",
+      body: `Paystack shows it as paid. The tickets are created and emailed to ${data.customer_email}.`,
+      confirmLabel: "Issue tickets",
+    });
+    if (!ok) return;
     setIssuing(true);
     try {
       const res = await fetch(`/api/admin/payments/${id}/paystack`, { method: "POST" });

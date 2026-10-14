@@ -27,6 +27,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { resolveAdminHref } from "@/lib/adminNav";
 import NotificationBell from "@/components/admin/NotificationBell";
+import { ConfirmProvider } from "@/components/admin/ui";
 import { AdminMeContext, ROLE_LABEL, type AdminMe } from "@/components/admin/AdminMe";
 
 const navItems = [
@@ -229,7 +230,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       )}
 
       <main className="flex-1 overflow-y-auto min-w-0 pt-14">
-        <AdminMeContext.Provider value={me}>{children}</AdminMeContext.Provider>
+        <AdminMeContext.Provider value={me}>
+          <ConfirmProvider>{children}</ConfirmProvider>
+        </AdminMeContext.Provider>
       </main>
     </div>
   );
