@@ -1,5 +1,6 @@
 "use client";
 
+import VerifiedBadge from "@/components/community/VerifiedBadge";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
@@ -208,7 +209,10 @@ export default function CommunitiesPage() {
                     <div className="flex items-center gap-3.5">
                       <Avatar community={featured} size={60} />
                       <div className="flex min-w-0 flex-col">
-                        <span className="truncate font-display text-[26px] font-bold tracking-[-0.02em] md:text-[32px]">{featured.name}</span>
+                        <span className="truncate font-display text-[26px] font-bold tracking-[-0.02em] md:text-[32px]">
+                          {featured.name}
+                          {featured.verified && <VerifiedBadge size={22} className="ml-1.5" />}
+                        </span>
                         <span className="truncate text-sm text-muted">
                           @{featured.handle}
                           {featured.location ? ` · ${featured.location}` : ""}
@@ -264,6 +268,7 @@ export default function CommunitiesPage() {
                             className="font-display text-[22px] font-bold tracking-[-0.01em] hover:text-brand focus:outline-none focus-visible:underline"
                           >
                             {c.name}
+                            {c.verified && <VerifiedBadge size={18} className="ml-1.5" />}
                           </Link>
                           <span className="text-[13px] text-muted">
                             @{c.handle}

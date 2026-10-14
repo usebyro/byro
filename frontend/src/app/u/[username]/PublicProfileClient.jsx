@@ -8,6 +8,7 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import ShareMenu from "@/components/ShareMenu";
 import FollowButton from "@/components/community/FollowButton";
+import VerifiedBadge from "@/components/community/VerifiedBadge";
 import EventImage from "@/components/brand/EventImage";
 import { categoryTone, dayParts, eventInitials, formatTime, priceLabel } from "@/lib/eventFormat";
 
@@ -194,7 +195,10 @@ export default function PublicProfileClient({ username }) {
           </div>
 
           <div className="flex flex-col gap-2.5 px-2 pt-4 md:px-8">
-            <h1 className="text-balance font-display text-[34px] font-bold leading-none tracking-[-0.035em] md:text-[44px]">{name}</h1>
+            <h1 className="text-balance font-display text-[34px] font-bold leading-none tracking-[-0.035em] md:text-[44px]">
+              {name}
+              {profile.verified && <VerifiedBadge size={28} className="ml-2 -mt-1" />}
+            </h1>
             <span className="text-[15px] text-muted">{meta}</span>
             {profile.bio?.trim() && (
               <p className="max-w-[62ch] text-pretty text-[17px] leading-[1.55] text-[#3B4252]">{profile.bio}</p>

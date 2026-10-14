@@ -127,3 +127,61 @@ class MessagingBlockTests(AdminBase):
         self.assertEqual(self.block(user=self.viewer).status_code, 403)
         self.assertEqual(self.block(user=self.fan('rando@example.com')).status_code, 403)
         self.assertFalse(UserProfile.objects.get(user=self.owner).messaging_blocked)
+
+
+class CommunityModerationTests(AdminBase):
+    """Hide from the directory, verify, and take down merch."""
+
+    def setUp(self):
+        super().setUp()
+        from .models import MerchItem
+        self.item = MerchItem.objects.create(owner=self.owner, name='Club tee', price=5000)
+
+    def patch(self, url, body, who=None):
+        self.as_(who or self.boss)
+        return self.client.patch(url, body, format='json')
+
+    def directory_handles(self):
+        self.as_(None)
+        return [c['handle'] for c in self.client.get('/api/communities/').json()['results']]
+
+    def test_hiding_takes_a_community_out_of_the_directory_but_its_page_still_works(self):
+        self.assertEqual(self.directory_handles(), ['lagosrun'])
+        res = self.patch(f'/api/admin/communities/{self.owner.pk}/', {'hidden_from_directory': True})
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(self.directory_handles(), [])
+        self.assertEqual(self.client.get('/api/profile/lagosrun/').status_code, 200)
+        self.assertTrue(AdminAction.objects.filter(action=AdminAction.ACTION_COMMUNITY_HIDDEN).exists())
+        self.patch(f'/api/admin/communities/{self.owner.pk}/', {'hidden_from_directory': False})
+        self.assertEqual(self.directory_handles(), ['lagosrun'])
+
+    def test_verified_shows_publicly_and_organisers_cannot_set_it_themselves(self):
+        self.as_(self.owner)
+        self.client.patch('/api/profile/me/', {'verified': True}, format='json')
+        self.assertFalse(UserProfile.objects.get(user=self.owner).verified)
+        self.patch(f'/api/admin/communities/{self.owner.pk}/', {'verified': True})
+        self.as_(None)
+        self.assertTrue(self.client.get('/api/profile/lagosrun/').json()['verified'])
+        self.assertTrue(self.client.get('/api/communities/').json()['results'][0]['verified'])
+
+    def test_removed_merch_never_shows_and_the_organiser_cannot_undo_it(self):
+        res = self.patch(f'/api/admin/merch/{self.item.pk}/', {'removed_by_admin': True})
+        self.assertEqual(res.status_code, 200)
+        self.as_(None)
+        self.assertEqual(self.client.get('/api/profile/lagosrun/').json()['merch_items'], [])
+        self.as_(self.owner)
+        self.client.patch(f'/api/merch/{self.item.pk}/', {'removed_by_admin': False, 'is_active': True}, format='json')
+        self.item.refresh_from_db()
+        self.assertTrue(self.item.removed_by_admin)
+        self.assertTrue(AdminAction.objects.filter(action=AdminAction.ACTION_MERCH_REMOVED).exists())
+
+    def test_the_list_and_detail_and_who_may_change_things(self):
+        self.as_(self.viewer)
+        rows = self.client.get('/api/admin/communities/').json()
+        self.assertEqual([r['handle'] for r in rows], ['lagosrun'])
+        detail = self.client.get(f'/api/admin/communities/{self.owner.pk}/').json()
+        self.assertEqual(len(detail['merch_items']), 1)
+        self.assertEqual(self.patch(f'/api/admin/communities/{self.owner.pk}/', {'verified': True}, who=self.viewer).status_code, 403)
+        self.assertEqual(self.patch(f'/api/admin/merch/{self.item.pk}/', {'removed_by_admin': True}, who=self.viewer).status_code, 403)
+        self.as_(self.fan('rando@example.com'))
+        self.assertEqual(self.client.get('/api/admin/communities/').status_code, 403)

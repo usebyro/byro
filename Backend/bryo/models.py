@@ -129,6 +129,10 @@ class UserProfile(models.Model):
     whatsapp = models.CharField(max_length=100, blank=True)  # a group or chat link, e.g. chat.whatsapp.com/XXXX
     # Set by Byro admins: stops this organiser sending community messages (Dashboard > Messages).
     messaging_blocked = models.BooleanField(default=False)
+    # Set by Byro admins. Hidden: left out of the communities directory (the page still works by link).
+    # Verified: Byro has checked this organiser is who they say; shown as a badge.
+    hidden_from_directory = models.BooleanField(default=False)
+    verified = models.BooleanField(default=False)
     # What kind of community this is, shown beside the location on the community page.
     CATEGORY_CHOICES = [
         ('tech', 'Tech'), ('music', 'Music'), ('fitness', 'Fitness'),
@@ -793,6 +797,8 @@ class MerchItem(models.Model):
     purchase_link = models.URLField(blank=True, help_text="Where buyers go to purchase this item")
     stock = models.PositiveIntegerField(null=True, blank=True, help_text="Blank = unlimited")
     is_active = models.BooleanField(default=True, help_text="Shown on the public profile when on")
+    # Set by Byro admins. A removed item never shows publicly, whatever the organiser sets.
+    removed_by_admin = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -1082,6 +1088,12 @@ class AdminAction(models.Model):
     ACTION_ORDER_FULFILLED = 'order.fulfilled'
     ACTION_PROMO_DISABLED = 'promo.disabled'
     ACTION_PROMO_ENABLED = 'promo.enabled'
+    ACTION_COMMUNITY_HIDDEN = 'community.hidden'
+    ACTION_COMMUNITY_SHOWN = 'community.shown'
+    ACTION_COMMUNITY_VERIFIED = 'community.verified'
+    ACTION_COMMUNITY_UNVERIFIED = 'community.unverified'
+    ACTION_MERCH_REMOVED = 'merch.removed'
+    ACTION_MERCH_RESTORED = 'merch.restored'
     ACTION_MESSAGING_BLOCKED = 'user.messaging_blocked'
     ACTION_MESSAGING_UNBLOCKED = 'user.messaging_unblocked'
 
@@ -1109,6 +1121,12 @@ class AdminAction(models.Model):
         (ACTION_ORDER_FULFILLED, 'Tickets issued by support after Paystack confirmed'),
         (ACTION_PROMO_DISABLED, 'Promo code switched off'),
         (ACTION_PROMO_ENABLED, 'Promo code switched back on'),
+        (ACTION_COMMUNITY_HIDDEN, 'Community hidden from the directory'),
+        (ACTION_COMMUNITY_SHOWN, 'Community shown in the directory again'),
+        (ACTION_COMMUNITY_VERIFIED, 'Community verified'),
+        (ACTION_COMMUNITY_UNVERIFIED, 'Community verification removed'),
+        (ACTION_MERCH_REMOVED, 'Merch item removed'),
+        (ACTION_MERCH_RESTORED, 'Merch item restored'),
         (ACTION_MESSAGING_BLOCKED, 'Organiser blocked from messaging'),
         (ACTION_MESSAGING_UNBLOCKED, 'Organiser allowed to message again'),
     ]
