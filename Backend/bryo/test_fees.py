@@ -102,3 +102,12 @@ class FeeTests(PaymentTestBase):
     def test_calculation_uses_the_given_rate(self):
         self.assertEqual(calculate_ticket_fees(Decimal('10000'), True, rate=Decimal('0.03'))['service_fee'], Decimal('300'))
         self.assertEqual(calculate_ticket_fees(Decimal('10000'), True)['service_fee'], Decimal('500'))
+
+    def test_settings_show_the_change_history(self):
+        self.set_default('4')
+        self.set_deal(self.owner, '2')
+        data = (self.as_(self.admin) or self.client.get('/api/admin/settings/')).json()
+        self.assertEqual([h['kind'] for h in data['history']], ['organiser', 'default'])
+        self.assertEqual(data['history'][1]['change'], '5% -> 4%')
+        self.assertEqual(data['history'][0]['who'], 'boss@byro.test')
+        self.assertEqual(data['organiser_fees'][0]['fee_percent'], '2')
