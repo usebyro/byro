@@ -4232,6 +4232,29 @@ class AdminPaymentPaystackView(APIView):
         return Response({'issued': len(new_tickets), 'status': p.status})
 
 
+class AdminPromoDetailView(APIView):
+    """PATCH /api/admin/promos/<pk>/ {active: bool} — switch a promo code off (e.g. it is being abused) or back on."""
+    permission_classes = [IsAdminMember]
+    min_role = AdminMember.ROLE_ADMIN
+
+    def patch(self, request, pk):
+        promo = PromoCode.objects.select_related('event').filter(pk=pk).first()
+        if not promo:
+            return Response({'error': 'Promo code not found.'}, status=status.HTTP_404_NOT_FOUND)
+        if 'active' not in request.data:
+            return Response({'error': 'Say whether the code should be on or off.'}, status=status.HTTP_400_BAD_REQUEST)
+        active = bool(request.data.get('active'))
+        if promo.active != active:
+            promo.active = active
+            promo.save(update_fields=['active'])
+            _log_admin_action(
+                request, AdminAction.ACTION_PROMO_ENABLED if active else AdminAction.ACTION_PROMO_DISABLED,
+                'promo', promo.pk, f'{promo.code} ({promo.event.name})'[:255],
+                f'used {promo.redeemed_count} time(s)',
+            )
+        return Response({'id': promo.pk, 'active': promo.active, 'is_valid': promo.is_valid()})
+
+
 class AdminMessagesView(APIView):
     """
     GET /api/admin/messages/?search=&status= — every organiser message, newest first.

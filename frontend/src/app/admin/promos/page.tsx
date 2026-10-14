@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
+import { useAdminMe } from "@/components/admin/AdminMe";
 import { formatNaira } from "@/lib/eventFormat";
 
 interface AdminPromo {
@@ -29,6 +31,8 @@ function formatDate(s: string | null) {
 }
 
 export default function AdminPromosPage() {
+  const { can } = useAdminMe();
+  const [busy, setBusy] = useState<number | null>(null);
   const [promos, setPromos] = useState<AdminPromo[]>([]);
   const [search, setSearch] = useState("");
   const [debounced, setDebounced] = useState("");
@@ -57,6 +61,23 @@ export default function AdminPromosPage() {
     return () => { cancelled = true; };
   }, [debounced]);
 
+  const toggle = async (p: AdminPromo) => {
+    const next = !p.active;
+    if (!window.confirm(next ? `Switch ${p.code} back on?` : `Switch ${p.code} off? Nobody can use it until it's switched back on.`)) return;
+    setBusy(p.id);
+    try {
+      const res = await fetch(`/api/admin/promos/${p.id}`, { method: "PATCH", body: JSON.stringify({ active: next }) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error);
+      setPromos((prev) => prev.map((x) => (x.id === p.id ? { ...x, active: data.active, is_valid: data.is_valid } : x)));
+      toast.success(next ? "Code switched on" : "Code switched off", { description: p.code });
+    } catch (err) {
+      toast.error("Couldn't update code", { description: (err as Error).message || "Try again." });
+    } finally {
+      setBusy(null);
+    }
+  };
+
   return (
     <div className="p-5 md:p-8">
       <div className="mb-8">
@@ -81,8 +102,8 @@ export default function AdminPromosPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-hairline text-left">
-                {["Code", "Event", "Discount", "Used", "Expires", "Status"].map((h) => (
-                  <th key={h} className="pb-3 pr-6 text-xs text-faint font-medium">{h}</th>
+                {["Code", "Event", "Discount", "Used", "Expires", "Status", "On"].map((h, i) => (
+                  <th key={i} className="pb-3 pr-6 text-xs text-faint font-medium">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -101,8 +122,31 @@ export default function AdminPromosPage() {
                     <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
                       p.is_valid ? "bg-green-500/10 text-green-700" : "bg-gray-500/10 text-muted"
                     }`}>
-                      {p.is_valid ? "Valid" : p.active ? "Expired / used up" : "Disabled"}
+                      {p.is_valid ? "Valid" : p.active ? "Expired / used up" : "Switched off"}
                     </span>
+                  </td>
+                  <td className="py-3 pl-4 text-right whitespace-nowrap">
+                    {can.moderate && (
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={p.active}
+                        aria-label={`${p.code} ${p.active ? "on" : "off"}`}
+                        title={p.active ? "Switch off" : "Switch on"}
+                        onClick={() => toggle(p)}
+                        disabled={busy !== null}
+                        className={`inline-flex h-[22px] w-10 shrink-0 rounded-full p-[3px] align-middle transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 disabled:opacity-50 motion-reduce:transition-none ${
+                          p.active ? "bg-brand" : "bg-[#C9D0DC]"
+                        }`}
+                      >
+                        <span
+                          aria-hidden="true"
+                          className={`h-4 w-4 rounded-full bg-white shadow-[0_1px_2px_rgba(20,22,28,0.2)] transition-transform duration-150 ease-out motion-reduce:transition-none ${
+                            p.active ? "translate-x-[18px]" : "translate-x-0"
+                          }`}
+                        />
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
