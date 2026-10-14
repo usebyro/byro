@@ -4,6 +4,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { useAdminMe } from "@/components/admin/AdminMe";
+import { useConfirm } from "@/components/admin/ui";
 import { publicHref } from "@/lib/adminNav";
 import { formatNaira } from "@/lib/eventFormat";
 
@@ -78,6 +79,7 @@ export default function AdminSupportPage() {
 function SupportPage() {
   const params = useSearchParams();
   const me = useAdminMe();
+  const confirm = useConfirm();
   const canAct = me.can.moderate;
   const [q, setQ] = useState("");
   const [orders, setOrders] = useState<SupportOrder[] | null>(null);
@@ -137,34 +139,36 @@ function SupportPage() {
       }
     });
 
-  const toggleCheckin = (t: SupportTicket) => {
-    const question = t.checked_in
-      ? `Undo the check-in for ${t.holder_name || t.holder_email}? Their stamp for this event is removed.`
-      : `Check in ${t.holder_name || t.holder_email} now?`;
-    if (!window.confirm(question)) return;
-    return act(`checkin-${t.ticket_id}`, async () => {
+  // Either way it can be flipped back, so it happens at once and the toast offers Undo.
+  const toggleCheckin = (t: SupportTicket): Promise<void> =>
+    act(`checkin-${t.ticket_id}`, async () => {
       try {
         await post(`/api/admin/support/tickets/${t.ticket_id}/checkin`, { checked_in: !t.checked_in });
-        toast.success(t.checked_in ? "Check-in undone" : "Checked in");
+        toast.success(t.checked_in ? "Check-in undone" : "Checked in", {
+          description: t.checked_in ? `${t.holder_name || t.holder_email}'s stamp for this event was removed` : t.holder_name || t.holder_email,
+          action: { label: "Undo", onClick: () => toggleCheckin({ ...t, checked_in: !t.checked_in }) },
+        });
       } catch (err) {
         toast.error("Couldn't update check-in", { description: (err as Error).message });
       }
     });
-  };
 
-  const refund = (o: SupportOrder) => {
+  const refund = async (o: SupportOrder) => {
     if (!o.payment) return;
     const amount = formatNaira(Number(o.payment.refundable));
-    const reason = window.prompt(
-      `Refund ${amount} to ${o.payment.customer_email} for ${o.event.name}?\n\n` +
-        "Byro's fee and the payment charge are kept. The tickets in this order will stop working. " +
-        "This can't be undone.\n\nReason (the buyer sees this):",
-    );
-    if (reason === null) return;
-    if (!reason.trim()) {
-      toast.error("Add a reason", { description: "The buyer sees it in their email." });
-      return;
-    }
+    const reason = await confirm({
+      title: `Refund ${amount} to ${o.payment.customer_name || o.payment.customer_email}?`,
+      body: (
+        <>
+          For <b>{o.event.name}</b>. Byro&apos;s fee and the payment charge are kept, and the tickets in this order stop working.
+          This can&apos;t be undone.
+        </>
+      ),
+      confirmLabel: `Refund ${amount}`,
+      tone: "danger",
+      input: { label: "Reason (the buyer sees this)", placeholder: "Bought twice by mistake…", required: true, multiline: true },
+    });
+    if (typeof reason !== "string") return;
     return act(`refund-${o.key}`, async () => {
       try {
         const data = await post(`/api/admin/support/orders/${o.payment!.id}/refund`, { reason: reason.trim() });

@@ -2,6 +2,7 @@
 
 import { useAdminMe } from "@/components/admin/AdminMe";
 import UserDetails from "@/components/admin/UserDetails";
+import { useConfirm } from "@/components/admin/ui";
 import { useEffect, useMemo, useState, useCallback } from "react";
 
 interface AdminUser {
@@ -101,7 +102,7 @@ export default function AdminUsersPage() {
   const [selected, setSelected] = useState<AdminUser | null>(null);
   const [savingRole, setSavingRole] = useState(false);
   const [roleError, setRoleError] = useState("");
-  const [confirming, setConfirming] = useState<{ user: AdminUser; action: "suspend" | "reactivate" } | null>(null);
+  const confirm = useConfirm();
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [statusError, setStatusError] = useState("");
 
@@ -183,10 +184,27 @@ export default function AdminUsersPage() {
     }
   };
 
+  const askStatus = async (user: AdminUser, action: "suspend" | "reactivate") => {
+    const ok = await confirm(
+      action === "suspend"
+        ? {
+            title: `Suspend ${user.display_name || user.email}?`,
+            body: `${user.email} is signed out and can't sign in until you reactivate them. Their events and tickets stay as they are.`,
+            confirmLabel: "Suspend account",
+            tone: "danger",
+          }
+        : {
+            title: `Reactivate ${user.display_name || user.email}?`,
+            body: `${user.email} can sign in and use Byro again.`,
+            confirmLabel: "Reactivate account",
+          },
+    );
+    if (ok) updateStatus(user, action);
+  };
+
   const updateStatus = async (user: AdminUser, action: "suspend" | "reactivate") => {
     setUpdatingStatus(true);
     setStatusError("");
-    setConfirming(null);
     const previous = user.is_active;
     const next = action === "reactivate";
     applyUpdate(user.id, { is_active: next });
@@ -383,12 +401,7 @@ export default function AdminUsersPage() {
                     : "This account is suspended and cannot sign in."}
                 </p>
                 {can.moderate ? <button
-                  onClick={() =>
-                    setConfirming({
-                      user: selected,
-                      action: selected.is_active !== false ? "suspend" : "reactivate",
-                    })
-                  }
+                  onClick={() => askStatus(selected, selected.is_active !== false ? "suspend" : "reactivate")}
                   disabled={updatingStatus}
                   className={`text-xs font-semibold px-3 py-2 rounded-lg transition-colors disabled:opacity-50 ${
                     selected.is_active !== false
@@ -414,40 +427,6 @@ export default function AdminUsersPage() {
         </div>
       )}
 
-      {/* Suspend/reactivate confirmation modal */}
-      {confirming && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-ink/50" onClick={() => setConfirming(null)} />
-          <div className="relative w-full max-w-sm bg-white border border-line rounded-xl p-6 shadow-[0_20px_50px_rgba(20,22,28,0.14)]">
-            <h3 className="text-ink font-semibold text-sm mb-2">
-              {confirming.action === "suspend" ? "Suspend this account?" : "Reactivate this account?"}
-            </h3>
-            <p className="text-muted text-xs leading-relaxed mb-5">
-              {confirming.action === "suspend"
-                ? `${confirming.user.email} will immediately lose the ability to sign in.`
-                : `${confirming.user.email} will be able to sign in again.`}
-            </p>
-            <div className="flex items-center justify-end gap-2">
-              <button
-                onClick={() => setConfirming(null)}
-                className="text-xs font-semibold text-[#3B4252] hover:text-ink px-3 py-2 rounded-lg hover:bg-mist transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => updateStatus(confirming.user, confirming.action)}
-                className={`text-xs font-semibold px-3 py-2 rounded-lg transition-colors ${
-                  confirming.action === "suspend"
-                    ? "text-red-600 bg-red-500/10 hover:bg-red-500/20"
-                    : "text-green-700 bg-green-500/10 hover:bg-green-500/20"
-                }`}
-              >
-                {confirming.action === "suspend" ? "Confirm suspend" : "Confirm reactivate"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

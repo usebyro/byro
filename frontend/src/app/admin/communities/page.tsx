@@ -113,12 +113,8 @@ export default function AdminCommunitiesPage() {
   };
 
   const setFlag = async (c: Community, field: "hidden_from_directory" | "verified") => {
+    // Easy to reverse, so no "are you sure?": it happens at once and the toast offers Undo.
     const next = !c[field];
-    const question =
-      field === "verified"
-        ? next ? `Mark ${c.name} as verified? A badge shows on their page.` : `Remove ${c.name}'s verified badge?`
-        : next ? `Hide ${c.name} from the communities directory? Their page still works by link.` : `Show ${c.name} in the directory again?`;
-    if (!window.confirm(question)) return;
     setBusy(`${field}-${c.user_id}`);
     try {
       const res = await fetch(`/api/admin/communities/${c.user_id}`, { method: "PATCH", body: JSON.stringify({ [field]: next }) });
@@ -127,7 +123,7 @@ export default function AdminCommunitiesPage() {
       setRows((prev) => prev.map((r) => (r.user_id === c.user_id ? { ...r, ...data } : r)));
       toast.success(
         field === "verified" ? (next ? "Community verified" : "Verified badge removed") : next ? "Hidden from directory" : "Shown in directory",
-        { description: c.name },
+        { description: c.name, action: { label: "Undo", onClick: () => setFlag({ ...c, [field]: next }, field) } },
       );
     } catch (err) {
       toast.error("Couldn't update community", { description: (err as Error).message || "Try again." });
@@ -138,14 +134,16 @@ export default function AdminCommunitiesPage() {
 
   const setRemoved = async (ownerId: number, item: Merch) => {
     const next = !item.removed_by_admin;
-    if (!window.confirm(next ? `Take down “${item.name}”? It won't show on their page.` : `Put “${item.name}” back?`)) return;
     setBusy(`merch-${item.id}`);
     try {
       const res = await fetch(`/api/admin/merch/${item.id}`, { method: "PATCH", body: JSON.stringify({ removed_by_admin: next }) });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error);
       setMerch((m) => ({ ...m, [ownerId]: (m[ownerId] || []).map((x) => (x.id === item.id ? { ...x, ...data } : x)) }));
-      toast.success(next ? "Item taken down" : "Item restored", { description: item.name });
+      toast.success(next ? "Item taken down" : "Item restored", {
+        description: item.name,
+        action: { label: "Undo", onClick: () => setRemoved(ownerId, { ...item, removed_by_admin: next }) },
+      });
     } catch (err) {
       toast.error("Couldn't update item", { description: (err as Error).message || "Try again." });
     } finally {

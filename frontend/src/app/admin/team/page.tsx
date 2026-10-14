@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Alert02Icon, Delete02Icon, Search01Icon } from "@hugeicons/core-free-icons";
 import { useAdminMe } from "@/components/admin/AdminMe";
+import { useConfirm } from "@/components/admin/ui";
 
 type Role = "viewer" | "admin" | "owner";
 
@@ -98,7 +99,7 @@ export default function AdminTeamPage() {
   const [inviting, setInviting] = useState(false);
   const [inviteError, setInviteError] = useState("");
 
-  const [removing, setRemoving] = useState<AdminTeamMember | null>(null);
+  const confirm = useConfirm();
   const [removingId, setRemovingId] = useState<number | null>(null);
   const [actionError, setActionError] = useState("");
 
@@ -192,7 +193,6 @@ export default function AdminTeamPage() {
   const handleRemove = async (member: AdminTeamMember) => {
     setRemovingId(member.id);
     setActionError("");
-    setRemoving(null);
     const previous = members;
     setMembers((prev) => prev.filter((m) => m.id !== member.id));
     try {
@@ -276,7 +276,15 @@ export default function AdminTeamPage() {
       {can.manage_team && (
         <td className="py-3 pr-4 text-right">
           <button
-            onClick={() => setRemoving(m)}
+            onClick={async () => {
+              const ok = await confirm({
+                title: `Remove ${nameOf(m)} from the admin team?`,
+                body: `${m.email} loses access to the admin panel straight away. Their Byro account isn't affected, and you can invite them again later.`,
+                confirmLabel: "Remove from team",
+                tone: "danger",
+              });
+              if (ok) handleRemove(m);
+            }}
             disabled={removingId === m.id}
             aria-label={`Remove ${m.email}`}
             className="opacity-0 group-hover:opacity-100 focus:opacity-100 text-faint hover:text-red-600 disabled:opacity-40 p-1.5 rounded-md hover:bg-red-500/10 transition"
@@ -441,31 +449,6 @@ export default function AdminTeamPage() {
         </div>
       )}
 
-      {removing && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-ink/50" onClick={() => setRemoving(null)} />
-          <div className="relative w-full max-w-sm bg-white border border-line rounded-xl p-6 shadow-[0_20px_50px_rgba(20,22,28,0.14)]">
-            <h3 className="text-ink font-semibold text-sm mb-2">Remove {nameOf(removing)}?</h3>
-            <p className="text-muted text-xs leading-relaxed mb-5">
-              {removing.email} will lose access to the admin panel immediately. Their Byro account is not affected.
-            </p>
-            <div className="flex items-center justify-end gap-2">
-              <button
-                onClick={() => setRemoving(null)}
-                className="text-xs font-semibold text-[#3B4252] hover:text-ink px-3 py-2 rounded-lg hover:bg-mist transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => handleRemove(removing)}
-                className="text-xs font-bold text-red-600 bg-red-500/10 hover:bg-red-500/20 px-4 py-2 rounded-full transition-colors"
-              >
-                Remove
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

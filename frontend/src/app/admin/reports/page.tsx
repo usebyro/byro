@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useAdminMe } from "@/components/admin/AdminMe";
+import { useConfirm } from "@/components/admin/ui";
 import { publicHref } from "@/lib/adminNav";
 
 interface AdminReport {
@@ -47,6 +48,7 @@ async function send(url: string, method: string, body: unknown) {
 
 export default function AdminReportsPage() {
   const { can } = useAdminMe();
+  const confirm = useConfirm();
   const [filter, setFilter] = useState("open");
   const [rows, setRows] = useState<AdminReport[]>([]);
   const [openCount, setOpenCount] = useState(0);
@@ -85,14 +87,20 @@ export default function AdminReportsPage() {
     }
   };
 
-  const close = (r: AdminReport, status: "resolved" | "dismissed" | "open") => {
+  const close = async (r: AdminReport, status: "resolved" | "dismissed" | "open") => {
     let note = "";
     if (status !== "open") {
-      const answer = window.prompt(
-        status === "resolved" ? "What did you do? (optional, for the team)" : "Why is no action needed? (optional, for the team)",
-        "",
-      );
-      if (answer === null) return;
+      const answer = await confirm({
+        title: status === "resolved" ? "Close as action taken?" : "Close with no action needed?",
+        confirmLabel: "Close report",
+        input: {
+          label: status === "resolved" ? "What did you do? (optional, for the team)" : "Why is no action needed? (optional, for the team)",
+          placeholder: status === "resolved" ? "Suspended the event…" : "Checked the event, it's legitimate…",
+          multiline: true,
+          maxLength: 500,
+        },
+      });
+      if (typeof answer !== "string") return;
       note = answer;
     }
     return run(`close-${r.id}`, async () => {
@@ -101,9 +109,15 @@ export default function AdminReportsPage() {
     });
   };
 
-  const suspendEvent = (r: AdminReport) => {
+  const suspendEvent = async (r: AdminReport) => {
     if (!r.event) return;
-    if (!window.confirm(`Suspend “${r.event.name}”? It comes off Byro and the organiser is told.`)) return;
+    const ok = await confirm({
+      title: `Suspend “${r.event.name}”?`,
+      body: "It comes off Byro straight away, nobody can buy tickets, and the organiser is told by email.",
+      confirmLabel: "Suspend event",
+      tone: "danger",
+    });
+    if (!ok) return;
     return run(`suspend-${r.id}`, async () => {
       await send(`/api/admin/events/${r.event!.id}`, "PATCH", { is_active: false });
       toast.success("Event suspended", { description: r.event!.name });
@@ -112,10 +126,19 @@ export default function AdminReportsPage() {
 
   const hideCommunity = (r: AdminReport) => {
     if (!r.community) return;
-    if (!window.confirm(`Hide ${r.community.name} from the communities directory?`)) return;
     return run(`hide-${r.id}`, async () => {
       await send(`/api/admin/communities/${r.community!.user_id}`, "PATCH", { hidden_from_directory: true });
-      toast.success("Hidden from directory", { description: r.community!.name });
+      const c = r.community!;
+      toast.success("Hidden from directory", {
+        description: `${c.name}'s page still works by link`,
+        action: {
+          label: "Undo",
+          onClick: () => run(`hide-${r.id}`, async () => {
+            await send(`/api/admin/communities/${c.user_id}`, "PATCH", { hidden_from_directory: false });
+            toast.success("Shown in directory again", { description: c.name });
+          }),
+        },
+      });
     });
   };
 

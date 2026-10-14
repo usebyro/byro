@@ -37,6 +37,12 @@ export default {
         "stamp-pink": "#D0668E",
         "stamp-gold": "#C9971C",
         "stamp-green": "#2F9E6E",
+        // Body text grey (was typed by hand as #3B4252 across the admin).
+        body: "#3B4252",
+        // Status colours for badges and alerts: one meaning each, text readable on its own tint (4.5:1+).
+        good: { DEFAULT: "#1F6B47", tint: "#E9F7EF" },
+        waiting: { DEFAULT: "#8A5A00", tint: "#FFF4D6" },
+        danger: { DEFAULT: "#B42318", tint: "#FDECEA", strong: "#D92D20" },
       },
       fontFamily: {
         display: ["var(--font-display)", "system-ui", "sans-serif"],
@@ -46,6 +52,14 @@ export default {
         'main-section': "url('/assets/mainsection.png')",
       },
       keyframes: {
+        'dialog-in': {
+          '0%': { opacity: '0', transform: 'translateY(4px) scale(0.97)' },
+          '100%': { opacity: '1', transform: 'translateY(0) scale(1)' },
+        },
+        'scrim-in': {
+          '0%': { opacity: '0' },
+          '100%': { opacity: '1' },
+        },
         'menu-in': {
           '0%': { opacity: '0', transform: 'translateY(-4px) scale(0.97)' },
           '100%': { opacity: '1', transform: 'translateY(0) scale(1)' },
@@ -67,6 +81,8 @@ export default {
       },
       animation: {
         'menu-in': 'menu-in 150ms cubic-bezier(0.23, 1, 0.32, 1) both',
+        'dialog-in': 'dialog-in 180ms cubic-bezier(0.23, 1, 0.32, 1) both',
+        'scrim-in': 'scrim-in 150ms ease-out both',
         float: 'float 3s ease-in-out infinite',
         bounce: 'bounce 1s infinite',
       },

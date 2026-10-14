@@ -62,15 +62,18 @@ export default function AdminPromosPage() {
   }, [debounced]);
 
   const toggle = async (p: AdminPromo) => {
+    // A switch: it flips at once, and the toast offers Undo instead of asking first.
     const next = !p.active;
-    if (!window.confirm(next ? `Switch ${p.code} back on?` : `Switch ${p.code} off? Nobody can use it until it's switched back on.`)) return;
     setBusy(p.id);
     try {
       const res = await fetch(`/api/admin/promos/${p.id}`, { method: "PATCH", body: JSON.stringify({ active: next }) });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error);
       setPromos((prev) => prev.map((x) => (x.id === p.id ? { ...x, active: data.active, is_valid: data.is_valid } : x)));
-      toast.success(next ? "Code switched on" : "Code switched off", { description: p.code });
+      toast.success(next ? "Code switched on" : "Code switched off", {
+        description: next ? p.code : `${p.code} can't be used until it's switched back on`,
+        action: { label: "Undo", onClick: () => toggle({ ...p, active: next }) },
+      });
     } catch (err) {
       toast.error("Couldn't update code", { description: (err as Error).message || "Try again." });
     } finally {

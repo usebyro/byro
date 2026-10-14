@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useAdminMe } from "@/components/admin/AdminMe";
+import { useConfirm } from "@/components/admin/ui";
 import { publicHref } from "@/lib/adminNav";
 
 interface AdminMessage {
@@ -50,6 +51,7 @@ const when = (s: string | null) =>
 export default function AdminMessagesPage() {
   const me = useAdminMe();
   const canAct = me.can.moderate;
+  const confirm = useConfirm();
   const [rows, setRows] = useState<AdminMessage[]>([]);
   const [search, setSearch] = useState("");
   const [debounced, setDebounced] = useState("");
@@ -86,7 +88,14 @@ export default function AdminMessagesPage() {
   }, [load]);
 
   const cancel = async (m: AdminMessage) => {
-    if (!window.confirm(`Cancel “${m.subject}” from ${m.organizer.name}? It won't be sent.`)) return;
+    const ok = await confirm({
+      title: `Cancel “${m.subject}”?`,
+      body: `${m.organizer.name}'s scheduled message won't be sent. This can't be undone; they'd have to write it again.`,
+      confirmLabel: "Cancel message",
+      cancelLabel: "Keep it",
+      tone: "danger",
+    });
+    if (!ok) return;
     setBusy(`cancel-${m.id}`);
     try {
       const res = await fetch(`/api/admin/messages/${m.id}/cancel`, { method: "POST" });
@@ -103,10 +112,16 @@ export default function AdminMessagesPage() {
 
   const setBlocked = async (m: AdminMessage, blocked: boolean) => {
     const name = m.organizer.name;
-    const question = blocked
-      ? `Stop ${name} from sending messages? Anything they have scheduled will be cancelled.`
-      : `Let ${name} send messages again?`;
-    if (!window.confirm(question)) return;
+    // Unblocking is harmless; blocking also cancels their scheduled messages, which can't be brought back.
+    if (blocked) {
+      const ok = await confirm({
+        title: `Block ${name} from messaging?`,
+        body: "They won't be able to send or schedule messages until you unblock them. Anything they've already scheduled is cancelled for good.",
+        confirmLabel: "Block messaging",
+        tone: "danger",
+      });
+      if (!ok) return;
+    }
     setBusy(`block-${m.organizer.id}`);
     try {
       const res = await fetch(`/api/admin/users/${m.organizer.id}/messaging`, {
