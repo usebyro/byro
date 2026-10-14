@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useAdminMe } from "@/components/admin/AdminMe";
-import { useConfirm } from "@/components/admin/ui";
+import { useConfirm, SkeletonRows } from "@/components/admin/ui";
 import { publicHref } from "@/lib/adminNav";
 
 interface AdminMessage {
@@ -39,10 +39,10 @@ const AUDIENCE: Record<string, string> = {
 
 const STATUS_STYLE: Record<AdminMessage["status"], string> = {
   scheduled: "bg-brand/10 text-brand-dark",
-  sending: "bg-amber-500/10 text-amber-700",
-  sent: "bg-green-500/10 text-green-700",
-  failed: "bg-red-500/10 text-red-700",
-  cancelled: "bg-gray-500/10 text-muted",
+  sending: "bg-waiting-tint text-waiting",
+  sent: "bg-good-tint text-good",
+  failed: "bg-danger-tint text-danger",
+  cancelled: "bg-mist text-muted",
 };
 
 const when = (s: string | null) =>
@@ -174,17 +174,19 @@ export default function AdminMessagesPage() {
         </div>
       </div>
 
-      {error && <p className="text-red-600 text-sm mb-6">{error}</p>}
+      {error && <p className="text-danger text-sm mb-6">{error}</p>}
 
       <div className="bg-white border border-line rounded-xl p-6 overflow-x-auto">
-        {!loading && rows.length === 0 ? (
+        {loading && rows.length === 0 ? (
+          <SkeletonRows />
+        ) : rows.length === 0 ? (
           <p className="text-faint text-sm py-6 text-center">No messages match.</p>
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-hairline text-left">
                 {["Message", "Organiser", "To", "Reached", "When", "Status", ""].map((h, i) => (
-                  <th key={i} className="pb-3 pr-6 text-xs text-faint font-medium">{h}</th>
+                  <th scope="col" key={i} className="pb-3 pr-6 text-xs text-faint font-medium">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -215,13 +217,13 @@ export default function AdminMessagesPage() {
                         )}
                         <span className="block truncate text-xs text-faint">{m.organizer.email}</span>
                         {m.organizer.messaging_blocked && (
-                          <span className="mt-1 inline-block rounded-full bg-red-500/10 px-2 py-0.5 text-[11px] font-bold text-red-700">Blocked</span>
+                          <span className="mt-1 inline-block rounded-full bg-danger-tint px-2 py-0.5 text-[11px] font-bold text-danger">Blocked</span>
                         )}
                       </td>
                       <td className="py-3 pr-6 text-muted whitespace-nowrap">
                         {m.audience === "event" ? `${m.event_name || "Event"} holders` : AUDIENCE[m.audience] || m.audience}
                       </td>
-                      <td className="py-3 pr-6 text-[#3B4252] tabular-nums whitespace-nowrap">
+                      <td className="py-3 pr-6 text-body tabular-nums whitespace-nowrap">
                         {m.status === "sent" || m.status === "failed" ? `${m.sent} of ${m.recipients}` : `~${m.recipients}`}
                       </td>
                       <td className="py-3 pr-6 text-muted whitespace-nowrap">
@@ -236,7 +238,7 @@ export default function AdminMessagesPage() {
                             type="button"
                             onClick={() => cancel(m)}
                             disabled={busy !== ""}
-                            className="mr-3 text-xs font-bold text-red-600 hover:underline disabled:opacity-50"
+                            className="mr-3 text-xs font-bold text-danger hover:underline disabled:opacity-50"
                           >
                             Cancel
                           </button>
@@ -259,7 +261,7 @@ export default function AdminMessagesPage() {
                           <div className="rounded-lg bg-mist p-4">
                             <p className="mb-2 text-xs font-bold text-faint">Message</p>
                             <p className="whitespace-pre-line break-words text-sm text-ink">{m.body}</p>
-                            {m.failed > 0 && <p className="mt-3 text-xs font-semibold text-red-600">{m.failed} didn&apos;t arrive</p>}
+                            {m.failed > 0 && <p className="mt-3 text-xs font-semibold text-danger">{m.failed} didn&apos;t arrive</p>}
                           </div>
                         </td>
                       </tr>

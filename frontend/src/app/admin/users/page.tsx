@@ -47,20 +47,20 @@ function formatDate(dateStr: string) {
 function RoleBadge({ role }: { role: AdminUser["role"] }) {
   if (role === "organizer") {
     return (
-      <span className="inline-flex items-center text-xs px-2 py-0.5 rounded-full font-medium bg-blue-500/10 text-brand-dark">
+      <span className="inline-flex items-center text-xs px-2 py-0.5 rounded-full font-medium bg-sky text-brand-dark">
         Organiser
       </span>
     );
   }
   if (role === "attendee") {
     return (
-      <span className="inline-flex items-center text-xs px-2 py-0.5 rounded-full font-medium bg-green-500/10 text-green-700">
+      <span className="inline-flex items-center text-xs px-2 py-0.5 rounded-full font-medium bg-good-tint text-good">
         Attendee
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center text-xs px-2 py-0.5 rounded-full font-medium bg-gray-500/10 text-muted">
+    <span className="inline-flex items-center text-xs px-2 py-0.5 rounded-full font-medium bg-mist text-muted">
       Unspecified
     </span>
   );
@@ -70,7 +70,7 @@ function GuestBadge() {
   return (
     <span
       title="Created from a guest checkout — no login account, linked automatically if they later sign in with the same email"
-      className="inline-flex items-center text-xs px-2 py-0.5 rounded-full font-medium bg-amber-500/10 text-amber-700 ml-1.5"
+      className="inline-flex items-center text-xs px-2 py-0.5 rounded-full font-medium bg-waiting-tint text-waiting ml-1.5"
     >
       Guest
     </span>
@@ -81,10 +81,10 @@ function StatusBadge({ isActive }: { isActive: boolean }) {
   return (
     <span
       className={`inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded-full font-medium ${
-        isActive ? "bg-green-500/10 text-green-700" : "bg-red-500/10 text-red-600"
+        isActive ? "bg-good-tint text-good" : "bg-danger-tint text-danger"
       }`}
     >
-      <span className={`w-1.5 h-1.5 rounded-full ${isActive ? "bg-green-400" : "bg-red-400"}`} />
+      <span className={`w-1.5 h-1.5 rounded-full ${isActive ? "bg-stamp-green" : "bg-danger-strong"}`} />
       {isActive ? "Active" : "Suspended"}
     </span>
   );
@@ -244,7 +244,7 @@ export default function AdminUsersPage() {
         ))}
       </div>
 
-      {error && <p className="text-red-600 text-sm mb-6">{error}</p>}
+      {error && <p className="text-danger text-sm mb-6">{error}</p>}
 
       <div className="bg-white border border-line rounded-xl p-6">
         <div className="flex items-center justify-between gap-2 flex-wrap mb-4">
@@ -290,12 +290,12 @@ export default function AdminUsersPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-hairline text-left">
-                  <th className="pb-3 pr-6 text-xs text-faint font-medium">Email</th>
-                  <th className="pb-3 pr-6 text-xs text-faint font-medium">Name</th>
-                  <th className="pb-3 pr-6 text-xs text-faint font-medium">Role</th>
-                  <th className="pb-3 pr-6 text-xs text-faint font-medium">Events created</th>
-                  <th className="pb-3 pr-6 text-xs text-faint font-medium">Joined</th>
-                  <th className="pb-3 text-xs text-faint font-medium">Status</th>
+                  <th scope="col" className="pb-3 pr-6 text-xs text-faint font-medium">Email</th>
+                  <th scope="col" className="pb-3 pr-6 text-xs text-faint font-medium">Name</th>
+                  <th scope="col" className="pb-3 pr-6 text-xs text-faint font-medium">Role</th>
+                  <th scope="col" className="pb-3 pr-6 text-xs text-faint font-medium">Events created</th>
+                  <th scope="col" className="pb-3 pr-6 text-xs text-faint font-medium">Joined</th>
+                  <th scope="col" className="pb-3 text-xs text-faint font-medium">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-hairline">
@@ -313,7 +313,7 @@ export default function AdminUsersPage() {
                       <RoleBadge role={u.role} />
                       {u.auth_provider === "guest" && <GuestBadge />}
                     </td>
-                    <td className="py-3 pr-6 text-[#3B4252] tabular-nums">{u.events_created}</td>
+                    <td className="py-3 pr-6 text-body tabular-nums">{u.events_created}</td>
                     <td className="py-3 pr-6 text-muted whitespace-nowrap">{formatDate(u.date_joined)}</td>
                     <td className="py-3">
                       <StatusBadge isActive={u.is_active !== false} />
@@ -375,7 +375,7 @@ export default function AdminUsersPage() {
                   </button>
                 ))}
               </div>
-              {roleError && <p className="text-red-600 text-xs mt-2">{roleError}</p>}
+              {roleError && <p className="text-danger text-xs mt-2">{roleError}</p>}
             </div>
 
             <div>
@@ -390,13 +390,13 @@ export default function AdminUsersPage() {
                 disabled={updatingStatus}
                 className={`text-xs font-semibold px-3 py-2 rounded-lg transition-colors disabled:opacity-50 ${
                   selected.is_active !== false
-                    ? "text-red-600 bg-red-500/10 hover:bg-red-500/20"
-                    : "text-green-700 bg-green-500/10 hover:bg-green-500/20"
+                    ? "text-danger bg-danger-tint hover:bg-danger-hover"
+                    : "text-good bg-good-tint hover:bg-good-hover"
                 }`}
               >
                 {selected.is_active !== false ? "Suspend account" : "Reactivate account"}
               </button> : <p className="text-faint text-xs">Your role can&apos;t change account access.</p>}
-              {statusError && <p className="text-red-600 text-xs mt-2">{statusError}</p>}
+              {statusError && <p className="text-danger text-xs mt-2">{statusError}</p>}
             </div>
 
             <UserDetails

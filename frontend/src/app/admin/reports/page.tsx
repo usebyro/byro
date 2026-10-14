@@ -165,7 +165,7 @@ export default function AdminReportsPage() {
         ))}
       </div>
 
-      {error && <p className="text-red-600 text-sm mb-6">{error}</p>}
+      {error && <p className="text-danger text-sm mb-6">{error}</p>}
 
       {!loading && rows.length === 0 && (
         <p className="bg-white border border-line rounded-xl p-6 text-faint text-sm text-center">
@@ -183,7 +183,7 @@ export default function AdminReportsPage() {
                 <div className="min-w-0">
                   <p className="text-xs font-bold text-faint">
                     {r.target_type === "event" ? "Event" : "Community"} · {r.reason_label}
-                    {r.reports_on_same > 1 && <span className="ml-2 text-red-600">{r.reports_on_same} reports</span>}
+                    {r.reports_on_same > 1 && <span className="ml-2 text-danger">{r.reports_on_same} reports</span>}
                   </p>
                   {href ? (
                     <a href={publicHref(href)} target="_blank" rel="noopener noreferrer" className="font-display text-lg font-bold text-ink hover:underline">
@@ -194,11 +194,11 @@ export default function AdminReportsPage() {
                   )}
                   <p className="text-xs text-muted">
                     Organiser: {r.event?.organizer_email || r.community?.email || "—"}
-                    {r.event && !r.event.is_active && <span className="ml-2 font-bold text-red-600">Suspended</span>}
-                    {r.community?.hidden_from_directory && <span className="ml-2 font-bold text-red-600">Hidden</span>}
+                    {r.event && !r.event.is_active && <span className="ml-2 font-bold text-danger">Suspended</span>}
+                    {r.community?.hidden_from_directory && <span className="ml-2 font-bold text-danger">Hidden</span>}
                   </p>
                 </div>
-                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${r.status === "open" ? "bg-amber-500/10 text-amber-700" : "bg-gray-500/10 text-muted"}`}>
+                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${r.status === "open" ? "bg-waiting-tint text-waiting" : "bg-mist text-muted"}`}>
                   {STATUS_LABEL[r.status]}
                 </span>
               </div>
@@ -219,12 +219,12 @@ export default function AdminReportsPage() {
                   {r.status === "open" ? (
                     <>
                       {r.event && r.event.is_active && (
-                        <button type="button" onClick={() => suspendEvent(r)} disabled={busy !== ""} className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-50 disabled:opacity-50">
+                        <button type="button" onClick={() => suspendEvent(r)} disabled={busy !== ""} className="rounded-lg border border-danger-hover px-3 py-1.5 text-xs font-bold text-danger hover:bg-danger-tint disabled:opacity-50">
                           Suspend event
                         </button>
                       )}
                       {r.community && !r.community.hidden_from_directory && (
-                        <button type="button" onClick={() => hideCommunity(r)} disabled={busy !== ""} className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-50 disabled:opacity-50">
+                        <button type="button" onClick={() => hideCommunity(r)} disabled={busy !== ""} className="rounded-lg border border-danger-hover px-3 py-1.5 text-xs font-bold text-danger hover:bg-danger-tint disabled:opacity-50">
                           Hide from directory
                         </button>
                       )}

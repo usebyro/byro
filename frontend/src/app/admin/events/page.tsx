@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { formatNaira, isPaidEvent, priceLabel } from "@/lib/eventFormat";
 import { useAdminMe } from "@/components/admin/AdminMe";
-import { SidePanel, useConfirm } from "@/components/admin/ui";
+import { SidePanel, useConfirm, SkeletonRows } from "@/components/admin/ui";
 import { publicHref } from "@/lib/adminNav";
 
 interface EventTier {
@@ -100,14 +100,14 @@ function getEventStatus(event: Event): "active" | "inactive" | "ended" {
 
 function StatusBadge({ status }: { status: "active" | "inactive" | "ended" }) {
   const styles = {
-    active: "bg-green-500/10 text-green-700",
-    inactive: "bg-gray-500/10 text-muted",
-    ended: "bg-red-500/10 text-red-600",
+    active: "bg-good-tint text-good",
+    inactive: "bg-mist text-muted",
+    ended: "bg-danger-tint text-danger",
   };
   const dots = {
-    active: "bg-green-400",
-    inactive: "bg-gray-500",
-    ended: "bg-red-400",
+    active: "bg-stamp-green",
+    inactive: "bg-faint",
+    ended: "bg-danger-strong",
   };
   const labels = { active: "Active", inactive: "Inactive", ended: "Ended" };
 
@@ -143,15 +143,15 @@ function EventTable({
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-hairline text-left">
-            <th className="pb-3 pr-6 text-xs text-faint font-medium">Event</th>
-            <th className="pb-3 pr-6 text-xs text-faint font-medium">Date</th>
-            <th className="pb-3 pr-6 text-xs text-faint font-medium">Location</th>
-            <th className="pb-3 pr-6 text-xs text-faint font-medium">Category</th>
-            <th className="pb-3 pr-6 text-xs text-faint font-medium">Price</th>
-            <th className="pb-3 pr-6 text-xs text-faint font-medium">Created</th>
-            <th className="pb-3 pr-6 text-xs text-faint font-medium">Tickets sold</th>
-            <th className="pb-3 pr-6 text-xs text-faint font-medium">Revenue</th>
-            <th className="pb-3 text-xs text-faint font-medium">Status</th>
+            <th scope="col" className="pb-3 pr-6 text-xs text-faint font-medium">Event</th>
+            <th scope="col" className="pb-3 pr-6 text-xs text-faint font-medium">Date</th>
+            <th scope="col" className="pb-3 pr-6 text-xs text-faint font-medium">Location</th>
+            <th scope="col" className="pb-3 pr-6 text-xs text-faint font-medium">Category</th>
+            <th scope="col" className="pb-3 pr-6 text-xs text-faint font-medium">Price</th>
+            <th scope="col" className="pb-3 pr-6 text-xs text-faint font-medium">Created</th>
+            <th scope="col" className="pb-3 pr-6 text-xs text-faint font-medium">Tickets sold</th>
+            <th scope="col" className="pb-3 pr-6 text-xs text-faint font-medium">Revenue</th>
+            <th scope="col" className="pb-3 text-xs text-faint font-medium">Status</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-hairline">
@@ -174,10 +174,10 @@ function EventTable({
                 {(event.visibility === "private" || event.is_draft) && (
                   <span className="mt-1 flex gap-1">
                     {event.visibility === "private" && (
-                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-700">Private</span>
+                      <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-700">Private</span>
                     )}
                     {event.is_draft && (
-                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-yellow-500/10 text-amber-700">Draft</span>
+                      <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded bg-waiting-tint text-waiting">Draft</span>
                     )}
                   </span>
                 )}
@@ -191,16 +191,16 @@ function EventTable({
               <td className="py-3 pr-6 text-muted capitalize">
                 {event.category?.replace(/_/g, " ") || "—"}
               </td>
-              <td className="py-3 pr-6 text-[#3B4252] whitespace-nowrap tabular-nums">
+              <td className="py-3 pr-6 text-body whitespace-nowrap tabular-nums">
                 {priceLabel(event)}
               </td>
               <td className="py-3 pr-6 text-muted whitespace-nowrap">
                 {formatDateTime(event.created_at)}
               </td>
-              <td className="py-3 pr-6 text-[#3B4252] whitespace-nowrap tabular-nums">
+              <td className="py-3 pr-6 text-body whitespace-nowrap tabular-nums">
                 {overview[event.id]?.tickets_sold ?? "—"}
               </td>
-              <td className="py-3 pr-6 text-[#3B4252] whitespace-nowrap tabular-nums">
+              <td className="py-3 pr-6 text-body whitespace-nowrap tabular-nums">
                 {overview[event.id] ? formatNaira(Number(overview[event.id].revenue)) : "—"}
               </td>
               <td className="py-3">
@@ -456,13 +456,13 @@ export default function AdminEventsPage() {
       </div>
 
       {error && (
-        <p className="text-red-600 text-sm mb-6">{error}</p>
+        <p className="text-danger text-sm mb-6">{error}</p>
       )}
 
       <div className="bg-white border border-line rounded-xl p-6 mb-6">
         <div className="flex items-center gap-2 mb-5">
           <h2 className="text-ink font-semibold">Free Events</h2>
-          <span className="text-xs bg-green-500/10 text-green-700 px-2 py-0.5 rounded-full">
+          <span className="text-xs bg-good-tint text-good px-2 py-0.5 rounded-full">
             {visibleFreeEvents.length}
           </span>
         </div>
@@ -481,7 +481,7 @@ export default function AdminEventsPage() {
       <div className="bg-white border border-line rounded-xl p-6">
         <div className="flex items-center gap-2 mb-5">
           <h2 className="text-ink font-semibold">Paid Events</h2>
-          <span className="text-xs bg-blue-500/10 text-brand-dark px-2 py-0.5 rounded-full">
+          <span className="text-xs bg-sky text-brand-dark px-2 py-0.5 rounded-full">
             {visiblePaidEvents.length}
           </span>
         </div>
@@ -556,7 +556,7 @@ export default function AdminEventsPage() {
                               {Number(t.price) > 0 ? formatNaira(Number(t.price)) : "Free"}
                             </p>
                           </div>
-                          <p className="shrink-0 text-[#3B4252] text-xs tabular-nums">
+                          <p className="shrink-0 text-body text-xs tabular-nums">
                             {t.sold} sold
                             {t.remaining !== null ? ` · ${t.remaining} left` : ""}
                           </p>
@@ -579,15 +579,15 @@ export default function AdminEventsPage() {
 
             {(can.moderate || can.delete) && <div>
               <h4 className="text-ink text-sm font-semibold mb-2">Moderation</h4>
-              {actionError && <p className="text-red-600 text-xs mb-2">{actionError}</p>}
+              {actionError && <p className="text-danger text-xs mb-2">{actionError}</p>}
               <div className="flex items-center gap-2 flex-wrap">
                 {can.moderate && <button
                   onClick={() => askAction(selected, selected.is_active ? "suspend" : "reactivate")}
                   disabled={updatingId === selected.id}
                   className={`text-xs font-semibold px-3 py-2 rounded-lg transition-colors disabled:opacity-50 ${
                     selected.is_active
-                      ? "text-amber-700 bg-yellow-500/10 hover:bg-yellow-500/20"
-                      : "text-green-700 bg-green-500/10 hover:bg-green-500/20"
+                      ? "text-waiting bg-waiting-tint hover:bg-waiting-hover"
+                      : "text-good bg-good-tint hover:bg-good-hover"
                   }`}
                 >
                   {selected.is_active ? "Suspend event" : "Reactivate event"}
@@ -595,7 +595,7 @@ export default function AdminEventsPage() {
                 {can.delete && <button
                   onClick={() => askAction(selected, "delete")}
                   disabled={updatingId === selected.id}
-                  className="text-xs font-semibold text-red-600 bg-red-500/10 hover:bg-red-500/20 disabled:opacity-50 px-3 py-2 rounded-lg transition-colors"
+                  className="text-xs font-semibold text-danger bg-danger-tint hover:bg-danger-hover disabled:opacity-50 px-3 py-2 rounded-lg transition-colors"
                 >
                   Delete event
                 </button>}
@@ -644,14 +644,14 @@ export default function AdminEventsPage() {
                 {attendees && attendees.length > 0 && (
                   <button
                     onClick={() => downloadAttendeesCsv(selected, attendees)}
-                    className="text-xs font-semibold text-brand-dark bg-blue-500/10 hover:bg-blue-500/20 px-3 py-1.5 rounded-lg transition-colors"
+                    className="text-xs font-semibold text-brand-dark bg-sky hover:bg-brand/15 px-3 py-1.5 rounded-lg transition-colors"
                   >
                     Export CSV
                   </button>
                 )}
               </div>
               {attendeesLoading ? (
-                <p className="text-faint text-sm">Loading…</p>
+                <SkeletonRows rows={4} />
               ) : attendeesError ? (
                 <p className="text-faint text-sm">{attendeesError}</p>
               ) : attendees && attendees.length > 0 ? (
@@ -666,8 +666,8 @@ export default function AdminEventsPage() {
                         <p className="text-faint text-[11px] truncate">{a.current_owner_email}</p>
                       </div>
                       <span
-                        className={`shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                          a.checked_in ? "bg-green-500/10 text-green-700" : "bg-gray-500/10 text-muted"
+                        className={`shrink-0 text-[11px] font-semibold px-2 py-0.5 rounded-full ${
+                          a.checked_in ? "bg-good-tint text-good" : "bg-mist text-muted"
                         }`}
                       >
                         {a.checked_in ? "Checked in" : "Not checked in"}

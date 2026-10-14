@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { toast } from "sonner";
 import { useAdminMe } from "@/components/admin/AdminMe";
-import { useConfirm } from "@/components/admin/ui";
+import { useConfirm, SkeletonCard } from "@/components/admin/ui";
 import { publicHref, resolveAdminHref } from "@/lib/adminNav";
 import { formatNaira } from "@/lib/eventFormat";
 
@@ -124,11 +124,11 @@ export default function AdminPaymentDetailPage({ params }: { params: Promise<{ i
     return (
       <div className="p-5 md:p-8">
         {back}
-        <p className="mt-6 text-red-600 text-sm">{error}</p>
+        <p className="mt-6 text-danger text-sm">{error}</p>
       </div>
     );
   }
-  if (!data) return <div className="p-5 md:p-8">{back}<p className="mt-6 text-faint text-sm">Loading…</p></div>;
+  if (!data) return <div className="p-5 md:p-8">{back}<div className="mt-6 grid gap-4 lg:grid-cols-2"><SkeletonCard className="h-48" /><SkeletonCard className="h-48" /></div></div>;
 
   return (
     <div className="p-5 md:p-8">
@@ -161,7 +161,7 @@ export default function AdminPaymentDetailPage({ params }: { params: Promise<{ i
             {data.status === "successful" && <Row label="Refundable (ticket price)">{naira(data.refundable)}</Row>}
           </dl>
           {data.refund && (
-            <p className={`mt-3 text-sm font-semibold ${data.refund.status === "failed" ? "text-red-600" : "text-muted"}`}>
+            <p className={`mt-3 text-sm font-semibold ${data.refund.status === "failed" ? "text-danger" : "text-muted"}`}>
               Refund {data.refund.status}: {naira(data.refund.amount)}
               {data.refund.reason ? ` · ${data.refund.reason}` : ""}
               {data.refund.failure_reason ? ` · ${data.refund.failure_reason}` : ""}
@@ -176,7 +176,7 @@ export default function AdminPaymentDetailPage({ params }: { params: Promise<{ i
               <a href={publicHref(`/discover/${data.event.slug}`)} target="_blank" rel="noopener noreferrer" className="hover:underline">
                 {data.event.name}
               </a>
-              {data.event.cancelled && <span className="ml-2 text-xs font-bold text-red-600">Cancelled</span>}
+              {data.event.cancelled && <span className="ml-2 text-xs font-bold text-danger">Cancelled</span>}
             </Row>
             <Row label="Date">{data.event.day}</Row>
             {data.tier_name && <Row label="Ticket type">{data.tier_name}</Row>}
@@ -214,10 +214,10 @@ export default function AdminPaymentDetailPage({ params }: { params: Promise<{ i
               <Row label="Paid at Paystack">{when(check.paystack.paid_at)}</Row>
             </dl>
             {!check.amount_matches && (
-              <p className="mt-3 text-sm font-semibold text-red-600">The amounts don&apos;t match. Don&apos;t issue tickets; contact Paystack.</p>
+              <p className="mt-3 text-sm font-semibold text-danger">The amounts don&apos;t match. Don&apos;t issue tickets; contact Paystack.</p>
             )}
             {check.can_issue_tickets && (
-              <div className="mt-4 rounded-lg bg-amber-50 border border-amber-200 p-4 text-sm text-amber-900">
+              <div className="mt-4 rounded-lg bg-waiting-tint border border-waiting-hover p-4 text-sm text-waiting">
                 <p className="font-semibold">Paystack shows this as paid, but the buyer never got their tickets.</p>
                 {me.can.moderate ? (
                   <button

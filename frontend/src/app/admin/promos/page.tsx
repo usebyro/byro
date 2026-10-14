@@ -1,5 +1,6 @@
 "use client";
 
+import { SkeletonRows } from "@/components/admin/ui";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useAdminMe } from "@/components/admin/AdminMe";
@@ -96,17 +97,19 @@ export default function AdminPromosPage() {
         className="w-full sm:w-80 mb-6 bg-mist border border-line rounded-lg px-3 py-2 text-sm text-ink placeholder:text-faint focus:outline-none focus:ring-1 focus:ring-brand/40"
       />
 
-      {error && <p className="text-red-600 text-sm mb-6">{error}</p>}
+      {error && <p className="text-danger text-sm mb-6">{error}</p>}
 
       <div className="bg-white border border-line rounded-xl p-6 overflow-x-auto">
-        {!loading && promos.length === 0 ? (
+        {loading && promos.length === 0 ? (
+          <SkeletonRows />
+        ) : promos.length === 0 ? (
           <p className="text-faint text-sm py-6 text-center">No promo codes match.</p>
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-hairline text-left">
                 {["Code", "Event", "Discount", "Used", "Expires", "Status", "On"].map((h, i) => (
-                  <th key={i} className="pb-3 pr-6 text-xs text-faint font-medium">{h}</th>
+                  <th scope="col" key={i} className="pb-3 pr-6 text-xs text-faint font-medium">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -115,15 +118,15 @@ export default function AdminPromosPage() {
                 <tr key={p.id}>
                   <td className="py-3 pr-6 text-ink font-mono">{p.code}</td>
                   <td className="py-3 pr-6 text-muted truncate max-w-[200px]">{p.event_name}</td>
-                  <td className="py-3 pr-6 text-[#3B4252] whitespace-nowrap">{discountLabel(p)}</td>
-                  <td className="py-3 pr-6 text-[#3B4252] tabular-nums">
+                  <td className="py-3 pr-6 text-body whitespace-nowrap">{discountLabel(p)}</td>
+                  <td className="py-3 pr-6 text-body tabular-nums">
                     {p.redeemed_count}
                     {p.max_redemptions !== null ? ` / ${p.max_redemptions}` : ""}
                   </td>
                   <td className="py-3 pr-6 text-muted whitespace-nowrap">{formatDate(p.expires_at)}</td>
                   <td className="py-3">
                     <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                      p.is_valid ? "bg-green-500/10 text-green-700" : "bg-gray-500/10 text-muted"
+                      p.is_valid ? "bg-good-tint text-good" : "bg-mist text-muted"
                     }`}>
                       {p.is_valid ? "Valid" : p.active ? "Expired / used up" : "Switched off"}
                     </span>

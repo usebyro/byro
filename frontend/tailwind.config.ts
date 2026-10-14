@@ -40,9 +40,9 @@ export default {
         // Body text grey (was typed by hand as #3B4252 across the admin).
         body: "#3B4252",
         // Status colours for badges and alerts: one meaning each, text readable on its own tint (4.5:1+).
-        good: { DEFAULT: "#1F6B47", tint: "#E9F7EF" },
-        waiting: { DEFAULT: "#8A5A00", tint: "#FFF4D6" },
-        danger: { DEFAULT: "#B42318", tint: "#FDECEA", strong: "#D92D20" },
+        good: { DEFAULT: "#1F6B47", tint: "#E9F7EF", hover: "#D6F0E0" },
+        waiting: { DEFAULT: "#8A5A00", tint: "#FFF4D6", hover: "#FFEBB8" },
+        danger: { DEFAULT: "#B42318", tint: "#FDECEA", hover: "#FBDCD8", strong: "#D92D20" },
       },
       fontFamily: {
         display: ["var(--font-display)", "system-ui", "sans-serif"],

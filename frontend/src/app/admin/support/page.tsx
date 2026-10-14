@@ -40,12 +40,12 @@ interface SupportOrder {
 }
 
 const TICKET_STATUS: Record<string, { label: string; style: string }> = {
-  paid: { label: "Paid", style: "bg-green-500/10 text-green-700" },
-  free: { label: "Free", style: "bg-green-500/10 text-green-700" },
-  pending: { label: "Unpaid", style: "bg-amber-500/10 text-amber-700" },
-  failed: { label: "Payment failed", style: "bg-red-500/10 text-red-700" },
-  refunded: { label: "Refunded", style: "bg-gray-500/10 text-muted" },
-  cancelled: { label: "Cancelled", style: "bg-gray-500/10 text-muted" },
+  paid: { label: "Paid", style: "bg-good-tint text-good" },
+  free: { label: "Free", style: "bg-good-tint text-good" },
+  pending: { label: "Unpaid", style: "bg-waiting-tint text-waiting" },
+  failed: { label: "Payment failed", style: "bg-danger-tint text-danger" },
+  refunded: { label: "Refunded", style: "bg-mist text-muted" },
+  cancelled: { label: "Cancelled", style: "bg-mist text-muted" },
 };
 
 const REFUND_LABEL: Record<string, string> = {
@@ -211,7 +211,7 @@ function SupportPage() {
         </button>
       </form>
 
-      {error && <p className="text-red-600 text-sm mb-6">{error}</p>}
+      {error && <p className="text-danger text-sm mb-6">{error}</p>}
 
       {orders !== null && orders.length === 0 && !loading && (
         <p className="bg-white border border-line rounded-xl p-6 text-faint text-sm text-center">Nothing found for that search.</p>
@@ -235,7 +235,7 @@ function SupportPage() {
                   </a>
                   <p className="text-xs text-faint">
                     {o.event.day}
-                    {o.event.cancelled && <span className="ml-2 font-bold text-red-600">Event cancelled</span>}
+                    {o.event.cancelled && <span className="ml-2 font-bold text-danger">Event cancelled</span>}
                   </p>
                 </div>
                 {canRefund && (
@@ -243,7 +243,7 @@ function SupportPage() {
                     type="button"
                     onClick={() => refund(o)}
                     disabled={busy !== ""}
-                    className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-50 disabled:opacity-50"
+                    className="rounded-lg border border-danger-hover px-3 py-1.5 text-xs font-bold text-danger hover:bg-danger-tint disabled:opacity-50"
                   >
                     Refund order
                   </button>
@@ -262,7 +262,7 @@ function SupportPage() {
               )}
 
               {o.refund && (
-                <p className={`mt-3 text-sm font-semibold ${o.refund.status === "failed" || o.refund.status === "needs_attention" ? "text-red-600" : "text-muted"}`}>
+                <p className={`mt-3 text-sm font-semibold ${o.refund.status === "failed" || o.refund.status === "needs_attention" ? "text-danger" : "text-muted"}`}>
                   {REFUND_LABEL[o.refund.status] || o.refund.status}: {formatNaira(Number(o.refund.amount))}
                   {o.refund.reason ? ` · ${o.refund.reason}` : ""}
                   {o.refund.failure_reason ? ` · ${o.refund.failure_reason}` : ""}
@@ -274,13 +274,13 @@ function SupportPage() {
                   <thead>
                     <tr className="border-b border-hairline text-left">
                       {["Ticket", "Holder", "Status", "Check-in", ""].map((h, i) => (
-                        <th key={i} className="pb-2 pr-6 text-xs text-faint font-medium">{h}</th>
+                        <th scope="col" key={i} className="pb-2 pr-6 text-xs text-faint font-medium">{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-hairline">
                     {o.tickets.map((t) => {
-                      const s = TICKET_STATUS[t.status] || { label: t.status, style: "bg-gray-500/10 text-muted" };
+                      const s = TICKET_STATUS[t.status] || { label: t.status, style: "bg-mist text-muted" };
                       const valid = t.status === "paid" || t.status === "free";
                       return (
                         <tr key={t.ticket_id}>

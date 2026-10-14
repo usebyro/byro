@@ -1,5 +1,6 @@
 "use client";
 
+import { SkeletonRows } from "@/components/admin/ui";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useAdminMe } from "@/components/admin/AdminMe";
@@ -182,17 +183,19 @@ export default function AdminCommunitiesPage() {
         </div>
       </div>
 
-      {error && <p className="text-red-600 text-sm mb-6">{error}</p>}
+      {error && <p className="text-danger text-sm mb-6">{error}</p>}
 
       <div className="bg-white border border-line rounded-xl p-6 overflow-x-auto">
-        {!loading && rows.length === 0 ? (
+        {loading && rows.length === 0 ? (
+          <SkeletonRows />
+        ) : rows.length === 0 ? (
           <p className="text-faint text-sm py-6 text-center">No communities match.</p>
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-hairline text-left">
                 {["Community", "Followers", "Events", "Merch", "Verified", "Hidden", ""].map((h, i) => (
-                  <th key={i} className="pb-3 pr-6 text-xs text-faint font-medium">{h}</th>
+                  <th scope="col" key={i} className="pb-3 pr-6 text-xs text-faint font-medium">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -225,9 +228,9 @@ export default function AdminCommunitiesPage() {
                         </span>
                       </div>
                     </td>
-                    <td className="py-3 pr-6 tabular-nums text-[#3B4252]">{c.followers ?? "—"}</td>
-                    <td className="py-3 pr-6 tabular-nums text-[#3B4252]">{c.events ?? "—"}</td>
-                    <td className="py-3 pr-6 tabular-nums text-[#3B4252]">{c.merch ?? "—"}</td>
+                    <td className="py-3 pr-6 tabular-nums text-body">{c.followers ?? "—"}</td>
+                    <td className="py-3 pr-6 tabular-nums text-body">{c.events ?? "—"}</td>
+                    <td className="py-3 pr-6 tabular-nums text-body">{c.merch ?? "—"}</td>
                     <td className="py-3 pr-6">
                       <Toggle on={c.verified} label={`${c.name} verified`} disabled={!can.moderate || busy !== ""} onChange={() => setFlag(c, "verified")} />
                     </td>
@@ -287,7 +290,7 @@ export default function AdminCommunitiesPage() {
                                         type="button"
                                         onClick={() => setRemoved(c.user_id, m)}
                                         disabled={busy !== ""}
-                                        className={`text-xs font-bold hover:underline disabled:opacity-50 ${m.removed_by_admin ? "text-green-700" : "text-red-600"}`}
+                                        className={`text-xs font-bold hover:underline disabled:opacity-50 ${m.removed_by_admin ? "text-good" : "text-danger"}`}
                                       >
                                         {m.removed_by_admin ? "Restore" : "Take down"}
                                       </button>

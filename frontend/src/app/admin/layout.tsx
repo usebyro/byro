@@ -217,7 +217,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }
 
   return (
-    <div className="min-h-screen bg-paper flex">
+    <div className="byro-admin min-h-screen bg-paper flex">
       <aside className="hidden md:flex w-60 shrink-0 bg-white border-r border-line flex-col sticky top-0 h-screen">
         {sidebarContent}
       </aside>
@@ -231,7 +231,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             height={20}
             className="h-5 w-auto"
           />
-          <span className="font-display text-[10px] font-bold text-white bg-ink px-2 py-0.5 rounded-full">
+          <span className="font-display text-[11px] font-bold text-white bg-ink px-2 py-0.5 rounded-full">
             Admin
           </span>
         </div>

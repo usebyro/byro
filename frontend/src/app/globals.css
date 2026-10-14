@@ -162,3 +162,31 @@ input[type=number] {
     animation: none !important;
   }
 }
+
+
+/* ---- Admin: the same keyboard focus, press feedback and row hover on every page ------------------- */
+/* Pages style their own controls; these fill the gaps so nothing is left without a visible focus ring. */
+.byro-admin :is(a, button, [role="switch"], [role="option"], input, select, textarea, summary):focus-visible {
+  outline: 2px solid #3669F6;
+  outline-offset: 2px;
+}
+/* Buttons feel pressed (Emil: scale 0.97 on :active), unless disabled. */
+.byro-admin button:not(:disabled) {
+  transition-property: color, background-color, border-color, transform;
+  transition-duration: 150ms;
+  transition-timing-function: cubic-bezier(0.23, 1, 0.32, 1);
+}
+.byro-admin button:not(:disabled):active {
+  transform: scale(0.97);
+}
+/* A soft tint on the table row under the pointer, so it's easy to keep your place. */
+@media (hover: hover) and (pointer: fine) {
+  .byro-admin tbody tr:hover > td {
+    background-color: #F7F9FC;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .byro-admin button:not(:disabled):active {
+    transform: none;
+  }
+}

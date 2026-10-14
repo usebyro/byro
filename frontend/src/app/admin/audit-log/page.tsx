@@ -1,5 +1,6 @@
 "use client";
 
+import { SkeletonRows } from "@/components/admin/ui";
 import { useEffect, useState } from "react";
 
 interface AuditEntry {
@@ -31,9 +32,9 @@ const ACTION_LABEL: Record<string, string> = {
 };
 
 function tone(action: string) {
-  if (/deleted|removed|suspended|rejected/.test(action)) return "bg-red-500/10 text-red-600";
-  if (/reactivated|processed|added/.test(action)) return "bg-green-500/10 text-green-700";
-  return "bg-blue-500/10 text-brand-dark";
+  if (/deleted|removed|suspended|rejected/.test(action)) return "bg-danger-tint text-danger";
+  if (/reactivated|processed|added/.test(action)) return "bg-good-tint text-good";
+  return "bg-sky text-brand-dark";
 }
 
 function formatDateTime(s: string) {
@@ -85,17 +86,19 @@ export default function AdminAuditLogPage() {
         ))}
       </select>
 
-      {error && <p className="text-red-600 text-sm mb-6">{error}</p>}
+      {error && <p className="text-danger text-sm mb-6">{error}</p>}
 
       <div className="bg-white border border-line rounded-xl p-6 overflow-x-auto">
-        {!loading && entries.length === 0 ? (
+        {loading && entries.length === 0 ? (
+          <SkeletonRows />
+        ) : entries.length === 0 ? (
           <p className="text-faint text-sm py-6 text-center">Nothing has been logged yet.</p>
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-hairline text-left">
                 {["When", "Who", "Action", "Target", "Detail"].map((h) => (
-                  <th key={h} className="pb-3 pr-6 text-xs text-faint font-medium">{h}</th>
+                  <th scope="col" key={h} className="pb-3 pr-6 text-xs text-faint font-medium">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -103,13 +106,13 @@ export default function AdminAuditLogPage() {
               {entries.map((a) => (
                 <tr key={a.id}>
                   <td className="py-3 pr-6 text-muted whitespace-nowrap">{formatDateTime(a.created_at)}</td>
-                  <td className="py-3 pr-6 text-[#3B4252] truncate max-w-[200px]">{a.actor_email || "—"}</td>
+                  <td className="py-3 pr-6 text-body truncate max-w-[200px]">{a.actor_email || "—"}</td>
                   <td className="py-3 pr-6">
                     <span className={`text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap ${tone(a.action)}`}>
                       {ACTION_LABEL[a.action] ?? a.action}
                     </span>
                   </td>
-                  <td className="py-3 pr-6 text-[#3B4252] truncate max-w-[220px]">
+                  <td className="py-3 pr-6 text-body truncate max-w-[220px]">
                     {a.target_label || `${a.target_type} ${a.target_id}`}
                   </td>
                   <td className="py-3 text-faint truncate max-w-[200px]">{a.detail || "—"}</td>

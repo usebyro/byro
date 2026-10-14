@@ -73,7 +73,7 @@ export default function RangePicker({
                   setOpen(false);
                 }}
                 className={`w-full rounded-xl px-3 py-1.5 text-left text-xs font-bold transition-colors ${
-                  o.days === value ? "bg-brand/10 text-brand-dark" : "text-[#3B4252] hover:bg-mist"
+                  o.days === value ? "bg-brand/10 text-brand-dark" : "text-body hover:bg-mist"
                 }`}
               >
                 {o.label}
