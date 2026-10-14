@@ -1,5 +1,6 @@
 "use client";
 
+import { SkeletonRows } from "@/components/admin/ui";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -271,7 +272,7 @@ export default function AdminDashboardPage() {
         <h1 className="font-display text-ink text-3xl font-extrabold tracking-tight">Overview</h1>
       </div>
 
-      {error && <p className="text-red-600 text-sm mb-6">{error}</p>}
+      {error && <p className="text-danger text-sm mb-6">{error}</p>}
 
       {pendingPayouts ? (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-marigold bg-butter px-5 py-4 mb-5">
@@ -378,11 +379,11 @@ export default function AdminDashboardPage() {
           <div>
             <h2 className="font-display text-ink text-lg font-extrabold">Tickets and events</h2>
             <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
-              <span className="flex items-center gap-2 text-[#3B4252]">
+              <span className="flex items-center gap-2 text-body">
                 <span className="h-2.5 w-2.5 rounded-full bg-brand" />
                 <b className="tabular-nums text-ink">{activityLoading ? "—" : ticketsInRange.toLocaleString()}</b> tickets sold
               </span>
-              <span className="flex items-center gap-2 text-[#3B4252]">
+              <span className="flex items-center gap-2 text-body">
                 <span className="h-2.5 w-2.5 rounded-full bg-marigold" />
                 <b className="tabular-nums text-ink">{activityLoading ? "—" : eventsInRange.toLocaleString()}</b> events created
               </span>
@@ -424,7 +425,9 @@ export default function AdminDashboardPage() {
 
       <section className="rounded-3xl border border-line bg-white p-5 md:p-6">
         <h2 className="font-display text-ink text-lg font-extrabold">Events by category</h2>
-        {!loading && sortedCategories.length === 0 ? (
+        {loading && sortedCategories.length === 0 ? (
+          <SkeletonRows />
+        ) : sortedCategories.length === 0 ? (
           <p className="text-muted text-sm mt-4">No events yet. They show up here once organisers create them.</p>
         ) : (
           <>
@@ -460,7 +463,7 @@ export default function AdminDashboardPage() {
                   onMouseLeave={() => setHoverCategory(null)}
                   className="rounded-2xl bg-mist px-4 py-3.5"
                 >
-                  <p className="flex items-center gap-2 text-sm font-bold text-[#3B4252]">
+                  <p className="flex items-center gap-2 text-sm font-bold text-body">
                     <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: categoryColor(c.name, i) }} />
                     <span className="truncate" title={c.name}>{c.name}</span>
                   </p>

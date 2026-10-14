@@ -136,7 +136,7 @@ export default function AdminLogin() {
               />
             </div>
             <div ref={turnstileRef} className="flex justify-center" />
-            {error && <p className="text-red-600 text-sm">{error}</p>}
+            {error && <p className="text-danger text-sm">{error}</p>}
             <button type="submit" disabled={loading || !email.trim() || !turnstileToken} className={button}>
               {loading ? "Sending…" : "Email me a code"}
             </button>
@@ -158,7 +158,7 @@ export default function AdminLogin() {
                 className={input}
               />
             </div>
-            {error && <p className="text-red-600 text-sm">{error}</p>}
+            {error && <p className="text-danger text-sm">{error}</p>}
             <button type="submit" disabled={loading || !code.trim()} className={button}>
               {loading ? "Signing in…" : "Sign in"}
             </button>

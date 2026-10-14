@@ -1,5 +1,6 @@
 "use client";
 
+import { SkeletonRows } from "@/components/admin/ui";
 import { useEffect, useState } from "react";
 
 interface ActivityEntry {
@@ -90,17 +91,19 @@ export default function AdminActivityPage() {
         </select>
       </div>
 
-      {error && <p className="text-red-600 text-sm mb-6">{error}</p>}
+      {error && <p className="text-danger text-sm mb-6">{error}</p>}
 
       <div className="bg-white border border-line rounded-xl p-6 overflow-x-auto">
-        {!loading && entries.length === 0 ? (
+        {loading && entries.length === 0 ? (
+          <SkeletonRows />
+        ) : entries.length === 0 ? (
           <p className="text-faint text-sm py-6 text-center">No activity matches.</p>
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-hairline text-left">
                 {["When", "Who", "Action", "Target", "Detail", "IP"].map((h) => (
-                  <th key={h} className="pb-3 pr-6 text-xs text-faint font-medium">{h}</th>
+                  <th scope="col" key={h} className="pb-3 pr-6 text-xs text-faint font-medium">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -108,13 +111,13 @@ export default function AdminActivityPage() {
               {entries.map((a) => (
                 <tr key={a.id}>
                   <td className="py-3 pr-6 text-muted whitespace-nowrap">{formatDateTime(a.created_at)}</td>
-                  <td className="py-3 pr-6 text-[#3B4252] truncate max-w-[200px]">{a.actor_email || "Guest"}</td>
+                  <td className="py-3 pr-6 text-body truncate max-w-[200px]">{a.actor_email || "Guest"}</td>
                   <td className="py-3 pr-6">
-                    <span className="text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap bg-blue-500/10 text-brand-dark">
+                    <span className="text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap bg-sky text-brand-dark">
                       {label(a.action)}
                     </span>
                   </td>
-                  <td className="py-3 pr-6 text-[#3B4252] truncate max-w-[200px]">{a.target_label || "—"}</td>
+                  <td className="py-3 pr-6 text-body truncate max-w-[200px]">{a.target_label || "—"}</td>
                   <td className="py-3 pr-6 text-faint truncate max-w-[220px]">{a.detail || "—"}</td>
                   <td className="py-3 text-faint whitespace-nowrap tabular-nums">{a.ip_address ?? "—"}</td>
                 </tr>

@@ -258,6 +258,32 @@ function ConfirmDialog({ options, onClose }: { options: ConfirmOptions; onClose:
   );
 }
 
+/* --------------------------------------------------------------- skeletons */
+
+/** Grey placeholder rows shaped like a list, shown while it loads (instead of "Loading…" or an empty table). */
+export function SkeletonRows({ rows = 6, label = "Loading" }: { rows?: number; label?: string }) {
+  return (
+    <div role="status" aria-label={label} className="flex flex-col divide-y divide-hairline">
+      {Array.from({ length: rows }).map((_, i) => (
+        <div key={i} className="flex items-center gap-4 py-3.5">
+          <span className="h-9 w-9 shrink-0 rounded-full bg-mist animate-pulse motion-reduce:animate-none" />
+          <span className="flex flex-1 flex-col gap-2">
+            <span className="h-3 rounded-full bg-mist animate-pulse motion-reduce:animate-none" style={{ width: `${55 - (i % 3) * 12}%` }} />
+            <span className="h-2.5 w-1/4 rounded-full bg-mist animate-pulse motion-reduce:animate-none" />
+          </span>
+          <span className="h-3 w-16 shrink-0 rounded-full bg-mist animate-pulse motion-reduce:animate-none" />
+        </div>
+      ))}
+      <span className="sr-only">{label}…</span>
+    </div>
+  );
+}
+
+/** A grey placeholder card for a page section. */
+export function SkeletonCard({ className = "h-40" }: { className?: string }) {
+  return <div aria-hidden="true" className={`rounded-xl bg-white border border-line p-6 ${className}`}><div className="h-full w-full rounded-lg bg-mist animate-pulse motion-reduce:animate-none" /></div>;
+}
+
 /* -------------------------------------------------------------- side panel */
 
 /**

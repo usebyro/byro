@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useAdminMe } from "@/components/admin/AdminMe";
-import { useConfirm } from "@/components/admin/ui";
+import { useConfirm, SkeletonRows } from "@/components/admin/ui";
 import { publicHref } from "@/lib/adminNav";
 import { formatNaira } from "@/lib/eventFormat";
 
@@ -70,8 +70,8 @@ export default function AdminSettingsPage() {
     }
   };
 
-  if (error) return <div className="p-5 md:p-8"><p className="text-red-600 text-sm">{error}</p></div>;
-  if (!data) return <div className="p-5 md:p-8"><p className="text-faint text-sm">Loading…</p></div>;
+  if (error) return <div className="p-5 md:p-8"><p className="text-danger text-sm">{error}</p></div>;
+  if (!data) return <div className="p-5 md:p-8"><SkeletonRows rows={4} /></div>;
 
   return (
     <div className="p-5 md:p-8 max-w-3xl">
@@ -114,7 +114,7 @@ export default function AdminSettingsPage() {
             </button>
           )}
         </div>
-        {!valid && <p className="mt-2 text-sm text-red-600">Enter a number from 0 to {data.max_fee_percent}.</p>}
+        {!valid && <p className="mt-2 text-sm text-danger">Enter a number from 0 to {data.max_fee_percent}.</p>}
         {!isOwner && <p className="mt-2 text-xs text-faint">Only Owners can change the fee.</p>}
 
         {valid && (

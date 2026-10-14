@@ -1,7 +1,7 @@
 "use client";
 
 import { useAdminMe } from "@/components/admin/AdminMe";
-import { useConfirm } from "@/components/admin/ui";
+import { useConfirm, SkeletonRows } from "@/components/admin/ui";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 interface Progress {
@@ -206,8 +206,8 @@ export default function AdminRefundsPage() {
       </div>
 
       {error && (
-        <div role="alert" className="mb-6 bg-red-500/5 border border-red-500/20 rounded-xl px-4 py-3">
-          <p className="text-red-700 text-xs">{error}</p>
+        <div role="alert" className="mb-6 bg-danger-tint border border-danger-hover rounded-xl px-4 py-3">
+          <p className="text-danger text-xs">{error}</p>
         </div>
       )}
 
@@ -233,7 +233,7 @@ export default function AdminRefundsPage() {
       </div>
 
       {loading ? (
-        <p className="text-faint text-sm text-center py-8">Loading…</p>
+        <SkeletonRows rows={4} />
       ) : events.length === 0 ? (
         <div className="bg-white border border-line rounded-xl p-6">
           <p className="text-faint text-sm text-center py-4">No cancelled events have refunds yet.</p>
@@ -267,7 +267,7 @@ export default function AdminRefundsPage() {
                         type="button"
                         disabled={busy}
                         onClick={() => retry(e)}
-                        className="h-9 px-4 rounded-lg border border-line text-[#3B4252] text-xs font-semibold hover:bg-mist disabled:opacity-50"
+                        className="h-9 px-4 rounded-lg border border-line text-body text-xs font-semibold hover:bg-mist disabled:opacity-50"
                       >
                         Retry {p.failed} failed
                       </button>
@@ -280,10 +280,10 @@ export default function AdminRefundsPage() {
 
                 <dl className="mt-5 grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
                   <div><dt className="text-faint text-xs">Total owed</dt><dd className="text-ink tabular-nums">{naira(p.total_amount)} <span className="text-faint text-xs">({p.total_refunds})</span></dd></div>
-                  <div><dt className="text-faint text-xs">Awaiting approval</dt><dd className="text-amber-700 tabular-nums">{p.awaiting}</dd></div>
-                  <div><dt className="text-faint text-xs">Sent to Paystack</dt><dd className="text-[#3B4252] tabular-nums">{sentCount}</dd></div>
-                  <div><dt className="text-faint text-xs">Returned to buyers</dt><dd className="text-green-700 tabular-nums">{p.processed} <span className="text-faint text-xs">{naira(p.processed_amount)}</span></dd></div>
-                  <div><dt className="text-faint text-xs">Need attention</dt><dd className={`tabular-nums ${p.failed ? "text-red-600" : "text-muted"}`}>{p.failed}</dd></div>
+                  <div><dt className="text-faint text-xs">Awaiting approval</dt><dd className="text-waiting tabular-nums">{p.awaiting}</dd></div>
+                  <div><dt className="text-faint text-xs">Sent to Paystack</dt><dd className="text-body tabular-nums">{sentCount}</dd></div>
+                  <div><dt className="text-faint text-xs">Returned to buyers</dt><dd className="text-good tabular-nums">{p.processed} <span className="text-faint text-xs">{naira(p.processed_amount)}</span></dd></div>
+                  <div><dt className="text-faint text-xs">Need attention</dt><dd className={`tabular-nums ${p.failed ? "text-danger" : "text-muted"}`}>{p.failed}</dd></div>
                 </dl>
 
                 {busy && (
@@ -294,7 +294,7 @@ export default function AdminRefundsPage() {
 
                 {e.problems.length > 0 && (
                   <div className="mt-5 border-t border-hairline pt-4">
-                    <p className="text-[#3B4252] text-xs font-medium mb-1">Refunds that need you</p>
+                    <p className="text-body text-xs font-medium mb-1">Refunds that need you</p>
                     <p className="text-faint text-xs mb-3">
                       If Paystack didn&apos;t capture the buyer&apos;s bank details (it can happen with transfers and
                       USSD), open the payment reference in your Paystack dashboard and enter their account there.
@@ -304,19 +304,19 @@ export default function AdminRefundsPage() {
                       <table className="w-full text-xs">
                         <thead>
                           <tr className="text-left text-faint">
-                            <th className="pb-2 pr-4 font-medium">Buyer</th>
-                            <th className="pb-2 pr-4 font-medium">Amount</th>
-                            <th className="pb-2 pr-4 font-medium">Status</th>
-                            <th className="pb-2 pr-4 font-medium">Reason</th>
-                            <th className="pb-2 font-medium">Paystack reference</th>
+                            <th scope="col" className="pb-2 pr-4 font-medium">Buyer</th>
+                            <th scope="col" className="pb-2 pr-4 font-medium">Amount</th>
+                            <th scope="col" className="pb-2 pr-4 font-medium">Status</th>
+                            <th scope="col" className="pb-2 pr-4 font-medium">Reason</th>
+                            <th scope="col" className="pb-2 font-medium">Paystack reference</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-hairline">
                           {e.problems.map((r) => (
                             <tr key={r.refund_id}>
-                              <td className="py-2 pr-4 text-[#3B4252]">{r.email}</td>
-                              <td className="py-2 pr-4 text-[#3B4252] tabular-nums">{naira(r.amount)}</td>
-                              <td className="py-2 pr-4 text-red-700">{r.status === "needs_attention" ? "Needs attention" : "Failed"}</td>
+                              <td className="py-2 pr-4 text-body">{r.email}</td>
+                              <td className="py-2 pr-4 text-body tabular-nums">{naira(r.amount)}</td>
+                              <td className="py-2 pr-4 text-danger">{r.status === "needs_attention" ? "Needs attention" : "Failed"}</td>
                               <td className="py-2 pr-4 text-muted max-w-[260px]">{r.reason || "—"}</td>
                               <td className="py-2 text-muted font-mono break-all">{r.reference}</td>
                             </tr>

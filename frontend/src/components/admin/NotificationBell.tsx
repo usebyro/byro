@@ -113,11 +113,11 @@ export default function NotificationBell() {
         onClick={() => setOpen((o) => !o)}
         aria-label={unread > 0 ? `Notifications, ${unread} unread` : "Notifications"}
         aria-expanded={open}
-        className="relative text-[#3B4252] hover:text-ink p-1.5 rounded-lg hover:bg-mist transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+        className="relative text-body hover:text-ink p-1.5 rounded-lg hover:bg-mist transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
       >
         <HugeiconsIcon icon={Notification03Icon} size={20} color="currentColor" />
         {unread > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand px-1 text-[10px] font-bold leading-none text-white">
+          <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand px-1 text-[11px] font-bold leading-none text-white">
             {unread > 9 ? "9+" : unread}
           </span>
         )}

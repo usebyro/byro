@@ -131,7 +131,7 @@ export default function UserDetails({ userId, onDeleted }: { userId: number; onD
     }
   };
 
-  if (error) return <p className="text-red-600 text-xs">{error}</p>;
+  if (error) return <p className="text-danger text-xs">{error}</p>;
   if (!data) return <p className="text-faint text-xs">Loading details…</p>;
 
   const isOwner = me.role === "owner";
@@ -268,7 +268,7 @@ export default function UserDetails({ userId, onDeleted }: { userId: number; onD
             can&apos;t sign in. Payments and event history are kept for Byro&apos;s records. This can&apos;t be undone.
           </p>
           {data.delete_blockers.length > 0 ? (
-            <ul className="space-y-1 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3">
+            <ul className="space-y-1 text-xs text-waiting bg-waiting-tint border border-waiting-hover rounded-lg p-3">
               {data.delete_blockers.map((b) => (
                 <li key={b}>• {b}</li>
               ))}
@@ -277,7 +277,7 @@ export default function UserDetails({ userId, onDeleted }: { userId: number; onD
             <button
               type="button"
               onClick={() => setShowDelete(true)}
-              className="text-xs font-semibold px-3 py-2 rounded-lg text-red-600 bg-red-500/10 hover:bg-red-500/20"
+              className="text-xs font-semibold px-3 py-2 rounded-lg text-danger bg-danger-tint hover:bg-danger-hover"
             >
               Delete account…
             </button>
@@ -300,7 +300,7 @@ export default function UserDetails({ userId, onDeleted }: { userId: number; onD
                   type="button"
                   onClick={remove}
                   disabled={busy || confirmEmail.trim().toLowerCase() !== data.email.toLowerCase()}
-                  className="text-xs font-semibold px-3 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-40"
+                  className="text-xs font-semibold px-3 py-2 rounded-lg bg-danger-strong text-white hover:bg-danger disabled:opacity-40"
                 >
                   {busy ? "Deleting…" : "Delete for good"}
                 </button>

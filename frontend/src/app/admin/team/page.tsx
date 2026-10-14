@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Alert02Icon, Delete02Icon, Search01Icon } from "@hugeicons/core-free-icons";
 import { useAdminMe } from "@/components/admin/AdminMe";
-import { useConfirm } from "@/components/admin/ui";
+import { useConfirm, SkeletonRows } from "@/components/admin/ui";
 
 type Role = "viewer" | "admin" | "owner";
 
@@ -265,7 +265,7 @@ export default function AdminTeamPage() {
       <td className="py-3 pr-4 text-muted text-sm whitespace-nowrap">{formatShortDate(m.added_at)}</td>
       <td className="py-3 pr-4 text-sm whitespace-nowrap">
         {isOnline(m.last_seen) ? (
-          <span className="inline-flex items-center gap-1.5 text-[#3B4252]">
+          <span className="inline-flex items-center gap-1.5 text-body">
             <span className="w-1.5 h-1.5 rounded-full bg-stamp-green" />
             Online
           </span>
@@ -287,7 +287,7 @@ export default function AdminTeamPage() {
             }}
             disabled={removingId === m.id}
             aria-label={`Remove ${m.email}`}
-            className="opacity-0 group-hover:opacity-100 focus:opacity-100 text-faint hover:text-red-600 disabled:opacity-40 p-1.5 rounded-md hover:bg-red-500/10 transition"
+            className="opacity-0 group-hover:opacity-100 focus:opacity-100 text-faint hover:text-danger disabled:opacity-40 p-1.5 rounded-md hover:bg-danger-tint transition"
           >
             <HugeiconsIcon icon={Delete02Icon} size={15} color="currentColor" />
           </button>
@@ -349,17 +349,17 @@ export default function AdminTeamPage() {
         )}
       </div>
 
-      {actionError && <p className="text-red-600 text-xs mb-4">{actionError}</p>}
+      {actionError && <p className="text-danger text-xs mb-4">{actionError}</p>}
 
       {loading ? (
-        <p className="text-faint text-sm py-10 text-center">Loading…</p>
+        <SkeletonRows />
       ) : error ? (
         <div className="flex flex-col items-center gap-3 py-10 text-center">
           <HugeiconsIcon icon={Alert02Icon} size={20} color="#f87171" />
           <p className="text-muted text-sm">{error}</p>
           <button
             onClick={loadMembers}
-            className="text-xs font-semibold text-[#3B4252] hover:text-ink bg-mist hover:bg-line px-3 py-1.5 rounded-lg transition-colors"
+            className="text-xs font-semibold text-body hover:text-ink bg-mist hover:bg-line px-3 py-1.5 rounded-lg transition-colors"
           >
             Try again
           </button>
@@ -373,12 +373,12 @@ export default function AdminTeamPage() {
           <table className="w-full text-left">
             <thead>
               <tr className="text-xs text-faint">
-                <th className="pb-3 pl-4 pr-4 font-medium">Name</th>
-                <th className="pb-3 pr-4 font-medium">Email</th>
-                <th className="pb-3 pr-4 font-medium">Role</th>
-                <th className="pb-3 pr-4 font-medium">Added</th>
-                <th className="pb-3 pr-4 font-medium">Last seen</th>
-                {can.manage_team && <th className="pb-3 pr-4" aria-label="Actions" />}
+                <th scope="col" className="pb-3 pl-4 pr-4 font-medium">Name</th>
+                <th scope="col" className="pb-3 pr-4 font-medium">Email</th>
+                <th scope="col" className="pb-3 pr-4 font-medium">Role</th>
+                <th scope="col" className="pb-3 pr-4 font-medium">Added</th>
+                <th scope="col" className="pb-3 pr-4 font-medium">Last seen</th>
+                {can.manage_team && <th scope="col" className="pb-3 pr-4" aria-label="Actions" />}
               </tr>
             </thead>
             <tbody>
@@ -428,12 +428,12 @@ export default function AdminTeamPage() {
               </select>
               <p className="text-faint text-xs mt-1.5">{ROLES.find((r) => r.value === inviteRole)?.hint}</p>
             </div>
-            {inviteError && <p className="text-red-600 text-xs">{inviteError}</p>}
+            {inviteError && <p className="text-danger text-xs">{inviteError}</p>}
             <div className="flex items-center justify-end gap-2">
               <button
                 type="button"
                 onClick={closeInvite}
-                className="text-xs font-semibold text-[#3B4252] hover:text-ink px-3 py-2 rounded-lg hover:bg-mist transition-colors"
+                className="text-xs font-semibold text-body hover:text-ink px-3 py-2 rounded-lg hover:bg-mist transition-colors"
               >
                 Cancel
               </button>

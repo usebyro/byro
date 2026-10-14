@@ -1,7 +1,7 @@
 "use client";
 
 import { useAdminMe } from "@/components/admin/AdminMe";
-import { useConfirm } from "@/components/admin/ui";
+import { useConfirm, SkeletonRows } from "@/components/admin/ui";
 import { useEffect, useState, useCallback } from "react";
 
 type PayoutStatus = "pending" | "processed" | "rejected";
@@ -44,12 +44,12 @@ function destinationOf(p: PayoutRequest) {
 function StatusBadge({ status }: { status: PayoutStatus }) {
   const style =
     status === "processed"
-      ? "bg-green-500/10 text-green-700"
+      ? "bg-good-tint text-good"
       : status === "rejected"
-        ? "bg-red-500/10 text-red-600"
-        : "bg-yellow-500/10 text-amber-700";
+        ? "bg-danger-tint text-danger"
+        : "bg-waiting-tint text-waiting";
   const dot =
-    status === "processed" ? "bg-green-400" : status === "rejected" ? "bg-red-400" : "bg-yellow-400";
+    status === "processed" ? "bg-stamp-green" : status === "rejected" ? "bg-danger-strong" : "bg-marigold";
 
   return (
     <span className={`inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded-full font-medium ${style}`}>
@@ -175,8 +175,8 @@ export default function AdminPayoutsPage() {
       </div>
 
       {error && (
-        <div className="mb-6 bg-red-500/5 border border-red-500/20 rounded-xl px-4 py-3">
-          <p className="text-red-700 text-xs">{error}</p>
+        <div className="mb-6 bg-danger-tint border border-danger-hover rounded-xl px-4 py-3">
+          <p className="text-danger text-xs">{error}</p>
         </div>
       )}
 
@@ -205,7 +205,7 @@ export default function AdminPayoutsPage() {
 
       <div className="bg-white border border-line rounded-xl p-4 md:p-6">
         {loading ? (
-          <p className="text-faint text-sm text-center py-8">Loading…</p>
+          <SkeletonRows rows={4} />
         ) : payouts.length === 0 ? (
           <p className="text-faint text-sm text-center py-8">No payout requests yet.</p>
         ) : (
@@ -213,13 +213,13 @@ export default function AdminPayoutsPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-hairline text-left">
-                  <th className="pb-3 pr-6 text-xs text-faint font-medium whitespace-nowrap">Organiser</th>
-                  <th className="pb-3 pr-6 text-xs text-faint font-medium whitespace-nowrap">Event</th>
-                  <th className="pb-3 pr-6 text-xs text-faint font-medium whitespace-nowrap">Amount</th>
-                  <th className="pb-3 pr-6 text-xs text-faint font-medium whitespace-nowrap">Destination</th>
-                  <th className="pb-3 pr-6 text-xs text-faint font-medium whitespace-nowrap">Requested</th>
-                  <th className="pb-3 pr-6 text-xs text-faint font-medium whitespace-nowrap">Status</th>
-                  <th className="pb-3 text-xs text-faint font-medium whitespace-nowrap">Action</th>
+                  <th scope="col" className="pb-3 pr-6 text-xs text-faint font-medium whitespace-nowrap">Organiser</th>
+                  <th scope="col" className="pb-3 pr-6 text-xs text-faint font-medium whitespace-nowrap">Event</th>
+                  <th scope="col" className="pb-3 pr-6 text-xs text-faint font-medium whitespace-nowrap">Amount</th>
+                  <th scope="col" className="pb-3 pr-6 text-xs text-faint font-medium whitespace-nowrap">Destination</th>
+                  <th scope="col" className="pb-3 pr-6 text-xs text-faint font-medium whitespace-nowrap">Requested</th>
+                  <th scope="col" className="pb-3 pr-6 text-xs text-faint font-medium whitespace-nowrap">Status</th>
+                  <th scope="col" className="pb-3 text-xs text-faint font-medium whitespace-nowrap">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-hairline">
@@ -229,7 +229,7 @@ export default function AdminPayoutsPage() {
                       <p className="text-ink font-medium truncate max-w-[160px]">{p.user_email}</p>
                     </td>
                     <td className="py-3 pr-6 text-muted truncate max-w-[160px]">{p.event_name || "—"}</td>
-                    <td className="py-3 pr-6 text-[#3B4252] whitespace-nowrap font-medium tabular-nums">{fmtNaira(p.amount)}</td>
+                    <td className="py-3 pr-6 text-body whitespace-nowrap font-medium tabular-nums">{fmtNaira(p.amount)}</td>
                     <td className="py-3 pr-6 text-muted truncate max-w-[220px] capitalize" title={destinationOf(p)}>{destinationOf(p)}</td>
                     <td className="py-3 pr-6 text-muted whitespace-nowrap">{fmtDate(p.requested_at)}</td>
                     <td className="py-3 pr-6">
@@ -242,14 +242,14 @@ export default function AdminPayoutsPage() {
                             <button
                               onClick={() => askPayout(p, "processed")}
                               disabled={updatingId === p.id}
-                              className="text-xs font-semibold text-brand-dark hover:text-brand-dark bg-blue-500/10 hover:bg-blue-500/20 disabled:opacity-50 px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap"
+                              className="text-xs font-semibold text-brand-dark hover:text-brand-dark bg-sky hover:bg-brand/15 disabled:opacity-50 px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap"
                             >
                               {updatingId === p.id ? "Updating…" : "Mark as processed"}
                             </button>
                             <button
                               onClick={() => askPayout(p, "rejected")}
                               disabled={updatingId === p.id}
-                              className="text-xs font-semibold text-red-600 hover:text-red-700 bg-red-500/10 hover:bg-red-500/20 disabled:opacity-50 px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap"
+                              className="text-xs font-semibold text-danger hover:text-danger bg-danger-tint hover:bg-danger-hover disabled:opacity-50 px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap"
                             >
                               Reject
                             </button>
@@ -262,7 +262,7 @@ export default function AdminPayoutsPage() {
                           onClick={() => askPayout(p, "delete")}
                           disabled={updatingId === p.id}
                           title="Delete this payout request"
-                          className="text-xs font-semibold text-faint hover:text-red-600 hover:bg-red-500/10 disabled:opacity-50 px-2 py-1.5 rounded-lg transition-colors whitespace-nowrap"
+                          className="text-xs font-semibold text-faint hover:text-danger hover:bg-danger-tint disabled:opacity-50 px-2 py-1.5 rounded-lg transition-colors whitespace-nowrap"
                         >
                           Delete
                         </button>}

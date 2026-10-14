@@ -1,5 +1,6 @@
 "use client";
 
+import { SkeletonRows } from "@/components/admin/ui";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -25,9 +26,9 @@ interface AdminPayment {
 const STATUSES = ["", "successful", "pending", "failed", "abandoned"];
 
 const STATUS_STYLE: Record<string, string> = {
-  successful: "bg-green-500/10 text-green-700",
-  pending: "bg-yellow-500/10 text-amber-700",
-  failed: "bg-red-500/10 text-red-600",
+  successful: "bg-good-tint text-good",
+  pending: "bg-waiting-tint text-waiting",
+  failed: "bg-danger-tint text-danger",
 };
 
 function formatDateTime(s: string | null) {
@@ -102,17 +103,19 @@ export default function AdminPaymentsPage() {
         </select>
       </div>
 
-      {error && <p className="text-red-600 text-sm mb-6">{error}</p>}
+      {error && <p className="text-danger text-sm mb-6">{error}</p>}
 
       <div className="bg-white border border-line rounded-xl p-6 overflow-x-auto">
-        {!loading && payments.length === 0 ? (
+        {loading && payments.length === 0 ? (
+          <SkeletonRows />
+        ) : payments.length === 0 ? (
           <p className="text-faint text-sm py-6 text-center">No payments match.</p>
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-hairline text-left">
                 {["Customer", "Event", "Amount", "Promo", "Tickets", "Status", "Date"].map((h) => (
-                  <th key={h} className="pb-3 pr-6 text-xs text-faint font-medium">{h}</th>
+                  <th scope="col" key={h} className="pb-3 pr-6 text-xs text-faint font-medium">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -129,13 +132,13 @@ export default function AdminPaymentsPage() {
                     <p className="truncate max-w-[180px]">{p.event_name ?? "—"}</p>
                     {p.tier_name && <p className="text-faint text-xs">{p.tier_name}</p>}
                   </td>
-                  <td className="py-3 pr-6 text-[#3B4252] tabular-nums whitespace-nowrap">
+                  <td className="py-3 pr-6 text-body tabular-nums whitespace-nowrap">
                     {formatNaira(Number(p.amount))}
                   </td>
                   <td className="py-3 pr-6 text-muted">{p.promo_code ?? "—"}</td>
                   <td className="py-3 pr-6 text-muted tabular-nums">{p.tickets}</td>
                   <td className="py-3 pr-6">
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_STYLE[p.status] ?? "bg-gray-500/10 text-muted"}`}>
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_STYLE[p.status] ?? "bg-mist text-muted"}`}>
                       {p.status}
                     </span>
                   </td>
