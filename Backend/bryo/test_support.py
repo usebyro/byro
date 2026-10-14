@@ -196,3 +196,30 @@ class PaystackCheckTests(SupportBase):
         with paystack_says(amount_kobo=525000):
             self.assertEqual(self.client.get(self.url()).status_code, 200)
             self.assertEqual(self.client.post(self.url()).status_code, 403)
+
+
+class PromoControlTests(SupportBase):
+
+    def setUp(self):
+        super().setUp()
+        from .test_payments import make_promo
+        self.promo = make_promo(self.event)
+
+    def switch(self, active, who=None):
+        self.client.force_authenticate(who or self.admin)
+        return self.client.patch(f'/api/admin/promos/{self.promo.pk}/', {'active': active}, format='json')
+
+    def test_switching_a_code_off_stops_it_at_checkout_and_is_logged(self):
+        res = self.switch(False)
+        self.assertEqual(res.status_code, 200)
+        self.assertFalse(res.json()['is_valid'])
+        self.promo.refresh_from_db()
+        self.assertFalse(self.promo.is_valid())
+        self.assertTrue(AdminAction.objects.filter(action=AdminAction.ACTION_PROMO_DISABLED).exists())
+        self.assertTrue(self.switch(True).json()['active'])
+        self.assertTrue(AdminAction.objects.filter(action=AdminAction.ACTION_PROMO_ENABLED).exists())
+
+    def test_viewers_cannot_switch_codes(self):
+        self.assertEqual(self.switch(False, who=self.viewer).status_code, 403)
+        self.promo.refresh_from_db()
+        self.assertTrue(self.promo.active)
