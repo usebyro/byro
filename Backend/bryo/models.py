@@ -1029,6 +1029,43 @@ class Message(models.Model):
         return f"{self.get_kind_display()} from {self.organizer_id}: {self.subject}"
 
 
+class Report(models.Model):
+    """Someone flagged an event or a community page as a problem. Byro admins review these."""
+    REASON_CHOICES = [
+        ('scam', 'Scam or fraud'),
+        ('misleading', 'Misleading or fake'),
+        ('inappropriate', 'Offensive or inappropriate'),
+        ('safety', 'Safety concern'),
+        ('spam', 'Spam'),
+        ('other', 'Something else'),
+    ]
+    STATUS_OPEN = 'open'
+    STATUS_RESOLVED = 'resolved'
+    STATUS_DISMISSED = 'dismissed'
+    STATUS_CHOICES = [(STATUS_OPEN, 'Open'), (STATUS_RESOLVED, 'Action taken'), (STATUS_DISMISSED, 'No action needed')]
+
+    target_type = models.CharField(max_length=10, choices=[('event', 'Event'), ('community', 'Community')])
+    event = models.ForeignKey('Event', null=True, blank=True, on_delete=models.CASCADE, related_name='reports')
+    community = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.CASCADE,
+                                  related_name='reports_against')
+    reason = models.CharField(max_length=20, choices=REASON_CHOICES)
+    details = models.TextField(max_length=2000, blank=True)
+    reporter = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                 related_name='reports_made')
+    reporter_email = models.EmailField(blank=True)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_OPEN, db_index=True)
+    resolution_note = models.CharField(max_length=500, blank=True)
+    resolved_by_email = models.EmailField(blank=True)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Report {self.pk}: {self.target_type} ({self.reason})"
+
+
 class AdminMember(models.Model):
     """Who may use the admin panel, and what they may do there.
 
@@ -1094,6 +1131,7 @@ class AdminAction(models.Model):
     ACTION_COMMUNITY_UNVERIFIED = 'community.unverified'
     ACTION_MERCH_REMOVED = 'merch.removed'
     ACTION_MERCH_RESTORED = 'merch.restored'
+    ACTION_REPORT_CLOSED = 'report.closed'
     ACTION_MESSAGING_BLOCKED = 'user.messaging_blocked'
     ACTION_MESSAGING_UNBLOCKED = 'user.messaging_unblocked'
 
@@ -1127,6 +1165,7 @@ class AdminAction(models.Model):
         (ACTION_COMMUNITY_UNVERIFIED, 'Community verification removed'),
         (ACTION_MERCH_REMOVED, 'Merch item removed'),
         (ACTION_MERCH_RESTORED, 'Merch item restored'),
+        (ACTION_REPORT_CLOSED, 'Report closed'),
         (ACTION_MESSAGING_BLOCKED, 'Organiser blocked from messaging'),
         (ACTION_MESSAGING_UNBLOCKED, 'Organiser allowed to message again'),
     ]

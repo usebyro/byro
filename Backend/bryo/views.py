@@ -1563,6 +1563,59 @@ class MessagesView(APIView):
         return Response({'cancelled': True})
 
 
+class ReportView(APIView):
+    """
+    POST /api/reports/ {target: 'event'|'community', slug|handle, reason, details?, email?}
+    Anyone can report an event or a community page. Byro's admins are told and review it.
+    """
+    permission_classes = [AllowAny]
+    throttle_scope = 'report'
+
+    def post(self, request):
+        from .models import Report
+        data = request.data
+        target = data.get('target')
+        reason = data.get('reason')
+        details = str(data.get('details') or '').strip()[:2000]
+        if reason not in dict(Report.REASON_CHOICES):
+            return Response({'error': 'Choose what is wrong.'}, status=status.HTTP_400_BAD_REQUEST)
+        if reason == 'other' and not details:
+            return Response({'error': 'Tell us what is wrong.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        event = community = None
+        if target == 'event':
+            event = Event.objects.filter(slug=str(data.get('slug') or '')).select_related('owner').first()
+            if not event:
+                return Response({'error': 'That event was not found.'}, status=status.HTTP_404_NOT_FOUND)
+            label = event.name
+        elif target == 'community':
+            profile = UserProfile.objects.filter(handle__iexact=str(data.get('handle') or '')).select_related('user').first()
+            if not profile:
+                return Response({'error': 'That community was not found.'}, status=status.HTTP_404_NOT_FOUND)
+            community = profile.user
+            label = profile.display_name or profile.handle
+        else:
+            return Response({'error': 'Say what you are reporting.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        reporter = request.user if request.user.is_authenticated else None
+        email = (reporter.email if reporter else str(data.get('email') or '').strip())[:254]
+        if email:
+            try:
+                validate_email(email)
+            except DjangoValidationError:
+                return Response({'error': 'That email address does not look right.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # One open report per person per thing is enough.
+        if reporter and Report.objects.filter(reporter=reporter, event=event, community=community,
+                                              status=Report.STATUS_OPEN).exists():
+            return Response({'reported': True})
+
+        Report.objects.create(target_type=target, event=event, community=community, reason=reason,
+                              details=details, reporter=reporter, reporter_email=email)
+        notify_admins('report', f'New report: {label}'[:140], body=dict(Report.REASON_CHOICES)[reason], link='/reports')
+        return Response({'reported': True}, status=status.HTTP_201_CREATED)
+
+
 class UnfollowByTokenView(APIView):
     """POST /api/community/unfollow/ {token} — the unfollow link in a follower email. No login needed."""
     permission_classes = [AllowAny]
@@ -4348,6 +4401,74 @@ class AdminMerchView(APIView):
             _log_admin_action(request, AdminAction.ACTION_MERCH_REMOVED if removed else AdminAction.ACTION_MERCH_RESTORED,
                               'merch', item.pk, f'{item.name} ({item.owner.email})'[:255])
         return Response(MerchItemSerializer(item, context={'request': request}).data)
+
+
+class AdminReportsView(APIView):
+    """GET /api/admin/reports/?status=open — reports from users, newest first, with what was reported."""
+    permission_classes = [IsAdminMember]
+
+    @staticmethod
+    def row(r):
+        from .models import Report
+        community = r.community
+        cprofile = getattr(community, 'profile', None) if community else None
+        e = r.event
+        return {
+            'id': r.pk, 'target_type': r.target_type, 'reason': r.reason,
+            'reason_label': dict(Report.REASON_CHOICES).get(r.reason, r.reason),
+            'details': r.details, 'reporter_email': r.reporter_email, 'status': r.status,
+            'resolution_note': r.resolution_note, 'resolved_by_email': r.resolved_by_email,
+            'resolved_at': r.resolved_at, 'created_at': r.created_at,
+            'event': None if not e else {
+                'id': e.pk, 'name': e.name, 'slug': e.slug, 'is_active': e.is_active,
+                'organizer_email': e.owner.email if e.owner_id else None,
+            },
+            'community': None if not community else {
+                'user_id': community.pk, 'email': community.email,
+                'name': (cprofile.display_name if cprofile else '') or community.email,
+                'handle': cprofile.handle if cprofile else None,
+                'hidden_from_directory': bool(cprofile and cprofile.hidden_from_directory),
+            },
+            'reports_on_same': (Report.objects.filter(event=e) if e else Report.objects.filter(community=community)).count(),
+        }
+
+    def get(self, request):
+        from .models import Report
+        qs = Report.objects.select_related('event', 'event__owner', 'community', 'community__profile')
+        wanted = (request.query_params.get('status') or '').strip()
+        if wanted:
+            qs = qs.filter(status=wanted)
+        return Response({
+            'open': Report.objects.filter(status=Report.STATUS_OPEN).count(),
+            'reports': [self.row(r) for r in qs[:300]],
+        })
+
+
+class AdminReportDetailView(APIView):
+    """PATCH /api/admin/reports/<pk>/ {status: resolved|dismissed|open, note?} — close (or reopen) a report."""
+    permission_classes = [IsAdminMember]
+    min_role = AdminMember.ROLE_ADMIN
+
+    def patch(self, request, pk):
+        from .models import Report
+        r = Report.objects.select_related('event', 'community').filter(pk=pk).first()
+        if not r:
+            return Response({'error': 'Report not found.'}, status=status.HTTP_404_NOT_FOUND)
+        new = request.data.get('status')
+        if new not in dict(Report.STATUS_CHOICES):
+            return Response({'error': 'Choose what happened.'}, status=status.HTTP_400_BAD_REQUEST)
+        note = str(request.data.get('note') or '').strip()[:500]
+        member = getattr(request, 'admin_member', None)
+        r.status = new
+        r.resolution_note = note
+        r.resolved_by_email = (member.email if member else '') if new != Report.STATUS_OPEN else ''
+        r.resolved_at = timezone.now() if new != Report.STATUS_OPEN else None
+        r.save(update_fields=['status', 'resolution_note', 'resolved_by_email', 'resolved_at'])
+        if new != Report.STATUS_OPEN:
+            label = r.event.name if r.event_id else (r.community.email if r.community_id else '')
+            _log_admin_action(request, AdminAction.ACTION_REPORT_CLOSED, 'report', r.pk, label[:255],
+                              f'{new}: {note}'[:255])
+        return Response(AdminReportsView.row(r))
 
 
 class AdminMessagesView(APIView):

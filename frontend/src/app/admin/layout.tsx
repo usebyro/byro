@@ -19,6 +19,7 @@ import {
   Mail01Icon,
   CustomerSupportIcon,
   UserGroup03Icon,
+  Flag01Icon,
   Menu01Icon,
   Cancel01Icon,
 } from "@hugeicons/core-free-icons";
@@ -34,6 +35,7 @@ const navItems = [
   { label: "Payouts", href: "/payouts", icon: Wallet01Icon },
   { label: "Refunds", href: "/refunds", icon: Money01Icon },
   { label: "Promo codes", href: "/promos", icon: Coupon01Icon },
+  { label: "Reports", href: "/reports", icon: Flag01Icon },
   { label: "Communities", href: "/communities", icon: UserGroup03Icon },
   { label: "Support", href: "/support", icon: CustomerSupportIcon },
   { label: "Messages", href: "/messages", icon: Mail01Icon },

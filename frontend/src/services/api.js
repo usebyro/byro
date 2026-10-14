@@ -490,6 +490,19 @@ const API = {
   },
 
   // Newsletter (Brevo, via backend)
+  // Flag an event or community page to Byro. payload: {target, slug|handle, reason, details?, email?}
+  sendReport: async (payload) => {
+    try {
+      const response = await axiosInstance.post("reports/", payload);
+      return response.data;
+    } catch (error) {
+      const message = error.response?.data?.error;
+      if (message) throw new Error(message);
+      if (error.response?.status === 429) throw new Error("Too many reports from here. Try again later.");
+      throw handleApiError(error);
+    }
+  },
+
   subscribeNewsletter: async (email) => {
     try {
       const response = await axiosInstance.post("newsletter/subscribe/", { email });

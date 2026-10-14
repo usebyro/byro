@@ -9,6 +9,7 @@ import Footer from "@/components/Footer";
 import ShareMenu from "@/components/ShareMenu";
 import FollowButton from "@/components/community/FollowButton";
 import VerifiedBadge from "@/components/community/VerifiedBadge";
+import ReportButton from "@/components/ReportButton";
 import EventImage from "@/components/brand/EventImage";
 import { categoryTone, dayParts, eventInitials, formatTime, priceLabel } from "@/lib/eventFormat";
 
@@ -373,6 +374,9 @@ export default function PublicProfileClient({ username }) {
               </ul>
             </section>
           )}
+        </div>
+        <div className="flex justify-center pt-2">
+          <ReportButton target="community" handle={profile.handle || username} name={name} />
         </div>
       </main>
 
