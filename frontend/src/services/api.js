@@ -490,6 +490,16 @@ const API = {
   },
 
   // Newsletter (Brevo, via backend)
+  // Byro's service fee: { default_percent, my_percent? } (my_percent when signed in).
+  getFeeInfo: async () => {
+    try {
+      const response = await axiosInstance.get("settings/fees/");
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
   // Flag an event or community page to Byro. payload: {target, slug|handle, reason, details?, email?}
   sendReport: async (payload) => {
     try {

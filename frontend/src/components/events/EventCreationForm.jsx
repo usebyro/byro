@@ -17,6 +17,7 @@ import {
 import { describeTicketLimits } from "@/lib/ticketLimits";
 import { trackCreateEvent } from "@/lib/analytics";
 import API from "../../services/api";
+import useFeeInfo from "@/lib/useFeeInfo";
 import RichTextEditor from "./RichTextEditor";
 
 /* ── Category options ── */
@@ -199,6 +200,7 @@ const questionToServer = (q) => ({
 const DEFAULT_TIERS = [];
 
 export default function EventCreationForm({ editSlug = null, initialData = null, embedded = false }) {
+  const feeInfo = useFeeInfo();
   const router = useRouter();
   const wasDraft = Boolean(initialData?.is_draft);
   // A live event can't be turned back into a draft (it may already have sold tickets).
@@ -1237,7 +1239,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
                 { label: "Public event", hint: eventVisibility ? undefined : "Only people with the link", value: eventVisibility, toggle: () => setEventVisibility(v => !v) },
                 { label: "Show ticket availability", value: showRemainingCount, toggle: () => setShowRemainingCount(v => !v) },
                 // { label: "Transferable tickets", value: ticketsTransferable, toggle: () => setTicketsTransferable(v => !v) }, // disabled for now
-                { label: "Buyers pay the 5% fee", info: "/pricing", value: passFeeToAttendee, toggle: () => setPassFeeToAttendee(v => !v) },
+                { label: `Buyers pay the ${feeInfo.myPercent ?? feeInfo.defaultPercent}% fee`, info: "/pricing", value: passFeeToAttendee, toggle: () => setPassFeeToAttendee(v => !v) },
               ].map(({ label, hint, info, value, toggle }) => (
                 <div key={label} className="flex items-center justify-between gap-3">
                   <span className="flex flex-col">

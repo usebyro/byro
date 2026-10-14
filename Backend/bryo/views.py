@@ -38,7 +38,7 @@ from .community import (
     community_stats, event_host_name, follow_organizer, notify_followers_in_background, record_stamp,
     stamps_for_user, unfollow_from_token,
 )
-from .pricing import calculate_ticket_fees, FEE_RATE, PAYSTACK_FEE_CAP
+from .pricing import calculate_ticket_fees, DEFAULT_FEE_RATE, FEE_RATE, MAX_FEE_RATE, PAYSTACK_FEE_CAP, default_fee_rate, fee_rate_for
 from .refunds import (
     EventCancellationError, apply_refund_webhook, authorise_refunds, cancel_event, cancellation_preview,
     paystack_balance, process_event_refunds, refund_progress, refundable_amount, send_arranged_notice,
@@ -791,7 +791,8 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
             discount_amount = promo.compute_discount(subtotal)
 
         discounted_subtotal = subtotal - discount_amount
-        fees = calculate_ticket_fees(discounted_subtotal, pass_fee_to_attendee=event.pass_fee_to_attendee)
+        fee_rate = fee_rate_for(event.owner)  # fixed for this order and recorded on it
+        fees = calculate_ticket_fees(discounted_subtotal, pass_fee_to_attendee=event.pass_fee_to_attendee, rate=fee_rate)
         amount = fees['total']
 
         # For free events/tiers, create ticket(s) directly
@@ -861,6 +862,7 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                     customer_email=customer_email,
                     customer_name=customer_name,
                     amount=amount,
+                    fee_rate=fee_rate,
                     currency='NGN',
                     paystack_reference=reference,
                     status='pending',
@@ -873,6 +875,7 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                         'tier_id': tier.id if tier is not None else None,
                         'subtotal': str(fees['subtotal']),
                         'service_fee': str(fees['service_fee']),
+                        'fee_rate': str(fee_rate),
                         'paystack_fee': str(fees['paystack_fee']),
                         'display_total': str(fees['display_total']),
                         'discount_amount': str(discount_amount),
@@ -3343,7 +3346,8 @@ def ticket_net_price_expr():
     discount for a whole purchase on Payment.metadata['discount_amount'], and a
     purchase can produce several tickets, so each ticket carries an equal share.
     If the organiser absorbs Byro's service fee (`pass_fee_to_attendee=False`),
-    that fee is 5% of the DISCOUNTED price and is deducted here.
+    that fee is the order's own recorded rate (Payment.fee_rate) of the DISCOUNTED
+    price and is deducted here, so changing the fee later never changes old earnings.
 
     Shared by the payout balance and the dashboard analytics so both agree.
     """
@@ -3385,7 +3389,9 @@ def ticket_net_price_expr():
         models.When(
             event__pass_fee_to_attendee=False,
             then=models.ExpressionWrapper(
-                after_discount * (Decimal('1') - FEE_RATE), output_field=money
+                after_discount * (Decimal('1') - Coalesce(F('payment__fee_rate'), DEFAULT_FEE_RATE,
+                                                         output_field=models.DecimalField(max_digits=5, decimal_places=4))),
+                output_field=money
             ),
         ),
         default=after_discount,
@@ -4533,6 +4539,103 @@ class AdminExportView(APIView):
         res = HttpResponse('\ufeff' + text, content_type='text/csv; charset=utf-8')  # BOM so Excel reads ₦ correctly
         res['Content-Disposition'] = f'attachment; filename="byro-{kind}-{start}-to-{end}.csv"'
         return res
+
+
+def _percent(rate):
+    """0.0500 -> '5', 0.0325 -> '3.25' (for showing to people)."""
+    return format((Decimal(rate) * 100).normalize(), 'f')
+
+
+def _rate_from_percent(value):
+    """'4.5' -> Decimal('0.0450'), checked against the allowed range. Raises ValueError with a plain message."""
+    try:
+        pct = Decimal(str(value).strip())
+    except Exception:
+        raise ValueError('Enter the fee as a number, e.g. 5 for 5%.')
+    if not pct.is_finite() or pct < 0 or pct > MAX_FEE_RATE * 100:
+        raise ValueError(f'The fee must be between 0% and {_percent(MAX_FEE_RATE)}%.')
+    return (pct / 100).quantize(Decimal('0.0001'))
+
+
+class FeeInfoView(APIView):
+    """GET /api/settings/fees/ — Byro's service fee: the default, and the signed-in organiser's own rate."""
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        data = {'default_percent': _percent(default_fee_rate())}
+        if request.user.is_authenticated:
+            data['my_percent'] = _percent(fee_rate_for(request.user))
+        return Response(data)
+
+
+class AdminSettingsView(APIView):
+    """
+    GET   /api/admin/settings/ — platform settings and every organiser on a special fee.
+    PATCH /api/admin/settings/ {default_fee_percent} — owners only. Applies to new orders; paid ones keep their fee.
+    """
+    permission_classes = [IsAdminMember]
+    method_roles = {'PATCH': AdminMember.ROLE_OWNER}
+
+    def get(self, request):
+        from .models import PlatformSettings
+        st = PlatformSettings.get()
+        deals = (UserProfile.objects.filter(fee_rate_override__isnull=False).select_related('user')
+                 .order_by('display_name'))
+        return Response({
+            'default_fee_percent': _percent(st.default_fee_rate),
+            'max_fee_percent': _percent(MAX_FEE_RATE),
+            'updated_by_email': st.updated_by_email, 'updated_at': st.updated_at,
+            'organiser_fees': [{
+                'user_id': p.user_id, 'email': p.user.email,
+                'name': p.display_name or p.handle or p.user.email, 'handle': p.handle,
+                'fee_percent': _percent(p.fee_rate_override),
+            } for p in deals],
+        })
+
+    def patch(self, request):
+        from .models import PlatformSettings
+        try:
+            rate = _rate_from_percent(request.data.get('default_fee_percent'))
+        except ValueError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        st = PlatformSettings.get()
+        old = st.default_fee_rate
+        if rate != old:
+            st.default_fee_rate = rate
+            st.updated_by_email = getattr(request, 'admin_member', None).email if getattr(request, 'admin_member', None) else ''
+            st.save()
+            _log_admin_action(request, AdminAction.ACTION_FEE_DEFAULT_CHANGED, 'settings', 'fee', 'Default service fee',
+                              f'{_percent(old)}% -> {_percent(rate)}%')
+        return self.get(request)
+
+
+class AdminUserFeeView(APIView):
+    """PATCH /api/admin/users/<pk>/fee/ {fee_percent: number, or null for the default} — an organiser's own fee (owners only)."""
+    permission_classes = [IsAdminMember]
+    min_role = AdminMember.ROLE_OWNER
+
+    def patch(self, request, pk):
+        user = User.objects.filter(pk=pk).first()
+        if not user:
+            return Response({'error': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+        raw = request.data.get('fee_percent')
+        try:
+            rate = None if raw in (None, '') else _rate_from_percent(raw)
+        except ValueError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        profile, _ = UserProfile.objects.get_or_create(user=user)
+        old = profile.fee_rate_override
+        if rate != old:
+            profile.fee_rate_override = rate
+            profile.save(update_fields=['fee_rate_override'])
+            before = f'{_percent(old)}%' if old is not None else 'default'
+            after = f'{_percent(rate)}%' if rate is not None else 'default'
+            _log_admin_action(request, AdminAction.ACTION_FEE_OVERRIDE_CHANGED, 'user', user.pk, user.email,
+                              f'{before} -> {after}')
+        return Response({
+            'fee_percent': _percent(rate) if rate is not None else None,
+            'effective_percent': _percent(fee_rate_for(user)),
+        })
 
 
 class AdminMessagesView(APIView):

@@ -15,6 +15,7 @@ interface Summary {
   followers: number;
   following: number;
   balance: string;
+  fee_percent: string | null;
   events: { name: string; slug: string; day: string; is_draft: boolean; cancelled: boolean; upcoming: boolean; tickets: number }[];
   events_total: number;
   tickets: { ticket_id: string; event_name: string; event_slug: string; day: string; status: string; checked_in: boolean }[];
@@ -44,6 +45,7 @@ export default function UserDetails({ userId, onDeleted }: { userId: number; onD
   const [busy, setBusy] = useState(false);
   const [confirmEmail, setConfirmEmail] = useState("");
   const [showDelete, setShowDelete] = useState(false);
+  const [feeDraft, setFeeDraft] = useState("");
 
   const load = useCallback(async () => {
     try {
@@ -51,6 +53,7 @@ export default function UserDetails({ userId, onDeleted }: { userId: number; onD
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body?.error);
       setData(body);
+      setFeeDraft(body.fee_percent ?? "");
       setError("");
     } catch {
       setError("Couldn't load this person's details.");
@@ -73,6 +76,23 @@ export default function UserDetails({ userId, onDeleted }: { userId: number; onD
       await load();
     } catch {
       toast.error("Couldn't update messaging");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const saveFee = async (value: string | null) => {
+    const label = value === null ? "the default fee" : `a ${value}% fee`;
+    if (!window.confirm(`Put this organiser on ${label}? It applies to their new orders only.`)) return;
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/admin/users/${userId}/fee`, { method: "PATCH", body: JSON.stringify({ fee_percent: value }) });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body?.error || "Try again.");
+      toast.success("Service fee updated", { description: `Now ${body.effective_percent}% on new orders` });
+      await load();
+    } catch (err) {
+      toast.error("Couldn't update the fee", { description: (err as Error).message });
     } finally {
       setBusy(false);
     }
@@ -177,6 +197,52 @@ export default function UserDetails({ userId, onDeleted }: { userId: number; onD
           >
             {data.profile.messaging_blocked ? "Allow messaging" : "Block messaging"}
           </button>
+        </div>
+      )}
+
+      {isOwner && !deleted && data.events_total > 0 && (
+        <div>
+          <h4 className="text-ink text-sm font-semibold mb-2">Service fee</h4>
+          <p className="text-faint text-xs leading-relaxed mb-3">
+            {data.fee_percent !== null
+              ? `Special fee: ${data.fee_percent}% on their new orders.`
+              : "They pay Byro's default fee. Give them a special fee for a partnership or a charity."}
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="flex items-center rounded-lg border border-line bg-white focus-within:ring-1 focus-within:ring-brand/40">
+              <input
+                type="number"
+                inputMode="decimal"
+                min={0}
+                max={15}
+                step={0.25}
+                value={feeDraft}
+                onChange={(e) => setFeeDraft(e.target.value)}
+                placeholder="e.g. 3"
+                aria-label="Special service fee in percent"
+                className="w-20 bg-transparent px-3 py-2 text-sm text-ink tabular-nums focus:outline-none"
+              />
+              <span className="pr-3 text-sm text-muted">%</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => saveFee(feeDraft.trim())}
+              disabled={busy || feeDraft.trim() === "" || feeDraft.trim() === data.fee_percent}
+              className="text-xs font-semibold px-3 py-2 rounded-lg bg-brand/10 text-brand-dark hover:bg-brand/20 disabled:opacity-50"
+            >
+              Set special fee
+            </button>
+            {data.fee_percent !== null && (
+              <button
+                type="button"
+                onClick={() => saveFee(null)}
+                disabled={busy}
+                className="text-xs font-semibold px-3 py-2 rounded-lg bg-mist text-muted hover:text-ink disabled:opacity-50"
+              >
+                Use default
+              </button>
+            )}
+          </div>
         </div>
       )}
 

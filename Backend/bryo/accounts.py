@@ -29,7 +29,7 @@ def _mine(user, field):
 
 
 def summary(user):
-    from .views import compute_available_balance  # lazy: views imports this module's neighbours
+    from .views import _percent, compute_available_balance  # lazy: views imports this module's neighbours
 
     profile = UserProfile.objects.filter(user=user).first()
     today = timezone.localdate()
@@ -49,6 +49,8 @@ def summary(user):
         'followers': Follow.objects.filter(following=user).count(),
         'following': Follow.objects.filter(follower=user).count(),
         'balance': str(max(compute_available_balance(user), Decimal('0'))),
+        # Their own service fee if Byro gave them a deal (e.g. '3'), else None for the platform default.
+        'fee_percent': _percent(profile.fee_rate_override) if profile and profile.fee_rate_override is not None else None,
         'events': [{
             'name': e.name, 'slug': e.slug, 'day': e.day, 'is_draft': e.is_draft, 'is_active': e.is_active,
             'cancelled': bool(e.cancelled_at), 'upcoming': e.day >= today,

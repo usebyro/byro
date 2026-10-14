@@ -21,6 +21,7 @@ import {
   UserGroup03Icon,
   Flag01Icon,
   Download04Icon,
+  Settings01Icon,
   Menu01Icon,
   Cancel01Icon,
 } from "@hugeicons/core-free-icons";
@@ -44,6 +45,7 @@ const navItems = [
   { label: "Activity", href: "/activity", icon: Activity01Icon },
   { label: "Audit log", href: "/audit-log", icon: Clock01Icon },
   { label: "Team", href: "/team", icon: UserGroupIcon },
+  { label: "Settings", href: "/settings", icon: Settings01Icon },
 ];
 
 // Grouped by what the admin is doing: looking at the platform, moving money, or checking who did what.

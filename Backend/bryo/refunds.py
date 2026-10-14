@@ -84,7 +84,8 @@ def refundable_amount(payment):
     if stored not in (None, ''):
         return Decimal(str(stored)).quantize(Decimal('0.01'))
     if payment.event.pass_fee_to_attendee:
-        return (payment.amount / (Decimal('1') + FEE_RATE)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        rate = payment.fee_rate if payment.fee_rate is not None else FEE_RATE
+        return (payment.amount / (Decimal('1') + rate)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
     return payment.amount.quantize(Decimal('0.01'))
 
 

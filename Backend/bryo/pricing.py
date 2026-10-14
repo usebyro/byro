@@ -24,7 +24,28 @@ This module is mirrored by frontend/src/lib/pricing.ts - keep them in sync.
 from decimal import Decimal, ROUND_HALF_UP
 
 # Byro's service fee.
-FEE_RATE = Decimal('0.05')
+FEE_RATE = Decimal('0.05')          # the original rate; old orders without a recorded rate were charged this
+DEFAULT_FEE_RATE = FEE_RATE
+MAX_FEE_RATE = Decimal('0.15')      # guardrail: the admin can't set more than 15%
+
+
+def default_fee_rate():
+    """The platform-wide service fee rate, as set by Byro owners in the admin."""
+    from .models import PlatformSettings
+    try:
+        return PlatformSettings.get().default_fee_rate
+    except Exception:  # e.g. before the migration has run
+        return DEFAULT_FEE_RATE
+
+
+def fee_rate_for(organizer):
+    """The service fee rate for this organiser's events: their own deal if Byro set one, else the default."""
+    if organizer is not None and getattr(organizer, 'pk', None):
+        from .models import UserProfile
+        override = UserProfile.objects.filter(user=organizer).values_list('fee_rate_override', flat=True).first()
+        if override is not None:
+            return override
+    return default_fee_rate()
 
 # Paystack local-transaction fee parameters (for simulation only).
 PAYSTACK_RATE = Decimal('0.015')
@@ -59,7 +80,7 @@ def _simulate_paystack_fee(amount):
     return fee
 
 
-def calculate_ticket_fees(subtotal, pass_fee_to_attendee=True):
+def calculate_ticket_fees(subtotal, pass_fee_to_attendee=True, rate=None):
     """Return the fee breakdown for a ticket subtotal (price * quantity).
 
     When `pass_fee_to_attendee` is False, the organiser has chosen to absorb
@@ -67,8 +88,11 @@ def calculate_ticket_fees(subtotal, pass_fee_to_attendee=True):
     be deducted from their payout), but it is NOT added to `total` /
     `display_total` - the attendee is only charged the subtotal (plus
     Paystack's own fee).
+
+    `rate` is the service fee rate for this event's organiser (see fee_rate_for); the default rate if omitted.
     """
     subtotal = Decimal(str(subtotal))
+    rate = DEFAULT_FEE_RATE if rate is None else Decimal(str(rate))
 
     if subtotal <= _ZERO:
         return {
@@ -80,7 +104,7 @@ def calculate_ticket_fees(subtotal, pass_fee_to_attendee=True):
         }
 
     # Byro's service fee (always computed, even if organiser-absorbed).
-    service_fee = (subtotal * FEE_RATE).quantize(_NAIRA, rounding=ROUND_HALF_UP)
+    service_fee = (subtotal * rate).quantize(_NAIRA, rounding=ROUND_HALF_UP)
     # The raw amount we send to Paystack.
     total = subtotal + service_fee if pass_fee_to_attendee else subtotal
 

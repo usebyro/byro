@@ -257,7 +257,7 @@ export default function ViewEventClient({ slug }) {
   // Tickets are sold in the tier's bundle: never below its minimum, never above its maximum.
   const effectiveQty = Math.min(maxQty, Math.max(minQty, qty));
   const passFeeToAttendee = event.pass_fee_to_attendee !== false;
-  const tierFees = calculateTicketFees(activeTier.price * effectiveQty, passFeeToAttendee);
+  const tierFees = calculateTicketFees(activeTier.price * effectiveQty, passFeeToAttendee, Number(event.fee_rate) || undefined);
   const tierSubtotal = tierFees.subtotal;
   // Buyer-facing "service fee" = everything added on top of the subtotal
   // (Byro's 6.5% + the simulated Paystack cut), so the breakdown reconciles

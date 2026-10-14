@@ -27,6 +27,8 @@ interface Event {
   show_remaining_count?: boolean;
   pass_fee_to_attendee?: boolean;
   max_tickets_per_person?: number;
+  /** The organiser's service fee rate, e.g. "0.0500". */
+  fee_rate?: string;
 }
 
 interface TicketTier {
@@ -269,7 +271,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
     : 0;
   const discountedSubtotal = subtotal - discount;
   const passFeeToAttendee = event.pass_fee_to_attendee !== false;
-  const fees = calculateTicketFees(discountedSubtotal, passFeeToAttendee);
+  const fees = calculateTicketFees(discountedSubtotal, passFeeToAttendee, Number(event.fee_rate) || undefined);
   // Buyer-facing "service fee" = everything added on top of the subtotal
   // (Byro's 6.5% + the simulated Paystack cut), so the shown total equals what
   // Paystack will actually charge and no fee jumps at checkout.
