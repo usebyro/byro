@@ -7,6 +7,7 @@ import { useAdminMe } from "@/components/admin/AdminMe";
 import { useConfirm } from "@/components/admin/ui";
 import { publicHref } from "@/lib/adminNav";
 import { formatNaira } from "@/lib/eventFormat";
+import SupportRequests from "@/components/admin/SupportRequests";
 
 interface SupportTicket {
   ticket_id: string;
@@ -86,6 +87,7 @@ function SupportPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
+  const [tab, setTab] = useState<"requests" | "orders">(params.get("q") ? "orders" : "requests");
 
   const search = async (e?: React.FormEvent, override?: string) => {
     e?.preventDefault();
@@ -106,6 +108,13 @@ function SupportPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // From a help request: jump to order lookup with their email filled in.
+  const lookup = (email: string) => {
+    setTab("orders");
+    setQ(email);
+    search(undefined, email);
   };
 
   const act = async (key: string, fn: () => Promise<void>) => {
@@ -187,150 +196,175 @@ function SupportPage() {
     <div className="p-5 md:p-8">
       <div className="mb-8">
         <h1 className="font-display text-ink text-3xl font-extrabold tracking-tight">Support</h1>
-        <p className="text-muted text-sm mt-1">Find an order or ticket, then resend it, fix a check-in, or refund it</p>
+        <p className="text-muted text-sm mt-1">
+          {tab === "requests"
+            ? "People who asked for help on tawk.to, and who on the team is handling them"
+            : "Find an order or ticket, then resend it, fix a check-in, or refund it"}
+        </p>
       </div>
 
-      <form onSubmit={search} className="mb-6 flex flex-wrap gap-2">
-        <label htmlFor="support-q" className="sr-only">Name, email, ticket ID or payment reference</label>
-        <input
-          id="support-q"
-          type="search"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Name, email, ticket ID or payment reference…"
-          autoComplete="off"
-          spellCheck={false}
-          className="w-full sm:w-96 bg-mist border border-line rounded-lg px-3 py-2 text-sm text-ink placeholder:text-faint focus:outline-none focus:ring-1 focus:ring-brand/40"
-        />
-        <button
-          type="submit"
-          disabled={loading}
-          className="rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white hover:bg-brand-dark disabled:opacity-60"
-        >
-          {loading ? "Searching…" : "Search"}
-        </button>
-      </form>
+      <div role="tablist" aria-label="Support" className="mb-6 flex gap-6 border-b border-line">
+        {([["requests", "Requests"], ["orders", "Find an order"]] as const).map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            role="tab"
+            aria-selected={tab === value}
+            onClick={() => setTab(value)}
+            className={`-mb-px border-b-2 pb-2.5 text-sm font-bold transition-colors ${tab === value ? "border-brand text-ink" : "border-transparent text-muted hover:text-ink"}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
 
-      {error && <p className="text-danger text-sm mb-6">{error}</p>}
+      {tab === "requests" ? (
+        <SupportRequests onLookup={lookup} />
+      ) : (
+        <>
+          <form onSubmit={search} className="mb-6 flex flex-wrap gap-2">
+            <label htmlFor="support-q" className="sr-only">Name, email, ticket ID or payment reference</label>
+            <input
+              id="support-q"
+              type="search"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Name, email, ticket ID or payment reference…"
+              autoComplete="off"
+              spellCheck={false}
+              className="w-full sm:w-96 bg-mist border border-line rounded-lg px-3 py-2 text-sm text-ink placeholder:text-faint focus:outline-none focus:ring-1 focus:ring-brand/40"
+            />
+            <button
+              type="submit"
+              disabled={loading}
+              className="rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white hover:bg-brand-dark disabled:opacity-60"
+            >
+              {loading ? "Searching…" : "Search"}
+            </button>
+          </form>
 
-      {orders !== null && orders.length === 0 && !loading && (
-        <p className="bg-white border border-line rounded-xl p-6 text-faint text-sm text-center">Nothing found for that search.</p>
-      )}
+          {error && <p className="text-danger text-sm mb-6">{error}</p>}
 
-      <div className="flex flex-col gap-4">
-        {orders?.map((o) => {
-          const p = o.payment;
-          const canRefund = canAct && p && p.status === "successful" && !o.refund && Number(p.refundable) > 0;
-          return (
-            <section key={o.key} className="bg-white border border-line rounded-xl p-5">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <a
-                    href={publicHref(`/discover/${o.event.slug}`)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="font-display text-lg font-bold text-ink hover:underline"
-                  >
-                    {o.event.name}
-                  </a>
-                  <p className="text-xs text-faint">
-                    {o.event.day}
-                    {o.event.cancelled && <span className="ml-2 font-bold text-danger">Event cancelled</span>}
-                  </p>
-                </div>
-                {canRefund && (
-                  <button
-                    type="button"
-                    onClick={() => refund(o)}
-                    disabled={busy !== ""}
-                    className="rounded-lg border border-danger-hover px-3 py-1.5 text-xs font-bold text-danger hover:bg-danger-tint disabled:opacity-50"
-                  >
-                    Refund order
-                  </button>
-                )}
-              </div>
+          {orders !== null && orders.length === 0 && !loading && (
+            <p className="bg-white border border-line rounded-xl p-6 text-faint text-sm text-center">Nothing found for that search.</p>
+          )}
 
-              {p ? (
-                <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-4">
-                  <div><dt className="text-xs text-faint">Buyer</dt><dd className="text-ink truncate">{p.customer_name}<span className="block text-xs text-muted truncate">{p.customer_email}</span></dd></div>
-                  <div><dt className="text-xs text-faint">Paid</dt><dd className="text-ink tabular-nums">{formatNaira(Number(p.amount))}<span className="block text-xs text-muted capitalize">{p.status}{p.channel ? ` · ${p.channel}` : ""}</span></dd></div>
-                  <div><dt className="text-xs text-faint">When</dt><dd className="text-ink">{date(p.paid_at || p.created_at)}</dd></div>
-                  <div><dt className="text-xs text-faint">Reference</dt><dd className="font-mono text-xs text-ink break-all">{p.reference}</dd></div>
-                </dl>
-              ) : (
-                <p className="mt-3 text-sm text-muted">Free registration</p>
-              )}
+          <div className="flex flex-col gap-4">
+            {orders?.map((o) => {
+              const p = o.payment;
+              const canRefund = canAct && p && p.status === "successful" && !o.refund && Number(p.refundable) > 0;
+              return (
+                <section key={o.key} className="bg-white border border-line rounded-xl p-5">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <a
+                        href={publicHref(`/discover/${o.event.slug}`)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-display text-lg font-bold text-ink hover:underline"
+                      >
+                        {o.event.name}
+                      </a>
+                      <p className="text-xs text-faint">
+                        {o.event.day}
+                        {o.event.cancelled && <span className="ml-2 font-bold text-danger">Event cancelled</span>}
+                      </p>
+                    </div>
+                    {canRefund && (
+                      <button
+                        type="button"
+                        onClick={() => refund(o)}
+                        disabled={busy !== ""}
+                        className="rounded-lg border border-danger-hover px-3 py-1.5 text-xs font-bold text-danger hover:bg-danger-tint disabled:opacity-50"
+                      >
+                        Refund order
+                      </button>
+                    )}
+                  </div>
 
-              {o.refund && (
-                <p className={`mt-3 text-sm font-semibold ${o.refund.status === "failed" || o.refund.status === "needs_attention" ? "text-danger" : "text-muted"}`}>
-                  {REFUND_LABEL[o.refund.status] || o.refund.status}: {formatNaira(Number(o.refund.amount))}
-                  {o.refund.reason ? ` · ${o.refund.reason}` : ""}
-                  {o.refund.failure_reason ? ` · ${o.refund.failure_reason}` : ""}
-                </p>
-              )}
+                  {p ? (
+                    <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-4">
+                      <div><dt className="text-xs text-faint">Buyer</dt><dd className="text-ink truncate">{p.customer_name}<span className="block text-xs text-muted truncate">{p.customer_email}</span></dd></div>
+                      <div><dt className="text-xs text-faint">Paid</dt><dd className="text-ink tabular-nums">{formatNaira(Number(p.amount))}<span className="block text-xs text-muted capitalize">{p.status}{p.channel ? ` · ${p.channel}` : ""}</span></dd></div>
+                      <div><dt className="text-xs text-faint">When</dt><dd className="text-ink">{date(p.paid_at || p.created_at)}</dd></div>
+                      <div><dt className="text-xs text-faint">Reference</dt><dd className="font-mono text-xs text-ink break-all">{p.reference}</dd></div>
+                    </dl>
+                  ) : (
+                    <p className="mt-3 text-sm text-muted">Free registration</p>
+                  )}
 
-              <div className="mt-4 overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-hairline text-left">
-                      {["Ticket", "Holder", "Status", "Check-in", ""].map((h, i) => (
-                        <th scope="col" key={i} className="pb-2 pr-6 text-xs text-faint font-medium">{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-hairline">
-                    {o.tickets.map((t) => {
-                      const s = TICKET_STATUS[t.status] || { label: t.status, style: "bg-mist text-muted" };
-                      const valid = t.status === "paid" || t.status === "free";
-                      return (
-                        <tr key={t.ticket_id}>
-                          <td className="py-2.5 pr-6">
-                            <span className="text-ink">{t.tier}</span>
-                            <span className="block font-mono text-[11px] text-faint">{t.ticket_id.slice(0, 8)}</span>
-                          </td>
-                          <td className="py-2.5 pr-6 max-w-[220px]">
-                            <span className="text-ink truncate block">{t.holder_name}</span>
-                            <span className="block truncate text-xs text-muted">{t.holder_email}</span>
-                            {t.transferred && <span className="text-[11px] text-faint">Transferred from {t.buyer_email}</span>}
-                          </td>
-                          <td className="py-2.5 pr-6">
-                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${s.style}`}>{s.label}</span>
-                          </td>
-                          <td className="py-2.5 pr-6 text-muted whitespace-nowrap">
-                            {t.checked_in ? `In · ${date(t.checked_in_at)}` : "Not yet"}
-                          </td>
-                          <td className="py-2.5 whitespace-nowrap text-right">
-                            {canAct && valid && (
-                              <>
-                                <button
-                                  type="button"
-                                  onClick={() => resend(t)}
-                                  disabled={busy !== ""}
-                                  className="mr-3 text-xs font-bold text-brand-dark hover:underline disabled:opacity-50"
-                                >
-                                  Resend ticket
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => toggleCheckin(t)}
-                                  disabled={busy !== ""}
-                                  className="text-xs font-bold text-muted hover:text-ink hover:underline disabled:opacity-50"
-                                >
-                                  {t.checked_in ? "Undo check-in" : "Check in"}
-                                </button>
-                              </>
-                            )}
-                          </td>
+                  {o.refund && (
+                    <p className={`mt-3 text-sm font-semibold ${o.refund.status === "failed" || o.refund.status === "needs_attention" ? "text-danger" : "text-muted"}`}>
+                      {REFUND_LABEL[o.refund.status] || o.refund.status}: {formatNaira(Number(o.refund.amount))}
+                      {o.refund.reason ? ` · ${o.refund.reason}` : ""}
+                      {o.refund.failure_reason ? ` · ${o.refund.failure_reason}` : ""}
+                    </p>
+                  )}
+
+                  <div className="mt-4 overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-hairline text-left">
+                          {["Ticket", "Holder", "Status", "Check-in", ""].map((h, i) => (
+                            <th scope="col" key={i} className="pb-2 pr-6 text-xs text-faint font-medium">{h}</th>
+                          ))}
                         </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-          );
-        })}
-      </div>
+                      </thead>
+                      <tbody className="divide-y divide-hairline">
+                        {o.tickets.map((t) => {
+                          const s = TICKET_STATUS[t.status] || { label: t.status, style: "bg-mist text-muted" };
+                          const valid = t.status === "paid" || t.status === "free";
+                          return (
+                            <tr key={t.ticket_id}>
+                              <td className="py-2.5 pr-6">
+                                <span className="text-ink">{t.tier}</span>
+                                <span className="block font-mono text-[11px] text-faint">{t.ticket_id.slice(0, 8)}</span>
+                              </td>
+                              <td className="py-2.5 pr-6 max-w-[220px]">
+                                <span className="text-ink truncate block">{t.holder_name}</span>
+                                <span className="block truncate text-xs text-muted">{t.holder_email}</span>
+                                {t.transferred && <span className="text-[11px] text-faint">Transferred from {t.buyer_email}</span>}
+                              </td>
+                              <td className="py-2.5 pr-6">
+                                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${s.style}`}>{s.label}</span>
+                              </td>
+                              <td className="py-2.5 pr-6 text-muted whitespace-nowrap">
+                                {t.checked_in ? `In · ${date(t.checked_in_at)}` : "Not yet"}
+                              </td>
+                              <td className="py-2.5 whitespace-nowrap text-right">
+                                {canAct && valid && (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={() => resend(t)}
+                                      disabled={busy !== ""}
+                                      className="mr-3 text-xs font-bold text-brand-dark hover:underline disabled:opacity-50"
+                                    >
+                                      Resend ticket
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleCheckin(t)}
+                                      disabled={busy !== ""}
+                                      className="text-xs font-bold text-muted hover:text-ink hover:underline disabled:opacity-50"
+                                    >
+                                      {t.checked_in ? "Undo check-in" : "Check in"}
+                                    </button>
+                                  </>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+              );
+            })}
+          </div>
+        </>
+      )}
     </div>
   );
 }

@@ -1088,6 +1088,43 @@ class PlatformSettings(models.Model):
         return f"Platform settings (fee {self.default_fee_rate})"
 
 
+class SupportRequest(models.Model):
+    """
+    Someone asking Byro for help, received from tawk.to (a live chat, or an offline ticket left when nobody
+    was online). Replies happen in tawk.to; Byro's admin tracks them and looks up the person's orders.
+    """
+    SOURCE_CHAT = 'tawk_chat'
+    SOURCE_TICKET = 'tawk_ticket'
+    SOURCE_CHOICES = [(SOURCE_CHAT, 'Live chat'), (SOURCE_TICKET, 'Offline message')]
+    STATUS_OPEN = 'open'
+    STATUS_DONE = 'done'
+    STATUS_CHOICES = [(STATUS_OPEN, 'Open'), (STATUS_DONE, 'Done')]
+
+    source = models.CharField(max_length=12, choices=SOURCE_CHOICES)
+    external_id = models.CharField(max_length=100)          # tawk.to chat id or ticket id
+    reference = models.CharField(max_length=40, blank=True)  # the ticket number people see, e.g. "1042"
+    name = models.CharField(max_length=200, blank=True)
+    email = models.EmailField(blank=True, db_index=True)
+    subject = models.CharField(max_length=300, blank=True)
+    message = models.TextField(blank=True)                  # the first thing they said
+    transcript = models.JSONField(default=list, blank=True)  # [{who: 'visitor'|'agent'|'system', name, text, time}]
+    location = models.CharField(max_length=120, blank=True)
+    page = models.CharField(max_length=500, blank=True)      # where they were on the site
+    status = models.CharField(max_length=6, choices=STATUS_CHOICES, default=STATUS_OPEN, db_index=True)
+    assigned_to_email = models.EmailField(blank=True)
+    closed_by_email = models.EmailField(blank=True)
+    closed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        constraints = [models.UniqueConstraint(fields=['source', 'external_id'], name='unique_support_request')]
+
+    def __str__(self):
+        return f"{self.get_source_display()} from {self.email or self.name or 'visitor'}"
+
+
 class AdminMember(models.Model):
     """Who may use the admin panel, and what they may do there.
 
@@ -1159,6 +1196,7 @@ class AdminAction(models.Model):
     ACTION_EXPORT_DOWNLOADED = 'export.downloaded'
     ACTION_FEE_DEFAULT_CHANGED = 'fee.default_changed'
     ACTION_FEE_OVERRIDE_CHANGED = 'fee.organiser_changed'
+    ACTION_REQUEST_CLOSED = 'request.closed'
     ACTION_MESSAGING_BLOCKED = 'user.messaging_blocked'
     ACTION_MESSAGING_UNBLOCKED = 'user.messaging_unblocked'
 
@@ -1198,6 +1236,7 @@ class AdminAction(models.Model):
         (ACTION_EXPORT_DOWNLOADED, 'Data exported'),
         (ACTION_FEE_DEFAULT_CHANGED, 'Default service fee changed'),
         (ACTION_FEE_OVERRIDE_CHANGED, 'Organiser service fee changed'),
+        (ACTION_REQUEST_CLOSED, 'Support request marked done'),
         (ACTION_MESSAGING_BLOCKED, 'Organiser blocked from messaging'),
         (ACTION_MESSAGING_UNBLOCKED, 'Organiser allowed to message again'),
     ]

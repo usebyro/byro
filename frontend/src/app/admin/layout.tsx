@@ -70,6 +70,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [me, setMe] = useState<AdminMe | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [openReports, setOpenReports] = useState(0);
+  const [openRequests, setOpenRequests] = useState(0);
   const menuButton = useRef<HTMLButtonElement>(null);
   const menuClose = useRef<HTMLButtonElement>(null);
   const isLoginPage = pathname === "/admin/login" || pathname === "/login";
@@ -99,16 +100,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     return () => { cancelled = true; };
   }, [isLoginPage, pathname, router]);
 
-  // How many reports are waiting, for the badge in the menu. Refreshed on each page change.
+  // How many reports and help requests are waiting, for the badges in the menu. Refreshed on each page change.
   useEffect(() => {
     if (isLoginPage) return;
     let cancelled = false;
-    fetch("/api/admin/reports?count_only=1")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (!cancelled && data) setOpenReports(Number(data.open) || 0);
-      })
-      .catch(() => {});
+    const count = (url: string, set: (n: number) => void) =>
+      fetch(url)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (!cancelled && data) set(Number(data.open) || 0);
+        })
+        .catch(() => {});
+    count("/api/admin/reports?count_only=1", setOpenReports);
+    count("/api/admin/support/requests?count_only=1", setOpenRequests);
     return () => {
       cancelled = true;
     };
@@ -137,6 +141,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     const page = navItems.find((item) => isActive(pathname, item.href));
     document.title = page ? `${page.label} · Byro Admin` : "Byro Admin";
   }, [pathname]);
+
+  const badges: Record<string, number> = { "/reports": openReports, "/support": openRequests };
 
   const sidebarContent = (
     <>
@@ -178,10 +184,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                     )}
                     <HugeiconsIcon icon={item.icon} size={17} color="currentColor" />
                     <span className="flex-1">{item.label}</span>
-                    {item.href === "/reports" && openReports > 0 && (
+                    {badges[item.href] > 0 && (
                       <span className="rounded-full bg-danger-strong px-1.5 py-0.5 text-[11px] font-bold leading-none text-white tabular-nums">
                         <span className="sr-only">, </span>
-                        {openReports}
+                        {badges[item.href]}
                         <span className="sr-only"> open</span>
                       </span>
                     )}
