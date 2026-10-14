@@ -3,6 +3,8 @@
 import { use, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { ArrowLeft01Icon } from "@hugeicons/core-free-icons";
 import { toast } from "sonner";
 import { useAdminMe } from "@/components/admin/AdminMe";
 import { useConfirm, SkeletonCard } from "@/components/admin/ui";
@@ -115,8 +117,9 @@ export default function AdminPaymentDetailPage({ params }: { params: Promise<{ i
   };
 
   const back = (
-    <Link href={resolveAdminHref(pathname, "/payments")} className="text-sm font-semibold text-muted hover:text-ink">
-      ← Payments
+    <Link href={resolveAdminHref(pathname, "/payments")} className="inline-flex items-center gap-1 text-sm font-semibold text-muted hover:text-ink">
+      <HugeiconsIcon icon={ArrowLeft01Icon} size={16} color="currentColor" aria-hidden="true" />
+      Payments
     </Link>
   );
 

@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { LinkSquare02Icon, Attachment01Icon } from "@hugeicons/core-free-icons";
 import { toast } from "sonner";
 import { useAdminMe } from "@/components/admin/AdminMe";
 import { Button, SidePanel, SkeletonRows, StatusBadge, fmtDateTime } from "@/components/admin/ui";
@@ -132,9 +134,10 @@ export default function SupportRequests({ onLookup }: { onLookup: (email: string
           href={TAWK_DASHBOARD}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-xs font-bold text-brand-dark hover:underline sm:ml-auto"
+          className="inline-flex items-center gap-1 text-xs font-bold text-brand-dark hover:underline sm:ml-auto"
         >
-          Open tawk.to to reply ↗
+          Open tawk.to to reply
+          <HugeiconsIcon icon={LinkSquare02Icon} size={14} color="currentColor" aria-hidden="true" />
         </a>
       </div>
 
@@ -228,8 +231,9 @@ export default function SupportRequests({ onLookup }: { onLookup: (email: string
                     {l.who !== "system" && <span className="block text-[11px] font-bold text-muted">{l.name || (l.who === "agent" ? "Byro" : "Visitor")}</span>}
                     {l.text}
                     {l.files.filter(Boolean).map((f) => (
-                      <a key={f} href={f!} target="_blank" rel="noopener noreferrer" className="block text-xs font-bold text-brand-dark hover:underline">
-                        Attachment ↗
+                      <a key={f} href={f!} target="_blank" rel="noopener noreferrer" className="mt-1 flex items-center gap-1 text-xs font-bold text-brand-dark hover:underline">
+                        <HugeiconsIcon icon={Attachment01Icon} size={14} color="currentColor" aria-hidden="true" />
+                        Attachment
                       </a>
                     ))}
                   </li>
@@ -243,8 +247,9 @@ export default function SupportRequests({ onLookup }: { onLookup: (email: string
 
             <p className="text-xs text-faint">
               Replies happen in tawk.to.{" "}
-              <a href={TAWK_DASHBOARD} target="_blank" rel="noopener noreferrer" className="font-bold text-brand-dark hover:underline">
-                Open tawk.to ↗
+              <a href={TAWK_DASHBOARD} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-bold text-brand-dark hover:underline">
+                Open tawk.to
+                <HugeiconsIcon icon={LinkSquare02Icon} size={14} color="currentColor" aria-hidden="true" />
               </a>
             </p>
           </div>
