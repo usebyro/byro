@@ -416,6 +416,8 @@ class EventSerializer(serializers.ModelSerializer):
     def to_representation(self, instance):
         data = super().to_representation(instance)
         data['hosted_by'] = event_host_name(instance)
+        until = getattr(instance, 'featured_until', None)
+        data['is_featured'] = bool(until and until > timezone.now())
 
         # Email addresses are private. The organiser, their accepted co-hosts and staff see them;
         # everyone else (including signed-out visitors) gets a blank owner email and no co-host list.

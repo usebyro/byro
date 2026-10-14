@@ -20,6 +20,8 @@ export interface EventLike {
   ticket_price: number | string;
   event_image_url?: string;
   is_sold_out?: boolean;
+  /** Byro is featuring this event right now (shown first on the landing page and Discover). */
+  is_featured?: boolean;
   tiers?: TicketTierLike[];
 }
 

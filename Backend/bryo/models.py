@@ -347,6 +347,9 @@ class Event(models.Model):
         help_text="Event category for filtering"
     )
     
+    # Set by Byro admins: shown first on the landing page and Discover until this time.
+    featured_until = models.DateTimeField(null=True, blank=True, db_index=True)
+
     day = models.DateField()
     time_from = models.TimeField()
     time_to = models.TimeField()
@@ -1132,6 +1135,8 @@ class AdminAction(models.Model):
     ACTION_MERCH_REMOVED = 'merch.removed'
     ACTION_MERCH_RESTORED = 'merch.restored'
     ACTION_REPORT_CLOSED = 'report.closed'
+    ACTION_EVENT_FEATURED = 'event.featured'
+    ACTION_EVENT_UNFEATURED = 'event.unfeatured'
     ACTION_MESSAGING_BLOCKED = 'user.messaging_blocked'
     ACTION_MESSAGING_UNBLOCKED = 'user.messaging_unblocked'
 
@@ -1166,6 +1171,8 @@ class AdminAction(models.Model):
         (ACTION_MERCH_REMOVED, 'Merch item removed'),
         (ACTION_MERCH_RESTORED, 'Merch item restored'),
         (ACTION_REPORT_CLOSED, 'Report closed'),
+        (ACTION_EVENT_FEATURED, 'Event featured'),
+        (ACTION_EVENT_UNFEATURED, 'Event no longer featured'),
         (ACTION_MESSAGING_BLOCKED, 'Organiser blocked from messaging'),
         (ACTION_MESSAGING_UNBLOCKED, 'Organiser allowed to message again'),
     ]
