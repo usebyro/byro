@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { ArrowRight02Icon } from "@hugeicons/core-free-icons";
 import { toast } from "sonner";
 import { useAdminMe } from "@/components/admin/AdminMe";
 import { Button, SkeletonCard, fmtDateTime, useConfirm } from "@/components/admin/ui";
@@ -35,6 +37,14 @@ interface Organiser {
 
 const STEP = 0.25;
 const clean = (n: number) => String(Math.round(n * 100) / 100);
+
+/** "changed to", between an old and a new value. */
+const To = () => (
+  <>
+    <HugeiconsIcon icon={ArrowRight02Icon} size={14} color="currentColor" aria-hidden="true" className="mx-1 inline-block -translate-y-px align-middle" />
+    <span className="sr-only">to </span>
+  </>
+);
 
 /* A settings group: what it is on the left, the controls on the right (stacked on phones). */
 function Section({ title, hint, children }: { title: string; hint: React.ReactNode; children: React.ReactNode }) {
@@ -233,7 +243,7 @@ export default function AdminSettingsPage() {
             <div className="text-sm">
               {dirty ? (
                 <p className="font-semibold text-waiting">
-                  Not saved: {data.default_fee_percent}% → {clean(pct)}%
+                  Not saved: {data.default_fee_percent}% <To /> {clean(pct)}%
                 </p>
               ) : (
                 <p className="text-muted">Current fee on new orders</p>
@@ -311,7 +321,11 @@ export default function AdminSettingsPage() {
                   <span aria-hidden="true" className={`absolute -left-[26px] top-1.5 h-2.5 w-2.5 rounded-full ${h.kind === "default" ? "bg-brand" : "bg-marigold"}`} />
                   <p className="text-sm text-ink">
                     <b>{h.kind === "default" ? "Default fee" : h.target}</b>{" "}
-                    <span className="tabular-nums">{h.change.replace("->", "→")}</span>
+                    <span className="tabular-nums">
+                      {h.change.split("->").map((part, j) => (
+                        <span key={j}>{j > 0 && <To />}{part.trim()}</span>
+                      ))}
+                    </span>
                   </p>
                   <p className="text-xs text-faint">
                     {fmtDateTime(h.at)} · {h.who || "—"}
@@ -332,7 +346,7 @@ export default function AdminSettingsPage() {
             className="flex w-full max-w-xl items-center justify-between gap-3 rounded-full bg-ink py-2 pl-5 pr-2 text-white shadow-[0_16px_40px_rgba(20,22,28,0.28)] animate-dialog-in motion-reduce:animate-none"
           >
             <p className="text-sm">
-              Default fee <b className="tabular-nums">{data.default_fee_percent}% → {clean(pct)}%</b>
+              Default fee <b className="tabular-nums">{data.default_fee_percent}% <To /> {clean(pct)}%</b>
             </p>
             <div className="flex gap-1.5">
               <button
