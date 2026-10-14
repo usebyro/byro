@@ -416,6 +416,8 @@ class EventSerializer(serializers.ModelSerializer):
     def to_representation(self, instance):
         data = super().to_representation(instance)
         data['hosted_by'] = event_host_name(instance)
+        from .pricing import fee_rate_for
+        data['fee_rate'] = str(fee_rate_for(instance.owner if instance.owner_id else None))
         until = getattr(instance, 'featured_until', None)
         data['is_featured'] = bool(until and until > timezone.now())
 

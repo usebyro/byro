@@ -133,6 +133,8 @@ class UserProfile(models.Model):
     # Verified: Byro has checked this organiser is who they say; shown as a badge.
     hidden_from_directory = models.BooleanField(default=False)
     verified = models.BooleanField(default=False)
+    # Set by Byro owners: this organiser's own service fee rate (0.03 = 3%). Empty = the platform default.
+    fee_rate_override = models.DecimalField(max_digits=5, decimal_places=4, null=True, blank=True)
     # What kind of community this is, shown beside the location on the community page.
     CATEGORY_CHOICES = [
         ('tech', 'Tech'), ('music', 'Music'), ('fitness', 'Fitness'),
@@ -216,6 +218,8 @@ class Payment(models.Model):
     # Payment details
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     currency = models.CharField(max_length=3, default='NGN')
+    # Byro's service fee rate charged on this order (0.05 = 5%). Kept so later fee changes never alter old orders.
+    fee_rate = models.DecimalField(max_digits=5, decimal_places=4, default=Decimal('0.05'))
     
     # Paystack fields
     paystack_reference = models.CharField(max_length=255, unique=True)
@@ -1069,6 +1073,21 @@ class Report(models.Model):
         return f"Report {self.pk}: {self.target_type} ({self.reason})"
 
 
+class PlatformSettings(models.Model):
+    """Settings Byro owners change from the admin. There is one row (pk=1); use PlatformSettings.get()."""
+    default_fee_rate = models.DecimalField(max_digits=5, decimal_places=4, default=Decimal('0.05'))
+    updated_by_email = models.EmailField(blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    @classmethod
+    def get(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+    def __str__(self):
+        return f"Platform settings (fee {self.default_fee_rate})"
+
+
 class AdminMember(models.Model):
     """Who may use the admin panel, and what they may do there.
 
@@ -1138,6 +1157,8 @@ class AdminAction(models.Model):
     ACTION_EVENT_FEATURED = 'event.featured'
     ACTION_EVENT_UNFEATURED = 'event.unfeatured'
     ACTION_EXPORT_DOWNLOADED = 'export.downloaded'
+    ACTION_FEE_DEFAULT_CHANGED = 'fee.default_changed'
+    ACTION_FEE_OVERRIDE_CHANGED = 'fee.organiser_changed'
     ACTION_MESSAGING_BLOCKED = 'user.messaging_blocked'
     ACTION_MESSAGING_UNBLOCKED = 'user.messaging_unblocked'
 
@@ -1175,6 +1196,8 @@ class AdminAction(models.Model):
         (ACTION_EVENT_FEATURED, 'Event featured'),
         (ACTION_EVENT_UNFEATURED, 'Event no longer featured'),
         (ACTION_EXPORT_DOWNLOADED, 'Data exported'),
+        (ACTION_FEE_DEFAULT_CHANGED, 'Default service fee changed'),
+        (ACTION_FEE_OVERRIDE_CHANGED, 'Organiser service fee changed'),
         (ACTION_MESSAGING_BLOCKED, 'Organiser blocked from messaging'),
         (ACTION_MESSAGING_UNBLOCKED, 'Organiser allowed to message again'),
     ]

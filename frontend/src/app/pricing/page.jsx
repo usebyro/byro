@@ -1,4 +1,5 @@
 "use client";
+import useFeeInfo from "@/lib/useFeeInfo";
 import { useState, useMemo } from "react";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
@@ -75,7 +76,6 @@ const faqs = [
   },
 ];
 
-const FEE_RATE = 0.05;
 
 function formatNaira(amount) {
   return `₦${amount.toLocaleString("en-NG", {
@@ -85,6 +85,8 @@ function formatNaira(amount) {
 }
 
 function PayoutCalculator() {
+  const { defaultPercent } = useFeeInfo();
+  const feeRate = Number(defaultPercent) / 100;
   const [price, setPrice] = useState(10000);
   const [quantity, setQuantity] = useState(50);
   const [attendeePaysFee, setAttendeePaysFee] = useState(true);
@@ -92,13 +94,13 @@ function PayoutCalculator() {
   const { grossRevenue, totalFee, payout } = useMemo(() => {
     const p = Number(price) || 0;
     const q = Number(quantity) || 0;
-    const feePerTicket = attendeePaysFee ? 0 : p * FEE_RATE;
+    const feePerTicket = attendeePaysFee ? 0 : p * feeRate;
     return {
       grossRevenue: p * q,
       totalFee: feePerTicket * q,
       payout: (p - feePerTicket) * q,
     };
-  }, [price, quantity, attendeePaysFee]);
+  }, [price, quantity, attendeePaysFee, feeRate]);
 
   const handleNumberChange = (setter) => (e) => {
     const val = e.target.value;
@@ -182,7 +184,7 @@ function PayoutCalculator() {
         </div>
         <div className="flex justify-between items-center pb-4 border-b border-slate-800">
           <span className="text-xs text-slate-300">
-            Platform fee (5% per ticket)
+            Platform fee ({defaultPercent}% per ticket)
           </span>
           <span className="text-sm font-bold text-[#4F6EF7]">
             −{formatNaira(totalFee)}
@@ -219,6 +221,7 @@ function CheckIcon({ color = "#4F6EF7" }) {
 }
 
 export default function PricingPage() {
+  const { defaultPercent } = useFeeInfo();
   return (
     <>
       <Navbar />
@@ -264,7 +267,7 @@ export default function PricingPage() {
                   <span className="text-5xl sm:text-6xl font-black text-white">Free</span>
                 </div>
                 <p className="text-slate-400 text-xs mt-1 mb-6">
-                  5% per paid ticket sold
+                  {defaultPercent}% per paid ticket sold
                 </p>
               </div>
 
