@@ -213,7 +213,14 @@ export default function MerchPage() {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <p className="font-semibold text-gray-900 text-sm truncate">{item.name}</p>
-                    {!item.is_active && (
+                    {item.removed_by_admin ? (
+                      <span
+                        title="Byro took this item down. Email support@usebyro.com if you think this is a mistake."
+                        className="shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-red-50 text-red-700"
+                      >
+                        Taken down by Byro
+                      </span>
+                    ) : !item.is_active && (
                       <span className="shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">
                         Hidden
                       </span>

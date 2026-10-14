@@ -1348,7 +1348,7 @@ class ProfileViewSet(viewsets.GenericViewSet):
         if not (request.user.is_authenticated and request.user == profile.user):
             data.pop('email', None)
 
-        merch = MerchItem.objects.filter(owner=profile.user, is_active=True)
+        merch = MerchItem.objects.filter(owner=profile.user, is_active=True, removed_by_admin=False)
         data['merch_items'] = MerchItemSerializer(merch, many=True, context={'request': request}).data
         data['community'] = community_stats(profile.user)
         data['stamps'] = _stamp_payload(stamps_for_user(profile.user)[:60])
@@ -1590,7 +1590,8 @@ class CommunityDirectoryView(APIView):
         today = timezone.localdate()
         live = Event.objects.filter(is_active=True, is_draft=False, visibility='public', cancelled_at__isnull=True)
         qs = (
-            UserProfile.objects.filter(is_public=True, handle__isnull=False, user__owned_events__in=live)
+            UserProfile.objects.filter(is_public=True, hidden_from_directory=False, handle__isnull=False,
+                                       user__owned_events__in=live)
             .select_related('user').distinct()
         )
         q = (request.query_params.get('q') or '').strip()
@@ -1636,6 +1637,7 @@ class CommunityDirectoryView(APIView):
             results.append({
                 'handle': p.handle,
                 'name': p.display_name or p.handle,
+                'verified': p.verified,
                 'bio': p.bio,
                 'location': p.location,
                 'avatar_url': request.build_absolute_uri(p.avatar.url) if p.avatar else None,
@@ -4253,6 +4255,99 @@ class AdminPromoDetailView(APIView):
                 f'used {promo.redeemed_count} time(s)',
             )
         return Response({'id': promo.pk, 'active': promo.active, 'is_valid': promo.is_valid()})
+
+
+def _admin_community_row(p, request):
+    return {
+        'user_id': p.user_id, 'email': p.user.email,
+        'name': p.display_name or p.handle or p.user.email, 'handle': p.handle,
+        'avatar_url': request.build_absolute_uri(p.avatar.url) if p.avatar else None,
+        'bio': p.bio, 'location': p.location, 'category': p.category,
+        'is_public': p.is_public, 'hidden_from_directory': p.hidden_from_directory, 'verified': p.verified,
+        'messaging_blocked': p.messaging_blocked,
+        'followers': getattr(p, 'n_followers', None), 'events': getattr(p, 'n_events', None),
+        'merch': getattr(p, 'n_merch', None), 'joined': p.user.date_joined,
+    }
+
+
+class AdminCommunitiesView(APIView):
+    """GET /api/admin/communities/?search=&filter=hidden|verified — every organiser with a page."""
+    permission_classes = [IsAdminMember]
+
+    def get(self, request):
+        qs = (UserProfile.objects.select_related('user').filter(handle__isnull=False)
+              .annotate(n_followers=Count('user__follower_links', distinct=True),
+                        n_events=Count('user__owned_events', distinct=True),
+                        n_merch=Count('user__merch_items', distinct=True))
+              .filter(Q(n_events__gt=0) | Q(n_merch__gt=0) | Q(n_followers__gt=0))
+              .order_by('-n_followers', 'display_name'))
+        search = (request.query_params.get('search') or '').strip()
+        if search:
+            qs = qs.filter(Q(display_name__icontains=search) | Q(handle__icontains=search) | Q(user__email__icontains=search))
+        which = request.query_params.get('filter')
+        if which == 'hidden':
+            qs = qs.filter(hidden_from_directory=True)
+        elif which == 'verified':
+            qs = qs.filter(verified=True)
+        return Response([_admin_community_row(p, request) for p in qs[:300]])
+
+
+class AdminCommunityDetailView(APIView):
+    """
+    GET   /api/admin/communities/<user_id>/ — one community, with all its merch (including hidden items).
+    PATCH /api/admin/communities/<user_id>/ {hidden_from_directory?, verified?}
+    """
+    permission_classes = [IsAdminMember]
+    method_roles = {'PATCH': AdminMember.ROLE_ADMIN}
+
+    def _profile(self, user_id):
+        return UserProfile.objects.select_related('user').filter(user_id=user_id).first()
+
+    def get(self, request, user_id):
+        p = self._profile(user_id)
+        if not p:
+            return Response({'error': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+        data = _admin_community_row(p, request)
+        data['merch_items'] = [{
+            **MerchItemSerializer(m, context={'request': request}).data,
+        } for m in MerchItem.objects.filter(owner_id=user_id).order_by('-created_at')]
+        return Response(data)
+
+    def patch(self, request, user_id):
+        p = self._profile(user_id)
+        if not p:
+            return Response({'error': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+        changes = {
+            'hidden_from_directory': (AdminAction.ACTION_COMMUNITY_HIDDEN, AdminAction.ACTION_COMMUNITY_SHOWN),
+            'verified': (AdminAction.ACTION_COMMUNITY_VERIFIED, AdminAction.ACTION_COMMUNITY_UNVERIFIED),
+        }
+        for field, (on, off) in changes.items():
+            if field in request.data:
+                value = bool(request.data.get(field))
+                if getattr(p, field) != value:
+                    setattr(p, field, value)
+                    p.save(update_fields=[field])
+                    _log_admin_action(request, on if value else off, 'user', p.user_id,
+                                      f'{p.display_name or p.handle} ({p.user.email})'[:255])
+        return Response(_admin_community_row(p, request))
+
+
+class AdminMerchView(APIView):
+    """PATCH /api/admin/merch/<pk>/ {removed_by_admin: bool} — take a merch item down, or put it back."""
+    permission_classes = [IsAdminMember]
+    min_role = AdminMember.ROLE_ADMIN
+
+    def patch(self, request, pk):
+        item = MerchItem.objects.select_related('owner').filter(pk=pk).first()
+        if not item:
+            return Response({'error': 'Item not found.'}, status=status.HTTP_404_NOT_FOUND)
+        removed = bool(request.data.get('removed_by_admin'))
+        if item.removed_by_admin != removed:
+            item.removed_by_admin = removed
+            item.save(update_fields=['removed_by_admin'])
+            _log_admin_action(request, AdminAction.ACTION_MERCH_REMOVED if removed else AdminAction.ACTION_MERCH_RESTORED,
+                              'merch', item.pk, f'{item.name} ({item.owner.email})'[:255])
+        return Response(MerchItemSerializer(item, context={'request': request}).data)
 
 
 class AdminMessagesView(APIView):

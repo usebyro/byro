@@ -54,13 +54,13 @@ class UserProfileSerializer(serializers.ModelSerializer):
             'cover_image', 'cover_image_url',
             'location', 'website',
             'twitter', 'instagram', 'linkedin', 'telegram', 'whatsapp', 'category',
-            'is_complete', 'is_public',
+            'is_complete', 'is_public', 'verified',
             'followers_count', 'following_count', 'is_following',
             'created_at', 'updated_at',
         ]
         read_only_fields = [
             'email', 'auth_provider', 'avatar_url', 'cover_image_url', 'created_at', 'updated_at',
-            'followers_count', 'following_count', 'is_following',
+            'followers_count', 'following_count', 'is_following', 'verified',
         ]
         extra_kwargs = {
             'avatar': {'write_only': True, 'required': False},
@@ -267,9 +267,9 @@ class MerchItemSerializer(serializers.ModelSerializer):
         model = MerchItem
         fields = [
             'id', 'name', 'description', 'price', 'image', 'image_url',
-            'purchase_link', 'stock', 'is_active', 'created_at', 'updated_at',
+            'purchase_link', 'stock', 'is_active', 'removed_by_admin', 'created_at', 'updated_at',
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'removed_by_admin', 'created_at', 'updated_at']
         extra_kwargs = {'image': {'write_only': True}}
 
     def get_image_url(self, obj):
