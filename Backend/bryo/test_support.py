@@ -223,3 +223,37 @@ class PromoControlTests(SupportBase):
         self.assertEqual(self.switch(False, who=self.viewer).status_code, 403)
         self.promo.refresh_from_db()
         self.assertTrue(self.promo.active)
+
+
+class ExportTests(SupportBase):
+
+    def get(self, kind, who=None, **params):
+        self.client.force_authenticate(who or self.admin)
+        return self.client.get(f'/api/admin/export/{kind}/', params)
+
+    def test_every_export_downloads_as_a_csv_and_is_logged(self):
+        import csv, io
+        for kind in ('payments', 'payouts', 'refunds', 'users'):
+            res = self.get(kind)
+            self.assertEqual(res.status_code, 200, kind)
+            self.assertIn('text/csv', res['Content-Type'])
+            self.assertIn(f'byro-{kind}-', res['Content-Disposition'])
+            rows = list(csv.reader(io.StringIO(res.content.decode('utf-8-sig'))))
+            self.assertTrue(rows[0], kind)  # header
+        payments = list(csv.reader(io.StringIO(self.get('payments').content.decode('utf-8-sig'))))
+        self.assertIn(self.order.paystack_reference, [r[2] for r in payments[1:]])
+        self.assertEqual(AdminAction.objects.filter(action=AdminAction.ACTION_EXPORT_DOWNLOADED).count(), 5)
+
+    def test_formulas_are_made_safe(self):
+        from .models import Payment
+        Payment.objects.filter(pk=self.order.pk).update(customer_name='=HYPERLINK("http://evil")')
+        text = self.get('payments').content.decode('utf-8-sig')
+        self.assertIn("'=HYPERLINK", text)
+        self.assertNotIn(',=HYPERLINK', text)
+
+    def test_date_rules_and_who_may_export(self):
+        self.assertEqual(self.get('payments', **{'from': '2026-10-10', 'to': '2026-10-01'}).status_code, 400)
+        self.assertEqual(self.get('payments', **{'from': '2020-01-01', 'to': '2026-01-01'}).status_code, 400)
+        self.assertEqual(self.get('payments', **{'from': 'yesterday'}).status_code, 400)
+        self.assertEqual(self.get('secrets').status_code, 404)
+        self.assertEqual(self.get('payouts', who=self.viewer).status_code, 403)

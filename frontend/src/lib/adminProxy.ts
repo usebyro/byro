@@ -52,7 +52,7 @@ async function refreshTokens(refresh: string): Promise<{ access: string; refresh
 export async function adminProxy(
   req: NextRequest,
   path: string,
-  opts: { method?: string; passQuery?: boolean; body?: boolean } = {},
+  opts: { method?: string; passQuery?: boolean; body?: boolean; raw?: boolean } = {},
 ): Promise<NextResponse> {
   let access = req.cookies.get(ACCESS_COOKIE)?.value;
   let refresh = req.cookies.get(REFRESH_COOKIE)?.value;
@@ -95,10 +95,21 @@ export async function adminProxy(
     res = await call(access);
   }
 
+  // `raw` passes a file (e.g. a CSV export) straight through instead of reading it as JSON.
+  const passFile = opts.raw && res.ok;
   const out =
     res.status === 204
       ? new NextResponse(null, { status: 204 })
-      : NextResponse.json(await res.json().catch(() => ({})), { status: res.status });
+      : passFile
+        ? new NextResponse(await res.arrayBuffer(), {
+            status: res.status,
+            headers: {
+              "Content-Type": res.headers.get("Content-Type") || "application/octet-stream",
+              "Content-Disposition": res.headers.get("Content-Disposition") || "attachment",
+              "Cache-Control": "no-store",
+            },
+          })
+        : NextResponse.json(await res.json().catch(() => ({})), { status: res.status });
   if (rotated && access && refresh) setAdminCookies(out, access, refresh);
   return out;
 }
