@@ -185,3 +185,51 @@ class CommunityModerationTests(AdminBase):
         self.assertEqual(self.patch(f'/api/admin/merch/{self.item.pk}/', {'removed_by_admin': True}, who=self.viewer).status_code, 403)
         self.as_(self.fan('rando@example.com'))
         self.assertEqual(self.client.get('/api/admin/communities/').status_code, 403)
+
+
+class FeaturingTests(AdminBase):
+
+    def setUp(self):
+        super().setUp()
+        from .test_payments import make_event
+        self.other = make_event(self.owner, name='Second event')
+        from .models import Event
+        Event.objects.filter(pk=self.other.pk).update(visibility='public')
+
+    def feature(self, event, days=7, who=None):
+        self.as_(who or self.boss)
+        return self.client.post(f'/api/admin/events/{event.pk}/feature/', {'days': days}, format='json')
+
+    def listing(self, **params):
+        self.as_(None)
+        rows = self.client.get('/api/events/', params).json()
+        rows = rows['results'] if isinstance(rows, dict) else rows
+        return [(r['name'], r['is_featured']) for r in rows]
+
+    def test_a_featured_event_comes_first_and_says_so(self):
+        names = [n for n, _ in self.listing()]
+        first_unfeatured = names[0]
+        target = self.event if first_unfeatured != self.event.name else self.other
+        self.assertEqual(self.feature(target).status_code, 200)
+        self.assertEqual(self.listing()[0], (target.name, True))
+        self.assertEqual(self.listing(sort='trending')[0][0], target.name)
+        self.assertEqual([n for n, _ in self.listing(featured='1')], [target.name])
+        self.assertTrue(AdminAction.objects.filter(action=AdminAction.ACTION_EVENT_FEATURED).exists())
+
+    def test_featuring_ends_on_its_own_and_can_be_stopped(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        from .models import Event
+        self.feature(self.event)
+        Event.objects.filter(pk=self.event.pk).update(featured_until=timezone.now() - timedelta(minutes=1))
+        self.assertFalse(dict(self.listing())[self.event.name])
+        self.feature(self.event)
+        self.feature(self.event, days=0)
+        self.assertFalse(dict(self.listing())[self.event.name])
+
+    def test_only_live_public_events_and_sensible_lengths(self):
+        from .models import Event
+        self.assertEqual(self.feature(self.event, days=31).status_code, 400)
+        Event.objects.filter(pk=self.event.pk).update(is_draft=True)
+        self.assertEqual(self.feature(self.event).status_code, 400)
+        self.assertEqual(self.feature(self.other, who=self.viewer).status_code, 403)

@@ -35,7 +35,7 @@ export function PosterTile({
       />
       {featured && (
         <span className="absolute left-5 top-5 flex h-8 items-center rounded-full bg-white/95 px-3.5 text-[13px] font-bold text-ink">
-          Featured
+          {event.is_featured ? "Featured" : "Trending"}
         </span>
       )}
       <div
@@ -89,11 +89,15 @@ export function StackTile({ event, showCategory = true }: { event: EventLike; sh
         <span className="absolute left-2.5 top-2.5 flex h-7 items-center rounded-full bg-white/95 px-2.5 text-xs font-extrabold text-ink">
           {formatTime(event.time_from)}
         </span>
-        {event.is_sold_out && (
+        {event.is_sold_out ? (
           <span className="absolute right-2.5 top-2.5 flex h-7 items-center rounded-full bg-ink px-2.5 text-xs font-extrabold text-white">
             Sold out
           </span>
-        )}
+        ) : event.is_featured ? (
+          <span className="absolute right-2.5 top-2.5 flex h-7 items-center rounded-full bg-brand px-2.5 text-xs font-extrabold text-white">
+            Featured
+          </span>
+        ) : null}
       </div>
       <div className="flex flex-col gap-[3px] px-1">
         {showCategory && (

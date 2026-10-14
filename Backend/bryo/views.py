@@ -2133,12 +2133,21 @@ class EventViewSet(viewsets.ModelViewSet):
         queryset = queryset.distinct()
 
         sort = self.request.query_params.get('sort', 'newest')
+        # Events Byro is featuring come first (on the default and trending orders, and on the landing page).
+        queryset = queryset.annotate(
+            featured_now=models.Case(
+                models.When(featured_until__gt=timezone.now(), then=models.Value(1)),
+                default=models.Value(0), output_field=models.IntegerField(),
+            )
+        )
+        if self.request.query_params.get('featured') in ('1', 'true'):
+            queryset = queryset.filter(featured_now=1)
         if sort == 'trending':
             queryset = queryset.annotate(
                 ticket_count=models.Count(
                     'tickets', filter=Q(tickets__payment_status__in=['paid', 'free']), distinct=True
                 )
-            ).order_by('-ticket_count', '-created_at')
+            ).order_by('-featured_now', '-ticket_count', '-created_at')
         elif sort == 'date':
             queryset = queryset.order_by('day', 'time_from')
         elif sort == 'price_low':
@@ -2146,7 +2155,7 @@ class EventViewSet(viewsets.ModelViewSet):
         elif sort == 'price_high':
             queryset = queryset.order_by('-effective_price', '-created_at')
         else:
-            queryset = queryset.order_by('-created_at')
+            queryset = queryset.order_by('-featured_now', '-created_at')
 
         return queryset
     
@@ -4100,7 +4109,7 @@ class AdminEventsOverviewView(APIView):
                 'id': e.pk, 'slug': e.slug, 'name': e.name,
                 'category': e.category, 'day': str(e.day), 'time_from': str(e.time_from),
                 'location': e.location, 'ticket_price': str(e.ticket_price),
-                'hosted_by': e.hosted_by, 'visibility': e.visibility, 'is_draft': e.is_draft,
+                'hosted_by': e.hosted_by, 'visibility': e.visibility, 'is_draft': e.is_draft, 'featured_until': e.featured_until, 'is_featured': bool(e.featured_until and e.featured_until > timezone.now()),
                 'is_active': e.is_active, 'created_at': e.created_at,
                 'owner_email': e.owner.email if e.owner else None,
                 'tiers': [{'id': t.pk, 'name': t.name, 'price': str(t.price)} for t in tiers],
@@ -4469,6 +4478,30 @@ class AdminReportDetailView(APIView):
             _log_admin_action(request, AdminAction.ACTION_REPORT_CLOSED, 'report', r.pk, label[:255],
                               f'{new}: {note}'[:255])
         return Response(AdminReportsView.row(r))
+
+
+class AdminEventFeatureView(APIView):
+    """POST /api/admin/events/<pk>/feature/ {days: 1-30, or 0 to stop} — show an event first on the landing page and Discover."""
+    permission_classes = [IsAdminMember]
+    min_role = AdminMember.ROLE_ADMIN
+
+    def post(self, request, pk):
+        event = Event.objects.filter(pk=pk).first()
+        if not event:
+            return Response({'error': 'Event not found.'}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            days = int(request.data.get('days', 7))
+        except (TypeError, ValueError):
+            return Response({'error': 'Choose how many days.'}, status=status.HTTP_400_BAD_REQUEST)
+        if days < 0 or days > 30:
+            return Response({'error': 'Feature an event for 1 to 30 days.'}, status=status.HTTP_400_BAD_REQUEST)
+        if days and (not event.is_active or event.is_draft or event.cancelled_at or event.visibility != 'public'):
+            return Response({'error': 'Only a live, public event can be featured.'}, status=status.HTTP_400_BAD_REQUEST)
+        event.featured_until = timezone.now() + timedelta(days=days) if days else None
+        event.save(update_fields=['featured_until'])
+        _log_admin_action(request, AdminAction.ACTION_EVENT_FEATURED if days else AdminAction.ACTION_EVENT_UNFEATURED,
+                          'event', event.pk, event.name[:255], f'{days} day(s)' if days else '')
+        return Response({'featured_until': event.featured_until, 'is_featured': bool(days)})
 
 
 class AdminMessagesView(APIView):

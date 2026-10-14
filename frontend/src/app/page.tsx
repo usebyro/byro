@@ -33,10 +33,12 @@ async function getEvents(): Promise<Event[]> {
 
 export default async function Home() {
   const all = await getEvents();
-  // Lead with events that have a cover image so the featured tile and the passport look their best.
+  // Events Byro is featuring lead (the API already puts them first). After those, lead with events that
+  // have a cover image so the big tile and the passport look their best.
   const events = [
-    ...all.filter((e) => e.event_image_url),
-    ...all.filter((e) => !e.event_image_url),
+    ...all.filter((e) => e.is_featured),
+    ...all.filter((e) => !e.is_featured && e.event_image_url),
+    ...all.filter((e) => !e.is_featured && !e.event_image_url),
   ].slice(0, 5);
 
   return (

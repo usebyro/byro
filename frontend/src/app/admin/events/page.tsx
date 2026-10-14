@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { formatNaira, isPaidEvent, priceLabel } from "@/lib/eventFormat";
 import { useAdminMe } from "@/components/admin/AdminMe";
 import { publicHref } from "@/lib/adminNav";
@@ -27,6 +28,8 @@ interface Event {
   is_draft?: boolean;
   created_at?: string;
   owner_email?: string;
+  featured_until?: string | null;
+  is_featured?: boolean;
 }
 
 interface TierRow {
@@ -260,6 +263,26 @@ export default function AdminEventsPage() {
   const [confirming, setConfirming] = useState<
     { event: Event; action: "suspend" | "reactivate" | "delete" } | null
   >(null);
+
+  const [featuring, setFeaturing] = useState(false);
+  const isFeatured = (e: Event) => Boolean(e.is_featured);
+
+  const feature = async (event: Event, days: number) => {
+    setFeaturing(true);
+    try {
+      const res = await fetch(`/api/admin/events/${event.id}/feature`, { method: "POST", body: JSON.stringify({ days }) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || "Try again.");
+      const patch = { featured_until: data.featured_until as string | null, is_featured: Boolean(data.is_featured) };
+      setEvents((prev) => prev.map((e) => (e.id === event.id ? { ...e, ...patch } : e)));
+      setSelected((prev) => (prev && prev.id === event.id ? { ...prev, ...patch } : prev));
+      toast.success(days ? `Featured for ${days} days` : "No longer featured", { description: event.name });
+    } catch (err) {
+      toast.error("Couldn't update featuring", { description: (err as Error).message });
+    } finally {
+      setFeaturing(false);
+    }
+  };
 
   const openEvent = (event: Event) => {
     setSelected(event);
@@ -579,6 +602,40 @@ export default function AdminEventsPage() {
                   </button>}
                 </div>
               </div>}
+
+              {can.moderate && selected.is_active && !selected.is_draft && selected.visibility !== "private" && (
+                <div>
+                  <h4 className="text-ink text-sm font-semibold mb-1">Featuring</h4>
+                  <p className="text-faint text-xs leading-relaxed mb-3">
+                    {isFeatured(selected)
+                      ? `Shown first on the landing page and Discover until ${new Date(selected.featured_until!).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}.`
+                      : "Show this event first on the landing page and Discover, with a Featured label."}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {[7, 14, 30].map((d) => (
+                      <button
+                        key={d}
+                        type="button"
+                        onClick={() => feature(selected, d)}
+                        disabled={featuring}
+                        className="text-xs font-semibold px-3 py-2 rounded-lg bg-brand/10 text-brand-dark hover:bg-brand/20 disabled:opacity-50"
+                      >
+                        {isFeatured(selected) ? `Extend: ${d} days from now` : `Feature for ${d} days`}
+                      </button>
+                    ))}
+                    {isFeatured(selected) && (
+                      <button
+                        type="button"
+                        onClick={() => feature(selected, 0)}
+                        disabled={featuring}
+                        className="text-xs font-semibold px-3 py-2 rounded-lg text-muted bg-mist hover:text-ink disabled:opacity-50"
+                      >
+                        Stop featuring
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
 
               <div>
                 <div className="flex items-center justify-between mb-3">
