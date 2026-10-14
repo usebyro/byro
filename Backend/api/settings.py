@@ -225,6 +225,8 @@ REST_FRAMEWORK = {
         'follow': '120/hour',
         # Each send emails real people; this is generous for tests and drafts, tight for abuse.
         'message': '30/hour',
+        # Reporting is open to signed-out visitors; this keeps it from being used to flood the queue.
+        'report': '10/hour',
     },
 }
 

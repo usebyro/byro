@@ -1,5 +1,6 @@
 "use client";
 
+import ReportButton from "@/components/ReportButton";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams, notFound } from "next/navigation";
@@ -435,6 +436,7 @@ export default function ViewEventClient({ slug }) {
                   </Link>
                 )}
               </div>
+              <ReportButton target="event" slug={event.slug} name={event.name} className="-mt-2 self-start" />
 
               <div className="flex flex-col items-start gap-5 rounded-[28px] bg-butter p-6 md:flex-row md:items-center md:gap-7 md:px-8 md:py-7">
                 <Stamp name={event.name.length > 18 ? event.name.slice(0, 16) + "…" : event.name} city={stampCity} date={stampDate} ink="blue" size={120} tilt={-8} filled className="shrink-0" />
