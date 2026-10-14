@@ -296,11 +296,16 @@ export function SidePanel({
   subtitle,
   onClose,
   children,
+  footer,
+  wide = false,
 }: {
   title: ReactNode;
   subtitle?: ReactNode;
   onClose: () => void;
   children: ReactNode;
+  /** Actions pinned to the bottom, always in reach however long the content is. */
+  footer?: ReactNode;
+  wide?: boolean;
 }) {
   const titleId = useId();
   const panel = useRef<HTMLDivElement>(null);
@@ -350,7 +355,7 @@ export function SidePanel({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="relative flex h-full w-full max-w-md flex-col overscroll-contain bg-white shadow-[0_20px_50px_rgba(20,22,28,0.16)] animate-panel-in motion-reduce:animate-none"
+        className={`relative flex h-full w-full ${wide ? "max-w-xl" : "max-w-md"} flex-col overscroll-contain bg-white shadow-[0_20px_50px_rgba(20,22,28,0.16)] animate-panel-in motion-reduce:animate-none`}
       >
         <div className="flex shrink-0 items-start justify-between gap-3 border-b border-line px-6 py-4">
           <div className="min-w-0">
@@ -372,6 +377,7 @@ export function SidePanel({
           </button>
         </div>
         <div className="flex-1 overflow-y-auto">{children}</div>
+        {footer && <div className="shrink-0 border-t border-line bg-white px-6 py-3">{footer}</div>}
       </div>
     </div>
   );

@@ -30,6 +30,7 @@ from .models import (
     WaitList, Event, Ticket, TicketTransfer,
     EventCoHost, Payment, Refund, UserProfile, EventFormQuestion, EventFormAnswer,
     TicketTier, PayoutRequest, PromoCode, MerchItem, Follow, AdminAction, AdminMember, ActivityLog, Message,
+    Notification,
 )
 from . import messaging
 from .activity import log_activity
@@ -4713,12 +4714,19 @@ class AdminSupportRequestsView(APIView):
         return Response({
             'open': open_count,
             'configured': bool(getattr(settings, 'TAWK_WEBHOOK_SECRET', '')),
+            'team': self.assignable(),
             'requests': [self.row(r) for r in qs[:200]],
         })
 
+    @staticmethod
+    def assignable():
+        """Who a request can be handed to: Admins and Owners (Viewers can't act on it)."""
+        return list(AdminMember.objects.filter(role__in=[AdminMember.ROLE_ADMIN, AdminMember.ROLE_OWNER])
+                    .order_by('email').values_list('email', flat=True))
+
 
 class AdminSupportRequestDetailView(APIView):
-    """PATCH /api/admin/support/requests/<pk>/ {status?: open|done, assign?: 'me'|'' } — track a help request."""
+    """PATCH /api/admin/support/requests/<pk>/ {status?: open|done, assign?: 'me'|<team email>|''} — track a help request."""
     permission_classes = [IsAdminMember]
     min_role = AdminMember.ROLE_ADMIN
 
@@ -4731,8 +4739,19 @@ class AdminSupportRequestDetailView(APIView):
         me = member.email if member else ''
         fields = []
         if 'assign' in request.data:
-            r.assigned_to_email = me if request.data.get('assign') == 'me' else ''
-            fields.append('assigned_to_email')
+            wanted = str(request.data.get('assign') or '').strip().lower()
+            if wanted == 'me':
+                wanted = me.lower()
+            if wanted and wanted not in [e.lower() for e in AdminSupportRequestsView.assignable()]:
+                return Response({'error': 'Pick an Admin or Owner on the team.'}, status=status.HTTP_400_BAD_REQUEST)
+            if wanted != (r.assigned_to_email or '').lower():
+                r.assigned_to_email = wanted
+                fields.append('assigned_to_email')
+                if wanted and wanted != me.lower():
+                    assignee = User.objects.filter(email__iexact=wanted, is_active=True).first()
+                    notify(assignee, 'support_request', f'{me or "A teammate"} gave you a support request'[:140],
+                           body=(r.name or r.email or r.subject or r.message)[:200], link='/support',
+                           audience=Notification.AUDIENCE_ADMIN)
         if 'status' in request.data:
             new = request.data.get('status')
             if new not in ('open', 'done'):

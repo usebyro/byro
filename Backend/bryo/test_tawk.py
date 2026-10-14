@@ -109,6 +109,28 @@ class TawkWebhookTests(AdminBase):
         self.assertEqual((res.json()['status'], res.json()['closed_at']), ('open', None))
         self.assertEqual(self.client.patch(f'/api/admin/support/requests/{rid}/', {'status': 'lost'}, format='json').status_code, 400)
 
+    def test_a_request_can_be_handed_to_a_teammate_who_is_told(self):
+        from .models import AdminMember
+        self.hook(self.chat_start())
+        rid = SupportRequest.objects.get().pk
+        mate = self.fan('mate@example.com')
+        AdminMember.objects.create(email='mate@example.com', role='owner')
+        self.as_(self.boss)
+        self.assertEqual(self.client.get('/api/admin/support/requests/').json()['team'], ['boss@example.com', 'mate@example.com'])
+
+        res = self.client.patch(f'/api/admin/support/requests/{rid}/', {'assign': 'Mate@example.com'}, format='json')
+        self.assertEqual(res.json()['assigned_to_email'], 'mate@example.com')
+        self.assertTrue(Notification.objects.filter(recipient=mate, title__contains='gave you a support request').exists())
+
+        # Viewers can't act on requests, and strangers aren't on the team.
+        for who in ['viewer@example.com', 'stranger@example.com']:
+            res = self.client.patch(f'/api/admin/support/requests/{rid}/', {'assign': who}, format='json')
+            self.assertEqual(res.status_code, 400)
+        self.assertEqual(SupportRequest.objects.get().assigned_to_email, 'mate@example.com')
+
+        self.client.patch(f'/api/admin/support/requests/{rid}/', {'assign': ''}, format='json')
+        self.assertEqual(SupportRequest.objects.get().assigned_to_email, '')
+
     def test_non_admins_cannot_see_requests(self):
         self.as_(self.fan('nosy@example.com'))
         self.assertEqual(self.client.get('/api/admin/support/requests/').status_code, 403)
