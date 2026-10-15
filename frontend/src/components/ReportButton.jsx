@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useSelector } from "react-redux";
+import { useAuth } from "@/redux/useAuth";
 import { toast } from "sonner";
 import API from "@/services/api";
 
@@ -16,7 +16,7 @@ const REASONS = [
 
 /** A quiet "Report" link that opens a short form. `target` is "event" or "community". */
 export default function ReportButton({ target, slug, handle, name, className = "" }) {
-  const token = useSelector((s) => s.auth?.token);
+  const { token } = useAuth();
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState("");
   const [details, setDetails] = useState("");

@@ -2,12 +2,12 @@ import React, { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { IoLocationSharp } from "react-icons/io5";
-import { useSelector } from "react-redux";
+import { useAuth } from "@/redux/useAuth";
 
 
 const EventCard = ({ event }) => {
   const [imageError, setImageError] = useState(false);
-  const authenticated = useSelector((state) => !!state.auth?.token);
+  const authenticated = !!useAuth().token;
 
   const getImageUrl = () => {
     if (imageError) {

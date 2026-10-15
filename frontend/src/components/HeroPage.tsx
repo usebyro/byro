@@ -2,12 +2,12 @@
 
 import Image from "next/image";
 import { Sparkle } from "../app/assets/index";
-import { useSelector } from "react-redux";
+import { useAuth } from "@/redux/useAuth";
 import { useRouter } from "next/navigation";
 
 
 const HeroPage = () => {
-  const { token } = useSelector((state: { auth: { token: unknown } }) => state.auth);
+  const { token } = useAuth();
   const router = useRouter();
 
   const handleGetStarted = () => {

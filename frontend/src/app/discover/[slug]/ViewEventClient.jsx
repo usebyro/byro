@@ -40,11 +40,20 @@ function calendarUrl(event) {
 const inputCls =
   "w-full rounded-[14px] border border-[#D5DBE5] px-3.5 py-2.5 text-sm text-ink placeholder:text-faint focus:outline-none focus-visible:ring-2 focus-visible:ring-brand";
 
-export default function ViewEventClient({ slug }) {
+/** Tiers come embedded in the event, or from their own endpoint. */
+const tierList = (data) => (Array.isArray(data) ? data : Array.isArray(data?.results) ? data.results : []);
+const firstOpenTier = (tiers) => String((tiers.find((t) => t.remaining !== 0) || tiers[0]).id);
+
+/**
+ * `initialEvent` is the public event the server already fetched, so the page arrives with its
+ * content (for search engines and a fast first paint). It's refreshed in the browser, where the
+ * visitor's own ticket is looked up too.
+ */
+export default function ViewEventClient({ slug, initialEvent = null }) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [event, setEvent] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [event, setEvent] = useState(initialEvent);
+  const [loading, setLoading] = useState(!initialEvent);
   const [error, setError] = useState("");
   const [suspended, setSuspended] = useState(null);
   const [registered, setRegistered] = useState(false);
@@ -55,9 +64,11 @@ export default function ViewEventClient({ slug }) {
   const [more, setMore] = useState([]);
 
   /* Ticket tier selection */
-  const [selectedTier, setSelectedTier] = useState("general");
+  const prefetched = !!initialEvent;
+  const initialTiers = tierList(initialEvent?.tiers);
+  const [selectedTier, setSelectedTier] = useState(initialTiers.length ? firstOpenTier(initialTiers) : "general");
   const [qty, setQty] = useState(1);
-  const [realTiers, setRealTiers] = useState([]);
+  const [realTiers, setRealTiers] = useState(initialTiers);
 
   /* Image URL helper */
   const getImageUrl = useCallback(() => {
@@ -97,7 +108,7 @@ export default function ViewEventClient({ slug }) {
     if (!slug) { setError("No event found"); setLoading(false); return; }
     const doFetch = async () => {
       try {
-        setLoading(true);
+        if (!prefetched) setLoading(true);
         const hasToken = !!(
           localStorage.getItem("authToken") ||
           localStorage.getItem("token") ||
@@ -112,17 +123,12 @@ export default function ViewEventClient({ slug }) {
           setEvent(eventData);
           if (eventData.slug && eventData.slug !== slug) router.replace(`/discover/${eventData.slug}`);
           // Try tiers embedded in event first, then fall back to dedicated endpoint
-          const embeddedTiers = Array.isArray(eventData.tiers) ? eventData.tiers : [];
-          const fetchedTiers = Array.isArray(tiersData)
-            ? tiersData
-            : Array.isArray(tiersData?.results)
-            ? tiersData.results
-            : [];
-          const resolvedTiers = embeddedTiers.length > 0 ? embeddedTiers : fetchedTiers;
+          const embeddedTiers = tierList(eventData.tiers);
+          const resolvedTiers = embeddedTiers.length > 0 ? embeddedTiers : tierList(tiersData);
           if (resolvedTiers.length > 0) {
             setRealTiers(resolvedTiers);
-            const firstOpen = resolvedTiers.find((t) => t.remaining !== 0) || resolvedTiers[0];
-            setSelectedTier(String(firstOpen.id));
+            // Keep the visitor's pick if they already chose a tier while this was loading.
+            setSelectedTier((cur) => (resolvedTiers.some((t) => String(t.id) === cur) ? cur : firstOpenTier(resolvedTiers)));
           }
         } else {
           throw new Error("Invalid event data");
@@ -141,7 +147,7 @@ export default function ViewEventClient({ slug }) {
       }
     };
     doFetch();
-  }, [slug, router]);
+  }, [slug, router, prefetched]);
 
   /* Other events you may like: same category first, then whatever is trending */
   useEffect(() => {

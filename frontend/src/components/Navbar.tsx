@@ -3,7 +3,8 @@ import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useSelector, useDispatch } from "react-redux";
+import { useDispatch } from "react-redux";
+import { useAuth } from "@/redux/useAuth";
 import API from "@/services/api";
 import axiosInstance from "@/utils/axios";
 import { signOut, authSuccess } from "@/redux/auth/authSlice";
@@ -23,9 +24,11 @@ const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const pathname = usePathname();
   const dispatch = useDispatch();
-  const { user, token } = useSelector(
-    (state: { auth: { user: { display_name?: string; email?: string } | null; token: unknown } }) => state.auth
-  );
+  const { user, token, ready } = useAuth() as {
+    user: { display_name?: string; email?: string } | null;
+    token: unknown;
+    ready: boolean;
+  };
   const isLoggedIn = !!token;
   const createHref = isLoggedIn ? "/events/create" : "/login?redirect=/events/create";
   const links = navLinks.filter((l) => !l.authOnly || isLoggedIn);
@@ -37,13 +40,13 @@ const Navbar = () => {
   // Revalidate the session on load; axios.jsx refreshes an expired access token
   // and signs out on a hard failure.
   useEffect(() => {
-    if (!token) return;
+    if (!ready || !token) return;
     axiosInstance
       .get("auth/me/")
       .then(({ data }) => dispatch(authSuccess({ user: data.user, token })))
       .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [ready]);
 
   useEffect(() => {
     setIsMenuOpen(false);

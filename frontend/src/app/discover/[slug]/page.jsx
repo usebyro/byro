@@ -185,7 +185,7 @@ export default async function EventPage({ params }) {
         />
       )}
       <Suspense fallback={null}>
-        <ViewEventClient slug={slug} />
+        <ViewEventClient slug={slug} initialEvent={event?.slug ? event : null} />
       </Suspense>
     </>
   );

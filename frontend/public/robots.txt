@@ -6,7 +6,5 @@ Disallow: /dashboard/
 Disallow: /checkin/
 Disallow: /order-confirmed
 Disallow: /payment
-Disallow: /_next/
-Disallow: /static/
 
 Sitemap: https://www.usebyro.com/sitemap.xml

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useSelector } from "react-redux";
+import { useAuth } from "@/redux/useAuth";
 import jsQR from "jsqr";
 import { Providers } from "@/redux/Providers";
 import API from "@/services/api";
@@ -46,7 +46,7 @@ const timeOf = (iso) =>
 function CheckInScreen() {
   const { slug } = useParams();
   const router = useRouter();
-  const token = useSelector((s) => s.auth?.token);
+  const { token, ready } = useAuth();
 
   const [event, setEvent] = useState(null);
   const [loadError, setLoadError] = useState(false);
@@ -69,8 +69,8 @@ function CheckInScreen() {
   const resultTimer = useRef(null);
 
   useEffect(() => {
-    if (!token) router.replace(`/login?redirect=${encodeURIComponent(`/checkin/${slug}`)}`);
-  }, [token, slug, router]);
+    if (ready && !token) router.replace(`/login?redirect=${encodeURIComponent(`/checkin/${slug}`)}`);
+  }, [ready, token, slug, router]);
 
   useEffect(() => {
     document.title = "Check-in | Byro";
