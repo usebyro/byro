@@ -6,6 +6,8 @@ Nothing here is secret. Keys and passwords stay in the host's environment settin
 ## Before / right after deploying
 
 - [ ] Run migrations: `0038` (yes/no question type), `0039` (event cancellation + refunds), `0040` (refund approval).
+- [ ] One Railway cron service running `python manage.py run_jobs` every 5 minutes (`*/5 * * * *`). It runs
+      scheduled messages, refunds, and the day-before reminders (from 09:00 Lagos). Replaces the separate jobs below.
 - [ ] Schedule `python manage.py process_refunds` (every 5 minutes) so approved refunds are never left half-sent.
 - [ ] Run migration `0045` (scheduled messages) and schedule `python manage.py send_scheduled_messages` (every 5 minutes). Without it, messages scheduled from Dashboard > Messages never go out.
 - [ ] Production backend settings:
