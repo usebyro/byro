@@ -6,6 +6,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { Notification03Icon } from "@hugeicons/core-free-icons";
 import { toast } from "sonner";
 import { resolveAdminHref } from "@/lib/adminNav";
+import PushToggle from "@/components/admin/PushToggle";
 
 interface AdminNotification {
   id: number;
@@ -200,6 +201,7 @@ export default function NotificationBell() {
               ))
             )}
           </div>
+          <PushToggle />
         </div>
       )}
     </div>

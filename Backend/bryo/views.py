@@ -4725,6 +4725,55 @@ class AdminSupportRequestsView(APIView):
                     .order_by('email').values_list('email', flat=True))
 
 
+# The push services browsers use. The server POSTs to a device's endpoint, so only these hosts
+# are accepted (anything else could point the server at an internal address).
+PUSH_HOSTS = ('fcm.googleapis.com', 'updates.push.services.mozilla.com', 'push.apple.com', 'notify.windows.com')
+
+
+def _push_endpoint_ok(url):
+    from urllib.parse import urlparse
+    parts = urlparse(url or '')
+    host = (parts.hostname or '').lower()
+    return parts.scheme == 'https' and any(host == h or host.endswith('.' + h) for h in PUSH_HOSTS)
+
+
+class AdminPushView(APIView):
+    """
+    GET    /api/admin/push/ -> {configured, public_key}
+    POST   /api/admin/push/ {subscription: {endpoint, keys: {p256dh, auth}}}: this device gets admin notifications
+    DELETE /api/admin/push/?endpoint= (or {endpoint}): this device stops
+    """
+    permission_classes = [IsAdminMember]
+
+    def get(self, request):
+        from .push import configured
+        return Response({'configured': configured(), 'public_key': settings.VAPID_PUBLIC_KEY if configured() else ''})
+
+    def post(self, request):
+        from .models import PushSubscription
+        from .push import configured
+        if not configured():
+            return Response({'error': 'Push notifications are not set up on the server yet.'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        sub = request.data.get('subscription') or {}
+        endpoint = str(sub.get('endpoint') or '')
+        keys = sub.get('keys') or {}
+        p256dh, auth = str(keys.get('p256dh') or ''), str(keys.get('auth') or '')
+        if not _push_endpoint_ok(endpoint) or len(endpoint) > 1000 or not p256dh or not auth or len(p256dh) > 200 or len(auth) > 100:
+            return Response({'error': 'That browser subscription is not valid.'}, status=status.HTTP_400_BAD_REQUEST)
+        # The same browser signing in as someone else moves to them.
+        PushSubscription.objects.update_or_create(endpoint=endpoint, defaults={
+            'user': request.user, 'audience': Notification.AUDIENCE_ADMIN, 'p256dh': p256dh, 'auth': auth,
+            'user_agent': request.headers.get('User-Agent', '')[:300],
+        })
+        return Response({'subscribed': True}, status=status.HTTP_201_CREATED)
+
+    def delete(self, request):
+        from .models import PushSubscription
+        endpoint = str(request.data.get('endpoint') or request.query_params.get('endpoint') or '')
+        PushSubscription.objects.filter(endpoint=endpoint, user=request.user).delete()
+        return Response({'subscribed': False})
+
+
 class AdminSupportRequestDetailView(APIView):
     """PATCH /api/admin/support/requests/<pk>/ {status?: open|done, assign?: 'me'|<team email>|''} — track a help request."""
     permission_classes = [IsAdminMember]

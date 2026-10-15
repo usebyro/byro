@@ -25,10 +25,13 @@ def notify(user, kind, title, *, body='', link='', audience=Notification.AUDIENC
     try:
         if user is None or not getattr(user, 'pk', None):
             return None
-        return Notification.objects.create(
+        n = Notification.objects.create(
             recipient=user, audience=audience, kind=kind,
             title=title[:140], body=(body or '')[:255], link=(link or '')[:255],
         )
+        from .push import push_notification  # also to their phone or computer, if they turned that on
+        push_notification(n)
+        return n
     except Exception:
         logger.exception('Could not create notification %s', kind)
         return None

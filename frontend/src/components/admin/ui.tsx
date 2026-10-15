@@ -97,6 +97,32 @@ export function toneFor(status: string | null | undefined): Tone {
   }
 }
 
+/* ------------------------------------------------------------------ toggle */
+
+/** An on/off switch. `label` is read out by screen readers (the switch has no visible text). */
+export function Toggle({ on, label, disabled, onChange }: { on: boolean; label: string; disabled?: boolean; onChange: () => void }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      aria-label={label}
+      onClick={onChange}
+      disabled={disabled}
+      className={`inline-flex h-[22px] w-10 shrink-0 rounded-full p-[3px] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 disabled:opacity-50 motion-reduce:transition-none ${
+        on ? "bg-brand" : "bg-[#C9D0DC]"
+      }`}
+    >
+      <span
+        aria-hidden="true"
+        className={`h-4 w-4 rounded-full bg-white shadow-[0_1px_2px_rgba(20,22,28,0.2)] transition-transform duration-150 ease-out motion-reduce:transition-none ${
+          on ? "translate-x-[18px]" : "translate-x-0"
+        }`}
+      />
+    </button>
+  );
+}
+
 /* ----------------------------------------------------------- confirm dialog */
 
 export interface ConfirmOptions {

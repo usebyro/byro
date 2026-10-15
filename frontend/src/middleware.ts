@@ -31,6 +31,8 @@ export function middleware(request: NextRequest) {
     pathname.startsWith("/_next") ||
     pathname.startsWith("/favicon") ||
     pathname.startsWith("/assets") ||
+    pathname === "/admin-sw.js" ||
+    pathname === "/admin.webmanifest" ||
     pathname.startsWith("/api/")
   ) {
     return withNoIndex(NextResponse.next());

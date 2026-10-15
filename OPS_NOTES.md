@@ -17,6 +17,11 @@ Nothing here is secret. Keys and passwords stay in the host's environment settin
 - [ ] tawk.to -> Admin > Support > Requests (migration `0056`). In tawk.to: Administration -> Settings -> Webhooks ->
       Create webhook, URL `https://<backend>/api/webhooks/tawk/`, tick Chat Start, Chat End, Chat Transcript Created and
       New Ticket. Copy its secret key into the backend setting `TAWK_WEBHOOK_SECRET`. Until then the Requests tab shows a warning.
+- [ ] Push notifications for the admin (migration `0057`, new package `pywebpush` in requirements). Run
+      `python manage.py vapid_keys` once and set `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` on the backend
+      (optional `VAPID_SUBJECT`, defaults to `mailto:support@usebyro.com`). Never change the pair afterwards, or
+      every device has to switch push on again. Each admin turns it on per device: bell -> Push notifications.
+      iPhone/iPad: Share -> Add to Home Screen first, then open the admin from the Home Screen.
 - [ ] Google Cloud: publish the OAuth app (it only lets test users in while in "Testing").
 - [ ] GA4: mark `purchase`, `sign_up` and `create_event` as key events (Admin -> Events).
 - [ ] Email logo only appears after the frontend deploy (`/assets/images/logo-email.png`).
