@@ -1,6 +1,5 @@
 User-agent: *
 Allow: /
-Disallow: /admin/
 Disallow: /api/
 Disallow: /dashboard/
 Disallow: /checkin/
@@ -8,3 +7,6 @@ Disallow: /order-confirmed
 Disallow: /payment
 
 Sitemap: https://www.usebyro.com/sitemap.xml
+
+# /admin is left crawlable on purpose: every admin response says noindex, and Google can only
+# see that if it may fetch the page (a Disallow would let a linked admin URL be listed bare).
