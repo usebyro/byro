@@ -55,6 +55,12 @@ SITE_URL = os.environ.get('SITE_URL', 'https://usebyro.com')
 PAYSTACK_SECRET_KEY = config('PAYSTACK_SECRET_KEY', default='')
 # tawk.to webhooks (Administration > Settings > Webhooks): the secret key tawk.to shows when you create one.
 TAWK_WEBHOOK_SECRET = config('TAWK_WEBHOOK_SECRET', default='')
+
+# Web Push (admin notifications on phones and computers). Generate the pair once with
+# `python manage.py vapid_keys`; without them the admin's push switch says it isn't set up.
+VAPID_PUBLIC_KEY = config('VAPID_PUBLIC_KEY', default='')
+VAPID_PRIVATE_KEY = config('VAPID_PRIVATE_KEY', default='')
+VAPID_SUBJECT = config('VAPID_SUBJECT', default='mailto:support@usebyro.com')
 PAYSTACK_PUBLIC_KEY = config('PAYSTACK_PUBLIC_KEY', default='')
 PAYSTACK_CALLBACK_URL = config('PAYSTACK_CALLBACK_URL', default='http://localhost:3000/payment/callback')
 PAYSTACK_CALLBACK_URL = config('PAYSTACK_CALLBACK_URL', default='https://usebyro.com/payment/callback')

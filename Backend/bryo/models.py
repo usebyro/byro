@@ -1336,3 +1336,27 @@ class Notification(models.Model):
 
     def __str__(self):
         return f"{self.kind} for {self.recipient_id}"
+
+
+class PushSubscription(models.Model):
+    """One browser or phone that asked for push notifications (Web Push).
+
+    `audience` matches Notification.audience: a device signed up from the admin gets the admin
+    team's notifications. The endpoint is unique per browser; when the push service says it's
+    gone (404/410) the row is deleted.
+    """
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='push_subscriptions')
+    audience = models.CharField(max_length=12, default=Notification.AUDIENCE_ADMIN)
+    endpoint = models.URLField(max_length=1000, unique=True)
+    p256dh = models.CharField(max_length=200)
+    auth = models.CharField(max_length=100)
+    user_agent = models.CharField(max_length=300, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_sent_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        indexes = [models.Index(fields=['user', 'audience'])]
+
+    def __str__(self):
+        return f"push for {self.user_id} ({self.audience})"
