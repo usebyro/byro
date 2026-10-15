@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Notification03Icon } from "@hugeicons/core-free-icons";
+import { toast } from "sonner";
 import { resolveAdminHref } from "@/lib/adminNav";
 
 interface AdminNotification {
@@ -23,7 +24,9 @@ const KIND_DOT: Record<string, string> = {
   event_created: "bg-brand",
 };
 
-const POLL_MS = 60_000;
+const POLL_MS = 30_000;
+// More than this many new at once becomes one "N new notifications" pop-up instead of a pile.
+const MAX_POPUPS = 3;
 
 function timeAgo(iso: string) {
   const diff = Date.now() - new Date(iso).getTime();
@@ -43,14 +46,25 @@ export default function NotificationBell() {
   const containerRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const pathname = usePathname();
+  // Ids already shown or already there when the page opened, so only new ones pop up.
+  const seen = useRef<Set<number> | null>(null);
+  const popup = useRef<(fresh: AdminNotification[]) => void>(() => {});
 
   const load = useCallback(async () => {
     try {
       const res = await fetch("/api/admin/notifications");
       if (!res.ok) return;
       const data = await res.json();
-      setItems(data.results || []);
+      const results: AdminNotification[] = data.results || [];
+      setItems(results);
       setUnread(data.unread || 0);
+      if (seen.current === null) {
+        seen.current = new Set(results.map((n) => n.id));
+      } else {
+        const fresh = results.filter((n) => !n.read && !seen.current!.has(n.id));
+        fresh.forEach((n) => seen.current!.add(n.id));
+        if (fresh.length) popup.current(fresh);
+      }
     } catch {
       // Keep what we have; the next poll tries again.
     }
@@ -106,6 +120,31 @@ export default function NotificationBell() {
     }
     if (n.link) router.push(resolveAdminHref(pathname, n.link));
   };
+
+  // New notifications pop up as toasts. The layout has two bells (phone and desktop headers);
+  // only the one on screen announces, so each pop-up shows once and "View" opens a visible list.
+  // Kept fresh every render so "Open" uses the current page for links.
+  useEffect(() => {
+    popup.current = (fresh) => {
+      if (!containerRef.current?.offsetParent) return;
+      if (fresh.length > MAX_POPUPS) {
+        toast.info(`${fresh.length} new notifications`, {
+          description: fresh[0].title,
+          duration: 8000,
+          action: { label: "View", onClick: () => setOpen(true) },
+        });
+        return;
+      }
+      // Oldest first, so the newest ends up on top.
+      [...fresh].reverse().forEach((n) =>
+        toast.info(n.title, {
+          description: n.body || undefined,
+          duration: 8000,
+          action: n.link ? { label: "Open", onClick: () => openItem(n) } : undefined,
+        }),
+      );
+    };
+  });
 
   return (
     <div ref={containerRef} className="relative">
