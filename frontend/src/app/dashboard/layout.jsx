@@ -7,7 +7,8 @@ import { usePathname, useRouter } from "next/navigation";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Menu01Icon, Cancel01Icon } from "@hugeicons/core-free-icons";
 import { Providers } from "@/redux/Providers";
-import { useSelector, useDispatch } from "react-redux";
+import { useDispatch } from "react-redux";
+import { useAuth } from "@/redux/useAuth";
 import { signOut } from "@/redux/auth/authSlice";
 import UserMenu from "@/components/auth/UserMenu";
 import NotificationBell from "@/components/dashboard/NotificationBell";
@@ -48,8 +49,7 @@ function StudioShell({ children }) {
   const pathname = usePathname();
   const router   = useRouter();
   const dispatch = useDispatch();
-  const user     = useSelector((s) => s.auth?.user);
-  const token    = useSelector((s) => s.auth?.token);
+  const { user, token, ready } = useAuth();
 
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -67,10 +67,10 @@ function StudioShell({ children }) {
   // usebyro.com/dashboard directly — gets bounced to login, and back to
   // whatever dashboard page they wanted once they sign in.
   useEffect(() => {
-    if (!token) {
+    if (ready && !token) {
       router.replace(`/login?redirect=${encodeURIComponent(pathname)}`);
     }
-  }, [token, pathname, router]);
+  }, [ready, token, pathname, router]);
 
   useEffect(() => {
     if (!mobileOpen) return;

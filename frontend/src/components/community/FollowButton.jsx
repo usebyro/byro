@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useSelector } from "react-redux";
+import { useAuth } from "@/redux/useAuth";
 import { toast } from "sonner";
 import API from "@/services/api";
 import { trackFollow } from "@/lib/analytics";
@@ -21,7 +21,7 @@ export default function FollowButton({ handle, initialFollowing = false, onChang
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const { token, user } = useSelector((state) => state.auth);
+  const { token, user } = useAuth();
   const [following, setFollowing] = useState(initialFollowing);
   const [busy, setBusy] = useState(false);
   const resumed = useRef(false);

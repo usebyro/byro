@@ -1,4 +1,5 @@
 import { SITE_URL as BASE_URL } from '@/lib/site';
+import { getBlogPosts } from './blog/blog-data';
 
 // Same rule as the rest of the app: the API lives under /api/.
 const API_BASE = (() => {
@@ -18,6 +19,8 @@ const staticPages = [
   { url: `${BASE_URL}/terms`,           priority: 0.4, changeFrequency: 'yearly'  },
   { url: `${BASE_URL}/privacy`,         priority: 0.4, changeFrequency: 'yearly'  },
   { url: `${BASE_URL}/refund-policy`,   priority: 0.4, changeFrequency: 'yearly'  },
+  { url: `${BASE_URL}/cookies`,         priority: 0.3, changeFrequency: 'yearly'  },
+  { url: `${BASE_URL}/careers`,         priority: 0.4, changeFrequency: 'monthly' },
 ];
 
 const asList = (data) => (Array.isArray(data) ? data : (data?.results ?? []));
@@ -72,6 +75,17 @@ export default async function sitemap() {
     }
   } catch (err) {
     console.error('[sitemap] Failed to fetch communities:', err);
+  }
+
+  // Blog posts (getBlogPosts returns [] if Sanity is unreachable).
+  for (const post of await getBlogPosts()) {
+    if (!post.slug) continue;
+    entries.push({
+      url: `${BASE_URL}/blog/${post.slug}`,
+      lastModified: post.publishedAt ? new Date(post.publishedAt) : now,
+      changeFrequency: 'monthly',
+      priority: 0.5,
+    });
   }
 
   return entries;
