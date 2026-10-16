@@ -299,6 +299,16 @@ const API = {
     }
   },
 
+  // Every event you run (drafts too) with sold / seats / checked in / revenue per event.
+  getDashboardEvents: async () => {
+    try {
+      const response = await axiosInstance.get("dashboard/events/");
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
   // range: "week" | "3m" | "6m" | "12m" (default "12m") — only affects the
   // revenue chart series (monthly_revenue); everything else in the response
   // is unaffected.
