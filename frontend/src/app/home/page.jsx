@@ -189,7 +189,7 @@ function PinnedTicket({ item }) {
   const { event, ticketId } = item;
   const time = formatTime(event.time_from);
   return (
-    <div className="fixed inset-x-3 bottom-[calc(12px+env(safe-area-inset-bottom))] z-40 flex items-center gap-3 rounded-[18px] bg-ink py-2.5 pl-4 pr-2.5 text-white shadow-[0_1px_2px_rgba(20,22,28,.06),0_16px_36px_-12px_rgba(20,22,28,.28)] md:hidden">
+    <div className="fixed inset-x-3 bottom-[calc(76px+env(safe-area-inset-bottom))] z-30 flex items-center gap-3 rounded-[18px] bg-ink py-2.5 pl-4 pr-2.5 text-white shadow-[0_1px_2px_rgba(20,22,28,.06),0_16px_36px_-12px_rgba(20,22,28,.28)] md:hidden">
       <span className="flex min-w-0 flex-grow flex-col">
         <span className="truncate text-sm font-extrabold">{time ? `${event.name} starts ${time}` : `${event.name} is today`}</span>
         {event.location && <span className="truncate text-xs text-[#C9CFDA]">{event.location}</span>}
