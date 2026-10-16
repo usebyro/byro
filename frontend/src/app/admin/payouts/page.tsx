@@ -41,6 +41,37 @@ function destinationOf(p: PayoutRequest) {
   return p.account_number ? `${p.bank_name} ···· ${p.account_number.slice(-4)}` : p.bank_name;
 }
 
+/** Where the money goes, in full for admins who send payouts: bank, account number (with copy) and account name. */
+function Destination({ p, full }: { p: PayoutRequest; full: boolean }) {
+  const [copied, setCopied] = useState(false);
+  const number = p.method === "wallet" ? p.wallet_address : p.account_number;
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(number);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {}
+  };
+  if (!full || !number) return <span className="capitalize">{destinationOf(p)}</span>;
+  return (
+    <span className="flex flex-col gap-0.5">
+      <span className="font-semibold text-ink">{p.method === "wallet" ? p.wallet_type || "Wallet" : p.bank_name}</span>
+      <span className="flex items-center gap-2">
+        <span className="font-mono text-body tabular-nums break-all">{number}</span>
+        <button
+          type="button"
+          onClick={copy}
+          aria-label={`Copy ${p.method === "wallet" ? "wallet address" : "account number"}`}
+          className="shrink-0 rounded-md px-1.5 py-0.5 text-xs font-bold text-brand-dark hover:bg-mist"
+        >
+          {copied ? "Copied" : "Copy"}
+        </button>
+      </span>
+      {p.method !== "wallet" && p.account_name && <span className="text-xs text-muted">{p.account_name}</span>}
+    </span>
+  );
+}
+
 function StatusBadge({ status }: { status: PayoutStatus }) {
   const style =
     status === "processed"
@@ -230,7 +261,9 @@ export default function AdminPayoutsPage() {
                     </td>
                     <td className="py-3 pr-6 text-muted truncate max-w-[160px]">{p.event_name || "—"}</td>
                     <td className="py-3 pr-6 text-body whitespace-nowrap font-medium tabular-nums">{fmtNaira(p.amount)}</td>
-                    <td className="py-3 pr-6 text-muted truncate max-w-[220px] capitalize" title={destinationOf(p)}>{destinationOf(p)}</td>
+                    <td className="py-3 pr-6 text-muted min-w-[200px] max-w-[280px]">
+                      <Destination p={p} full={can.payouts} />
+                    </td>
                     <td className="py-3 pr-6 text-muted whitespace-nowrap">{fmtDate(p.requested_at)}</td>
                     <td className="py-3 pr-6">
                       <StatusBadge status={p.status} />
