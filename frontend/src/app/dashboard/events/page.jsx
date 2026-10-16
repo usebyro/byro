@@ -223,45 +223,20 @@ function TableRow({ e, i }) {
           </span>
         </Link>
       </td>
-      <td className="p-3">
+      <td data-l="Tickets" className="p-3">
         <span className="flex flex-col gap-1.5">
           <span className="v-tab whitespace-nowrap text-sm font-bold">{ticketsText(e)}</span>
           {isUpcoming(e) && e.capacity > 0 && <Bar pct={fillPct(e)} className="h-1 w-[110px]" />}
         </span>
       </td>
-      <td className="p-3">
+      <td data-l="Turnout" className="p-3">
         <Turnout e={e} />
       </td>
-      <td className="v-tab whitespace-nowrap p-3 text-right text-[15px] font-extrabold">{revenueText(e)}</td>
-      <td className="py-3 pl-6 pr-5">
+      <td data-l="Revenue" className="v-tab whitespace-nowrap p-3 text-right text-[15px] font-extrabold">{revenueText(e)}</td>
+      <td data-l="Status" className="py-3 pl-6 pr-5">
         <Status e={e} />
       </td>
     </tr>
-  );
-}
-
-// Phones: one stacked row per event instead of a sideways-scrolling table.
-function MobileRow({ e, i }) {
-  return (
-    <li className="v-al border-b border-hairline last:border-b-0" style={{ "--i": i }}>
-      <Link href={`/dashboard/events/${e.slug}`} className="v-row flex gap-3 px-4 py-3.5 text-ink no-underline">
-        <Thumb event={e} className="h-12 w-[60px] shrink-0 rounded-xl" sizes="60px" />
-        <span className="flex min-w-0 flex-grow flex-col gap-1">
-          <span className="flex items-start justify-between gap-2">
-            <span className="min-w-0 break-words text-[15px] font-extrabold">{e.name}</span>
-            <span className="v-tab shrink-0 text-sm font-extrabold">{revenueText(e)}</span>
-          </span>
-          <span className="text-[13px] text-muted">{formatWhen(e, !e.is_past)}</span>
-          <span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px]">
-            <Status e={e} />
-            <span className="v-tab font-bold">{ticketsText(e)}</span>
-            {isPast(e) && e.checked_in != null && e.sold > 0 && (
-              <span className="text-muted">{Math.round(Math.min(1, e.checked_in / e.sold) * 100)}% came</span>
-            )}
-          </span>
-        </span>
-      </Link>
-    </li>
   );
 }
 
@@ -364,7 +339,7 @@ export default function StudioEvents() {
   const emptyTitle = { upcoming: "No upcoming events", past: "No past events", draft: "No drafts" }[filter] || "No events";
 
   return (
-    <div className="mx-auto flex w-full max-w-[1240px] flex-col gap-6 px-4 pb-12 pt-2 sm:px-[clamp(16px,3vw,40px)]">
+    <div className="mx-auto flex w-full max-w-[1240px] flex-col gap-5 px-4 pb-12 pt-2 md:gap-6 sm:px-[clamp(16px,3vw,40px)]">
       <div className="v-bf flex flex-wrap items-end gap-4" style={{ "--i": 0 }}>
         <div className="flex min-w-0 flex-[1_1_320px] flex-col gap-1.5">
           <h1 className="v-h1">Events</h1>
@@ -454,7 +429,7 @@ export default function StudioEvents() {
               </div>
             ) : (
               <>
-                <table className="hidden w-full border-collapse md:table">
+                <table className="v-stack w-full border-collapse">
                   <thead>
                     <tr className="border-b border-hairline">
                       <th scope="col" className="v-th px-5 py-3.5 text-left">Event</th>
@@ -470,11 +445,6 @@ export default function StudioEvents() {
                     ))}
                   </tbody>
                 </table>
-                <ul className="m-0 list-none border-b border-hairline p-0 md:hidden">
-                  {rows.map((e, i) => (
-                    <MobileRow key={e.slug} e={e} i={i} />
-                  ))}
-                </ul>
                 <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5 text-[13px] text-muted">
                   <span aria-live="polite">{countNote}</span>
                   {pages > 1 && (
