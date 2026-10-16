@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import Avatar from "@/components/ui/Avatar";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { UserIcon, Logout01Icon } from "@hugeicons/core-free-icons";
+import { UserIcon, Logout01Icon, ArrowDataTransferHorizontalIcon } from "@hugeicons/core-free-icons";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,6 +23,8 @@ export default function UserMenu({
 }) {
   const sizeClasses = "w-11 h-11 text-sm";
   const avatarUrl = user?.avatar_url || user?.avatarUrl || null;
+  // On the public site the menu offers a way into the organiser dashboard (the dashboard has its own way back).
+  const inDashboard = (usePathname() || "").startsWith("/dashboard");
   const accountName = user?.display_name || user?.displayName || user?.name || user?.email || "";
 
   return (
@@ -56,6 +59,14 @@ export default function UserMenu({
             Profile
           </Link>
         </DropdownMenuItem>
+        {!inDashboard && (
+          <DropdownMenuItem asChild>
+            <Link href="/dashboard/overview">
+              <HugeiconsIcon icon={ArrowDataTransferHorizontalIcon} size={15} color="currentColor" />
+              Switch to hosting
+            </Link>
+          </DropdownMenuItem>
+        )}
         <DropdownMenuSeparator />
         <DropdownMenuItem variant="destructive" onClick={onLogout}>
           <HugeiconsIcon icon={Logout01Icon} size={15} color="currentColor" />
