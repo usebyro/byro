@@ -171,14 +171,16 @@ def _h(text):
 
 def _btn(url, label, primary=True):
     look = (
-        f"background:{BRAND};color:#ffffff;font-size:16px;padding:0 26px;"
+        f"background:{BRAND};color:#ffffff;font-size:16px;padding:15px 26px;"
         if primary else
-        f"border:1px solid #D5DBE5;color:{INK};font-size:15px;padding:0 22px;"
+        f"border:1px solid #D5DBE5;color:{INK};font-size:15px;padding:14px 22px;"
     )
+    # Padding, not a fixed height: one line is 50px tall, and a label that wraps (large text, narrow
+    # phones) makes the button taller instead of spilling out of it.
     return (
-        f'<a class="btn" href="{url}" style="display:inline-block;{look}height:50px;line-height:50px;'
+        f'<a class="btn" href="{url}" style="display:inline-block;{look}line-height:20px;'
         f'box-sizing:border-box;max-width:100%;margin:0 10px 10px 0;'
-        f'text-decoration:none;font-weight:700;border-radius:999px;text-align:center;">{label}</a>'
+        f'text-decoration:none;font-weight:700;border-radius:26px;text-align:center;">{label}</a>'
     )
 
 
@@ -458,8 +460,8 @@ def event_published_email(name, event_name, date, time, location, event_url, sha
     share_html = (
         f'<div style="font-size:15px;font-weight:800;color:{INK};padding-bottom:10px;">Share it now</div>'
         f'<table cellpadding="0" cellspacing="0" style="width:100%;margin:0 0 20px;"><tr>'
-        f'<td width="50%" style="padding-right:5px;"><a href="{wa}" style="display:block;height:52px;line-height:52px;border:1px solid #D5DBE5;border-radius:999px;text-align:center;font-size:15px;font-weight:700;color:{INK};text-decoration:none;">WhatsApp</a></td>'
-        f'<td width="50%" style="padding-left:5px;"><a href="{x}" style="display:block;height:52px;line-height:52px;border:1px solid #D5DBE5;border-radius:999px;text-align:center;font-size:15px;font-weight:700;color:{INK};text-decoration:none;">Post on X</a></td>'
+        f'<td width="50%" style="padding-right:5px;"><a href="{wa}" style="display:block;padding:15px 12px;line-height:20px;border:1px solid #D5DBE5;border-radius:26px;text-align:center;font-size:15px;font-weight:700;color:{INK};text-decoration:none;">WhatsApp</a></td>'
+        f'<td width="50%" style="padding-left:5px;"><a href="{x}" style="display:block;padding:15px 12px;line-height:20px;border:1px solid #D5DBE5;border-radius:26px;text-align:center;font-size:15px;font-weight:700;color:{INK};text-decoration:none;">Post on X</a></td>'
         f'</tr></table>'
     )
     body_html = (
