@@ -12,15 +12,18 @@ import UserMenu from "@/components/auth/UserMenu";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Compass01Icon, Calendar03Icon, UserGroupIcon, UserCircleIcon } from "@hugeicons/core-free-icons";
 
-type NavLink = { label: string; href: string; authOnly?: boolean };
+type NavLink = { label: string; href: string; authOnly?: boolean; marketing?: boolean };
 
+// Signed in, the app menu is just Discover, Events and Communities (as in the design);
+// Pricing and Blog stay on the marketing pages and for visitors who aren't signed in.
 const navLinks: NavLink[] = [
   { label: "Discover", href: "/discover" },
-  { label: "Communities", href: "/communities" },
   { label: "Events", href: "/home", authOnly: true },
-  { label: "Pricing", href: "/pricing" },
-  { label: "Blog", href: "/blog" },
+  { label: "Communities", href: "/communities" },
+  { label: "Pricing", href: "/pricing", marketing: true },
+  { label: "Blog", href: "/blog", marketing: true },
 ];
+const isMarketingPage = (path: string) => path === "/" || path === "/pricing" || path.startsWith("/blog");
 
 // Phone tab bar for signed-in people, on the browsing pages only (event and checkout pages have their own bottom bars).
 const TABS = [
@@ -42,7 +45,9 @@ const Navbar = () => {
   };
   const isLoggedIn = !!token;
   const createHref = isLoggedIn ? "/events/create" : "/login?redirect=/events/create";
-  const links = navLinks.filter((l) => !l.authOnly || isLoggedIn);
+  const links = navLinks.filter(
+    (l) => (!l.authOnly || isLoggedIn) && (!l.marketing || !isLoggedIn || isMarketingPage(pathname)),
+  );
 
   useEffect(() => {
     if (token) API.setAuthToken(token);
