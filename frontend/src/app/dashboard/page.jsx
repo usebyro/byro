@@ -7,6 +7,7 @@ import { useSelector } from "react-redux";
 import EventImageFallback from "@/components/ui/EventImageFallback";
 import OverviewRevenueChart from "@/components/dashboard/v2/OverviewRevenueChart";
 import API from "@/services/api";
+import BankLogo from "@/components/dashboard/BankLogo";
 
 // Saved by the Payouts page when the organiser sets their bank account.
 const BANK_DETAILS_STORAGE_KEY = "byro_payout_bank_details";
@@ -65,13 +66,6 @@ const maskAccount = (n) => {
   const digits = String(n || "");
   return digits.length > 4 ? `••••${digits.slice(-4)}` : digits;
 };
-
-// "Guaranty Trust Bank" -> "GTB"; a one-word name keeps its first three letters.
-function bankBadge(name) {
-  const words = String(name || "").replace(/[^A-Za-z ]/g, " ").split(/\s+/).filter(Boolean);
-  if (!words.length) return "";
-  return (words.length === 1 ? words[0].slice(0, 3) : words.map((w) => w[0]).join("").slice(0, 3)).toUpperCase();
-}
 
 const andList = (names) => (names.length <= 2 ? names.join(" and ") : `${names[0]}, ${names[1]} and ${names.length - 2} more`);
 
@@ -182,7 +176,7 @@ export default function StudioDashboard() {
   const updatedText = fresh < 1 ? "updated just now" : `updated ${fresh} min ago`;
 
   return (
-    <div className="mx-auto flex w-full max-w-[1240px] flex-col gap-6 px-4 pb-12 pt-2 sm:px-[clamp(16px,3vw,40px)]">
+    <div className="mx-auto flex w-full max-w-[1240px] flex-col gap-5 px-4 pb-12 pt-4 sm:px-[clamp(16px,3vw,40px)] md:gap-6 md:pt-2">
       <div className="v-bf flex flex-wrap items-end gap-4" style={{ "--i": 0 }}>
         <div className="flex min-w-0 flex-[1_1_320px] flex-col gap-1.5">
           <h1 className="v-h1">{greeting}, {firstName}</h1>
@@ -280,7 +274,7 @@ function Content({ data, meta, isAll, busy, table, setTable, balance, bank }) {
   ];
 
   return (
-    <div className={`flex flex-col gap-6 transition-opacity ${busy ? "opacity-60" : ""}`} aria-busy={busy}>
+    <div className={`flex flex-col gap-5 md:gap-6 transition-opacity ${busy ? "opacity-60" : ""}`} aria-busy={busy}>
       <div className="flex flex-wrap items-stretch gap-5">
         <section aria-label="Revenue" className="v-card v-bf flex min-w-0 flex-[2_1_520px] flex-col gap-[18px] px-6 pb-[18px] pt-6" style={{ "--i": 2 }}>
           <div className="flex flex-wrap items-start gap-3">
@@ -377,15 +371,21 @@ function Content({ data, meta, isAll, busy, table, setTable, balance, bank }) {
           </div>
           {balance ? <span className="v-fig text-[36px]">{naira(balance.available)}</span> : <span className="v-skel h-9 w-40" aria-hidden="true" />}
           <div className="grow" />
-          <div className="flex items-center gap-2.5 border-t border-hairline pt-3.5">
+          <div className="-mx-1 -mb-1 flex items-center gap-2.5 rounded-[14px] bg-[#F6F8FB] p-3">
             {bank ? (
-              <>
-                <span aria-hidden="true" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-ink text-[10px] font-extrabold text-white">{bankBadge(bank.bankName)}</span>
-                <span className="flex min-w-0 grow flex-col">
-                  <span className="truncate text-sm font-extrabold">{bank.bankName} {maskAccount(bank.accountNumber)}</span>
-                  <span className="v-hint text-xs">Sent within 24 hours</span>
+              <BankLogo code={bank.bankCode} name={bank.bankName} size={32} radius={8} />
+            ) : (
+              <span aria-hidden="true" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white text-ink shadow-[0_0_0_1px_rgba(20,22,28,.06)]">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9.5L12 4l9 5.5M5 10v8M9.5 10v8M14.5 10v8M19 10v8M3 20h18" /></svg>
+              </span>
+            )}
+            {bank ? (
+              <span className="flex min-w-0 grow flex-col">
+                <span className="truncate text-sm font-extrabold">{bank.bankName}</span>
+                <span className="v-hint v-tab truncate text-xs">
+                  {[bank.accountName && String(bank.accountName).toUpperCase(), maskAccount(bank.accountNumber)].filter(Boolean).join(" · ")}
                 </span>
-              </>
+              </span>
             ) : (
               <span className="flex min-w-0 grow flex-col">
                 <span className="text-sm font-extrabold">No bank account yet</span>
