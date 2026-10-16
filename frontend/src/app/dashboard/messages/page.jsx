@@ -166,7 +166,7 @@ function Switch({ on, onChange, label }) {
 function SentStatus({ m, onCancel }) {
   if (m.status === "scheduled") {
     return (
-      <span className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1">
+      <span className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1 max-md:justify-start">
         <span className="v-status text-brand-dark">
           <span className="v-dot v-ping bg-brand" />
           Scheduled
@@ -181,7 +181,7 @@ function SentStatus({ m, onCancel }) {
   if (m.status === "sending") return <span className="v-status text-muted"><span className="v-dot v-ping bg-brand" />Sending…</span>;
   if (m.status === "failed") return <span className="v-status text-[#B42318]"><span className="v-dot bg-[#B42318]" />Failed</span>;
   return (
-    <span className="flex flex-col items-end gap-0.5">
+    <span className="flex flex-col items-end gap-0.5 max-md:items-start">
       <span className="v-status"><span className="v-dot bg-[#2F9E6E]" />Sent</span>
       {m.failed > 0 && <span className="text-[13px] font-semibold text-[#B42318]">{n(m.failed)} didn’t arrive</span>}
     </span>
@@ -423,7 +423,7 @@ export default function MessagesPage() {
     [dayParts(e.day).short, e.time_from ? formatTime(e.time_from) : "", e.location || ""].filter(Boolean).join(" · ");
 
   return (
-    <div className="mx-auto flex w-full max-w-[1240px] flex-col gap-6 px-4 pb-12 pt-2 sm:px-[clamp(16px,3vw,40px)]">
+    <div className="mx-auto flex w-full max-w-[1240px] flex-col gap-5 px-4 pb-12 pt-2 sm:px-[clamp(16px,3vw,40px)] md:gap-6">
       <div className="v-bf flex flex-col gap-1.5" style={{ "--i": 0 }}>
         <h1 className="v-h1">Messages</h1>
         <p className="v-sub">Email the people in your community. Replies come to your inbox.</p>
@@ -436,7 +436,7 @@ export default function MessagesPage() {
         </div>
       )}
 
-      <div className="flex flex-wrap items-start gap-6">
+      <div className="flex flex-wrap items-start gap-5 md:gap-6">
         <section
           aria-label="Write a message"
           className="v-card v-bf flex min-w-0 flex-[3_1_460px] flex-col gap-5 p-5 sm:p-6"
@@ -664,7 +664,7 @@ export default function MessagesPage() {
           </div>
         ) : data?.sent?.length ? (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[520px] border-collapse">
+            <table className="v-stack w-full min-w-[520px] border-collapse">
               <thead>
                 <tr className="border-y border-hairline">
                   <th scope="col" className="v-th px-5 py-3 text-left">Message</th>
@@ -675,7 +675,7 @@ export default function MessagesPage() {
               <tbody>
                 {data.sent.map((m, i) => (
                   <tr key={m.id} className="v-row v-al border-b border-hairline last:border-b-0" style={{ "--i": Math.min(i, 10) }}>
-                    <td className="max-w-0 px-5 py-3.5">
+                    <td className="min-w-0 max-w-0 px-5 py-3.5 max-md:max-w-none">
                       <span className="flex min-w-0 flex-col">
                         <span className="truncate text-[15px] font-extrabold">{m.subject}</span>
                         <span className="truncate text-[13px] text-muted">
@@ -688,10 +688,10 @@ export default function MessagesPage() {
                         </span>
                       </span>
                     </td>
-                    <td className="v-tab w-28 whitespace-nowrap px-3 py-3.5 text-right text-sm font-bold">
+                    <td data-l="Sent to" className="v-tab w-28 whitespace-nowrap px-3 py-3.5 text-right text-sm font-bold">
                       {m.status === "sent" ? n(m.sent) : n(m.recipients)}
                     </td>
-                    <td className="w-44 py-3.5 pl-3 pr-5 text-right">
+                    <td data-l="Status" className="w-44 py-3.5 pl-3 pr-5 text-right">
                       <SentStatus m={m} onCancel={cancelScheduled} />
                     </td>
                   </tr>
