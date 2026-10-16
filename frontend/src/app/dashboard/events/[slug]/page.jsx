@@ -406,7 +406,7 @@ export default function StudioEventPage() {
   // A suspended event someone else runs: tell them, don't show a broken page.
   if (suspended && !event) {
     return (
-      <div className="mx-auto flex w-full max-w-[1240px] flex-col gap-6 px-4 pb-12 pt-2 sm:px-[clamp(16px,3vw,40px)]">
+      <div className="mx-auto flex w-full max-w-[1240px] flex-col gap-5 px-4 pb-12 pt-4 sm:px-[clamp(16px,3vw,40px)] md:gap-6 md:pt-2">
         <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-sm font-bold">
           <Link href="/dashboard/events" className="text-muted no-underline">Events</Link>
         </nav>
@@ -562,7 +562,7 @@ export default function StudioEventPage() {
   const tone = (t) => STATUS_INK[t] || STATUS_INK.muted;
 
   return (
-    <div className="mx-auto flex w-full max-w-[1240px] flex-col gap-6 px-4 pb-12 pt-2 sm:px-[clamp(16px,3vw,40px)]">
+    <div className="mx-auto flex w-full max-w-[1240px] flex-col gap-5 px-4 pb-12 pt-4 sm:px-[clamp(16px,3vw,40px)] md:gap-6 md:pt-2">
       <nav aria-label="Breadcrumb" className="v-bf flex min-w-0 items-center gap-2 text-sm font-bold" style={{ "--i": 0 }}>
         <Link href="/dashboard/events" className="shrink-0 text-muted no-underline">Events</Link>
         <span aria-hidden="true" className="text-faint">/</span>
@@ -871,7 +871,7 @@ export default function StudioEventPage() {
             ) : (
               <>
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[680px] border-collapse">
+                  <table className="v-stack w-full min-w-[680px] border-collapse">
                     <thead>
                       <tr className="border-y border-hairline">
                         <th scope="col" className="v-th px-5 py-3 text-left">Guest</th>
@@ -895,10 +895,10 @@ export default function StudioEventPage() {
                                 </span>
                               </button>
                             </td>
-                            <td className="px-3 py-2.5 text-sm font-bold">{a.tier}</td>
-                            <td className="v-mono px-3 py-2.5">{a.ref}</td>
-                            <td className="whitespace-nowrap px-3 py-2.5 text-sm text-muted">{boughtAgo(a.registeredAt)}</td>
-                            <td className="py-2.5 pl-3 pr-5">
+                            <td data-l="Ticket" className="px-3 py-2.5 text-sm font-bold">{a.tier}</td>
+                            <td data-l="Ref" className="v-mono px-3 py-2.5">{a.ref}</td>
+                            <td data-l="Bought" className="whitespace-nowrap px-3 py-2.5 text-sm text-muted">{boughtAgo(a.registeredAt)}</td>
+                            <td data-l="Status" className="py-2.5 pl-3 pr-5">
                               <span className="v-status text-[13px]" style={{ color: a.checkedIn ? st.ink : "#5B6272" }}>
                                 <span className="v-dot" style={{ background: st.dot }} />{a.checkedIn ? "Checked in" : "Not arrived"}
                               </span>
@@ -935,7 +935,7 @@ export default function StudioEventPage() {
               </div>
             )}
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[600px] border-collapse">
+              <table className="v-stack w-full min-w-[600px] border-collapse">
                 <thead>
                   <tr className="border-y border-hairline">
                     <th scope="col" className="v-th px-5 py-3 text-left">Ticket</th>
@@ -953,8 +953,8 @@ export default function StudioEventPage() {
                           {t.note && <span className="text-[13px] text-muted">{t.note}</span>}
                         </span>
                       </td>
-                      <td className="v-tab px-3 py-3.5 text-right text-[15px] font-extrabold">{t.price}</td>
-                      <td className="px-3 py-3.5">
+                      <td data-l="Price" className="v-tab px-3 py-3.5 text-right text-[15px] font-extrabold">{t.price}</td>
+                      <td data-l="Sold" className="px-3 py-3.5">
                         <span className="flex flex-col gap-1.5">
                           <span className="v-tab text-sm font-bold">{t.soldLabel}</span>
                           {t.pct !== null && (
@@ -964,7 +964,7 @@ export default function StudioEventPage() {
                           )}
                         </span>
                       </td>
-                      <td className="py-3.5 pl-3 pr-5">
+                      <td data-l="Status" className="py-3.5 pl-3 pr-5">
                         <span className="v-status" style={{ color: tone(t.tone).ink }}>{t.status}</span>
                       </td>
                     </tr>
