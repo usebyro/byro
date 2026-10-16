@@ -313,6 +313,16 @@ const API = {
     }
   },
 
+  // Everything the dashboard Overview shows for one period: "7d" | "30d" | "all".
+  getDashboardOverview: async (period = "30d") => {
+    try {
+      const response = await axiosInstance.get("dashboard/overview/", { params: { period } });
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
   // Register for an event
   registerEvent: async (eventSlug, userData) => {
     try {

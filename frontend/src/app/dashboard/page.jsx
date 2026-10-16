@@ -1,63 +1,37 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import EventImageFallback from "@/components/ui/EventImageFallback";
-import {
-  BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, Cell,
-} from "recharts";
-import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  Money01Icon,
-  Ticket01Icon,
-  Calendar01Icon,
-  UserMultiple02Icon,
-  Add01Icon,
-} from "@hugeicons/core-free-icons";
-import API from "@/services/api";
 import { useSelector } from "react-redux";
+import EventImageFallback from "@/components/ui/EventImageFallback";
+import OverviewRevenueChart from "@/components/dashboard/v2/OverviewRevenueChart";
+import API from "@/services/api";
 
-const BASE_URL = (process.env.NEXT_PUBLIC_API_URL || "https://byro.onrender.com").replace(/\/api\/?$/, "");
+// Saved by the Payouts page when the organiser sets their bank account.
+const BANK_DETAILS_STORAGE_KEY = "byro_payout_bank_details";
+const REFRESH_MS = 60_000;
 
-const fmtNaira = (n) =>
-  new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN", maximumFractionDigits: 0 }).format(n || 0);
-
-// "+12%" / "-8%" against the previous period; null when there is nothing to compare with.
-function pctChange(current, previous) {
-  if (!previous) return null;
-  const pct = Math.round(((current - previous) / previous) * 100);
-  return `${pct >= 0 ? "+" : "-"}${Math.abs(pct)}%`;
-}
-
-const MONTH_LABEL = (ym) =>
-  new Date(`${ym}-01T00:00:00`).toLocaleDateString("en-US", { month: "short" });
-
-// Week range points come back as full ISO dates ("2026-09-24"), not "YYYY-MM".
-const DAY_LABEL = (isoDate) =>
-  new Date(`${isoDate}T00:00:00`).toLocaleDateString("en-US", { weekday: "short" });
-
-const REVENUE_RANGES = [
-  { value: "week", label: "Week" },
-  { value: "3m", label: "3 months" },
-  { value: "6m", label: "6 months" },
-  { value: "12m", label: "12 months" },
+const PERIODS = [
+  { value: "7d", label: "7 days", name: "last 7 days", note: "vs the week before" },
+  { value: "30d", label: "30 days", name: "last 30 days", note: "vs the previous 30 days" },
+  { value: "all", label: "All time", name: "all time" },
 ];
 
-function getImageUrl(event) {
-  return (
-    event.event_image_url ||
-    (event.event_image?.startsWith("http")
-      ? event.event_image
-      : event.event_image
-      ? `${BASE_URL}${event.event_image}`
-      : null)
-  );
-}
+// Ticket-mix colours, one per tier in order; the last tone is "still available".
+const TIER_COLORS = ["#3669F6", "#EB6834", "#1F7A52", "#8B5CF6", "#D0668E", "#0E9AA7"];
+const AVAILABLE_COLOR = "#DCE6FD";
 
-function formatDate(d) {
-  if (!d) return "";
-  return new Date(d).toLocaleDateString("en-US", { weekday: "short", day: "numeric", month: "short" });
+const num = (n) => Math.round(Number(n) || 0).toLocaleString("en-NG");
+const naira = (n) => `₦${num(n)}`;
+const compact = (n) =>
+  n >= 1e6 ? `₦${(n / 1e6).toFixed(1).replace(/\.0$/, "")}M` : n >= 1e3 ? `₦${Math.round(n / 1e3)}K` : `₦${Math.round(n)}`;
+
+// "2026-10-09" -> "Fri 9 Oct"; "2025-Q4" -> "Q4 '25"
+function bucketLabel(key) {
+  const q = /^(\d{4})-Q([1-4])$/.exec(key);
+  if (q) return `Q${q[2]} '${q[1].slice(2)}`;
+  return new Date(`${key}T00:00:00`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
 }
 
 function formatTime(t) {
@@ -66,377 +40,516 @@ function formatTime(t) {
   return `${h % 12 || 12}:${String(m).padStart(2, "0")} ${h >= 12 ? "PM" : "AM"}`;
 }
 
-function getStatus(event) {
-  const now  = new Date();
-  const day  = new Date(event.day);
-  if (event.is_draft || event.is_active === false) return { label: "DRAFT", dot: "bg-gray-400",  pill: "bg-gray-100 text-gray-500" };
-  const diff = Math.ceil((day - now) / 864e5);
-  if (diff < 0)  return { label: "PAST",  dot: "bg-gray-300",  pill: "bg-gray-100 text-gray-400" };
-  if (diff <= 14) return { label: "SOON",  dot: "bg-amber-400", pill: "bg-amber-50 text-amber-600" };
-  return              { label: "LIVE",  dot: "bg-green-400", pill: "bg-green-50 text-green-600" };
+function timeAgo(iso) {
+  const then = new Date(iso);
+  const mins = Math.floor((Date.now() - then) / 60000);
+  if (mins < 1) return "Just now";
+  if (mins < 60) return `${mins} min ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (then.toDateString() === yesterday.toDateString()) return "Yesterday";
+  return then.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 }
 
-function TrendBadge({ value, note, isPending }) {
-  if (!value) return <p className={`text-xs mt-0.5 truncate ${isPending ? "text-gray-500 font-normal" : "text-gray-500 font-medium"}`}>{note || ""}</p>;
-  const isUp = !value.startsWith("-");
-  return (
-    <p className={`text-xs font-semibold mt-0.5 flex items-center gap-0.5 ${isUp ? "text-green-500" : "text-red-400"}`}>
-      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-        {isUp
-          ? <><path d="M22 7l-8.5 8.5-5-5L1 18"/><path d="M16 7h6v6"/></>
-          : <><path d="M22 17l-8.5-8.5-5 5L1 6"/><path d="M16 17h6v-6"/></>
-        }
-      </svg>
-      {value} vs prior 30 days
-    </p>
-  );
+function daysUntil(isoDay) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const days = Math.round((new Date(`${isoDay}T00:00:00`) - today) / 864e5);
+  return days <= 0 ? "today" : days === 1 ? "tomorrow" : `in ${days} days`;
 }
 
-function StatCard({ icon, label, value, trend, note, iconBg, iconColor }) {
-  const isPending = value === "—";
+// "0123456789" -> "••••6789"
+const maskAccount = (n) => {
+  const digits = String(n || "");
+  return digits.length > 4 ? `••••${digits.slice(-4)}` : digits;
+};
+
+// "Guaranty Trust Bank" -> "GTB"; a one-word name keeps its first three letters.
+function bankBadge(name) {
+  const words = String(name || "").replace(/[^A-Za-z ]/g, " ").split(/\s+/).filter(Boolean);
+  if (!words.length) return "";
+  return (words.length === 1 ? words[0].slice(0, 3) : words.map((w) => w[0]).join("").slice(0, 3)).toUpperCase();
+}
+
+const andList = (names) => (names.length <= 2 ? names.join(" and ") : `${names[0]}, ${names[1]} and ${names.length - 2} more`);
+
+const sparkPath = (vals) => {
+  const top = Math.max(...vals) * 1.1 || 1;
+  return vals.map((v, i) => `${i ? "L" : "M"}${((i / (vals.length - 1)) * 100).toFixed(2)} ${(100 - (v / top) * 100).toFixed(2)}`).join(" ");
+};
+
+function readSavedBank() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(BANK_DETAILS_STORAGE_KEY) || "null");
+    return saved?.accountNumber ? saved : null;
+  } catch {
+    return null;
+  }
+}
+
+function Skeleton() {
   return (
-    <div className={`bg-white rounded-xl border p-4 transition-all duration-200 ${
-      isPending ? "border-gray-100/80 opacity-95" : "border-gray-100 shadow-sm hover:shadow-md"
-    }`}>
-      <div className="flex items-center justify-between gap-2 mb-2">
-        <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider leading-tight">{label}</p>
-        <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${iconBg} ${iconColor}`}>
-          <HugeiconsIcon icon={icon} size={14} color="currentColor" />
+    <div aria-hidden="true" className="flex flex-col gap-5">
+      <div className="flex flex-wrap gap-5">
+        <div className="v-skel h-[340px] min-w-0 flex-[2_1_520px]" />
+        <div className="flex min-w-0 flex-[1_1_280px] flex-col gap-5">
+          {[0, 1, 2].map((i) => <div key={i} className="v-skel h-[100px]" />)}
         </div>
       </div>
-      <p className={`text-xl font-extrabold mb-0.5 tracking-tight ${isPending ? "text-gray-300" : "text-gray-900"}`}>
-        {value}
-      </p>
-      <TrendBadge value={trend} note={note} isPending={isPending} />
+      <div className="flex flex-wrap gap-5">
+        <div className="v-skel h-[260px] min-w-0 flex-[2_1_520px]" />
+        <div className="v-skel h-[260px] min-w-0 flex-[1_1_280px]" />
+      </div>
     </div>
   );
 }
 
 export default function StudioDashboard() {
-  const [dashboard, setDashboard] = useState(null);
-  const [analytics, setAnalytics] = useState(null);
-  const [community, setCommunity] = useState(null);
-  const [loading, setLoading]     = useState(true);
-  const [revenueRange, setRevenueRange] = useState("12m");
-  const [chartLoading, setChartLoading] = useState(false);
+  const [period, setPeriod] = useState("30d");
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
+  const [updatedAt, setUpdatedAt] = useState(null);
+  const [now, setNow] = useState(0);
+  const [table, setTable] = useState(false);
+  const [balance, setBalance] = useState(null);
+  const [bank, setBank] = useState(null);
+  const latest = useRef(0);
   const user = useSelector((s) => s.auth?.user);
-  const firstName = (user?.display_name || user?.displayName || user?.name || "").split(" ")[0] || "there";
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+  const firstName =
+    data?.first_name || (user?.display_name || user?.displayName || user?.name || "").split(" ")[0] || "there";
+  const communityName = data?.community_name || user?.display_name || user?.displayName || "";
 
   useEffect(() => {
     document.title = "Overview | Byro";
   }, []);
 
-  useEffect(() => {
-    API.getCommunityStats().then(setCommunity).catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    Promise.allSettled([API.getDashboard(), API.getDashboardAnalytics(revenueRange)])
-      .then(([d, a]) => {
-        setDashboard(d.status === "fulfilled" ? d.value : null);
-        setAnalytics(a.status === "fulfilled" ? a.value : null);
+  const load = useCallback((p, { quiet = false } = {}) => {
+    const id = ++latest.current;
+    if (!quiet) setLoading(true);
+    return API.getDashboardOverview(p)
+      .then((d) => {
+        if (id !== latest.current) return;
+        setData(d);
+        setFailed(false);
+        setUpdatedAt(Date.now());
       })
-      .finally(() => setLoading(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+      .catch(() => {
+        if (id === latest.current && !quiet) setFailed(true);
+      })
+      .finally(() => {
+        if (id === latest.current) setLoading(false);
+      });
   }, []);
 
-  // Re-fetch just the chart series when the range changes, after the initial load.
   useEffect(() => {
-    if (loading) return;
-    setChartLoading(true);
-    API.getDashboardAnalytics(revenueRange)
-      .then((a) => setAnalytics((prev) => ({ ...prev, monthly_revenue: a.monthly_revenue })))
-      .catch(() => {})
-      .finally(() => setChartLoading(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [revenueRange]);
+    load(period);
+  }, [period, load]);
 
-  const upcoming = (dashboard?.hosting?.upcoming || []).filter((e) => !e.is_draft);
-  const past     = dashboard?.hosting?.past     || [];
-  const all      = [...(dashboard?.hosting?.upcoming || []), ...past];
+  // Keep the numbers live: refresh quietly while the tab is open.
+  useEffect(() => {
+    const t = setInterval(() => {
+      if (document.visibilityState === "visible") load(period, { quiet: true });
+      setNow(Date.now());
+    }, REFRESH_MS);
+    return () => clearInterval(t);
+  }, [period, load]);
 
-  const last30 = analytics?.last_30d;
-  const prev30 = analytics?.previous_30d;
-  const labelFor = revenueRange === "week" ? DAY_LABEL : MONTH_LABEL;
-  const chartData = (analytics?.monthly_revenue || []).map((m, i, arr) => ({
-    month: labelFor(m.month),
-    value: Number(m.revenue),
-    current: i === arr.length - 1,
-  }));
-  const hasRevenue = chartData.some((m) => m.value > 0);
-  const eventsBySlug = Object.fromEntries(all.map((e) => [e.slug, e]));
-  const topEvents = (analytics?.top_events || [])
-    .map((t) => ({ ...t, event: eventsBySlug[t.slug] }))
-    .filter((t) => t.event);
+  useEffect(() => {
+    API.getPayoutBalance().then(setBalance).catch(() => {});
+    const saved = readSavedBank();
+    if (saved) {
+      setBank(saved);
+      return;
+    }
+    // No saved account on this device: fall back to the last bank payout.
+    API.getPayouts()
+      .then((list) => {
+        const last = (Array.isArray(list) ? list : []).find((p) => p.method === "bank");
+        if (last) setBank({ bankName: last.bank_name, accountNumber: last.account_number, accountName: last.account_name });
+      })
+      .catch(() => {});
+  }, []);
+
+  const meta = PERIODS.find((p) => p.value === period);
+  const isAll = period === "all";
+  const fresh = updatedAt ? Math.floor((now - updatedAt) / 60000) : 0;
+  const updatedText = fresh < 1 ? "updated just now" : `updated ${fresh} min ago`;
 
   return (
-    <div className="p-4 sm:p-6 max-w-5xl mx-auto space-y-5">
-
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-gray-100/50">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
-            {greeting}, {firstName} 👋
-          </h1>
-          <p className="text-xs text-gray-400 mt-0.5">Here is how your events are performing.</p>
+    <div className="mx-auto flex w-full max-w-[1240px] flex-col gap-6 px-4 pb-12 pt-2 sm:px-[clamp(16px,3vw,40px)]">
+      <div className="v-bf flex flex-wrap items-end gap-4" style={{ "--i": 0 }}>
+        <div className="flex min-w-0 flex-[1_1_320px] flex-col gap-1.5">
+          <h1 className="v-h1">{greeting}, {firstName}</h1>
+          <p className="v-sub">{communityName ? `Here’s how ${communityName} is doing.` : "Here’s how your events are doing."}</p>
         </div>
-        <Link
-          href="/dashboard/events/create"
-          className="flex items-center justify-center gap-1.5 bg-[#4F6EF7] text-white text-xs font-semibold px-3.5 py-2 rounded-lg hover:bg-blue-700 transition-colors w-full sm:w-auto shrink-0 shadow-sm shadow-[#4F6EF7]/10"
-        >
-          <HugeiconsIcon icon={Add01Icon} size={13} color="white" />
+        <Link href="/dashboard/events/create" className="v-btn v-btn-p v-btn-lg">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
           Create event
         </Link>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <StatCard icon={Money01Icon}        label="Revenue"           value={loading || !last30 ? "—" : fmtNaira(Number(last30.revenue))} trend={last30 ? pctChange(Number(last30.revenue), Number(prev30?.revenue)) : null} note={last30 && Number(last30.revenue) === 0 ? "No sales yet" : "Last 30 days"} iconBg="bg-teal-50"   iconColor="text-teal-600" />
-        <StatCard icon={Ticket01Icon}       label="Tickets sold"      value={loading || !last30 ? "—" : last30.tickets}                   trend={last30 ? pctChange(last30.tickets, prev30?.tickets) : null}                     note={last30 && last30.tickets === 0 ? "No sales yet" : "Last 30 days"}                    iconBg="bg-blue-50"   iconColor="text-blue-600" />
-        <StatCard icon={Calendar01Icon}     label="Active events"     value={loading ? "—" : upcoming.length}                             trend={null}                                                                          note="Upcoming and live"                                                                   iconBg="bg-violet-50" iconColor="text-violet-600" />
-        <StatCard icon={UserMultiple02Icon} label="Avg. fill rate"    value={loading || analytics?.avg_fill_rate == null ? "—" : `${analytics.avg_fill_rate}%`} trend={null} note={analytics && analytics.avg_fill_rate == null ? "Set a capacity to track" : "Tickets sold vs capacity"} iconBg="bg-amber-50"  iconColor="text-amber-600" />
+      <div className="v-bf flex flex-wrap items-center gap-3" style={{ "--i": 1 }}>
+        <div role="group" aria-label="Time period" className="v-seg">
+          {PERIODS.map((p) => (
+            <button key={p.value} type="button" aria-pressed={period === p.value} onClick={() => setPeriod(p.value)}>
+              {p.label}
+            </button>
+          ))}
+        </div>
+        {updatedAt && (
+          <span className="v-hint inline-flex items-center gap-2">
+            <span className="v-dot v-ping bg-[#1F7A52]" />
+            Live · {updatedText}
+          </span>
+        )}
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-100/80 shadow-sm p-4">
-        <div className="flex items-start justify-between gap-2 mb-3">
-          <div>
-            <p className="text-sm font-bold text-gray-800">Your community</p>
-            <p className="text-xs text-gray-400 mt-0.5">The people who follow you and show up.</p>
+      {!data && loading ? (
+        <Skeleton />
+      ) : !data && failed ? (
+        <section className="v-card flex flex-col items-start gap-3 p-6">
+          <h2 className="v-h2">Couldn’t load your numbers</h2>
+          <p className="v-hint">Check your connection and try again.</p>
+          <button type="button" className="v-btn v-btn-s" onClick={() => load(period)}>Try again</button>
+        </section>
+      ) : data ? (
+        <Content
+          data={data}
+          meta={meta}
+          isAll={isAll}
+          busy={loading}
+          table={table}
+          setTable={setTable}
+          balance={balance}
+          bank={bank}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function Content({ data, meta, isAll, busy, table, setTable, balance, bank }) {
+  const values = data.revenue.series.map(Number);
+  const labels = data.labels.map(bucketLabel);
+  const total = Number(data.revenue.total);
+  const previous = data.revenue.previous == null ? null : Number(data.revenue.previous);
+  const hasRevenue = values.some((v) => v > 0);
+
+  let delta = null;
+  let deltaNote = "";
+  if (isAll) {
+    const hosted = data.revenue.events_hosted;
+    deltaNote = [data.revenue.since && `Since ${data.revenue.since}`, `${num(hosted)} ${hosted === 1 ? "event" : "events"} hosted`].filter(Boolean).join(" · ");
+  } else if (previous > 0) {
+    const pct = Math.round(((total - previous) / previous) * 100);
+    delta = { text: `${pct >= 0 ? "+" : "−"}${Math.abs(pct)}%`, up: pct >= 0 };
+    deltaNote = meta.note;
+  } else {
+    deltaNote = total > 0 ? `No sales ${meta.value === "7d" ? "the week before" : "in the 30 days before"}` : "";
+  }
+
+  const t = data.tickets;
+  const c = data.checked_in;
+  const f = data.followers;
+  const ticketSub =
+    t.event_count === 0 ? "No sales yet" : t.event_count <= 2 ? andList(t.events) : `Across ${t.event_count} events`;
+  const checkedSub = isAll
+    ? c.average_turnout != null ? `${c.average_turnout}% average turnout` : "No past events yet"
+    : c.top_event
+      ? c.top_event.turnout != null ? `${c.top_event.name}, ${c.top_event.turnout}% turnout` : c.top_event.name
+      : "No check-ins yet";
+  const tiles = [
+    { label: "Tickets sold", value: num(t.total), sub: ticketSub, href: "/dashboard/events", series: t.series },
+    {
+      label: "Checked in",
+      value: num(c.total),
+      sub: checkedSub,
+      href: !isAll && c.top_event?.slug ? `/dashboard/events/${c.top_event.slug}` : "/dashboard/events",
+      // Check-ins land on event days only, so the line is just spikes until it covers quarters.
+      series: isAll ? c.series : null,
+    },
+    isAll
+      ? { label: "Followers", value: num(f.total), sub: `${num(f.came_to_event)} ${f.came_to_event === 1 ? "has" : "have"} come to an event`, href: "/dashboard/community", series: f.series }
+      : { label: "New followers", value: f.new > 0 ? `+${num(f.new)}` : "0", sub: `${num(f.total)} in total`, href: "/dashboard/community", series: f.series },
+  ];
+
+  return (
+    <div className={`flex flex-col gap-6 transition-opacity ${busy ? "opacity-60" : ""}`} aria-busy={busy}>
+      <div className="flex flex-wrap items-stretch gap-5">
+        <section aria-label="Revenue" className="v-card v-bf flex min-w-0 flex-[2_1_520px] flex-col gap-[18px] px-6 pb-[18px] pt-6" style={{ "--i": 2 }}>
+          <div className="flex flex-wrap items-start gap-3">
+            <div className="flex grow flex-col gap-2.5">
+              <span className="v-eyebrow">Revenue · {meta.name}</span>
+              <span className="v-hero">{isAll && total >= 1e6 ? compact(total) : naira(total)}</span>
+              {(delta || deltaNote) && (
+                <span className="flex flex-wrap items-center gap-2">
+                  {delta && <span className={`v-delta ${delta.up ? "v-up" : "v-down"}`}>{delta.text}</span>}
+                  <span className="v-hint">{deltaNote}</span>
+                </span>
+              )}
+            </div>
+            {hasRevenue && (
+              <button type="button" className="v-viz-toggle" aria-pressed={table} onClick={() => setTable(!table)}>
+                {table ? "Show chart" : "Show table"}
+              </button>
+            )}
           </div>
-          {community?.new_followers_30d > 0 && (
-            <span className="text-[11px] font-semibold text-emerald-600 bg-emerald-50 rounded-full px-2 py-0.5 shrink-0">
-              +{community.new_followers_30d} followers this month
+          {!hasRevenue ? (
+            <div className="flex h-[200px] flex-col items-center justify-center gap-1 rounded-xl bg-[#F6F8FB] text-center">
+              <p className="text-[15px] font-bold">No revenue {isAll ? "yet" : `in the ${meta.name}`}</p>
+              <p className="v-hint">Paid ticket sales show up here {data.unit === "day" ? "day by day" : "quarter by quarter"}.</p>
+            </div>
+          ) : table ? (
+            <div className="max-h-[252px] overflow-auto rounded-xl bg-[#F6F8FB]">
+              <table className="w-full border-collapse text-sm">
+                <caption className="v-hint px-3.5 py-2.5 text-left">Revenue by {data.unit}, {meta.name}</caption>
+                <thead>
+                  <tr>
+                    <th scope="col" className="v-th px-3.5 py-2 text-left">{data.unit === "day" ? "Day" : "Quarter"}</th>
+                    <th scope="col" className="v-th px-3.5 py-2 text-right">Revenue</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {values.map((v, i) => ({ l: labels[i], v })).reverse().map((r) => (
+                    <tr key={r.l} className="border-t border-hairline">
+                      <td className="px-3.5 py-2">{r.l}</td>
+                      <td className="v-tab px-3.5 py-2 text-right font-bold">{naira(r.v)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <OverviewRevenueChart
+              key={meta.value}
+              values={values}
+              labels={labels}
+              format={naira}
+              compact={compact}
+              unit={data.unit}
+              periodName={meta.name}
+              endLabel={isAll ? labels[labels.length - 1] : "Today"}
+              endSuffix={isAll ? "" : " today"}
+            />
+          )}
+        </section>
+
+        <div className="flex min-w-0 flex-[1_1_280px] flex-col gap-5">
+          {tiles.map((s, i) => {
+            const spark = s.series && s.series.length > 1 && s.series.some((v) => v > 0) ? s.series : null;
+            const top = spark ? Math.max(...spark) * 1.1 || 1 : 1;
+            return (
+              <Link key={s.label} href={s.href} className="v-card v-lift v-press v-bf flex grow items-end gap-3.5 px-5 py-[18px] text-ink no-underline" style={{ "--i": 3 + i }}>
+                <span className="flex min-w-0 grow flex-col gap-2">
+                  <span className="v-eyebrow">{s.label}</span>
+                  <span className="v-fig">{s.value}</span>
+                  <span className="v-hint truncate">{s.sub}</span>
+                </span>
+                {spark && (
+                  <span aria-hidden="true" className="relative h-11 w-[104px] shrink-0">
+                    <svg viewBox="0 0 100 100" preserveAspectRatio="none" width="100%" height="100%" className="block overflow-visible">
+                      <path d={sparkPath(spark)} fill="none" stroke="#B9C4D8" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+                    </svg>
+                    <span
+                      className="absolute -right-1 -mt-1 h-2 w-2 rounded-full bg-brand shadow-[0_0_0_2px_#FFFFFF]"
+                      style={{ top: `${100 - (spark[spark.length - 1] / top) * 100}%` }}
+                    />
+                  </span>
+                )}
+              </Link>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-stretch gap-5">
+        <NextEvent event={data.next_event} />
+        <section aria-label="Payouts" className="v-card v-bf flex min-w-0 flex-[1_1_280px] flex-col gap-4 p-[22px]" style={{ "--i": 6 }}>
+          <div className="flex items-baseline justify-between">
+            <span className="v-eyebrow">Available to withdraw</span>
+            <Link href="/dashboard/payouts" className="text-sm font-bold text-brand-dark no-underline">History</Link>
+          </div>
+          {balance ? <span className="v-fig text-[36px]">{naira(balance.available)}</span> : <span className="v-skel h-9 w-40" aria-hidden="true" />}
+          <div className="grow" />
+          <div className="flex items-center gap-2.5 border-t border-hairline pt-3.5">
+            {bank ? (
+              <>
+                <span aria-hidden="true" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-ink text-[10px] font-extrabold text-white">{bankBadge(bank.bankName)}</span>
+                <span className="flex min-w-0 grow flex-col">
+                  <span className="truncate text-sm font-extrabold">{bank.bankName} {maskAccount(bank.accountNumber)}</span>
+                  <span className="v-hint text-xs">Sent within 24 hours</span>
+                </span>
+              </>
+            ) : (
+              <span className="flex min-w-0 grow flex-col">
+                <span className="text-sm font-extrabold">No bank account yet</span>
+                <span className="v-hint text-xs">Add one on Payouts to withdraw</span>
+              </span>
+            )}
+            <Link href="/dashboard/payouts" className="v-btn v-btn-p v-btn-sm">{bank ? "Withdraw" : "Add bank"}</Link>
+          </div>
+        </section>
+      </div>
+
+      <div className="flex flex-wrap items-start gap-5">
+        <section aria-label="Recent sales" className="v-card v-bf min-w-0 flex-[2_1_520px] px-5 pb-2 pt-5" style={{ "--i": 7 }}>
+          <div className="flex items-baseline justify-between px-1 pb-2">
+            <h2 className="v-h2">Recent sales</h2>
+            <Link href={data.next_event ? `/dashboard/events/${data.next_event.slug}` : "/dashboard/events"} className="text-sm font-bold text-brand-dark no-underline">All guests</Link>
+          </div>
+          {data.recent_sales.length === 0 ? (
+            <p className="v-hint px-2 pb-4 pt-2">No sales yet. They show up here as people get tickets.</p>
+          ) : (
+            data.recent_sales.map((r, i) => (
+              <div key={`${r.created_at}-${i}`} className="v-row v-al flex min-h-[58px] items-center gap-3 rounded-xl px-2" style={{ "--i": i }}>
+                <span className="v-av" aria-hidden="true">{(r.name[0] || "?").toUpperCase()}</span>
+                <div className="flex min-w-0 grow flex-col">
+                  <span className="truncate text-[15px] font-bold">{r.name}</span>
+                  <span className="truncate text-[13px] text-muted">{r.tier}{r.quantity > 1 ? ` × ${r.quantity}` : ""} · {r.event}</span>
+                </div>
+                <span className="whitespace-nowrap text-right text-[13px] text-muted">{timeAgo(r.created_at)}</span>
+                <span className="v-tab w-20 shrink-0 text-right text-[15px] font-extrabold">{r.amount == null ? "" : naira(r.amount)}</span>
+              </div>
+            ))
+          )}
+        </section>
+
+        <div className="flex min-w-0 flex-[1_1_280px] flex-col gap-5">
+          <section aria-label={`Community, ${meta.name}`} className="v-card v-bf flex flex-col gap-3.5 px-[22px] py-5" style={{ "--i": 8 }}>
+            <div className="flex items-baseline justify-between">
+              <h2 className="v-h2 text-[17px]">Community</h2>
+              <Link href="/dashboard/community" className="text-sm font-bold text-brand-dark no-underline">Open</Link>
+            </div>
+            <div className="flex flex-col gap-3 text-[15px]">
+              <div className="flex justify-between"><span className="text-body">New followers</span><b>{data.community.new_followers > 0 ? `+${num(data.community.new_followers)}` : "0"}</b></div>
+              <div className="flex justify-between"><span className="text-body">Became regulars</span><b>{num(data.community.became_regulars)}</b></div>
+              <div className="flex flex-col gap-1.5">
+                <div className="flex justify-between"><span className="text-body">Came back</span><b>{data.community.came_back_rate == null ? "—" : `${data.community.came_back_rate}%`}</b></div>
+                {data.community.came_back_rate != null ? (
+                  <div className="h-1.5 overflow-hidden rounded-full bg-[#DCE6FD]">
+                    <div className="v-growx h-full rounded-full bg-brand" style={{ width: `${data.community.came_back_rate}%` }} />
+                  </div>
+                ) : (
+                  <span className="v-hint">Fills in as you check guests in at the door.</span>
+                )}
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function NextEvent({ event }) {
+  if (!event) {
+    return (
+      <section aria-label="Next event" className="v-card v-bf flex min-w-0 flex-[2_1_520px] flex-col items-start justify-center gap-3 p-6" style={{ "--i": 5 }}>
+        <span className="v-eyebrow">Next event</span>
+        <h2 className="v-h2">Nothing coming up</h2>
+        <p className="v-hint">Create an event and its sales show up here.</p>
+        <Link href="/dashboard/events/create" className="v-btn v-btn-p">Create event</Link>
+      </section>
+    );
+  }
+
+  const href = `/dashboard/events/${event.slug}`;
+  const others = event.hosts.filter((h) => !h.is_you);
+  const date = new Date(`${event.day}T00:00:00`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+  const when = [date, formatTime(event.time_from)].filter(Boolean).join(", ");
+
+  // Ticket mix: each tier that has sold, then what's left (when there's a limit).
+  const parts = event.tiers.length
+    ? event.tiers.map((t, i) => ({ label: t.name, n: t.sold, color: TIER_COLORS[i % TIER_COLORS.length] })).filter((p) => p.n > 0)
+    : event.sold > 0 ? [{ label: "Sold", n: event.sold, color: TIER_COLORS[0] }] : [];
+  const available = event.capacity != null ? Math.max(event.capacity - event.sold, 0) : null;
+  const scale = event.capacity || event.sold;
+  const showMix = scale > 0 && (parts.length > 0 || available != null);
+  const mixLabel = [...parts.map((p) => `${p.label} ${p.n}`), available != null && `${available} still available`].filter(Boolean).join(", ");
+
+  return (
+    <section aria-label="Next event" className="v-card v-bf flex min-w-0 flex-[2_1_520px] flex-wrap overflow-hidden" style={{ "--i": 5 }}>
+      <div className="relative max-h-[320px] min-h-[200px] min-w-0 flex-[1_1_200px] bg-mist">
+        {event.image_url ? (
+          <Image src={event.image_url} alt="" fill sizes="(max-width: 768px) 100vw, 320px" className="object-cover" />
+        ) : (
+          <EventImageFallback category={event.category} />
+        )}
+      </div>
+      <div className="flex min-w-0 flex-[3_1_340px] flex-col gap-4 px-6 py-[22px]">
+        <div className="flex flex-col gap-1">
+          {event.sold_out ? (
+            <span className="v-status text-[13px] text-[#B42318]"><span className="v-dot bg-[#B42318]" />Sold out · {daysUntil(event.day)}</span>
+          ) : (
+            <span className="v-status text-[13px] text-[#1F7A52]"><span className="v-dot bg-[#2F9E6E]" />On sale · {daysUntil(event.day)}</span>
+          )}
+          <Link href={href} className="v-d text-2xl font-bold tracking-[-0.02em] text-ink no-underline">{event.name}</Link>
+          <span className="text-sm text-muted">{[when, event.location].filter(Boolean).join(" · ")}</span>
+          {(others.length > 0 || event.is_owner) && (
+            <span className="mt-1.5 flex flex-wrap items-center gap-2 text-[13px] text-body">
+              <span aria-hidden="true" className="flex">
+                {event.hosts.slice(0, 3).map((h, i) => (
+                  <span
+                    key={`${h.name}-${i}`}
+                    className={`v-av h-6 w-6 text-[11px] shadow-[0_0_0_2px_#FFFFFF] ${i ? "-ml-1.5 bg-[#DCE6FD] text-brand-dark" : "bg-ink text-white"}`}
+                  >
+                    {(h.name[0] || "?").toUpperCase()}
+                  </span>
+                ))}
+              </span>
+              {others.length > 0 && <span>With {andList(others.map((h) => h.name))}</span>}
+              {event.is_owner && <Link href={href} className="font-bold text-brand-dark no-underline">Add co-host</Link>}
             </span>
           )}
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {[
-            { label: "Followers", value: community?.followers, note: "Hear about your next event" },
-            { label: "Have attended", value: community?.attendees, note: "Checked in at your events" },
-            { label: "Regulars", value: community?.regulars, note: "Came to 3 or more events" },
-            { label: "Repeat rate", value: community ? `${community.repeat_rate}%` : null, note: "Came back at least once" },
-          ].map((c) => (
-            <div key={c.label} className="rounded-lg bg-gray-50/70 px-3.5 py-3">
-              <p className="text-xl font-extrabold tracking-tight text-gray-900">{community ? c.value : "—"}</p>
-              <p className="text-xs font-semibold text-gray-700">{c.label}</p>
-              <p className="text-[11px] text-gray-400 mt-0.5">{c.note}</p>
-            </div>
-          ))}
-        </div>
-        {community && community.attendees === 0 && (
-          <p className="text-xs text-gray-400 mt-3">Attendees and regulars fill in as you check guests in at the door.</p>
-        )}
-      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-
-        <div className="lg:col-span-2 bg-white rounded-xl border border-gray-100/80 shadow-sm p-4 flex flex-col justify-between">
-          <div className="flex items-start justify-between mb-3 gap-2">
-            <div>
-              <p className="text-sm font-bold text-gray-800">Revenue</p>
-              <p className="text-[11px] text-gray-400">
-                {revenueRange === "week" ? "Last 7 days" : `Last ${REVENUE_RANGES.find((r) => r.value === revenueRange)?.label.toLowerCase() || "12 months"}`}
-              </p>
-            </div>
-            <div className="flex items-center gap-0.5 bg-gray-50 border border-gray-100 rounded-lg p-0.5 shrink-0">
-              {REVENUE_RANGES.map((r) => (
-                <button
-                  key={r.value}
-                  onClick={() => setRevenueRange(r.value)}
-                  className={`px-2 py-1 rounded-md text-[11px] font-semibold transition-colors ${
-                    revenueRange === r.value
-                      ? "bg-white text-gray-900 shadow-sm"
-                      : "text-gray-500 hover:text-gray-700"
-                  }`}
-                >
-                  {r.value === "week" ? "W" : r.label.replace(" months", "M")}
-                </button>
-              ))}
-            </div>
+        <div className="flex flex-col gap-2.5">
+          <div className="flex flex-wrap items-baseline justify-between gap-3">
+            <span>
+              <b className="text-xl">{num(event.sold)}</b>{" "}
+              <span className="text-sm text-muted">{event.capacity != null ? `of ${num(event.capacity)} sold` : "sold"}</span>
+            </span>
+            {event.is_free ? (
+              <span className="text-sm text-muted">Free event</span>
+            ) : event.revenue != null ? (
+              <span><b className="text-base">{naira(event.revenue)}</b> <span className="text-sm text-muted">revenue</span></span>
+            ) : null}
           </div>
-          <div className="w-full">
-            {loading || chartLoading ? (
-              <div className="h-[150px] rounded-lg bg-gray-50 animate-pulse" />
-            ) : !hasRevenue ? (
-              <div className="h-[150px] flex flex-col items-center justify-center text-center">
-                <p className="text-sm font-semibold text-gray-700">No revenue yet</p>
-                <p className="text-xs text-gray-500 mt-0.5">Paid ticket sales will show up here month by month.</p>
-                <Link
-                  href={upcoming[0] ? `/dashboard/events/${upcoming[0].slug}` : "/dashboard/events/create"}
-                  className="mt-3 text-xs font-semibold text-[#4F6EF7] hover:text-blue-700 transition-colors"
-                >
-                  {upcoming[0] ? "Share your event" : "Create your first event"}
-                </Link>
+          {showMix && (
+            <>
+              <div role="img" aria-label={`Ticket mix: ${mixLabel}`} className="flex h-3 gap-0.5 overflow-hidden rounded bg-white">
+                {parts.map((p, i) => (
+                  <span key={p.label} className="v-growx" style={{ "--i": i, width: `${(p.n / scale) * 100}%`, background: p.color }} />
+                ))}
+                {available != null && available > 0 && <span className="grow" style={{ background: AVAILABLE_COLOR }} />}
               </div>
-            ) : (
-              <ResponsiveContainer width="100%" height={150}>
-                <BarChart data={chartData} barSize={16} barCategoryGap="25%">
-                  <XAxis
-                    dataKey="month"
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fontSize: 11, fill: "#6b7280" }}
-                  />
-                  <Tooltip
-                    formatter={(v) => [fmtNaira(v), "Revenue"]}
-                    contentStyle={{ borderRadius: 8, border: "1px solid #f1f5f9", fontSize: 12, boxShadow: "0 4px 12px rgba(0,0,0,0.04)" }}
-                    cursor={{ fill: "#f8fafc" }}
-                  />
-                  <Bar dataKey="value" radius={[3, 3, 0, 0]}>
-                    {chartData.map((entry, i) => (
-                      <Cell key={i} fill={entry.current ? "#4F6EF7" : "#DBEAFE"} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl border border-gray-100/80 shadow-sm p-4 flex flex-col">
-          <p className="text-sm font-bold text-gray-800">Top by sales</p>
-          <p className="text-[11px] text-gray-400 mb-4">This month</p>
-
-          {loading ? (
-            <div className="space-y-3.5 flex-1">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="flex items-center gap-2.5 animate-pulse">
-                  <div className="w-8 h-8 rounded-lg bg-gray-100 shrink-0" />
-                  <div className="flex-1 space-y-1.5">
-                    <div className="h-3 bg-gray-100 rounded w-3/4" />
-                    <div className="h-2.5 bg-gray-100 rounded w-1/2" />
-                  </div>
-                  <div className="h-3.5 w-8 bg-gray-100 rounded" />
-                </div>
-              ))}
-            </div>
-          ) : topEvents.length === 0 ? (
-            <div className="flex items-center justify-center flex-1 py-6">
-              <p className="text-xs text-gray-500 text-center">No sales this month yet</p>
-            </div>
-          ) : (
-            <div className="space-y-3 flex-1">
-              {topEvents.map(({ event: e, sold, revenue }) => {
-                const img  = getImageUrl(e);
-                return (
-                  <Link key={e.slug} href={`/dashboard/events/${e.slug}`} className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
-                    <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0 relative">
-                      {img ? (
-                        <Image src={img} alt={e.name} fill className="object-cover" />
-                      ) : (
-                        <EventImageFallback category={e.category} />
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold text-gray-800 truncate">{e.name}</p>
-                      <p className="text-xs text-gray-500">{sold} sold</p>
-                    </div>
-                    {!analytics?.events?.[e.slug]?.is_free && analytics?.events?.[e.slug]?.is_owner !== false && (
-                      <p className="text-xs font-bold text-gray-800 shrink-0">{fmtNaira(Number(revenue))}</p>
-                    )}
-                  </Link>
-                );
-              })}
-            </div>
+              <div className="flex flex-wrap gap-4 text-[13px] text-body">
+                {parts.map((p) => (
+                  <span key={p.label} className="inline-flex items-center gap-1.5"><span className="v-sw" style={{ background: p.color }} />{p.label} <b>{num(p.n)}</b></span>
+                ))}
+                {available != null && (
+                  <span className="inline-flex items-center gap-1.5"><span className="v-sw" style={{ background: AVAILABLE_COLOR }} />Available <b>{num(available)}</b></span>
+                )}
+              </div>
+            </>
           )}
         </div>
-      </div>
 
-      <div className="bg-white rounded-xl border border-gray-100/80 shadow-sm p-4">
-        <div className="flex items-center justify-between mb-4">
-          <p className="text-sm font-bold text-gray-800">Your events</p>
-          <Link href="/dashboard/events" className="text-xs text-[#4F6EF7] font-semibold hover:text-blue-700 transition-colors">
-            View all
+        <div className="flex flex-wrap gap-2">
+          <Link href={`/checkin/${encodeURIComponent(event.slug)}`} className="v-btn v-btn-p">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3M4 12h16" /></svg>
+            Check in
           </Link>
+          <Link href={href} className="v-btn v-btn-s">Manage</Link>
+          <Link href={`/dashboard/messages?event=${encodeURIComponent(event.slug)}`} className="v-btn v-btn-t">Email ticket holders</Link>
         </div>
-
-        {loading ? (
-          <div className="space-y-3">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="flex items-center gap-3 animate-pulse">
-                <div className="w-8 h-8 rounded-lg bg-gray-100 shrink-0" />
-                <div className="flex-1 space-y-1.5">
-                  <div className="h-3 bg-gray-100 rounded w-1/4" />
-                  <div className="h-2 bg-gray-100 rounded w-1/5" />
-                </div>
-                <div className="h-1.5 w-24 bg-gray-100 rounded-full hidden sm:block" />
-                <div className="h-3 w-8 bg-gray-100 rounded" />
-                <div className="h-5 w-12 bg-gray-100 rounded-md" />
-              </div>
-            ))}
-          </div>
-        ) : all.length === 0 ? (
-          <div className="text-center py-8">
-            <HugeiconsIcon icon={Calendar01Icon} size={24} color="currentColor" className="mx-auto mb-2 text-gray-300" />
-            <p className="text-xs text-gray-400 mb-2">No events created yet</p>
-            <Link
-              href="/dashboard/events/create"
-              className="inline-block bg-[#4F6EF7] text-white text-xs font-bold py-2 px-4 rounded-full hover:bg-blue-700 transition-colors"
-            >
-              Create your first event
-            </Link>
-          </div>
-        ) : (
-          <div className="divide-y divide-gray-50">
-            {all.slice(0, 6).map((event) => {
-              const img    = getImageUrl(event);
-              const status = getStatus(event);
-              const capacity = event.capacity || 0;
-              const stats    = analytics?.events?.[event.slug];
-              const fillPct  = capacity > 0 && stats ? Math.min(100, Math.round((stats.sold / capacity) * 100)) : 0;
-
-              return (
-                <Link
-                  key={event.slug}
-                  href={`/dashboard/events/${event.slug}`}
-                  className="flex items-center gap-3 py-2.5 -mx-1 px-1 rounded-lg hover:bg-gray-50/70 transition-colors group"
-                >
-                  <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0 relative bg-gray-50 border border-gray-100/50">
-                    {img ? (
-                      <Image src={img} alt={event.name} fill className="object-cover" />
-                    ) : (
-                      <EventImageFallback category={event.category} />
-                    )}
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold text-gray-800 truncate group-hover:text-[#4F6EF7] transition-colors">
-                      {event.name}
-                    </p>
-                    <p className="text-xs text-gray-400 mt-0.5">
-                      {formatDate(event.day)}
-                      {event.time_from && ` · ${formatTime(event.time_from)}`}
-                    </p>
-                  </div>
-
-                  <div className="hidden md:flex items-center gap-2 w-32 shrink-0">
-                    {capacity > 0 ? (
-                      <>
-                        <div className="flex-1 h-1 bg-gray-100 rounded-full overflow-hidden">
-                          <div className="h-full rounded-full bg-[#4F6EF7]" style={{ width: `${fillPct}%` }} />
-                        </div>
-                        <span className="text-xs text-gray-500 w-9 text-right">{fillPct}%</span>
-                      </>
-                    ) : (
-                      <span className="text-xs text-gray-400 text-right" title="No capacity set">No cap</span>
-                    )}
-                  </div>
-
-                  <p className={`text-xs md:w-24 text-right shrink-0 ${stats?.is_free ? "text-gray-500" : "font-bold text-gray-800"}`}>
-                    {stats?.is_free ? "Free" : stats && stats.is_owner !== false ? fmtNaira(Number(stats.revenue)) : "—"}
-                  </p>
-
-                  <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md ${status.pill} shrink-0 w-16 justify-center`}>
-                    <span className={`w-1 h-1 rounded-full ${status.dot}`} />
-                    {status.label}
-                  </span>
-                </Link>
-              );
-            })}
-          </div>
-        )}
       </div>
-    </div>
+    </section>
   );
 }
