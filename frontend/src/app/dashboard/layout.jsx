@@ -27,6 +27,7 @@ import UserMenu from "@/components/auth/UserMenu";
 import NotificationBell from "@/components/dashboard/NotificationBell";
 import DashSearch from "@/components/dashboard/DashSearch";
 import API from "@/services/api";
+import { ConfirmProvider } from "@/components/admin/ui";
 import "./dashboard-v2.css";
 
 // Menu icons are Hugeicons, like the rest of the app.
@@ -330,7 +331,10 @@ function StudioShell({ children }) {
 export default function StudioLayout({ children }) {
   return (
     <Providers>
-      <StudioShell>{children}</StudioShell>
+      {/* In-page confirm boxes for the whole dashboard, instead of the browser's pop-up. */}
+      <ConfirmProvider>
+        <StudioShell>{children}</StudioShell>
+      </ConfirmProvider>
     </Providers>
   );
 }

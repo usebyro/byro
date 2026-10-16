@@ -8,6 +8,7 @@ import { FaGlobe, FaXTwitter, FaInstagram, FaLinkedinIn, FaTelegram, FaWhatsapp 
 import { authSuccess } from "@/redux/auth/authSlice";
 import { handleProblem } from "@/lib/handle";
 import API from "@/services/api";
+import { useConfirm } from "@/components/admin/ui";
 import { toast } from "sonner";
 
 const BIO_MAX = 500;
@@ -65,6 +66,7 @@ const toForm = (data) => ({
 const inputCls = "v-input placeholder:text-faint";
 
 function ProfilePageContent() {
+  const confirm = useConfirm();
   const router       = useRouter();
   const searchParams = useSearchParams();
   const dispatch     = useDispatch();
@@ -205,9 +207,11 @@ function ProfilePageContent() {
       return;
     }
     if (savedForm.handle && form.handle !== savedForm.handle) {
-      const ok = window.confirm(
-        `Change your page link to usebyro.com/u/${form.handle || "…"}?\n\nOld links to usebyro.com/u/${savedForm.handle} will stop working.`
-      );
+      const ok = await confirm({
+        title: `Change your page link to usebyro.com/u/${form.handle || "…"}?`,
+        body: `Old links to usebyro.com/u/${savedForm.handle} will stop working.`,
+        confirmLabel: "Change link",
+      });
       if (!ok) return;
     }
     setIsSaving(true);
