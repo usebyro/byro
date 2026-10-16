@@ -44,6 +44,7 @@ from .notifications import (
     MyNotificationsView, MyNotificationsReadView, AdminNotificationsView, AdminNotificationsReadView,
 )
 from .newsletter_views import NewsletterSubscribeView
+from .dash_events import DashboardEventsView
 from .dash_overview import DashboardOverviewView
 from .auth_views import (
     MagicAuthSendView,
@@ -92,6 +93,7 @@ urlpatterns = [
     path('api/community/unfollow/', UnfollowByTokenView.as_view(), name='community-unfollow'),
     path('api/dashboard/analytics/', DashboardAnalyticsView.as_view(), name='dashboard-analytics'),
     path('api/dashboard/overview/', DashboardOverviewView.as_view(), name='dashboard-overview'),
+    path('api/dashboard/events/', DashboardEventsView.as_view(), name='dashboard-events'),
 
     # Events (explicit routes that need to come before the router catch-all)
     path('api/events/categories/', EventViewSet.as_view({'get': 'categories'}), name='event-categories'),
