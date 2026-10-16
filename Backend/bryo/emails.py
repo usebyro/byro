@@ -559,9 +559,10 @@ def organizer_message_email(name, organizer_name, kind, subject, body, event=Non
             if unfollow_url else ""
         )
         footer = f"You&#8217;re getting this because you follow {organiser} on byro.{unfollow}"
+    # The subject is already the email's subject line, so it isn't repeated as a heading inside.
     html = _shell(
         badge,
-        _h(subject),
+        "",
         html_paras + card,
         footer,
         preheader=paragraphs[0][:110] if paragraphs else subject,
