@@ -247,6 +247,8 @@ function EmptyTab({ tab }) {
   );
 }
 
+const isRealTicket = (t) => t.payment_status !== "pending" && t.payment_status !== "failed";
+
 // Hosting + attending in one list: one row per event (hosting wins), tickets for the same event counted together.
 function mergeItems(hosting, attending, newestFirst) {
   const ticketsBySlug = {};
@@ -294,8 +296,9 @@ export default function HomePage() {
 
   const hostingUpcoming = dashboard?.hosting?.upcoming || [];
   const hostingPast = dashboard?.hosting?.past || [];
-  const attendingUpcoming = dashboard?.attending?.upcoming || [];
-  const attendingPast = dashboard?.attending?.past || [];
+  // Only tickets that get you in: unfinished or failed payments aren't tickets yet.
+  const attendingUpcoming = (dashboard?.attending?.upcoming || []).filter(isRealTicket);
+  const attendingPast = (dashboard?.attending?.past || []).filter(isRealTicket);
 
   const upcomingItems = mergeItems(hostingUpcoming, attendingUpcoming, false);
   const pastItems = mergeItems(hostingPast, attendingPast, true);
