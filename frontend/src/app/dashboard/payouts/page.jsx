@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { toast } from "sonner";
 import API from "@/services/api";
+import BankLogo from "@/components/dashboard/BankLogo";
 
 // Backend status -> label, status ink, dot, amount ink (design: Paid / Pending / Cancelled-style grey).
 const STATUS = {
@@ -26,16 +27,6 @@ const maskAccount = (n) => {
   const digits = String(n || "");
   return digits.length > 4 ? `••••${digits.slice(-4)}` : digits;
 };
-
-// "Guaranty Trust Bank" -> "GTB" for the little bank badge.
-const bankInitials = (name) =>
-  String(name || "")
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 3)
-    .map((w) => w[0])
-    .join("")
-    .toUpperCase();
 
 const EMPTY_BANK_DETAILS = { bankCode: "", bankName: "", accountNumber: "", accountName: "" };
 
@@ -276,7 +267,9 @@ export default function StudioPayouts() {
     setConfirming(true);
   };
 
-  const paidOutTotal = payouts.filter((p) => p.status === "processed").reduce((sum, p) => sum + Number(p.amount), 0);
+  const paid = payouts.filter((p) => p.status === "processed");
+  const paidCount = paid.length;
+  const paidOutTotal = paid.reduce((sum, p) => sum + Number(p.amount), 0);
   const pendingTotal = payouts.filter((p) => p.status === "pending").reduce((sum, p) => sum + Number(p.amount), 0);
 
   // The newest request, while it's still waiting, gets the progress steps.
@@ -288,7 +281,7 @@ export default function StudioPayouts() {
   const bankLabel = `${bankDetails.bankName} ${maskAccount(bankDetails.accountNumber)}`;
 
   return (
-    <div className="mx-auto flex w-full max-w-[1240px] flex-col gap-6 px-4 pb-12 pt-2 sm:px-[clamp(16px,3vw,40px)]">
+    <div className="mx-auto flex w-full max-w-[1240px] flex-col gap-5 px-4 pb-12 pt-2 md:gap-6 sm:px-[clamp(16px,3vw,40px)]">
       <div className="v-bf flex flex-col gap-1.5" style={{ "--i": 0 }}>
         <h1 className="v-h1">Payouts</h1>
         <p className="v-sub">Your ticket earnings and where they go.</p>
@@ -314,16 +307,13 @@ export default function StudioPayouts() {
           ) : (
             <div className="flex flex-col gap-3.5 rounded-2xl bg-[#F6F8FB] px-4 py-3.5">
               {!showBankForm ? (
-                <div className="flex flex-wrap items-center gap-3">
-                  <span
-                    aria-hidden="true"
-                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-ink text-[11px] font-extrabold tracking-[.04em] text-white"
-                  >
-                    {bankInitials(bankDetails.bankName)}
-                  </span>
-                  <span className="flex min-w-0 flex-[1_1_180px] flex-col gap-0.5">
-                    <span className="truncate text-[15px] font-extrabold">{bankLabel}</span>
-                    <span className="truncate text-[13px] text-muted">{bankDetails.accountName}</span>
+                <div className="flex items-center gap-3.5">
+                  <BankLogo code={bankDetails.bankCode} name={bankDetails.bankName} />
+                  <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                    <span className="truncate text-[15px] font-extrabold">{bankDetails.bankName}</span>
+                    <span className="v-tab truncate text-[13px] text-muted">
+                      {[bankDetails.accountName, maskAccount(bankDetails.accountNumber)].filter(Boolean).join(" · ")}
+                    </span>
                   </span>
                   <button type="button" className="v-btn v-btn-t v-btn-sm" onClick={openBankForm}>
                     Change
@@ -504,13 +494,17 @@ export default function StudioPayouts() {
             <span className="v-hint">Sent within 24 hours</span>
           </div>
           <div className="v-card v-bf flex grow flex-col gap-2 px-[22px] py-5" style={{ "--i": 3 }}>
-            <span className="v-eyebrow">Total payout</span>
+            <span className="v-eyebrow">Paid out</span>
             {loadingPayouts ? (
               <span className="v-skel block h-7 w-32" />
             ) : (
               <span className="v-fig">{fmt(paidOutTotal)}</span>
             )}
-            <span className="v-hint">Paid to your bank so far</span>
+            <span className="v-hint">
+              {paidCount
+                ? `Since you joined, across ${paidCount} payout${paidCount === 1 ? "" : "s"}`
+                : "Nothing paid out yet"}
+            </span>
           </div>
         </div>
       </div>
@@ -550,7 +544,7 @@ export default function StudioPayouts() {
           <p className="v-hint m-0 border-t border-hairline px-[22px] py-8 text-center">Nothing here for this filter</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[620px] border-collapse">
+            <table className="v-stack w-full min-w-[620px] border-collapse">
               <thead>
                 <tr className="border-y border-hairline">
                   <th scope="col" className="v-th px-[22px] py-3 text-left">Requested</th>
@@ -565,15 +559,15 @@ export default function StudioPayouts() {
                   return (
                     <tr key={p.id} className="v-row v-al border-b border-hairline" style={{ "--i": Math.min(i, 12) }}>
                       <td className="px-[22px] py-3.5 text-[14px] font-bold">{fmtDate(p.requested_at)}</td>
-                      <td className="px-3 py-3.5">
+                      <td data-l="Amount" className="px-3 py-3.5">
                         <span className="v-tab text-[15px] font-extrabold" style={{ color: s.amt }}>
                           {fmt(p.amount)}
                         </span>
                       </td>
-                      <td className="px-3 py-3.5 text-[14px] text-muted">
+                      <td data-l="To" className="px-3 py-3.5 text-[14px] text-muted">
                         {p.method === "bank" ? `${p.bank_name} ${maskAccount(p.account_number)}` : "Wallet"}
                       </td>
-                      <td className="py-3.5 pl-3 pr-[22px]">
+                      <td data-l="Status" className="py-3.5 pl-3 pr-[22px]">
                         <span className="v-status" style={{ color: s.ink }}>
                           <span className="v-dot" style={{ background: s.dot }} />
                           {s.label || p.status}
@@ -586,8 +580,8 @@ export default function StudioPayouts() {
             </table>
           </div>
         )}
-        <p className="v-hint m-0 px-[22px] py-3.5">
-          Payouts are sent to your bank within 24 hours. Questions?{" "}
+        <p className="v-hint m-0 px-[22px] py-3.5 text-center">
+          Questions?{" "}
           <a href="mailto:support@usebyro.com" className="font-bold text-brand-dark">
             support@usebyro.com
           </a>
