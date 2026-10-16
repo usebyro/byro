@@ -11,6 +11,7 @@ import FollowButton from "@/components/community/FollowButton";
 import VerifiedBadge from "@/components/community/VerifiedBadge";
 import ReportButton from "@/components/ReportButton";
 import EventImage from "@/components/brand/EventImage";
+import MerchSlideshow from "@/components/merch/MerchSlideshow";
 import { categoryTone, dayParts, eventInitials, formatTime, priceLabel } from "@/lib/eventFormat";
 
 const PAST_PAGE = 6;
@@ -403,40 +404,56 @@ function MerchTile({ item }) {
   const price = item.price ? `₦${Number(item.price).toLocaleString("en-NG")}` : "Price on request";
   const linked = !!item.purchase_link && !soldOut;
 
-  const inner = (
-    <>
-      <div className="relative flex h-[180px] items-center justify-center overflow-hidden rounded-[20px] bg-mist text-[#3B4252]">
-        {item.image_url ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={item.image_url} alt="" className="h-full w-full object-cover" />
-        ) : (
-          <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M5 8h14l-1 13H6zM9 8V6a3 3 0 0 1 6 0v2" />
-          </svg>
-        )}
-        {soldOut && <span className="absolute left-3 top-3 flex h-7 items-center rounded-full bg-white px-2.5 text-xs font-extrabold">Sold out</span>}
-      </div>
-      <div className="flex items-baseline justify-between gap-2.5">
-        <span className="text-base font-extrabold">{item.name}</span>
-        <span className="whitespace-nowrap text-[15px] font-bold">{price}</span>
-      </div>
-    </>
+  const photos = item.photos?.length ? item.photos.map((p) => p.url) : item.image_url ? [item.image_url] : [];
+  const bag = (
+    <span className="flex h-full items-center justify-center text-[#3B4252]">
+      <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M5 8h14l-1 13H6zM9 8V6a3 3 0 0 1 6 0v2" />
+      </svg>
+    </span>
+  );
+  const picture = (
+    <MerchSlideshow photos={photos} alt={item.name} className="h-[180px] rounded-[20px] bg-mist" fallback={bag}>
+      {soldOut && <span className="absolute left-3 top-3 flex h-7 items-center rounded-full bg-white px-2.5 text-xs font-extrabold">Sold out</span>}
+    </MerchSlideshow>
+  );
+  const label = (
+    <div className="flex items-baseline justify-between gap-2.5">
+      <span className="text-base font-extrabold">{item.name}</span>
+      <span className="whitespace-nowrap text-[15px] font-bold">{price}</span>
+    </div>
+  );
+  const linkClass = "flex flex-col gap-2.5 transition-[scale] active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand";
+  const toStore = (children) => (
+    <a href={item.purchase_link} target="_blank" rel="noopener noreferrer" className={linkClass}>
+      {children}
+      <span className="sr-only">(opens the organiser&apos;s store)</span>
+    </a>
   );
 
+  // Several photos: the slideshow has its own buttons, so only the name and price open the store.
+  if (photos.length > 1) {
+    return (
+      <li className="flex flex-col gap-2.5">
+        {picture}
+        {linked ? toStore(label) : label}
+      </li>
+    );
+  }
   return (
     <li>
       {linked ? (
-        <a
-          href={item.purchase_link}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex flex-col gap-2.5 transition-[scale] active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
-        >
-          {inner}
-          <span className="sr-only">(opens the organiser&apos;s store)</span>
-        </a>
+        toStore(
+          <>
+            {picture}
+            {label}
+          </>
+        )
       ) : (
-        <div className="flex flex-col gap-2.5">{inner}</div>
+        <div className="flex flex-col gap-2.5">
+          {picture}
+          {label}
+        </div>
       )}
     </li>
   );

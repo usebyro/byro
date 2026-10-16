@@ -1,10 +1,11 @@
 from rest_framework import serializers
 from django.utils import timezone
 from django.utils.text import slugify
+from django.db.models import Max
 from .models import (
     Payment, WaitList, Ticket, Event, EventCoHost,
     TicketTransfer, Payment, UserProfile, EventFormQuestion, EventFormAnswer,
-    TicketTier, PayoutRequest, PromoCode, MerchItem,
+    TicketTier, PayoutRequest, PromoCode, MerchItem, MerchPhoto,
 )
 from django.core.mail import send_mail
 from django.contrib.auth import get_user_model
@@ -261,22 +262,99 @@ class PromoCodeSerializer(serializers.ModelSerializer):
 
 
 class MerchItemSerializer(serializers.ModelSerializer):
+    """
+    An item can have up to MAX_PHOTOS photos, shown as a slideshow; the first is the cover.
+    Write (multipart): new_photos (repeat the field for several files), remove_photos (ids),
+    photo_order (ids, first = cover). The old single `image` field still works and adds a photo.
+    """
+    MAX_PHOTOS = 6
+    MAX_PHOTO_BYTES = 5 * 1024 * 1024
+
     image_url = serializers.SerializerMethodField()
+    photos = serializers.SerializerMethodField()
+    new_photos = serializers.ListField(child=serializers.ImageField(), write_only=True, required=False)
+    remove_photos = serializers.ListField(child=serializers.IntegerField(), write_only=True, required=False)
+    photo_order = serializers.ListField(child=serializers.IntegerField(), write_only=True, required=False)
 
     class Meta:
         model = MerchItem
         fields = [
-            'id', 'name', 'description', 'price', 'image', 'image_url',
+            'id', 'name', 'description', 'price', 'image', 'image_url', 'photos',
+            'new_photos', 'remove_photos', 'photo_order',
             'purchase_link', 'stock', 'is_active', 'removed_by_admin', 'created_at', 'updated_at',
         ]
         read_only_fields = ['id', 'removed_by_admin', 'created_at', 'updated_at']
         extra_kwargs = {'image': {'write_only': True}}
 
+    def _url(self, field):
+        request = self.context.get('request')
+        return request.build_absolute_uri(field.url) if request else field.url
+
+    def get_photos(self, obj):
+        return [{'id': p.pk, 'url': self._url(p.image)} for p in obj.photos.all()]
+
     def get_image_url(self, obj):
-        if obj.image:
-            request = self.context.get('request')
-            return request.build_absolute_uri(obj.image.url) if request else obj.image.url
-        return None
+        first = next(iter(obj.photos.all()), None)
+        if first:
+            return self._url(first.image)
+        return self._url(obj.image) if obj.image else None
+
+    def validate_new_photos(self, files):
+        for f in files:
+            if f.size > self.MAX_PHOTO_BYTES:
+                raise serializers.ValidationError("Each photo must be 5MB or smaller.")
+        return files
+
+    def validate(self, attrs):
+        adding = len(attrs.get('new_photos') or []) + (1 if attrs.get('image') else 0)
+        current = self.instance.photos.count() if self.instance else 0
+        removing = len(set(attrs.get('remove_photos') or []))
+        if current - removing + adding > self.MAX_PHOTOS:
+            raise serializers.ValidationError({'new_photos': f"Up to {self.MAX_PHOTOS} photos per item."})
+        return attrs
+
+    def _apply_photos(self, item, new_photos, remove_ids, order):
+        # The list view prefetches photos; drop that cache so we read what's really there.
+        getattr(item, '_prefetched_objects_cache', {}).pop('photos', None)
+        if remove_ids:
+            item.photos.filter(pk__in=remove_ids).delete()
+        start = (item.photos.aggregate(m=Max('position'))['m'] or 0) + 1 if item.photos.exists() else 0
+        for i, f in enumerate(new_photos):
+            MerchPhoto.objects.create(item=item, image=f, position=start + i)
+        if order:
+            rank = {pk: i for i, pk in enumerate(order)}
+            photos = list(item.photos.all())
+            photos.sort(key=lambda p: (rank.get(p.pk, len(rank)), p.position, p.pk))
+            for i, p in enumerate(photos):
+                if p.position != i:
+                    p.position = i
+                    p.save(update_fields=['position'])
+        # Mirror the cover into `image` for anything that still reads it.
+        getattr(item, '_prefetched_objects_cache', {}).pop('photos', None)
+        cover = item.photos.first()
+        cover_name = cover.image.name if cover else ''
+        if (item.image.name or '') != cover_name:
+            item.image = cover_name or None
+            item.save(update_fields=['image'])
+
+    def _pop_photo_fields(self, validated_data):
+        new_photos = list(validated_data.pop('new_photos', []) or [])
+        legacy = validated_data.pop('image', None)
+        if legacy:
+            new_photos.insert(0, legacy)
+        return new_photos, validated_data.pop('remove_photos', []) or [], validated_data.pop('photo_order', []) or []
+
+    def create(self, validated_data):
+        new_photos, remove_ids, order = self._pop_photo_fields(validated_data)
+        item = super().create(validated_data)
+        self._apply_photos(item, new_photos, remove_ids, order)
+        return item
+
+    def update(self, instance, validated_data):
+        new_photos, remove_ids, order = self._pop_photo_fields(validated_data)
+        item = super().update(instance, validated_data)
+        self._apply_photos(item, new_photos, remove_ids, order)
+        return item
 
     def validate_price(self, value):
         if value is not None and value < 0:

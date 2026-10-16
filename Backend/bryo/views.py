@@ -1258,7 +1258,7 @@ class MerchViewSet(viewsets.ModelViewSet):
     parser_classes = (JSONParser, MultiPartParser, FormParser)
 
     def get_queryset(self):
-        return MerchItem.objects.filter(owner=self.request.user)
+        return MerchItem.objects.filter(owner=self.request.user).prefetch_related('photos')
 
     def perform_create(self, serializer):
         serializer.save(owner=self.request.user)
@@ -1352,7 +1352,7 @@ class ProfileViewSet(viewsets.GenericViewSet):
         if not (request.user.is_authenticated and request.user == profile.user):
             data.pop('email', None)
 
-        merch = MerchItem.objects.filter(owner=profile.user, is_active=True, removed_by_admin=False)
+        merch = MerchItem.objects.filter(owner=profile.user, is_active=True, removed_by_admin=False).prefetch_related('photos')
         data['merch_items'] = MerchItemSerializer(merch, many=True, context={'request': request}).data
         data['community'] = community_stats(profile.user)
         data['stamps'] = _stamp_payload(stamps_for_user(profile.user)[:60])

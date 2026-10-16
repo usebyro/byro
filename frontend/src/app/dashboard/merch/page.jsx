@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import axiosInstance from "@/utils/axios";
 import { useAuth } from "@/redux/useAuth";
 import { useConfirm } from "@/components/admin/ui";
+import MerchSlideshow from "@/components/merch/MerchSlideshow";
 
 const EMPTY_FORM = {
   name: "",
@@ -17,6 +18,7 @@ const EMPTY_FORM = {
 };
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const MAX_PHOTOS = 6;
 const LOW_STOCK = 5;
 const BAG_PATH = "M5 8h14l-1 13H6zM9 8V6a3 3 0 0 1 6 0v2";
 
@@ -89,8 +91,9 @@ export default function MerchPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState(null); // item being edited, or null for create
   const [form, setForm] = useState(EMPTY_FORM);
-  const [imageFile, setImageFile] = useState(null);
-  const [imagePreview, setImagePreview] = useState(null);
+  // Photos in the sheet, in order (first = cover): saved ones have an id, new ones a file.
+  const [photos, setPhotos] = useState([]);
+  const [removedPhotoIds, setRemovedPhotoIds] = useState([]);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
   const [togglingId, setTogglingId] = useState(null);
@@ -116,8 +119,8 @@ export default function MerchPage() {
   const openCreate = () => {
     setEditing(null);
     setForm(EMPTY_FORM);
-    setImageFile(null);
-    setImagePreview(null);
+    setPhotos([]);
+    setRemovedPhotoIds([]);
     setFocusField("name");
     setSheetUp(window.matchMedia("(max-width: 767px)").matches);
     setModalOpen(true);
@@ -133,8 +136,14 @@ export default function MerchPage() {
       purchase_link: item.purchase_link || "",
       is_active: item.is_active,
     });
-    setImageFile(null);
-    setImagePreview(item.image_url || null);
+    setPhotos(
+      item.photos?.length
+        ? item.photos.map((p) => ({ key: `s${p.id}`, id: p.id, url: p.url }))
+        : item.image_url
+          ? [{ key: "cover", url: item.image_url }]
+          : []
+    );
+    setRemovedPhotoIds([]);
     setFocusField(field);
     setSheetUp(window.matchMedia("(max-width: 767px)").matches);
     setModalOpen(true);
@@ -159,16 +168,24 @@ export default function MerchPage() {
   }, [modalOpen, focusField]);
 
   const handleImageChange = (e) => {
-    const file = e.target.files?.[0];
+    const files = Array.from(e.target.files || []);
     e.target.value = "";
-    if (!file) return;
-    if (file.size > MAX_IMAGE_BYTES) {
-      toast.error("Photo is too big", { description: "Use one under 5MB" });
-      return;
-    }
-    setImageFile(file);
-    setImagePreview(URL.createObjectURL(file));
+    if (!files.length) return;
+    const tooBig = files.filter((f) => f.size > MAX_IMAGE_BYTES);
+    if (tooBig.length) toast.error("Photo is too big", { description: "Use ones under 5MB" });
+    const room = MAX_PHOTOS - photos.length;
+    const ok = files.filter((f) => f.size <= MAX_IMAGE_BYTES);
+    if (ok.length > room) toast.error(`Up to ${MAX_PHOTOS} photos`, { description: room ? `Added the first ${room}` : "Remove one to add another" });
+    const added = ok.slice(0, Math.max(0, room)).map((file, i) => ({ key: `n${Date.now()}${i}`, file, url: URL.createObjectURL(file) }));
+    if (added.length) setPhotos((prev) => [...prev, ...added]);
   };
+
+  const removePhoto = (photo) => {
+    setPhotos((prev) => prev.filter((p) => p.key !== photo.key));
+    if (photo.id) setRemovedPhotoIds((prev) => [...prev, photo.id]);
+  };
+
+  const makeCover = (photo) => setPhotos((prev) => [photo, ...prev.filter((p) => p.key !== photo.key)]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -184,17 +201,24 @@ export default function MerchPage() {
     payload.append("stock", form.stock === "" ? "" : form.stock);
     payload.append("purchase_link", form.purchase_link.trim());
     payload.append("is_active", String(form.is_active));
-    if (imageFile) payload.append("image", imageFile);
+    photos.filter((p) => p.file).forEach((p) => payload.append("new_photos", p.file));
+    removedPhotoIds.forEach((id) => payload.append("remove_photos", String(id)));
+    // Saved photos in the order shown; new ones are added after them.
+    photos.filter((p) => p.id).forEach((p) => payload.append("photo_order", String(p.id)));
 
     setSaving(true);
     try {
-      if (editing) {
-        await axiosInstance.patch(`merch/${editing.id}/`, payload);
-        toast.success("Merch item updated");
-      } else {
-        await axiosInstance.post("merch/", payload);
-        toast.success("Merch item added");
+      const res = editing
+        ? await axiosInstance.patch(`merch/${editing.id}/`, payload)
+        : await axiosInstance.post("merch/", payload);
+      // New photos are stored after the saved ones; if a new one was put first (the cover), send the order again.
+      const saved = res.data?.photos || [];
+      const newIds = saved.slice(photos.filter((p) => p.id).length).map((p) => p.id);
+      const wanted = photos.map((p) => p.id ?? newIds.shift()).filter(Boolean);
+      if (wanted.join() !== saved.map((p) => p.id).join()) {
+        await axiosInstance.patch(`merch/${res.data.id}/`, { photo_order: wanted });
       }
+      toast.success(editing ? "Merch item updated" : "Merch item added");
       closeModal();
       loadItems();
     } catch (err) {
@@ -420,17 +444,46 @@ export default function MerchPage() {
                 </p>
               )}
 
-              <label className="v-press flex h-[120px] cursor-pointer items-center justify-center gap-4 rounded-2xl border-[1.5px] border-dashed border-[#9DB6FF] bg-[#F5F8FF] px-4 text-[#2451D6] focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-brand">
-                {imagePreview && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={imagePreview} alt="" className="h-[88px] w-[88px] shrink-0 rounded-xl object-cover" />
+              <div className="flex flex-col gap-2.5">
+                {photos.length > 0 && (
+                  <ul className="m-0 flex list-none flex-wrap gap-2.5 p-0" aria-label="Photos">
+                    {photos.map((p, i) => (
+                      <li key={p.key} className="relative h-[88px] w-[88px]">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={p.url} alt={`Photo ${i + 1}`} className="h-full w-full rounded-xl object-cover" />
+                        {i === 0 ? (
+                          <span className="absolute bottom-1.5 left-1.5 rounded-full bg-ink/80 px-1.5 py-0.5 text-[10px] font-extrabold text-white">Cover</span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => makeCover(p)}
+                            className="absolute bottom-1.5 left-1.5 rounded-full bg-white/90 px-1.5 py-0.5 text-[10px] font-extrabold text-ink"
+                          >
+                            Make cover
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => removePhoto(p)}
+                          aria-label={`Remove photo ${i + 1}`}
+                          className="absolute -right-1.5 -top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-ink text-white shadow-[0_0_0_2px_#FFFFFF]"
+                        >
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
                 )}
-                <span className="flex flex-col items-center gap-1 text-center">
-                  <span className="text-[15px] font-extrabold">{imagePreview ? "Change photo" : "Add photos"}</span>
-                  <span className="v-hint">Square works best, up to 5MB</span>
-                </span>
-                <input type="file" accept="image/*" className="sr-only" onChange={handleImageChange} />
-              </label>
+                {photos.length < MAX_PHOTOS && (
+                  <label className="v-press flex h-[88px] cursor-pointer items-center justify-center gap-4 rounded-2xl border-[1.5px] border-dashed border-[#9DB6FF] bg-[#F5F8FF] px-4 text-[#2451D6] focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-brand">
+                    <span className="flex flex-col items-center gap-1 text-center">
+                      <span className="text-[15px] font-extrabold">{photos.length ? "Add more photos" : "Add photos"}</span>
+                      <span className="v-hint">Up to {MAX_PHOTOS}, 5MB each. The first is the cover.</span>
+                    </span>
+                    <input type="file" accept="image/*" multiple className="sr-only" onChange={handleImageChange} />
+                  </label>
+                )}
+              </div>
 
               <label className="flex flex-col gap-2">
                 <span className="v-lbl">Name</span>
@@ -515,17 +568,20 @@ export default function MerchPage() {
               <div className="flex flex-col gap-2.5">
                 <span className="v-eyebrow">How it shows on your profile</span>
                 <div className="v-card v-lift w-[200px] overflow-hidden border border-hairline">
-                  <div className="relative flex h-[150px] items-center justify-center bg-mist text-faint">
-                    {imagePreview ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={imagePreview} alt="" className="h-full w-full object-cover" />
-                    ) : (
-                      <ItemIcon size={40} stroke={1.6} />
-                    )}
+                  <MerchSlideshow
+                    photos={photos.map((p) => p.url)}
+                    alt={form.name.trim()}
+                    className="h-[150px] bg-mist"
+                    fallback={
+                      <span className="flex h-full items-center justify-center text-faint">
+                        <ItemIcon size={40} stroke={1.6} />
+                      </span>
+                    }
+                  >
                     {form.stock !== "" && Number(form.stock) <= 0 && (
                       <span className="absolute left-2.5 top-2.5 flex h-6 items-center rounded-full bg-white px-2 text-xs font-extrabold text-ink">Sold out</span>
                     )}
-                  </div>
+                  </MerchSlideshow>
                   <div className="flex flex-col gap-0.5 px-3.5 py-3">
                     <span className="break-words text-sm font-extrabold">{form.name.trim() || "Item name"}</span>
                     <span className="text-sm text-body">{fmtPrice(form.price)}</span>
