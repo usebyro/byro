@@ -46,6 +46,7 @@ from .notifications import (
 from .newsletter_views import NewsletterSubscribeView
 from .dash_events import DashboardEventsView
 from .dash_event import DashEventCohostResendView, DashEventGuestView, DashEventSummaryView
+from .dash_community import CommunityMembersView, CommunitySummaryView
 from .dash_overview import DashboardOverviewView
 from .auth_views import (
     MagicAuthSendView,
@@ -87,6 +88,8 @@ urlpatterns = [
     # Dashboard
     path('api/dashboard/', DashboardView.as_view(), name='dashboard'),
     path('api/dashboard/community/', CommunityDashboardView.as_view(), name='dashboard-community'),
+    path('api/dashboard/community/summary/', CommunitySummaryView.as_view(), name='dashboard-community-summary'),
+    path('api/dashboard/community/members/', CommunityMembersView.as_view(), name='dashboard-community-members'),
     path('api/dashboard/messages/', MessagesView.as_view(), name='dashboard-messages'),
     path('api/dashboard/messages/<int:pk>/', MessagesView.as_view(), name='dashboard-message'),
     path('api/stamps/', MyStampsView.as_view(), name='my-stamps'),
