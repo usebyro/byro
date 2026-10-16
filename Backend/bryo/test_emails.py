@@ -148,6 +148,17 @@ class DesignTests(SimpleTestCase):
             self.assertNotIn("<script>", m["html"])
 
 
+class OrganizerMessageTests(SimpleTestCase):
+
+    def test_the_subject_is_the_subject_line_and_not_repeated_inside(self):
+        mail = e.organizer_message_email("Ada Obi", "GDGoC UNILAG", "announce", "Hello {{name}}, big news",
+                                         "First paragraph.\n\nSecond one.")
+        self.assertEqual(mail["subject"], "Hello Ada, big news")
+        self.assertNotIn("big news", mail["html"])
+        self.assertNotIn('<h1 class="h1"', mail["html"])
+        self.assertIn("First paragraph.", mail["html"])
+
+
 class TicketImageTests(SimpleTestCase):
 
     def test_the_ticket_image_is_a_valid_png_with_the_wide_card_layout(self):
