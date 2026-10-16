@@ -692,6 +692,39 @@ const API = {
     }
   },
 
+  // Dashboard > Community: headline numbers, new followers per week/month (range: 12w | 6m | 12m) and the events that grew it.
+  getCommunitySummary: async (range = "12w") => {
+    try {
+      const response = await axiosInstance.get("dashboard/community/summary/", { params: { range } });
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  // Followers and attendees, 25 a page. params: {filter: all | regular | new | follower, q, page}
+  getCommunityMembers: async (params = {}) => {
+    try {
+      const response = await axiosInstance.get("dashboard/community/members/", { params });
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  // The same people as a CSV file (a Blob). params: {filter, q}
+  exportCommunityMembers: async (params = {}) => {
+    try {
+      const response = await axiosInstance.get("dashboard/community/members/", {
+        params: { ...params, export: "csv" },
+        responseType: "blob",
+      });
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
   // Messages: audience sizes, the weekly allowance and what was sent. POST sends (or, with test, previews to yourself).
   getMessages: async () => {
     try {
