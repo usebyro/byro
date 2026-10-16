@@ -2,20 +2,22 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { toast } from "sonner";
-import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  ArrowUpRight01Icon,
-  Calendar01Icon,
-  WalletAdd01Icon,
-  Cancel01Icon,
-} from "@hugeicons/core-free-icons";
 import API from "@/services/api";
 
-const STATUS_STYLE = {
-  processed: "bg-teal-50 text-teal-600 border border-teal-100",
-  pending: "bg-amber-50 text-amber-600 border border-amber-100",
-  rejected: "bg-red-50 text-red-600 border border-red-100",
+// Backend status -> label, status ink, dot, amount ink (design: Paid / Pending / Cancelled-style grey).
+const STATUS = {
+  processed: { label: "Paid", ink: "#1F7A52", dot: "#2F9E6E", amt: "#14161C" },
+  pending: { label: "Pending", ink: "#8A4B00", dot: "#F5B83D", amt: "#14161C" },
+  rejected: { label: "Rejected", ink: "#B42318", dot: "#D03B3B", amt: "#5B6272" },
 };
+const STATUS_FALLBACK = { label: "", ink: "#5B6272", dot: "#8A91A0", amt: "#5B6272" };
+
+const FILTERS = [
+  ["all", "All"],
+  ["processed", "Paid"],
+  ["pending", "Pending"],
+  ["rejected", "Rejected"],
+];
 
 const BANK_DETAILS_STORAGE_KEY = "byro_payout_bank_details";
 
@@ -24,6 +26,16 @@ const maskAccount = (n) => {
   const digits = String(n || "");
   return digits.length > 4 ? `••••${digits.slice(-4)}` : digits;
 };
+
+// "Guaranty Trust Bank" -> "GTB" for the little bank badge.
+const bankInitials = (name) =>
+  String(name || "")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 3)
+    .map((w) => w[0])
+    .join("")
+    .toUpperCase();
 
 const EMPTY_BANK_DETAILS = { bankCode: "", bankName: "", accountNumber: "", accountName: "" };
 
@@ -39,33 +51,25 @@ function fmtDate(iso) {
   });
 }
 
-function Modal({ title, onClose, children }) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl">
-        <div className="flex items-center justify-between mb-4">
-          <p className="font-semibold text-gray-900">{title}</p>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1">
-            <HugeiconsIcon icon={Cancel01Icon} size={16} color="currentColor" />
-          </button>
-        </div>
-        {children}
-      </div>
-    </div>
-  );
+// "Today, 2:14 PM" for today, otherwise "22 Aug 2026, 2:14 PM".
+function fmtWhen(iso) {
+  const d = new Date(iso);
+  const time = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  const day = d.toDateString() === new Date().toDateString() ? "Today" : fmtDate(iso);
+  return `${day}, ${time}`;
 }
 
 export default function StudioPayouts() {
   const [payouts, setPayouts] = useState([]);
   const [loadingPayouts, setLoadingPayouts] = useState(true);
+  const [filter, setFilter] = useState("all");
 
   const [banks, setBanks] = useState([]);
   const [loadingBanks, setLoadingBanks] = useState(false);
 
   const [bankDetails, setBankDetails] = useState(EMPTY_BANK_DETAILS);
   const [bankForm, setBankForm] = useState(EMPTY_BANK_DETAILS);
-  const [bankModalOpen, setBankModalOpen] = useState(false);
+  const [changingBank, setChangingBank] = useState(false);
 
   const [resolvedName, setResolvedName] = useState("");
   const [resolving, setResolving] = useState(false);
@@ -73,10 +77,11 @@ export default function StudioPayouts() {
   const resolveTimer = useRef(null);
 
   const [withdrawAmount, setWithdrawAmount] = useState("");
-  const [withdrawModalOpen, setWithdrawModalOpen] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const [balance, setBalance] = useState(null);
+  const [loadingBalance, setLoadingBalance] = useState(true);
 
   useEffect(() => {
     document.title = "Payouts | Byro";
@@ -131,6 +136,8 @@ export default function StudioPayouts() {
     } catch {
       // Non-fatal — the page still works without the balance summary.
       setBalance(null);
+    } finally {
+      setLoadingBalance(false);
     }
   }, []);
 
@@ -151,18 +158,27 @@ export default function StudioPayouts() {
     }
   }, [banks.length]);
 
-  const openBankModal = () => {
+  const hasBankDetails = Boolean(bankDetails.bankName);
+  // The bank form shows inline when there's no account yet, or the organiser chose Change.
+  // Wait for history first: saved details can be inferred from it.
+  const showBankForm = !loadingPayouts && (changingBank || !hasBankDetails);
+
+  useEffect(() => {
+    if (showBankForm) loadBanks();
+  }, [showBankForm, loadBanks]);
+
+  const openBankForm = () => {
     setBankForm(bankDetails);
     setResolvedName(bankDetails.accountName || "");
     setResolveError("");
-    setBankModalOpen(true);
-    loadBanks();
+    setConfirming(false);
+    setChangingBank(true);
   };
 
   // Debounced account-name lookup: fires once a bank + full account number are set,
   // so the user can confirm details before they get sent anywhere.
   useEffect(() => {
-    if (!bankModalOpen) return;
+    if (!showBankForm) return;
     clearTimeout(resolveTimer.current);
     setResolveError("");
 
@@ -192,7 +208,7 @@ export default function StudioPayouts() {
     }, 600);
 
     return () => clearTimeout(resolveTimer.current);
-  }, [bankForm.bankCode, bankForm.accountNumber, bankModalOpen]);
+  }, [bankForm.bankCode, bankForm.accountNumber, showBankForm]);
 
   const saveBankDetails = (e) => {
     e.preventDefault();
@@ -202,7 +218,7 @@ export default function StudioPayouts() {
     }
     setBankDetails(bankForm);
     localStorage.setItem(BANK_DETAILS_STORAGE_KEY, JSON.stringify(bankForm));
-    setBankModalOpen(false);
+    setChangingBank(false);
     toast.success("Bank details saved");
   };
 
@@ -224,8 +240,8 @@ export default function StudioPayouts() {
     }
     if (!bankDetails.bankName || !bankDetails.accountNumber || !bankDetails.accountName) {
       toast.error("Add bank details first");
-      setWithdrawModalOpen(false);
-      openBankModal();
+      setConfirming(false);
+      openBankForm();
       return;
     }
 
@@ -241,7 +257,7 @@ export default function StudioPayouts() {
       });
       toast.success("Withdrawal requested");
       setWithdrawAmount("");
-      setWithdrawModalOpen(false);
+      setConfirming(false);
       loadPayouts();
       loadBalance();
     } catch (err) {
@@ -251,242 +267,332 @@ export default function StudioPayouts() {
     }
   };
 
-  const hasBankDetails = Boolean(bankDetails.bankName);
   const availableAmount = balance ? Number(balance.available) : null;
   const canWithdraw = availableAmount !== null && availableAmount > 0;
 
+  const askWithdraw = () => {
+    // Defaults to the whole balance; the organiser can lower it before confirming.
+    setWithdrawAmount(String(availableAmount));
+    setConfirming(true);
+  };
+
+  const paidOutTotal = payouts.filter((p) => p.status === "processed").reduce((sum, p) => sum + Number(p.amount), 0);
+  const pendingTotal = payouts.filter((p) => p.status === "pending").reduce((sum, p) => sum + Number(p.amount), 0);
+
+  // The newest request, while it's still waiting, gets the progress steps.
+  const inFlight = payouts[0]?.status === "pending" ? payouts[0] : null;
+
+  const count = (s) => (s === "all" ? payouts.length : payouts.filter((p) => p.status === s).length);
+  const rows = filter === "all" ? payouts : payouts.filter((p) => p.status === filter);
+  const parsedAmount = parseFloat(withdrawAmount);
+  const bankLabel = `${bankDetails.bankName} ${maskAccount(bankDetails.accountNumber)}`;
+
   return (
-    <div className="p-4 sm:p-6 max-w-5xl mx-auto space-y-4">
-      <div className="pb-2 border-b border-gray-100/50">
-        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Payouts</h1>
-        <p className="text-xs text-gray-500 mt-0.5">Track earnings and withdraw to your bank.</p>
+    <div className="mx-auto flex w-full max-w-[1240px] flex-col gap-6 px-4 pb-12 pt-2 sm:px-[clamp(16px,3vw,40px)]">
+      <div className="v-bf flex flex-col gap-1.5" style={{ "--i": 0 }}>
+        <h1 className="v-h1">Payouts</h1>
+        <p className="v-sub">Your ticket earnings and where they go.</p>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
-        <div className="col-span-2 md:col-span-1 bg-gradient-to-br from-[#4F6EF7] to-[#6366f1] rounded-xl p-4 text-white shadow-sm flex flex-col justify-between">
-          <div>
-            <p className="text-[11px] font-bold text-white/80 uppercase tracking-wider mb-2">Available to withdraw</p>
-            <p className="text-2xl font-black tracking-tight mb-4">
-              {balance ? fmt(balance.available) : "—"}
-            </p>
+      <div className="flex flex-wrap items-stretch gap-5">
+        <section
+          aria-label="Available to withdraw"
+          className="v-card v-bf flex min-w-0 flex-[3_1_460px] flex-col gap-5 p-5 sm:p-[26px]"
+          style={{ "--i": 1 }}
+        >
+          <div className="flex flex-col gap-2.5">
+            <span className="v-eyebrow">Available to withdraw</span>
+            {loadingBalance ? (
+              <span className="v-skel block h-[52px] w-56 max-w-full" aria-label="Loading balance" />
+            ) : (
+              <span className="v-hero break-words">{balance ? fmt(balance.available) : "—"}</span>
+            )}
           </div>
-          <div className="flex items-stretch gap-1.5">
-            <button
-              onClick={() => setWithdrawModalOpen(true)}
-              disabled={!canWithdraw}
-              className="flex-1 flex items-center justify-center gap-1 bg-white text-[#4F6EF7] text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-white/95 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
-            >
-              <HugeiconsIcon icon={WalletAdd01Icon} size={12} color="currentColor" />
-              Withdraw
-            </button>
-            <button
-              onClick={openBankModal}
-              title={
-                hasBankDetails
-                  ? `${bankDetails.bankName}, ${maskAccount(bankDetails.accountNumber)}, ${bankDetails.accountName}. Click to edit`
-                  : undefined
-              }
-              aria-label={
-                hasBankDetails
-                  ? `Bank details: ${bankDetails.accountName}, ${bankDetails.bankName}, account ending ${String(bankDetails.accountNumber).slice(-4)}. Edit`
-                  : "Add bank details"
-              }
-              className="flex-1 min-w-0 overflow-hidden flex items-center justify-center bg-white/10 text-white px-2.5 py-1.5 rounded-lg hover:bg-white/15 transition-colors border border-white/10"
-            >
-              {hasBankDetails ? (
-                // One line, fixed size: a long bank name is trimmed, the masked number always shows.
-                <span className="flex w-full min-w-0 items-center justify-center gap-1.5 text-xs">
-                  <span className="min-w-0 truncate font-semibold">{bankDetails.bankName}</span>
-                  <span className="shrink-0 text-white/75">{maskAccount(bankDetails.accountNumber)}</span>
-                </span>
+
+          {loadingPayouts ? (
+            <div className="v-skel h-[68px] rounded-2xl" />
+          ) : (
+            <div className="flex flex-col gap-3.5 rounded-2xl bg-[#F6F8FB] px-4 py-3.5">
+              {!showBankForm ? (
+                <div className="flex flex-wrap items-center gap-3">
+                  <span
+                    aria-hidden="true"
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-ink text-[11px] font-extrabold tracking-[.04em] text-white"
+                  >
+                    {bankInitials(bankDetails.bankName)}
+                  </span>
+                  <span className="flex min-w-0 flex-[1_1_180px] flex-col gap-0.5">
+                    <span className="truncate text-[15px] font-extrabold">{bankLabel}</span>
+                    <span className="truncate text-[13px] text-muted">{bankDetails.accountName}</span>
+                  </span>
+                  <button type="button" className="v-btn v-btn-t v-btn-sm" onClick={openBankForm}>
+                    Change
+                  </button>
+                </div>
               ) : (
-                <span className="text-xs font-semibold">Add Bank</span>
+                <form onSubmit={saveBankDetails} className="v-bf flex flex-col gap-3.5">
+                  <span className="text-[15px] font-extrabold">Where should we send your money?</span>
+                  <div className="flex flex-wrap gap-3">
+                    <label className="flex min-w-0 flex-[1_1_180px] flex-col gap-2">
+                      <span className="v-lbl">Bank</span>
+                      <select
+                        className="v-input"
+                        value={bankForm.bankCode}
+                        disabled={loadingBanks}
+                        onChange={(e) => {
+                          const match = banks.find((b) => String(b.code) === e.target.value);
+                          setBankForm((p) => ({
+                            ...p,
+                            bankCode: match ? String(match.code) : "",
+                            bankName: match ? match.name : "",
+                          }));
+                        }}
+                      >
+                        <option value="">{loadingBanks ? "Loading banks…" : "Choose your bank"}</option>
+                        {banks.map((b) => (
+                          <option key={b.code} value={String(b.code)}>
+                            {b.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="flex min-w-0 flex-[1_1_180px] flex-col gap-2">
+                      <span className="v-lbl">Account number</span>
+                      <input
+                        className="v-input v-tab"
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={10}
+                        placeholder="10 digits"
+                        value={bankForm.accountNumber}
+                        onChange={(e) =>
+                          setBankForm((p) => ({ ...p, accountNumber: e.target.value.replace(/\D/g, "") }))
+                        }
+                      />
+                    </label>
+                  </div>
+                  <p className="v-hint m-0 min-h-[1.25rem]" aria-live="polite">
+                    {resolving && "Verifying account…"}
+                    {!resolving && resolvedName && (
+                      <span className="inline-flex items-center gap-1 font-bold text-[#1F7A52]">
+                        <svg
+                          width="12"
+                          height="12"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="3"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          className="shrink-0"
+                          aria-hidden="true"
+                        >
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                        {resolvedName}
+                      </span>
+                    )}
+                    {!resolving && !resolvedName && resolveError && (
+                      <span className="text-[#B42318]">{resolveError}</span>
+                    )}
+                    {!resolving &&
+                      !resolvedName &&
+                      !resolveError &&
+                      "We show the account name before you save, so you can check it’s yours."}
+                  </p>
+                  <div className="flex flex-wrap justify-end gap-2">
+                    {hasBankDetails && (
+                      <button type="button" className="v-btn v-btn-s" onClick={() => setChangingBank(false)}>
+                        Cancel
+                      </button>
+                    )}
+                    <button type="submit" className="v-btn v-btn-p" disabled={!resolvedName}>
+                      Save bank account
+                    </button>
+                  </div>
+                </form>
               )}
-            </button>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl border border-gray-100/80 shadow-sm p-4 flex flex-col justify-between min-h-[120px]">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Paid out</p>
-            <div className="w-7 h-7 rounded-lg bg-green-50 text-green-600 flex items-center justify-center">
-              <HugeiconsIcon icon={ArrowUpRight01Icon} size={14} color="currentColor" />
             </div>
-          </div>
-          <div>
-            <p className="text-xl font-extrabold text-gray-800 tracking-tight">
-              {fmt(payouts.filter((p) => p.status === "processed").reduce((sum, p) => sum + Number(p.amount), 0))}
-            </p>
-            <p className="text-xs text-gray-400 mt-1">Processed payouts</p>
-          </div>
-        </div>
+          )}
 
-        <div className="bg-white rounded-xl border border-gray-100/80 shadow-sm p-4 flex flex-col justify-between min-h-[120px]">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Pending</p>
-            <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
-              <HugeiconsIcon icon={Calendar01Icon} size={14} color="currentColor" />
+          {!showBankForm && !loadingPayouts && !confirming && (
+            <div className="flex flex-wrap items-center gap-3.5">
+              <button
+                type="button"
+                className="v-btn v-btn-p v-btn-lg"
+                onClick={askWithdraw}
+                disabled={!canWithdraw}
+              >
+                {canWithdraw ? `Withdraw ${fmt(availableAmount)}` : "Withdraw"}
+              </button>
+              <span className="v-hint">
+                {canWithdraw || availableAmount === null ? "Sent to your bank within 24 hours" : "Nothing to withdraw yet"}
+              </span>
             </div>
+          )}
+
+          {!showBankForm && confirming && (
+            <form
+              onSubmit={submitWithdrawal}
+              className="v-bf flex flex-col gap-3.5 rounded-2xl bg-[#F5F8FF] px-[18px] py-4"
+            >
+              <label className="flex flex-col gap-2">
+                <span className="v-lbl">Amount</span>
+                <span className="relative block w-full max-w-[240px]">
+                  <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-muted">₦</span>
+                  <input
+                    className="v-input v-tab"
+                    style={{ paddingLeft: 28 }}
+                    type="number"
+                    min="1"
+                    step="1"
+                    max={availableAmount ?? undefined}
+                    value={withdrawAmount}
+                    onChange={(e) => setWithdrawAmount(e.target.value)}
+                    autoFocus
+                  />
+                </span>
+              </label>
+              <div className="flex flex-wrap items-center gap-3.5">
+                <span className="min-w-0 flex-[1_1_220px] text-[15px] font-bold">
+                  Send <b>{fmt(isNaN(parsedAmount) ? 0 : parsedAmount)}</b> to {bankLabel}?
+                </span>
+                <button type="button" className="v-btn v-btn-s" onClick={() => setConfirming(false)}>
+                  Cancel
+                </button>
+                <button type="submit" className="v-btn v-btn-p" disabled={submitting}>
+                  {submitting ? "Submitting…" : "Confirm withdrawal"}
+                </button>
+              </div>
+            </form>
+          )}
+
+          {inFlight && (
+            <ol aria-label="Withdrawal progress" className="v-bf m-0 grid list-none grid-cols-3 gap-2 p-0">
+              <li className="flex min-w-0 flex-col gap-2">
+                <span className="h-1 rounded-full bg-brand" />
+                <span className="text-[14px] font-extrabold">Requested</span>
+                <span className="v-hint">{fmtWhen(inFlight.requested_at)}</span>
+              </li>
+              <li className="flex min-w-0 flex-col gap-2">
+                <span className="h-1 overflow-hidden rounded-full bg-[#DCE6FD]">
+                  <span className="v-growx block h-full w-1/2 bg-brand" />
+                </span>
+                <span className="flex items-center gap-1.5 text-[14px] font-extrabold">
+                  <span className="v-dot v-ping bg-brand" />
+                  Processing
+                </span>
+                <span className="v-hint">Within 24 hours</span>
+              </li>
+              <li className="flex min-w-0 flex-col gap-2">
+                <span className="h-1 rounded-full bg-[#DCE6FD]" />
+                <span className="text-[14px] font-extrabold text-muted">Sent to your bank</span>
+                <span className="v-hint">Within 24 hours</span>
+              </li>
+            </ol>
+          )}
+        </section>
+
+        <div className="flex min-w-0 flex-[2_1_260px] flex-col gap-5">
+          <div className="v-card v-bf flex grow flex-col gap-2 px-[22px] py-5" style={{ "--i": 2 }}>
+            <span className="v-eyebrow">Pending</span>
+            {loadingPayouts ? (
+              <span className="v-skel block h-7 w-32" />
+            ) : (
+              <span className="v-fig">{fmt(pendingTotal)}</span>
+            )}
+            <span className="v-hint">Sent within 24 hours</span>
           </div>
-          <div>
-            <p className="text-xl font-extrabold text-gray-800 tracking-tight">
-              {fmt(payouts.filter((p) => p.status === "pending").reduce((sum, p) => sum + Number(p.amount), 0))}
-            </p>
-            <p className="text-xs text-gray-400 mt-1">Awaiting approval</p>
+          <div className="v-card v-bf flex grow flex-col gap-2 px-[22px] py-5" style={{ "--i": 3 }}>
+            <span className="v-eyebrow">Total payout</span>
+            {loadingPayouts ? (
+              <span className="v-skel block h-7 w-32" />
+            ) : (
+              <span className="v-fig">{fmt(paidOutTotal)}</span>
+            )}
+            <span className="v-hint">Paid to your bank so far</span>
           </div>
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-100/80 shadow-sm p-4">
-        <div className="pb-3 mb-3 border-b border-gray-100 flex items-center justify-between">
-          <p className="text-sm font-bold text-gray-800">Payout history</p>
+      <section aria-label="Payout history" className="v-card v-bf min-w-0 overflow-hidden" style={{ "--i": 4 }}>
+        <div className="flex flex-wrap items-center gap-3 px-[22px] py-5">
+          <h2 className="v-h2 grow">History</h2>
+          {payouts.length > 0 && (
+            <div role="group" aria-label="Filter payouts" className="v-seg">
+              {FILTERS.map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  aria-pressed={filter === value}
+                  onClick={() => setFilter(value)}
+                >
+                  {label}
+                  <span className="n">{count(value)}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {loadingPayouts ? (
-          <p className="text-xs text-gray-400 py-6 text-center">Loading payout history…</p>
-        ) : payouts.length === 0 ? (
-          <div className="py-6 text-center">
-            <p className="text-sm font-semibold text-gray-700">No payout requests yet</p>
-            <p className="text-xs text-gray-500 mt-0.5">Once your tickets sell, request a withdrawal to your bank here.</p>
-          </div>
-        ) : (
-          <div className="divide-y divide-gray-50">
-            {payouts.map((p) => (
-              <div key={p.id} className="flex items-center gap-3 py-2.5 hover:bg-gray-50/50 px-1 rounded-lg transition-colors">
-                <div className="w-8.5 h-8.5 rounded-lg flex items-center justify-center shrink-0 bg-indigo-50 text-[#4F6EF7]">
-                  <HugeiconsIcon icon={WalletAdd01Icon} size={14} color="currentColor" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-semibold text-gray-800 truncate">
-                    {p.method === "bank" ? `Payout to ${p.bank_name}` : "Payout to wallet"}
-                  </p>
-                  <p className="text-xs text-gray-400 mt-0.5">{fmtDate(p.requested_at)}</p>
-                </div>
-                <span className={`inline-flex items-center justify-center text-[11px] font-bold px-2 py-0.5 rounded-md shrink-0 w-20 text-center ${
-                  STATUS_STYLE[p.status] || "bg-gray-100 text-gray-500 border border-gray-100"
-                }`}>
-                  {p.status?.toUpperCase()}
-                </span>
-                <p className="text-xs font-bold text-gray-800 shrink-0 w-24 text-right">{fmt(p.amount)}</p>
-              </div>
+          <div className="flex flex-col gap-3 border-t border-hairline px-[22px] py-5">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="v-skel h-6" />
             ))}
           </div>
-        )}
-      </div>
-
-      {bankModalOpen && (
-        <Modal title="Bank Details" onClose={() => setBankModalOpen(false)}>
-          <form onSubmit={saveBankDetails} className="space-y-3.5">
-            <div>
-              <label className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">Bank Name</label>
-              <input
-                type="text"
-                list="bank-options"
-                value={bankForm.bankName}
-                onChange={(e) => {
-                  const typed = e.target.value;
-                  const match = banks.find(
-                    (b) => b.name.toLowerCase() === typed.trim().toLowerCase()
+        ) : payouts.length === 0 ? (
+          <div className="border-t border-hairline px-[22px] py-10 text-center">
+            <p className="m-0 text-[15px] font-extrabold">No payout requests yet</p>
+            <p className="v-hint m-0 mt-1">Once your tickets sell, request a withdrawal to your bank here.</p>
+          </div>
+        ) : rows.length === 0 ? (
+          <p className="v-hint m-0 border-t border-hairline px-[22px] py-8 text-center">Nothing here for this filter</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[620px] border-collapse">
+              <thead>
+                <tr className="border-y border-hairline">
+                  <th scope="col" className="v-th px-[22px] py-3 text-left">Requested</th>
+                  <th scope="col" className="v-th p-3 text-left">Amount</th>
+                  <th scope="col" className="v-th p-3 text-left">To</th>
+                  <th scope="col" className="v-th py-3 pl-3 pr-[22px] text-left">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((p, i) => {
+                  const s = STATUS[p.status] || STATUS_FALLBACK;
+                  return (
+                    <tr key={p.id} className="v-row v-al border-b border-hairline" style={{ "--i": Math.min(i, 12) }}>
+                      <td className="px-[22px] py-3.5 text-[14px] font-bold">{fmtDate(p.requested_at)}</td>
+                      <td className="px-3 py-3.5">
+                        <span className="v-tab text-[15px] font-extrabold" style={{ color: s.amt }}>
+                          {fmt(p.amount)}
+                        </span>
+                      </td>
+                      <td className="px-3 py-3.5 text-[14px] text-muted">
+                        {p.method === "bank" ? `${p.bank_name} ${maskAccount(p.account_number)}` : "Wallet"}
+                      </td>
+                      <td className="py-3.5 pl-3 pr-[22px]">
+                        <span className="v-status" style={{ color: s.ink }}>
+                          <span className="v-dot" style={{ background: s.dot }} />
+                          {s.label || p.status}
+                        </span>
+                      </td>
+                    </tr>
                   );
-                  setBankForm((p) => ({
-                    ...p,
-                    bankName: typed,
-                    bankCode: match ? String(match.code) : "",
-                  }));
-                }}
-                placeholder={loadingBanks ? "Loading banks…" : "Type your bank name"}
-                autoComplete="off"
-                className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-xs text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#4F6EF7]/20 bg-white transition-all"
-              />
-              <datalist id="bank-options">
-                {banks.map((b) => (
-                  <option key={b.code} value={b.name} />
-                ))}
-              </datalist>
-            </div>
-            <div>
-              <label className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">Account Number</label>
-              <input
-                type="text"
-                inputMode="numeric"
-                value={bankForm.accountNumber}
-                onChange={(e) =>
-                  setBankForm((p) => ({ ...p, accountNumber: e.target.value.replace(/\D/g, "") }))
-                }
-                placeholder="0123456789"
-                maxLength={10}
-                className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-xs text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#4F6EF7]/20 transition-all"
-              />
-              <p className="text-xs mt-1 min-h-[1rem]">
-                {resolving && <span className="text-gray-500">Verifying account…</span>}
-                {!resolving && resolvedName && (
-                  <span className="text-green-600 font-medium inline-flex items-center gap-1">
-                    <svg
-                      width="12"
-                      height="12"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="3"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      className="shrink-0"
-                    >
-                      <polyline points="20 6 9 17 4 12" />
-                    </svg>
-                    {resolvedName}
-                  </span>
-                )}
-                {!resolving && !resolvedName && resolveError && (
-                  <span className="text-red-500">{resolveError}</span>
-                )}
-              </p>
-            </div>
-            <button
-              type="submit"
-              disabled={!resolvedName}
-              className="w-full bg-[#4F6EF7] hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-bold py-2 rounded-lg transition-colors mt-2 shadow-sm shadow-[#4F6EF7]/10"
-            >
-              Save Bank details
-            </button>
-          </form>
-        </Modal>
-      )}
-
-      {withdrawModalOpen && (
-        <Modal title="Request Withdrawal" onClose={() => setWithdrawModalOpen(false)}>
-          <form onSubmit={submitWithdrawal} className="space-y-3.5">
-            <div>
-              <label className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">Amount</label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">₦</span>
-                <input
-                  type="number"
-                  min="1"
-                  step="1"
-                  value={withdrawAmount}
-                  onChange={(e) => setWithdrawAmount(e.target.value)}
-                  placeholder="0.00"
-                  autoFocus
-                  className="w-full border border-gray-200 rounded-lg pl-7 pr-3 py-1.5 text-xs text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#4F6EF7]/20 transition-all"
-                />
-              </div>
-            </div>
-            <p className="text-xs text-gray-500 leading-relaxed">
-              {hasBankDetails
-                ? `Sent to ${bankDetails.bankName} ···· ${bankDetails.accountNumber.slice(-4)}`
-                : "You'll be asked to add bank details before this can be sent."}
-            </p>
-            <button
-              type="submit"
-              disabled={submitting}
-              className="w-full bg-[#4F6EF7] hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-bold py-2 rounded-lg transition-colors mt-2 shadow-sm shadow-[#4F6EF7]/10"
-            >
-              {submitting ? "Submitting..." : "Confirm withdrawal"}
-            </button>
-          </form>
-        </Modal>
-      )}
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <p className="v-hint m-0 px-[22px] py-3.5">
+          Payouts are sent to your bank within 24 hours. Questions?{" "}
+          <a href="mailto:support@usebyro.com" className="font-bold text-brand-dark">
+            support@usebyro.com
+          </a>
+        </p>
+      </section>
     </div>
   );
 }
