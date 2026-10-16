@@ -45,6 +45,7 @@ from .notifications import (
 )
 from .newsletter_views import NewsletterSubscribeView
 from .dash_events import DashboardEventsView
+from .dash_event import DashEventCohostResendView, DashEventGuestView, DashEventSummaryView
 from .dash_overview import DashboardOverviewView
 from .auth_views import (
     MagicAuthSendView,
@@ -94,6 +95,9 @@ urlpatterns = [
     path('api/dashboard/analytics/', DashboardAnalyticsView.as_view(), name='dashboard-analytics'),
     path('api/dashboard/overview/', DashboardOverviewView.as_view(), name='dashboard-overview'),
     path('api/dashboard/events/', DashboardEventsView.as_view(), name='dashboard-events'),
+    path('api/dashboard/events/<slug:slug>/summary/', DashEventSummaryView.as_view(), name='dashboard-event-summary'),
+    path('api/dashboard/events/<slug:slug>/guests/<uuid:ticket_id>/', DashEventGuestView.as_view(), name='dashboard-event-guest'),
+    path('api/dashboard/events/<slug:slug>/cohosts/<int:pk>/resend/', DashEventCohostResendView.as_view(), name='dashboard-event-cohost-resend'),
 
     # Events (explicit routes that need to come before the router catch-all)
     path('api/events/categories/', EventViewSet.as_view({'get': 'categories'}), name='event-categories'),

@@ -418,6 +418,35 @@ const API = {
     }
   },
 
+  // Dashboard event page: revenue per ticket type and followers from this event (money is owner only).
+  getDashEventSummary: async (slug) => {
+    try {
+      const response = await axiosInstance.get(`dashboard/events/${slug}/summary/`);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  // One guest's order (reference, size, paid and net) and how many of your events they've been to.
+  getDashEventGuest: async (slug, ticketId) => {
+    try {
+      const response = await axiosInstance.get(`dashboard/events/${slug}/guests/${ticketId}/`);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  resendCohostInvite: async (slug, cohostId) => {
+    try {
+      const response = await axiosInstance.post(`dashboard/events/${slug}/cohosts/${cohostId}/resend/`);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
   // Tickets
   transferTicket: async (ticketId, transferData) => {
     try {
