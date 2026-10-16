@@ -36,6 +36,36 @@ def samples():
             "Sam", 200, "GTBank", "0123456789", requested_at="5 Oct 2026, 2:10 PM", reference="PO-1")),
         ("payout-paid", emails.payout_completed_email(
             "Sam", 200, "GTBank", "0123456789", paid_on="6 Oct 2026", reference="PO-1")),
+        ("follower-new-event", emails.follower_new_event_email(
+            "Tunde", "GDGoC UNILAG", "Tech Meetup", *when, where, f"{SITE}/discover/tech-meetup",
+            tickets_label="General admission · Free", unfollow_url=f"{SITE}/unfollow/demo",
+            community_url=f"{SITE}/u/gdgoc")),
+        ("message-announcement", emails.organizer_message_email(
+            "Tunde Bello", "GDGoC UNILAG", "announce", "Big news, {{name}}",
+            "We are hosting our biggest meetup yet.\n\nSee you there!",
+            event={"date": when[0], "time": when[1], "location": where, "url": f"{SITE}/discover/tech-meetup"},
+            unfollow_url=f"{SITE}/unfollow/demo")),
+        ("message-update", emails.organizer_message_email(
+            "Tunde Bello", "GDGoC UNILAG", "update", "Venue change for Tech Meetup",
+            "We have moved to a bigger room on the same floor.",
+            event={"date": when[0], "time": when[1], "location": where, "url": f"{SITE}/discover/tech-meetup"})),
+        ("refunded", emails.order_refunded_email("Tunde", "Tech Meetup", 5000, reason="Requested by the buyer")),
+        ("cancelled-refund-arranged", emails.event_cancelled_email(
+            "Tunde", "Tech Meetup", *when, where, "The venue fell through", refund_amount=5000,
+            refund_state="arranged", event_url=f"{SITE}/discover/tech-meetup")),
+        ("cancelled-refund-sent", emails.event_cancelled_email(
+            "Tunde", "Tech Meetup", *when, where, "The venue fell through", refund_amount=5000,
+            refund_state="sent", event_url=f"{SITE}/discover/tech-meetup")),
+        ("cancelled-free", emails.event_cancelled_email(
+            "Tunde", "Tech Meetup", *when, where, "The venue fell through", event_url=f"{SITE}/discover/tech-meetup")),
+        ("refunds-awaiting", emails.refunds_awaiting_email(
+            "Tech Meetup", "sam@example.com", 3, 15000, f"{SITE}/admin/refunds")),
+        ("on-hold", emails.event_suspended_email("Tunde", "Tech Meetup", *when, where, f"{SITE}/discover/tech-meetup")),
+        ("back-on", emails.event_reinstated_email("Tunde", "Tech Meetup", *when, where, f"{SITE}/discover/tech-meetup")),
+        ("organiser-suspended", emails.organizer_event_suspended_email(
+            "Sam", "Tech Meetup", *when, where, f"{SITE}/discover/tech-meetup", f"{SITE}/dashboard")),
+        ("organiser-live-again", emails.organizer_event_reinstated_email(
+            "Sam", "Tech Meetup", *when, where, f"{SITE}/discover/tech-meetup", f"{SITE}/dashboard")),
     ]
 
 
