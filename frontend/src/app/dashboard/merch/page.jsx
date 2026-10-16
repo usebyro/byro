@@ -93,6 +93,8 @@ export default function MerchPage() {
   const [deletingId, setDeletingId] = useState(null);
   const [togglingId, setTogglingId] = useState(null);
   const [focusField, setFocusField] = useState("name");
+  // Phones get a bottom sheet, desktop keeps the side sheet. Read when the sheet opens.
+  const [sheetUp, setSheetUp] = useState(false);
   const nameRef = useRef(null);
   const stockRef = useRef(null);
 
@@ -115,6 +117,7 @@ export default function MerchPage() {
     setImageFile(null);
     setImagePreview(null);
     setFocusField("name");
+    setSheetUp(window.matchMedia("(max-width: 767px)").matches);
     setModalOpen(true);
   };
 
@@ -131,6 +134,7 @@ export default function MerchPage() {
     setImageFile(null);
     setImagePreview(item.image_url || null);
     setFocusField(field);
+    setSheetUp(window.matchMedia("(max-width: 767px)").matches);
     setModalOpen(true);
   };
 
@@ -233,7 +237,7 @@ export default function MerchPage() {
   const alerts = attentionList(items);
 
   return (
-    <div className="mx-auto flex w-full max-w-[1240px] flex-col gap-6 px-4 pb-12 pt-2 sm:px-[clamp(16px,3vw,40px)]">
+    <div className="mx-auto flex w-full max-w-[1240px] flex-col gap-5 px-4 pb-12 pt-2 sm:px-[clamp(16px,3vw,40px)] md:gap-6">
       <div className="v-bf flex flex-wrap items-end gap-4" style={{ "--i": 0 }}>
         <div className="flex min-w-0 flex-[1_1_320px] flex-col gap-1.5">
           <h1 className="v-h1">Merch</h1>
@@ -302,7 +306,7 @@ export default function MerchPage() {
         ) : (
           <>
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[760px] border-collapse">
+              <table className="v-stack w-full min-w-[760px] border-collapse">
                 <thead>
                   <tr className="border-b border-hairline">
                     <th scope="col" className="v-th px-5 py-3.5 text-left">Item</th>
@@ -338,9 +342,9 @@ export default function MerchPage() {
                             </span>
                           </button>
                         </td>
-                        <td className="v-tab whitespace-nowrap p-3 text-right text-[15px] font-extrabold">{fmtPrice(item.price)}</td>
-                        <td className={`v-tab whitespace-nowrap p-3 text-right text-sm font-bold ${stock.ink}`}>{stock.text}</td>
-                        <td className="py-3 pl-6 pr-3">
+                        <td data-l="Price" className="v-tab whitespace-nowrap p-3 text-right text-[15px] font-extrabold">{fmtPrice(item.price)}</td>
+                        <td data-l="Stock" className={`v-tab whitespace-nowrap p-3 text-right text-sm font-bold ${stock.ink}`}>{stock.text}</td>
+                        <td data-l="Status" className="py-3 pl-6 pr-3">
                           <span
                             className={`v-status ${status.ink}`}
                             title={item.removed_by_admin ? "Byro took this item down. Email support@usebyro.com if you think this is a mistake." : undefined}
@@ -349,7 +353,7 @@ export default function MerchPage() {
                             {status.text}
                           </span>
                         </td>
-                        <td className="px-5 py-3">
+                        <td className="px-5 py-3 max-md:ml-auto">
                           <span className="flex items-center justify-end gap-2">
                             {!item.removed_by_admin && (
                               <button
@@ -379,18 +383,23 @@ export default function MerchPage() {
       </section>
 
       {modalOpen && (
-        <div className="fixed inset-0 z-50 flex justify-end">
+        <div className={`fixed inset-0 z-50 flex ${sheetUp ? "flex-col justify-end" : "justify-end"}`}>
           <button type="button" aria-label="Close" onClick={closeModal} className="v-scrim absolute inset-0 cursor-pointer border-0 bg-[rgba(20,22,28,.28)]" />
           <aside
             role="dialog"
             aria-modal="true"
             aria-labelledby="merch-sheet-title"
-            className="v-sheet relative box-border flex h-full w-[min(460px,100%)] flex-col overflow-y-auto bg-white p-6"
+            className={
+              sheetUp
+                ? "v-sheet-up relative box-border flex max-h-[92dvh] w-full flex-col overflow-y-auto rounded-t-3xl bg-white px-5 pb-[calc(20px+env(safe-area-inset-bottom))] pt-2.5 shadow-[0_-20px_50px_-20px_rgba(20,22,28,.35)]"
+                : "v-sheet relative box-border flex h-full w-[min(460px,100%)] flex-col overflow-y-auto bg-white p-6"
+            }
           >
+            {sheetUp && <span aria-hidden="true" className="mx-auto mb-2.5 mt-0.5 block h-1 w-10 shrink-0 rounded-full bg-[#CBD3DF]" />}
             <form onSubmit={handleSubmit} className="flex min-h-full flex-col gap-[18px]">
               <div className="flex items-center">
                 <h2 id="merch-sheet-title" className="v-h2 flex-grow !text-[22px]">{editing ? "Edit item" : "New item"}</h2>
-                <button type="button" className="v-icon-btn ghost" aria-label="Close" onClick={closeModal}>
+                <button type="button" className="v-icon-btn ghost max-md:!h-11 max-md:!w-11" aria-label="Close" onClick={closeModal}>
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
                     <path d="M6 6l12 12M18 6L6 18" />
                   </svg>
