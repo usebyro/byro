@@ -268,7 +268,6 @@ export default function StudioPayouts() {
   };
 
   const paid = payouts.filter((p) => p.status === "processed");
-  const paidCount = paid.length;
   const paidOutTotal = paid.reduce((sum, p) => sum + Number(p.amount), 0);
   const pendingTotal = payouts.filter((p) => p.status === "pending").reduce((sum, p) => sum + Number(p.amount), 0);
 
@@ -500,11 +499,6 @@ export default function StudioPayouts() {
             ) : (
               <span className="v-fig">{fmt(paidOutTotal)}</span>
             )}
-            <span className="v-hint">
-              {paidCount
-                ? `Since you joined, across ${paidCount} payout${paidCount === 1 ? "" : "s"}`
-                : "Nothing paid out yet"}
-            </span>
           </div>
         </div>
       </div>
