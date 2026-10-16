@@ -108,3 +108,22 @@
 @media (prefers-reduced-motion: reduce) {
   .dv2 *, .dv2 *::before, .dv2 *::after { animation-name: v-fadein !important; animation-duration: 150ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important; transition-property: opacity, background-color, color !important; }
 }
+
+/* Phone: a table with class v-stack becomes stacked rows, as in the mobile boards.
+   Give each <td> after the first a data-l="Label" to show its column name above the value. */
+@media (max-width: 767px) {
+  .dv2 table.v-stack { min-width: 0 !important; display: block; width: 100%; }
+  .dv2 table.v-stack thead { display: none; }
+  .dv2 table.v-stack tbody { display: flex; flex-direction: column; }
+  .dv2 table.v-stack tr { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 14px 16px; }
+  .dv2 table.v-stack td { display: block; padding: 0 !important; text-align: left !important; width: auto !important; }
+  .dv2 table.v-stack td:first-child { flex: 1 1 100%; }
+  .dv2 table.v-stack td[data-l]::before { content: attr(data-l); display: block; font-size: 12px; font-weight: 600; color: #5B6272; margin-bottom: 2px; }
+  .dv2 .v-hero { font-size: 40px; }
+  .dv2 .v-h1 { font-size: 28px; }
+}
+
+/* Money moving from your byro wallet to your bank (Overview and Payouts bank row). */
+.dv2 .v-travel { animation: v-travel 1100ms var(--ease) 400ms both; }
+.dv2 .v-travel-live { animation: v-travel 1600ms cubic-bezier(0.77, 0, 0.175, 1) 0ms infinite; }
+@keyframes v-travel { from { translate: 0 0; opacity: 0; } 15% { opacity: 1; } 85% { opacity: 1; } to { translate: 22px 0; opacity: 1; } }

@@ -5,7 +5,20 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Menu01Icon, Cancel01Icon } from "@hugeicons/core-free-icons";
+import {
+  Cancel01Icon,
+  Home01Icon,
+  Calendar03Icon,
+  UserGroupIcon,
+  Mail01Icon,
+  ShoppingBag01Icon,
+  Wallet01Icon,
+  UserCircleIcon,
+  PlusSignIcon,
+  ArrowDataTransferHorizontalIcon,
+  MoreHorizontalIcon,
+  SidebarLeftIcon,
+} from "@hugeicons/core-free-icons";
 import { Providers } from "@/redux/Providers";
 import { useDispatch } from "react-redux";
 import { useAuth } from "@/redux/useAuth";
@@ -16,21 +29,24 @@ import DashSearch from "@/components/dashboard/DashSearch";
 import API from "@/services/api";
 import "./dashboard-v2.css";
 
-// Icons are the stroke paths from the dashboard design, so the nav matches it exactly.
+// Menu icons are Hugeicons, like the rest of the app.
 const NAV = [
-  { label: "Overview", href: "/dashboard/overview", icon: "M4 11l8-7 8 7v9h-5v-6H9v6H4z", exact: true },
-  { label: "Events",   href: "/dashboard/events",   icon: "M4 6h16v14H4zM4 10h16M9 3v4M15 3v4" },
-  { label: "Community", href: "/dashboard/community", icon: "M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM2.5 20c.8-3.5 3.4-5.5 6.5-5.5s5.7 2 6.5 5.5M16 4.5a3.5 3.5 0 0 1 0 6.5M18 14.5c2 .6 3.2 2.6 3.5 5.5" },
-  { label: "Messages", href: "/dashboard/messages", icon: "M4 6h16v12H4zM4 7l8 6 8-6" },
-  { label: "Merch",    href: "/dashboard/merch",    icon: "M5 8h14l-1 13H6zM9 8V6a3 3 0 0 1 6 0v2" },
-  { label: "Payouts",  href: "/dashboard/payouts",  icon: "M3 7h18v10H3zM12 12m-2 0a2 2 0 1 0 4 0a2 2 0 1 0-4 0" },
-  { label: "Profile",  href: "/dashboard/profile",  icon: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21c1-4 4-6 8-6s7 2 8 6" },
+  { label: "Overview", href: "/dashboard/overview", icon: Home01Icon, exact: true },
+  { label: "Events",   href: "/dashboard/events",   icon: Calendar03Icon },
+  { label: "Community", href: "/dashboard/community", icon: UserGroupIcon },
+  { label: "Messages", href: "/dashboard/messages", icon: Mail01Icon },
+  { label: "Merch",    href: "/dashboard/merch",    icon: ShoppingBag01Icon },
+  { label: "Payouts",  href: "/dashboard/payouts",  icon: Wallet01Icon },
+  { label: "Profile",  href: "/dashboard/profile",  icon: UserCircleIcon },
 ];
 
-const Stroke = ({ d, size = 18 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="shrink-0">
-    <path d={d} />
-  </svg>
+// Phone tab bar: the four most used pages, the rest live under More.
+const TAB_HREFS = ["/dashboard/overview", "/dashboard/events", "/dashboard/community", "/dashboard/payouts"];
+const TABS = NAV.filter((n) => TAB_HREFS.includes(n.href)).map((n) => (n.label === "Overview" ? { ...n, tab: "Home" } : n));
+const MORE = NAV.filter((n) => !TAB_HREFS.includes(n.href));
+
+const NavIcon = ({ icon, size = 18 }) => (
+  <HugeiconsIcon icon={icon} size={size} color="currentColor" strokeWidth={1.8} className="shrink-0" aria-hidden="true" />
 );
 
 // In the collapsed rail the label stays in the DOM for screen readers, and shows as a tooltip on hover and keyboard focus.
@@ -129,10 +145,7 @@ function StudioShell({ children }) {
             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             aria-expanded={!collapsed}
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <rect x="3" y="4" width="18" height="16" rx="3" />
-              <path d="M9 4v16" />
-            </svg>
+            <NavIcon icon={SidebarLeftIcon} />
           </button>
         )}
 
@@ -180,7 +193,7 @@ function StudioShell({ children }) {
               } ${active ? "bg-white font-extrabold text-ink shadow-[0_1px_3px_rgba(20,22,28,.08)]" : "v-navi font-semibold text-body"}`}
             >
               <span className={active ? "text-brand" : "text-muted"}>
-                <Stroke d={item.icon} />
+                <NavIcon icon={item.icon} />
               </span>
               <RailLabel label={item.label} collapsed={collapsed} />
             </Link>
@@ -196,7 +209,7 @@ function StudioShell({ children }) {
           collapsed ? "justify-center" : "gap-3 px-3"
         }`}
       >
-        <Stroke d="M7 7h11l-3-3M17 17H6l3 3" />
+        <NavIcon icon={ArrowDataTransferHorizontalIcon} />
         <RailLabel label="Switch to attending" collapsed={collapsed} />
       </Link>
     </>
@@ -219,40 +232,97 @@ function StudioShell({ children }) {
         {renderSidebarContent(isCollapsed)}
       </aside>
 
+      {/* Phone: the "More" sheet from the bottom tab bar. */}
       {mobileOpen && (
-        <div className="md:hidden fixed inset-0 z-50 flex overscroll-contain" role="dialog" aria-modal="true" aria-label="Menu">
-          <div
-            className="v-scrim absolute inset-0 bg-black/40 backdrop-blur-[2px]"
-            onClick={() => setMobileOpen(false)}
-          />
-          <aside className={`${sidebarPad} relative z-10 h-full w-[264px] max-w-[84vw] overflow-y-auto overscroll-contain bg-[#F6F8FB] shadow-2xl animate-slide-in-left motion-reduce:animate-none`}>
-            {renderSidebarContent(false, () => setMobileOpen(false))}
-          </aside>
+        <div className="fixed inset-0 z-50 flex flex-col justify-end md:hidden" role="dialog" aria-modal="true" aria-label="More">
+          <button type="button" aria-label="Close menu" onClick={() => setMobileOpen(false)} className="v-scrim absolute inset-0 border-0 bg-[rgba(20,22,28,.32)]" />
+          <nav aria-label="More" className="v-sheet-up relative flex flex-col gap-0.5 rounded-t-[24px] bg-white px-3 pb-[calc(20px+env(safe-area-inset-bottom))] pt-2.5 shadow-[0_-20px_50px_-20px_rgba(20,22,28,.35)]">
+            <span aria-hidden="true" className="mx-auto mb-2.5 mt-0.5 h-1 w-10 rounded-full bg-[#CBD3DF]" />
+            {MORE.map((item, i) => (
+              <Link
+                key={item.href}
+                ref={i === 0 ? closeButtonRef : undefined}
+                href={item.href}
+                aria-current={pathname.startsWith(item.href) ? "page" : undefined}
+                className="v-row flex h-[52px] items-center gap-3.5 rounded-[14px] px-3.5 text-base font-bold text-ink aria-[current=page]:text-brand-dark"
+              >
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-mist text-body">
+                  <NavIcon icon={item.icon} size={20} />
+                </span>
+                {item.label}
+              </Link>
+            ))}
+            <div className="mx-1 my-1.5 h-px bg-hairline" />
+            <Link href="/dashboard/events/create" className="v-row flex h-[52px] items-center gap-3.5 rounded-[14px] px-3.5 text-base font-bold text-ink">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#EEF3FF] text-brand-dark">
+                <NavIcon icon={PlusSignIcon} size={20} />
+              </span>
+              Create event
+            </Link>
+            <Link href="/home" className="v-row flex h-[52px] items-center gap-3.5 rounded-[14px] px-3.5 text-base font-bold text-ink">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-mist text-body">
+                <NavIcon icon={ArrowDataTransferHorizontalIcon} size={20} />
+              </span>
+              Switch to attending
+            </Link>
+          </nav>
         </div>
       )}
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden" inert={mobileOpen}>
 
-        <header className="flex min-h-16 shrink-0 items-center gap-3 px-4 py-3 sm:px-[clamp(16px,3vw,40px)]">
-          <button
-            ref={menuButtonRef}
-            onClick={() => setMobileOpen(true)}
-            className="v-icon-btn ghost text-muted md:hidden"
-            aria-label="Open menu"
-          >
-            <HugeiconsIcon icon={Menu01Icon} size={20} color="currentColor" />
-          </button>
-
-          <DashSearch />
-          <div className="flex-1" />
+        <header className="flex shrink-0 items-center gap-2 bg-[rgba(246,248,251,.86)] px-4 py-2.5 backdrop-blur-[20px] backdrop-saturate-[1.8] md:min-h-16 md:gap-3 md:bg-transparent md:px-[clamp(16px,3vw,40px)] md:py-3 md:backdrop-filter-none">
+          {/* Phone: your community instead of the search. */}
+          <Link href={communityHref} className="v-press flex h-11 min-w-0 flex-1 items-center gap-2.5 md:hidden" aria-label={`${communityName}, view your community page`}>
+            <span aria-hidden="true" className="v-d flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[10px] bg-ink text-[15px] font-bold text-white">
+              {communityName.trim().charAt(0).toUpperCase()}
+            </span>
+            <span className="truncate text-base font-extrabold">{communityName}</span>
+          </Link>
+          <div className="hidden min-w-0 flex-1 md:flex">
+            <DashSearch />
+          </div>
           <NotificationBell />
           <UserMenu user={user} onLogout={handleLogout} size="sm" />
         </header>
 
-        <main id="main" tabIndex={-1} className="flex-1 overflow-y-auto focus:outline-none">
+        <main id="main" tabIndex={-1} className="flex-1 overflow-y-auto pb-[92px] focus:outline-none md:pb-0">
           {children}
         </main>
       </div>
+
+      {/* Phone: bottom tab bar. */}
+      <nav
+        aria-label="Dashboard"
+        className="fixed inset-x-0 bottom-0 z-40 flex gap-0.5 bg-[rgba(255,255,255,.86)] px-2 pb-[calc(4px+env(safe-area-inset-bottom))] pt-1 shadow-[0_-1px_0_rgba(20,22,28,.06)] backdrop-blur-[20px] backdrop-saturate-[1.8] md:hidden"
+        inert={mobileOpen}
+      >
+        {TABS.map((item) => {
+          const active = item.exact ? pathname === item.href || pathname === "/dashboard" : pathname.startsWith(item.href);
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              aria-current={active ? "page" : undefined}
+              className={`flex h-14 min-w-0 flex-1 flex-col items-center justify-center gap-[3px] rounded-[14px] text-[11px] font-bold ${active ? "text-brand-dark" : "text-muted"}`}
+            >
+              <NavIcon icon={item.icon} size={22} />
+              {item.tab || item.label}
+            </Link>
+          );
+        })}
+        <button
+          ref={menuButtonRef}
+          type="button"
+          onClick={() => setMobileOpen(true)}
+          aria-expanded={mobileOpen}
+          aria-current={MORE.some((m) => pathname.startsWith(m.href)) ? "page" : undefined}
+          className="flex h-14 min-w-0 flex-1 flex-col items-center justify-center gap-[3px] rounded-[14px] border-0 bg-transparent text-[11px] font-bold text-muted aria-[current=page]:text-brand-dark"
+        >
+          <NavIcon icon={MoreHorizontalIcon} size={22} />
+          More
+        </button>
+      </nav>
     </div>
   );
 }
