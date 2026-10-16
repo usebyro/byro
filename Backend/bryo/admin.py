@@ -9,6 +9,7 @@ from .models import (
     EventCoHost,
     Follow,
     MerchItem,
+    MerchPhoto,
     Payment,
     PayoutRequest,
     PromoCode,
@@ -30,8 +31,15 @@ class PromoCodeAdmin(admin.ModelAdmin):
     readonly_fields = ('redeemed_count', 'created_at')
 
 
+class MerchPhotoInline(admin.TabularInline):
+    model = MerchPhoto
+    extra = 0
+    fields = ('image', 'position')
+
+
 @admin.register(MerchItem)
 class MerchItemAdmin(admin.ModelAdmin):
+    inlines = [MerchPhotoInline]
     list_display = ('name', 'owner', 'price', 'stock', 'is_active', 'created_at')
     list_filter = ('is_active',)
     search_fields = ('name', 'owner__email')

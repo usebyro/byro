@@ -816,6 +816,24 @@ class MerchItem(models.Model):
         return f"{self.name} ({self.owner_id})"
 
 
+class MerchPhoto(models.Model):
+    """
+    One photo of a merch item; an item can have several, shown as a slideshow.
+    The first (lowest position) is the cover and is mirrored into MerchItem.image,
+    so anything that reads `image` keeps working.
+    """
+    item = models.ForeignKey(MerchItem, on_delete=models.CASCADE, related_name='photos')
+    image = models.ImageField(upload_to='merch/')
+    position = models.PositiveSmallIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['position', 'id']
+
+    def __str__(self):
+        return f"Photo {self.position} of merch {self.item_id}"
+
+
 class Ticket(models.Model):
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='tickets')
     ticket_id = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
