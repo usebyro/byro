@@ -497,6 +497,8 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
         type="checkbox"
         checked={agreed}
         onChange={(e) => setAgreed(e.target.checked)}
+        required
+        aria-required="true"
         className="mt-0.5 h-5 w-5 shrink-0 cursor-pointer rounded accent-[#3669F6]"
       />
       <span className="text-[13px] leading-relaxed text-[#3B4252]">
@@ -505,6 +507,8 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
         <a href="/refund-policy" target="_blank" className="font-bold text-[#2451D6] hover:underline">Refund policy</a>{" "}
         and{" "}
         <a href="/privacy" target="_blank" className="font-bold text-[#2451D6] hover:underline">Privacy policy</a>.
+        <span className="ml-0.5 font-bold text-[#D92D20]" aria-hidden="true">*</span>
+        <span className="sr-only"> (required)</span>
       </span>
     </label>
     {organizerName && (
