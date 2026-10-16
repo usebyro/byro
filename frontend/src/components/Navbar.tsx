@@ -9,6 +9,8 @@ import API from "@/services/api";
 import axiosInstance from "@/utils/axios";
 import { signOut, authSuccess } from "@/redux/auth/authSlice";
 import UserMenu from "@/components/auth/UserMenu";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { Compass01Icon, Calendar03Icon, UserGroupIcon, UserCircleIcon } from "@hugeicons/core-free-icons";
 
 type NavLink = { label: string; href: string; authOnly?: boolean };
 
@@ -19,6 +21,15 @@ const navLinks: NavLink[] = [
   { label: "Pricing", href: "/pricing" },
   { label: "Blog", href: "/blog" },
 ];
+
+// Phone tab bar for signed-in people, on the browsing pages only (event and checkout pages have their own bottom bars).
+const TABS = [
+  { label: "Discover", href: "/discover", icon: Compass01Icon },
+  { label: "Events", href: "/home", icon: Calendar03Icon },
+  { label: "Communities", href: "/communities", icon: UserGroupIcon },
+  { label: "Profile", href: "/dashboard/profile", icon: UserCircleIcon },
+];
+const TAB_PAGES = ["/home", "/discover", "/communities"];
 
 const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -63,6 +74,8 @@ const Navbar = () => {
 
   const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
   const handleLogout = () => dispatch(signOut());
+
+  const showTabs = isLoggedIn && TAB_PAGES.includes(pathname);
 
   const pill =
     "rounded-full border border-hairline bg-white/85 shadow-[0_8px_30px_rgba(20,22,28,0.05)] backdrop-blur";
@@ -160,6 +173,31 @@ const Navbar = () => {
           </div>
         )}
       </nav>
+
+      {showTabs && (
+        <>
+          {/* Room at the bottom of the page so the tab bar never covers the last thing on it. */}
+          <style>{`@media (max-width: 767px) { body { padding-bottom: calc(68px + env(safe-area-inset-bottom)); } }`}</style>
+          <nav
+            aria-label="Sections"
+            className="fixed inset-x-0 bottom-0 z-40 flex gap-0.5 bg-white/85 px-2 pb-[calc(4px+env(safe-area-inset-bottom))] pt-1 shadow-[0_-1px_0_rgba(20,22,28,.06)] backdrop-blur-[20px] backdrop-saturate-[1.8] md:hidden"
+          >
+            {TABS.map((t) => (
+              <Link
+                key={t.href}
+                href={t.href}
+                aria-current={isActive(t.href) ? "page" : undefined}
+                className={`flex h-14 min-w-0 flex-1 flex-col items-center justify-center gap-[3px] rounded-[14px] text-[11px] font-bold ${
+                  isActive(t.href) ? "text-brand-dark" : "text-muted"
+                }`}
+              >
+                <HugeiconsIcon icon={t.icon} size={22} color="currentColor" strokeWidth={1.8} aria-hidden="true" />
+                {t.label}
+              </Link>
+            ))}
+          </nav>
+        </>
+      )}
     </div>
   );
 };
