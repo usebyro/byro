@@ -285,7 +285,7 @@ function ProfilePageContent() {
   // ── Loading ──
   if (loading) {
     return (
-      <div className="mx-auto flex w-full max-w-[1240px] flex-col gap-6 px-4 pb-12 pt-2 sm:px-[clamp(16px,3vw,40px)]" aria-busy="true">
+      <div className="mx-auto flex w-full max-w-[1240px] flex-col gap-5 px-4 pb-12 pt-4 sm:px-[clamp(16px,3vw,40px)] md:gap-6 md:pt-2" aria-busy="true">
         <span className="sr-only">Loading your profile…</span>
         <div className="flex flex-col gap-2">
           <div className="v-skel h-9 w-40" />
@@ -313,7 +313,7 @@ function ProfilePageContent() {
   const saveLabel = isSaving ? "Saving…" : !dirty && justSaved ? "Saved" : "Save changes";
 
   return (
-    <div className="mx-auto flex w-full max-w-[1240px] flex-col gap-6 px-4 pb-12 pt-2 sm:px-[clamp(16px,3vw,40px)]">
+    <div className="mx-auto flex w-full max-w-[1240px] flex-col gap-5 px-4 pb-12 pt-4 sm:px-[clamp(16px,3vw,40px)] md:gap-6 md:pt-2">
       <div className="v-bf flex flex-wrap items-end gap-3" style={{ "--i": 0 }}>
         <div className="flex min-w-0 flex-[1_1_320px] flex-col gap-1.5">
           <h1 className="v-h1">Profile</h1>
@@ -554,9 +554,10 @@ function ProfilePageContent() {
         <ProfilePreview form={form} avatarSrc={avatarSrc} coverSrc={coverSrc} stats={stats} publicPath={publicPath} isPublic={savedForm.is_public} />
       </div>
 
-      {/* ── Phones: the header buttons scroll away, so keep Save in reach while there is something to save ── */}
+      {/* ── Phones: the header buttons scroll away, so keep Save in reach while there is something to save.
+          It rides just above the bottom tab bar (64px + safe area), like the board's status cards at 84px. ── */}
       {dirty && (
-        <div className="pointer-events-none sticky bottom-3 z-20 flex justify-center md:hidden">
+        <div className="pointer-events-none sticky bottom-[calc(84px+env(safe-area-inset-bottom))] z-20 flex justify-center md:hidden">
           <div
             role="region"
             aria-label="Unsaved changes"
@@ -717,7 +718,7 @@ function PublicPageCard({ path, isPublic }) {
 /* One settings card: title and hint on top, fields below. */
 function Section({ id, title, hint, i = 0, children }) {
   return (
-    <section aria-labelledby={id} className="v-card v-bf flex flex-col gap-[18px] p-6 max-sm:p-5" style={{ "--i": i }}>
+    <section aria-labelledby={id} className="v-card v-bf flex flex-col gap-[18px] p-6" style={{ "--i": i }}>
       <div className="flex flex-col gap-1">
         <h2 id={id} className="v-h2">{title}</h2>
         {hint && <span className="v-hint">{hint}</span>}
