@@ -10,9 +10,6 @@ import { handleProblem } from "@/lib/handle";
 import API from "@/services/api";
 import { toast } from "sonner";
 
-// Body text uses the app's Nunito Sans (loaded in the root layout); headings use Bricolage via font-display.
-const FONT = { fontFamily: 'var(--font-body), system-ui, -apple-system, "Segoe UI", sans-serif' };
-
 const BIO_MAX = 500;
 
 const SOCIALS = [
@@ -64,10 +61,8 @@ const toForm = (data) => ({
   is_public:    data?.is_public !== false,
 });
 
-// 16px on phones so iOS doesn't zoom on focus, 44px tall.
-const inputCls =
-  "w-full h-11 rounded-xl border border-[#CBD3DF] bg-white px-3.5 text-base md:text-[15px] text-ink " +
-  "placeholder:text-faint focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/25";
+// v-input is 44px tall with 16px text, so iOS doesn't zoom on focus.
+const inputCls = "v-input placeholder:text-faint";
 
 function ProfilePageContent() {
   const router       = useRouter();
@@ -83,6 +78,7 @@ function ProfilePageContent() {
   const [errors,    setErrors]    = useState({});
   const [avatarRemoved, setAvatarRemoved] = useState(false);
   const [stats, setStats] = useState(null);
+  const [justSaved, setJustSaved] = useState(false);
 
   const [avatarFile,        setAvatarFile]        = useState(null);
   const [avatarPreview,     setAvatarPreview]     = useState("");
@@ -250,6 +246,7 @@ function ProfilePageContent() {
         token,
       }));
 
+      setJustSaved(true);
       toast.success("Changes saved");
     } catch (err) {
       const message = err?.message || "Try again.";
@@ -288,8 +285,19 @@ function ProfilePageContent() {
   // ── Loading ──
   if (loading) {
     return (
-      <div className="p-4 md:p-6 max-w-6xl mx-auto flex items-center justify-center py-24">
-        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-[#4F6EF7]" />
+      <div className="mx-auto flex w-full max-w-[1240px] flex-col gap-6 px-4 pb-12 pt-2 sm:px-[clamp(16px,3vw,40px)]" aria-busy="true">
+        <span className="sr-only">Loading your profile…</span>
+        <div className="flex flex-col gap-2">
+          <div className="v-skel h-9 w-40" />
+          <div className="v-skel h-4 w-72 max-w-full" />
+        </div>
+        <div className="flex flex-wrap items-start gap-6">
+          <div className="flex min-w-0 flex-[3_1_460px] flex-col gap-5">
+            <div className="v-skel h-[300px] !rounded-[20px]" />
+            <div className="v-skel h-[420px] !rounded-[20px]" />
+          </div>
+          <div className="v-skel h-[380px] min-w-0 flex-[2_1_320px] !rounded-[20px]" />
+        </div>
       </div>
     );
   }
@@ -301,19 +309,17 @@ function ProfilePageContent() {
   // Instagram, X, WhatsApp and Website are always there. LinkedIn and Telegram only show if already filled in.
   const extraSocials = SOCIALS.filter((x) => (x.key === "linkedin" || x.key === "telegram") && form[x.key].trim());
 
+  const bioLen = form.bio.length;
+  const saveLabel = isSaving ? "Saving…" : !dirty && justSaved ? "Saved" : "Save changes";
+
   return (
-    <div style={FONT} className="px-4 pb-12 pt-8 text-ink md:px-8 lg:px-12">
-      <header className="mb-3 flex flex-wrap items-end gap-x-3 gap-y-3">
-        <div className="min-w-[240px] flex-1">
-          <h1 className="font-display text-[28px] font-bold leading-[1.1] tracking-[-0.03em] md:text-[32px]">Profile</h1>
-          <p className="mt-1.5 text-[15px] text-muted">This is your community page. The preview updates as you type.</p>
+    <div className="mx-auto flex w-full max-w-[1240px] flex-col gap-6 px-4 pb-12 pt-2 sm:px-[clamp(16px,3vw,40px)]">
+      <div className="v-bf flex flex-wrap items-end gap-3" style={{ "--i": 0 }}>
+        <div className="flex min-w-0 flex-[1_1_320px] flex-col gap-1.5">
+          <h1 className="v-h1">Profile</h1>
+          <p className="v-sub">This is your community page. The preview updates as you type.</p>
         </div>
-        <button
-          type="button"
-          onClick={handleDiscard}
-          disabled={isSaving}
-          className="h-11 rounded-full border border-line bg-white px-5 text-[15px] font-bold text-ink transition-[background-color,scale] hover:bg-paper active:scale-[0.97] disabled:cursor-not-allowed disabled:border-0 disabled:bg-hairline disabled:text-muted disabled:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
-        >
+        <button type="button" onClick={handleDiscard} disabled={isSaving} className="v-btn v-btn-s v-btn-lg">
           Discard
         </button>
         <button
@@ -321,21 +327,21 @@ function ProfilePageContent() {
           onClick={handleSave}
           disabled={isSaving}
           title="Save changes (Ctrl or Cmd + S)"
-          className="h-11 rounded-full bg-brand px-5 text-[15px] font-bold text-white transition-[background-color,scale] hover:bg-brand-dark active:scale-[0.97] disabled:cursor-not-allowed disabled:bg-hairline disabled:text-muted disabled:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
+          className="v-btn v-btn-p v-btn-lg"
         >
-          {isSaving ? "Saving…" : "Save changes"}
+          {saveLabel}
         </button>
-      </header>
+      </div>
 
       <p className="sr-only" aria-live="polite">
         {dirty ? `${changeCount} unsaved change${changeCount === 1 ? "" : "s"}` : ""}
       </p>
 
-      <div className="grid grid-cols-1 items-start gap-x-10 gap-y-6 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="min-w-0">
-          <Section title="Photo and cover" hint="Shown at the top of your community page.">
-            <div className="flex items-center gap-4">
-              <span className="flex h-[72px] w-[72px] shrink-0 items-center justify-center overflow-hidden rounded-full bg-ink font-display text-[28px] font-bold text-white">
+      <div className="flex flex-wrap items-start gap-6">
+        <div className="flex min-w-0 flex-[3_1_460px] flex-col gap-5">
+          <Section id="ph" title="Photo and cover" hint="Shown at the top of your community page." i={1}>
+            <div className="flex flex-wrap items-center gap-4">
+              <span className="v-d flex h-[72px] w-[72px] shrink-0 items-center justify-center overflow-hidden rounded-[20px] bg-ink text-[30px] font-bold text-white">
                 {avatarSrc ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={avatarSrc} alt="" width={72} height={72} className="h-full w-full object-cover" />
@@ -343,75 +349,72 @@ function ProfilePageContent() {
                   initialOf(form.display_name)
                 )}
               </span>
-              <div className="flex flex-col gap-1.5">
-                <span className="flex items-center gap-2">
+              <span className="flex flex-col gap-2">
+                <span className="flex gap-2">
                   <FileButton onChange={handleAvatarChange}>{avatarSrc ? "Change photo" : "Add photo"}</FileButton>
                   {avatarSrc && (
-                    <button
-                      type="button"
-                      onClick={removeAvatar}
-                      className="h-10 rounded-full px-3.5 text-sm font-bold text-muted transition-[background-color,color] hover:bg-paper hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
-                    >
+                    <button type="button" onClick={removeAvatar} className="v-btn v-btn-t v-btn-sm">
                       Remove
                     </button>
                   )}
                 </span>
-                <span className="text-[13px] leading-normal text-muted">Square, at least 400 × 400px.</span>
-              </div>
+                <span className="v-hint">Square, at least 400 × 400px.</span>
+              </span>
             </div>
-            <div className="flex flex-col gap-2">
-              <span className="text-sm font-bold">Cover</span>
-              <div className="relative h-[140px] overflow-hidden rounded-xl bg-mist">
-                {coverSrc && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={coverSrc} alt="Your cover" width={800} height={140} className="h-full w-full object-cover" />
-                )}
-                <FileButton onChange={handleCoverImageChange} className="absolute bottom-3 right-3 !h-9 !text-[13px]">
-                  {coverSrc ? "Change cover" : "Add cover"}
-                </FileButton>
-              </div>
-              <span className="text-[13px] leading-normal text-muted">A photo from one of your events works best. 1600 × 500px.</span>
+            <div className="relative h-[140px] overflow-hidden rounded-2xl bg-mist">
+              {coverSrc ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={coverSrc} alt="Current cover photo" width={800} height={140} className="block h-full w-full object-cover" />
+              ) : (
+                <span className="flex h-full flex-col items-center justify-center gap-0.5 text-faint">
+                  <span className="text-sm font-semibold">No cover yet</span>
+                  <span className="v-tab text-xs font-semibold">1600 × 500px</span>
+                </span>
+              )}
+              <FileButton onChange={handleCoverImageChange} className="absolute bottom-3 right-3">
+                {coverSrc ? "Change cover" : "Add cover"}
+              </FileButton>
             </div>
           </Section>
 
-          <Section title="About" hint="Who you are and where people can find you.">
-            <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
-              <Field id="display_name" label="Name" error={errors.display_name}>
-                <input
-                  id="display_name"
-                  name="display_name"
-                  type="text"
-                  value={form.display_name}
-                  maxLength={100}
-                  onChange={(e) => field("display_name", e.target.value)}
-                  aria-invalid={Boolean(errors.display_name)}
-                  className={inputCls}
-                  placeholder="Eko Live Entertainment…"
-                  autoComplete="organization"
-                />
-              </Field>
-              <Field id="category" label="Category">
-                <div className="relative">
-                  <select
-                    id="category"
-                    name="category"
-                    value={form.category}
-                    onChange={(e) => field("category", e.target.value)}
-                    className={`${inputCls} appearance-none pr-10`}
-                  >
-                    <option value="">Choose one…</option>
-                    {CATEGORIES.map((c) => (
-                      <option key={c.value} value={c.value}>
-                        {c.label}
-                      </option>
-                    ))}
-                  </select>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5B6272" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true" className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2">
-                    <path d="M6 9l6 6 6-6" />
-                  </svg>
-                </div>
-              </Field>
-            </div>
+          <Section id="ab" title="About" hint="Who you are and where people can find you." i={2}>
+            <Field id="display_name" label="Name" error={errors.display_name}>
+              <input
+                id="display_name"
+                name="display_name"
+                type="text"
+                value={form.display_name}
+                maxLength={100}
+                onChange={(e) => field("display_name", e.target.value)}
+                aria-invalid={Boolean(errors.display_name)}
+                className={`${inputCls} ${errors.display_name ? "!border-red-500" : ""}`}
+                placeholder="Eko Live Entertainment…"
+                autoComplete="organization"
+              />
+            </Field>
+
+            <fieldset className="m-0 flex flex-col gap-2.5 border-0 p-0">
+              <legend className="v-lbl mb-2.5 p-0">Category</legend>
+              <div className="flex flex-wrap gap-2">
+                {CATEGORIES.map((c) => {
+                  const on = form.category === c.value;
+                  return (
+                    <button
+                      key={c.value}
+                      type="button"
+                      aria-pressed={on}
+                      // Tapping the chosen one again clears it, as the old "Choose one" option did.
+                      onClick={() => field("category", on ? "" : c.value)}
+                      className={`v-press h-[38px] cursor-pointer rounded-full border-[1.5px] px-4 text-sm font-bold transition-[background-color,border-color,color] duration-200 ${
+                        on ? "border-brand bg-[#EEF3FF] text-brand-dark" : "border-line bg-white text-body"
+                      }`}
+                    >
+                      {c.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </fieldset>
 
             <Field id="handle" label={<>Handle <span className="text-red-500">*</span></>} error={errors.handle} hint="Changing this breaks old links to your page.">
               <PrefixInput
@@ -440,7 +443,7 @@ function ProfilePageContent() {
               />
             </Field>
 
-            <Field id="bio" label={<>Bio <span className="text-red-500">*</span></>} error={errors.bio} counter={`${form.bio.length} / ${BIO_MAX}`}>
+            <Field id="bio" label={<>Bio <span className="text-red-500">*</span></>} error={errors.bio}>
               <textarea
                 id="bio"
                 name="bio"
@@ -451,16 +454,18 @@ function ProfilePageContent() {
                 rows={3}
                 required
                 aria-invalid={Boolean(errors.bio)}
-                className={`h-24 w-full resize-y rounded-xl border bg-white px-3.5 py-3 text-base leading-normal text-ink placeholder:text-faint focus:outline-none focus:ring-2 md:text-[15px] ${
-                  errors.bio ? "border-red-500 focus:ring-red-500/25" : "border-[#CBD3DF] focus:border-brand focus:ring-brand/25"
-                }`}
+                aria-describedby="bio-count"
+                className={`${inputCls} ${errors.bio ? "!border-red-500" : ""}`}
                 placeholder="Lagos-based collective throwing rooftop parties and open-mic nights…"
               />
+              <span id="bio-count" className={`v-hint v-tab mt-2 block text-right ${bioLen > BIO_MAX * 0.9 ? "font-bold text-[#B45309]" : ""}`}>
+                {bioLen} / {BIO_MAX}
+              </span>
             </Field>
           </Section>
 
-          <Section title="Links" hint="Leave any blank to hide it.">
-            <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
+          <Section id="ln" title="Links" hint="Leave any blank to hide it." i={3}>
+            <div className="grid gap-3.5 [grid-template-columns:repeat(auto-fit,minmax(min(240px,100%),1fr))]">
               {["instagram", "twitter"].map((key) => {
                 const x = SOCIALS.find((o) => o.key === key);
                 return (
@@ -506,7 +511,7 @@ function ProfilePageContent() {
                   autoCorrect="off"
                   spellCheck={false}
                   className={inputCls}
-                  placeholder="https://example.com…"
+                  placeholder="https://"
                 />
               </Field>
               {extraSocials.map((x) => (
@@ -524,11 +529,11 @@ function ProfilePageContent() {
             </div>
           </Section>
 
-          <Section title="Visibility" hint="Control where your page shows up." last>
+          <Section id="vs" title="Visibility" hint="Control where your page shows up." i={4}>
             <div className="flex items-center gap-3.5">
-              <span id="listing-label" className="flex flex-1 flex-col gap-0.5">
-                <span className="text-[15px] font-bold">List on the communities page</span>
-                <span className="text-[13px] leading-normal text-muted">People can find you in byro&apos;s community directory.</span>
+              <span id="listing-label" className="flex flex-grow flex-col gap-0.5">
+                <span className="text-[15px] font-extrabold">List on the communities page</span>
+                <span className="v-hint">People can find you in byro&rsquo;s community directory.</span>
               </span>
               <button
                 type="button"
@@ -536,26 +541,26 @@ function ProfilePageContent() {
                 aria-checked={form.is_public}
                 aria-labelledby="listing-label"
                 onClick={() => field("is_public", !form.is_public)}
-                className={`flex h-[26px] w-11 shrink-0 rounded-full p-[3px] transition-colors motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 ${
-                  form.is_public ? "bg-brand" : "bg-[#C9D0DC]"
-                }`}
+                className={`flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-0 p-[3px] transition-colors ${form.is_public ? "bg-brand" : "bg-[#C9D0DC]"}`}
               >
-                <span className={`h-5 w-5 rounded-full bg-white shadow-[0_1px_2px_rgba(20,22,28,0.2)] transition-transform duration-150 ease-out motion-reduce:transition-none ${form.is_public ? "translate-x-[18px]" : "translate-x-0"}`} />
+                <span
+                  className={`h-[22px] w-[22px] rounded-full bg-white shadow-[0_1px_3px_rgba(20,22,28,.25)] transition-transform duration-150 ease-out ${form.is_public ? "translate-x-5" : "translate-x-0"}`}
+                />
               </button>
             </div>
           </Section>
         </div>
 
-        <ProfilePreview form={form} avatarSrc={avatarSrc} coverSrc={coverSrc} stats={stats} publicPath={publicPath} />
+        <ProfilePreview form={form} avatarSrc={avatarSrc} coverSrc={coverSrc} stats={stats} publicPath={publicPath} isPublic={savedForm.is_public} />
       </div>
 
       {/* ── Phones: the header buttons scroll away, so keep Save in reach while there is something to save ── */}
       {dirty && (
-        <div className="md:hidden sticky bottom-3 z-20 mt-8 flex justify-center pointer-events-none">
+        <div className="pointer-events-none sticky bottom-3 z-20 flex justify-center md:hidden">
           <div
             role="region"
             aria-label="Unsaved changes"
-            className="pointer-events-auto w-full inline-flex items-center justify-between gap-4 rounded-full bg-ink text-white pl-5 pr-1.5 py-1.5 shadow-lg"
+            className="pointer-events-auto inline-flex w-full items-center justify-between gap-4 rounded-full bg-ink py-1.5 pl-5 pr-1.5 text-white shadow-lg"
           >
             <p className="text-sm">{changeCount} unsaved change{changeCount === 1 ? "" : "s"}</p>
             <div className="flex items-center gap-1">
@@ -563,16 +568,11 @@ function ProfilePageContent() {
                 type="button"
                 onClick={handleDiscard}
                 disabled={isSaving}
-                className="h-10 px-3.5 rounded-full text-sm font-bold text-gray-300 hover:text-white disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                className="h-10 rounded-full px-3.5 text-sm font-bold text-gray-300 hover:text-white disabled:opacity-50"
               >
                 Discard
               </button>
-              <button
-                type="button"
-                onClick={handleSave}
-                disabled={isSaving}
-                className="h-10 px-4 rounded-full bg-brand text-sm font-bold text-white disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
-              >
+              <button type="button" onClick={handleSave} disabled={isSaving} className="v-btn v-btn-p">
                 {isSaving ? "Saving…" : "Save"}
               </button>
             </div>
@@ -594,8 +594,9 @@ export default function ProfilePage() {
 const initialOf = (name) => (name || "").trim().charAt(0).toUpperCase() || "?";
 
 /* ── Live preview of the public /u/<handle> header. Photos are changed in the fields on the left. ── */
-function ProfilePreview({ form, avatarSrc, coverSrc, stats, publicPath }) {
+function ProfilePreview({ form, avatarSrc, coverSrc, stats, publicPath, isPublic }) {
   const name = form.display_name.trim();
+  const meta = [form.location.trim(), categoryLabel(form.category)].filter(Boolean).join(" · ");
 
   const links = [
     ...SOCIALS.filter((x) => form[x.key].trim()).map((x) => ({ key: x.key, label: x.label, icon: x.icon })),
@@ -603,17 +604,20 @@ function ProfilePreview({ form, avatarSrc, coverSrc, stats, publicPath }) {
   ].filter(Boolean);
 
   return (
-    <aside aria-label="Preview" className="flex flex-col gap-2.5 lg:sticky lg:top-0">
-      <span className="text-sm font-bold text-muted">Preview</span>
-      <div className="overflow-hidden rounded-[20px] border border-line bg-white">
-        <div className="relative h-[110px] bg-mist">
+    <aside aria-label="Preview" className="v-bf flex min-w-0 flex-[2_1_320px] flex-col gap-3 lg:sticky lg:top-2" style={{ "--i": 2 }}>
+      <span className="v-eyebrow flex items-center gap-2">
+        <span className="v-dot bg-brand" />
+        Live preview
+      </span>
+      <div className="v-card overflow-hidden shadow-[0_30px_60px_-32px_rgba(20,22,28,.4)]">
+        <div className="h-[120px] bg-mist">
           {coverSrc && (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={coverSrc} alt="" width={320} height={110} className="h-full w-full object-cover" />
+            <img src={coverSrc} alt="" width={480} height={120} className="block h-full w-full object-cover" />
           )}
         </div>
-        <div className="flex flex-col gap-2 px-5 pb-5">
-          <span className="relative -mt-8 flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border-[3px] border-white bg-ink font-display text-2xl font-bold text-white">
+        <div className="flex flex-col gap-3 px-5 pb-[22px]">
+          <span className="v-d -mt-8 flex h-16 w-16 items-center justify-center overflow-hidden rounded-[18px] bg-ink text-[26px] font-bold text-white shadow-[0_0_0_4px_#FFFFFF]">
             {avatarSrc ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={avatarSrc} alt="" width={64} height={64} className="h-full w-full object-cover" />
@@ -621,23 +625,30 @@ function ProfilePreview({ form, avatarSrc, coverSrc, stats, publicPath }) {
               initialOf(name)
             )}
           </span>
-          <span className={`break-words font-display text-[22px] font-bold leading-tight tracking-[-0.02em] ${name ? "text-ink" : "text-faint"}`}>
-            {name || "Your name"}
+          <span className="flex min-w-0 flex-col gap-0.5">
+            <span className={`v-d break-words text-[22px] font-bold tracking-[-0.02em] ${name ? "text-ink" : "text-faint"}`}>
+              {name || "Your name"}
+            </span>
+            <span className={`break-words text-[15px] font-bold ${form.handle ? "text-body" : "text-faint"}`}>
+              @{form.handle || "handle"}
+            </span>
+            {meta && <span className="v-hint break-words">{meta}</span>}
           </span>
-          <span className="break-words text-[13px] text-muted">
-            {[form.location.trim(), categoryLabel(form.category)].filter(Boolean).join(" · ") || (form.handle ? `@${form.handle}` : "Add a location")}
-          </span>
-          <span className={`line-clamp-5 break-words text-sm leading-normal ${form.bio.trim() ? "text-[#3B4252]" : "text-faint"}`}>
+          <p className={`m-0 line-clamp-5 break-words text-sm leading-[1.55] ${form.bio.trim() ? "text-body" : "text-faint"}`}>
             {form.bio.trim() || "Add a short bio so people know what you host."}
-          </span>
+          </p>
           {stats && (
-            <span className="text-[13px] text-muted">
-              <b className="text-ink">{Number(stats.followers ?? 0).toLocaleString()}</b> followers{"  "}
-              <b className="text-ink">{Number(stats.events_held ?? 0).toLocaleString()}</b> events
+            <span className="flex gap-[18px] text-sm">
+              <span>
+                <b className="v-tab">{Number(stats.followers ?? 0).toLocaleString("en-NG")}</b> <span className="text-muted">followers</span>
+              </span>
+              <span>
+                <b className="v-tab">{Number(stats.events_held ?? 0).toLocaleString("en-NG")}</b> <span className="text-muted">events</span>
+              </span>
             </span>
           )}
           {links.length > 0 && (
-            <ul className="flex flex-wrap gap-1.5">
+            <ul className="m-0 flex list-none flex-wrap gap-1.5 p-0">
               {links.map(({ key, label, icon: Icon }) => (
                 <li key={key} title={label} className="flex h-8 w-8 items-center justify-center rounded-full border border-line text-ink">
                   <Icon className="h-3.5 w-3.5" aria-hidden="true" />
@@ -646,33 +657,72 @@ function ProfilePreview({ form, avatarSrc, coverSrc, stats, publicPath }) {
               ))}
             </ul>
           )}
+          {/* Not clickable: this is how visitors see the buttons. */}
+          <span className="grid grid-cols-2 gap-2" aria-hidden="true">
+            <span className="v-btn v-btn-p v-btn-sm min-w-0 cursor-default">Follow</span>
+            <span className="v-btn v-btn-s v-btn-sm min-w-0 cursor-default">Share</span>
+          </span>
         </div>
       </div>
-      {publicPath && (
-        <Link
-          href={publicPath}
-          target="_blank"
-          className="inline-flex items-center gap-1.5 self-start text-sm font-bold text-brand-dark hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
-        >
-          View public page
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M14 4h6v6M20 4l-9 9M18 14v6H4V6h6" />
-          </svg>
-        </Link>
-      )}
+      {publicPath && <PublicPageCard path={publicPath} isPublic={isPublic} />}
     </aside>
   );
 }
 
-/* One settings group: the title on the left, the fields on the right. */
-function Section({ title, hint, last = false, children }) {
+/* Where the saved page lives: the address, whether people can see it, and open / copy. */
+function PublicPageCard({ path, isPublic }) {
+  const [copied, setCopied] = useState(false);
+  const address = `usebyro.com${path}`;
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(`${window.location.origin}${path}`);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1600);
+    } catch {
+      toast.error("Couldn't copy the link", { description: address });
+    }
+  };
+
   return (
-    <section className={`grid grid-cols-1 gap-x-8 gap-y-4 py-7 md:grid-cols-[200px_minmax(0,1fr)] ${last ? "" : "border-b border-hairline"} first:pt-4`}>
-      <div className="flex flex-col gap-1">
-        <h2 className="font-display text-[17px] font-bold">{title}</h2>
-        {hint && <p className="text-[13px] leading-normal text-muted">{hint}</p>}
+    <div className="v-card flex flex-col gap-3.5 p-4">
+      <div className="flex min-w-0 items-center gap-3">
+        <span aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-mist text-brand-dark">
+          <FaGlobe className="h-4 w-4" />
+        </span>
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="text-sm font-extrabold">Your public page</span>
+          <span className="v-hint truncate" title={address}>{address}</span>
+        </span>
+        <span className={`v-status shrink-0 text-xs ${isPublic === false ? "text-muted" : "text-[#1F7A52]"}`}>
+          <span className={`v-dot ${isPublic === false ? "bg-faint" : "bg-stamp-green"}`} />
+          {isPublic === false ? "Hidden" : "Live"}
+        </span>
       </div>
-      <div className="flex min-w-0 flex-col gap-[18px]">{children}</div>
+      <div className="grid grid-cols-2 gap-2">
+        <Link href={path} target="_blank" className="v-btn v-btn-s v-btn-sm min-w-0">
+          Open page
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M14 4h6v6M20 4l-9 9M18 14v6H4V6h6" />
+          </svg>
+        </Link>
+        <button type="button" onClick={copy} className="v-btn v-btn-s v-btn-sm min-w-0" aria-live="polite">
+          {copied ? "Copied" : "Copy link"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* One settings card: title and hint on top, fields below. */
+function Section({ id, title, hint, i = 0, children }) {
+  return (
+    <section aria-labelledby={id} className="v-card v-bf flex flex-col gap-[18px] p-6 max-sm:p-5" style={{ "--i": i }}>
+      <div className="flex flex-col gap-1">
+        <h2 id={id} className="v-h2">{title}</h2>
+        {hint && <span className="v-hint">{hint}</span>}
+      </div>
+      {children}
     </section>
   );
 }
@@ -680,38 +730,35 @@ function Section({ title, hint, last = false, children }) {
 // A button that opens the file picker.
 function FileButton({ onChange, className = "", children }) {
   return (
-    <label className={`inline-flex h-10 cursor-pointer items-center justify-center self-start rounded-full border border-line bg-white px-[18px] text-sm font-bold text-ink transition-[background-color,scale] hover:bg-paper active:scale-[0.97] focus-within:ring-2 focus-within:ring-brand ${className}`}>
+    <label className={`v-btn v-btn-s v-btn-sm focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-brand ${className}`}>
       {children}
       <input type="file" accept="image/*" className="sr-only" onChange={onChange} />
     </label>
   );
 }
 
-function Field({ id, label, hint, error, counter, children }) {
+function Field({ id, label, hint, error, children }) {
   return (
-    <div className="min-w-0">
-      <label htmlFor={id} className="mb-2 block text-sm font-bold">{label}</label>
+    <div className="flex min-w-0 flex-col gap-2">
+      <label htmlFor={id} className="v-lbl">{label}</label>
       {children}
       {error ? (
-        <p className="mt-1.5 text-sm text-red-600" role="alert">{error}</p>
+        <p className="m-0 text-sm text-red-600" role="alert">{error}</p>
       ) : hint ? (
-        <p className="mt-1.5 text-[13px] leading-normal text-muted">{hint}</p>
+        <span className="v-hint">{hint}</span>
       ) : null}
-      {counter && <p className="mt-1.5 text-right text-[13px] text-muted">{counter}</p>}
     </div>
   );
 }
 
 function PrefixInput({ id, prefix, value, onChange, placeholder, maxLength, invalid = false, required = false }) {
   return (
-    <div
-      className={`flex h-11 overflow-hidden rounded-xl border bg-white focus-within:ring-2 ${
-        invalid ? "border-red-500 focus-within:ring-red-500/25" : "border-[#CBD3DF] focus-within:border-brand focus-within:ring-brand/25"
+    <span
+      className={`v-input flex items-center overflow-hidden !p-0 focus-within:!border-brand focus-within:shadow-[0_0_0_4px_rgba(54,105,246,0.16)] ${
+        invalid ? "!border-red-500" : ""
       }`}
     >
-      <span className="flex select-none items-center whitespace-nowrap border-r border-line bg-paper px-3 text-sm text-muted">
-        {prefix}
-      </span>
+      <span className="select-none whitespace-nowrap pl-3.5 pr-1 text-muted">{prefix}</span>
       <input
         id={id}
         name={id}
@@ -725,9 +772,9 @@ function PrefixInput({ id, prefix, value, onChange, placeholder, maxLength, inva
         autoCapitalize="none"
         autoCorrect="off"
         spellCheck={false}
-        className="min-w-0 flex-1 px-3 text-base text-ink placeholder:text-faint focus:outline-none md:text-[15px]"
+        className="h-full min-w-0 flex-grow border-0 bg-transparent pr-3.5 text-base text-ink outline-none placeholder:text-faint md:text-[15px]"
         placeholder={placeholder}
       />
-    </div>
+    </span>
   );
 }
