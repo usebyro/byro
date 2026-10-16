@@ -1,0 +1,110 @@
+/*
+  Dashboard V2 building blocks, ported from the V2 design boards (DashOverviewV2 etc.).
+  Same names as the design with a v- prefix, so they never clash with Tailwind utilities.
+  Layout and spacing stay in Tailwind; these are the pieces the design reuses on every page.
+*/
+.dv2 {
+  --ease: cubic-bezier(0.23, 1, 0.32, 1);
+  --drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  --float: 0 1px 2px rgba(20, 22, 28, .06), 0 16px 36px -12px rgba(20, 22, 28, .28);
+  color: #14161C;
+}
+.dv2 :is(button, a, input, select, textarea, label) { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+.dv2 :focus-visible { outline: 2px solid #3669F6; outline-offset: 2px; }
+
+/* Buttons */
+.dv2 .v-btn { min-height: 40px; height: 40px; padding: 0 18px; border-radius: 999px; font: inherit; font-size: 14px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; cursor: pointer; white-space: nowrap; box-sizing: border-box; transition: transform 160ms var(--ease), background-color 150ms ease, border-color 150ms ease; }
+.dv2 .v-btn:disabled { opacity: .5; cursor: not-allowed; }
+.dv2 :is(.v-btn, .v-press, .v-icon-btn):active:not(:disabled) { transform: scale(0.97); }
+.dv2 .v-press { transition: transform 140ms var(--ease), box-shadow 200ms ease; }
+.dv2 .v-btn-lg { height: 44px; padding: 0 20px; font-size: 15px; }
+.dv2 .v-btn-sm { height: 34px; min-height: 34px; padding: 0 14px; font-size: 13px; }
+.dv2 .v-btn-p { background: #3669F6; color: #FFFFFF; border: 0; }
+.dv2 .v-btn-s { background: #FFFFFF; color: #14161C; border: 1px solid #E3E8F0; }
+.dv2 .v-btn-t { background: transparent; color: #2451D6; border: 0; padding: 0 8px; }
+.dv2 .v-btn-danger { background: #FFFFFF; color: #B42318; border: 1px solid #F3C7C2; }
+.dv2 .v-icon-btn { width: 40px; height: 40px; flex-shrink: 0; box-sizing: border-box; border-radius: 999px; border: 1px solid #E3E8F0; background: #FFFFFF; color: #14161C; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; position: relative; transition: transform 140ms var(--ease), background-color 150ms ease; }
+.dv2 .v-icon-btn.ghost { border-color: transparent; background: transparent; }
+
+/* Segmented control: <div role="group" class="v-seg"><button aria-pressed="true">…<span class="n">3</span></button></div> */
+.dv2 .v-seg { padding: 4px; border-radius: 999px; background: #EAEEF5; display: inline-flex; gap: 2px; flex-wrap: wrap; }
+.dv2 .v-seg button { height: 36px; padding: 0 14px; border: 0; border-radius: 999px; font: inherit; font-size: 13px; font-weight: 700; color: #5B6272; background: transparent; cursor: pointer; white-space: nowrap; transition: background-color 200ms var(--ease), color 150ms ease, box-shadow 200ms ease; }
+.dv2 .v-seg button[aria-pressed="true"] { background: #FFFFFF; color: #14161C; box-shadow: 0 1px 2px rgba(20, 22, 28, .08), 0 1px 1px rgba(20, 22, 28, .04); }
+.dv2 .v-seg button .n { color: #8A91A0; font-weight: 600; margin-left: 5px; }
+
+/* Type */
+.dv2 .v-h1 { margin: 0; font-family: var(--font-display), system-ui, sans-serif; font-size: clamp(26px, 3vw, 34px); font-weight: 700; letter-spacing: -0.03em; line-height: 1.1; text-wrap: balance; }
+.dv2 .v-sub { margin: 0; font-size: 15px; color: #5B6272; }
+.dv2 .v-h2 { margin: 0; font-family: var(--font-display), system-ui, sans-serif; font-size: 19px; font-weight: 700; letter-spacing: -0.01em; }
+.dv2 .v-d { font-family: var(--font-display), system-ui, sans-serif; }
+.dv2 .v-eyebrow { font-size: 13px; font-weight: 700; color: #5B6272; }
+.dv2 .v-hero { font-size: 52px; font-weight: 800; letter-spacing: -0.035em; line-height: 1; font-variant-numeric: tabular-nums; }
+.dv2 .v-fig { font-size: 28px; font-weight: 800; letter-spacing: -0.02em; line-height: 1; font-variant-numeric: tabular-nums; }
+.dv2 .v-th { font-size: 13px; font-weight: 700; color: #5B6272; }
+.dv2 .v-tab { font-variant-numeric: tabular-nums; }
+.dv2 .v-hint { font-size: 13px; color: #5B6272; line-height: 1.5; }
+.dv2 .v-mono { font-variant-numeric: tabular-nums; font-size: 14px; font-weight: 600; color: #3B4252; }
+.dv2 .v-lbl { font-size: 14px; font-weight: 700; }
+@media (max-width: 640px) { .dv2 .v-hero { font-size: 40px; } }
+
+/* Surfaces */
+.dv2 .v-card { background: #FFFFFF; border-radius: 20px; }
+.dv2 .v-lift { transition: transform 200ms var(--ease), box-shadow 200ms var(--ease); }
+.dv2 .v-row { transition: background-color 150ms ease; }
+.dv2 .v-pop { transform-origin: top right; animation: v-pop 160ms var(--ease) both; box-shadow: var(--float); }
+@keyframes v-pop { from { opacity: 0; scale: .97; } to { opacity: 1; scale: 1; } }
+.dv2 .v-scrim { animation: v-fadein 200ms ease both; }
+.dv2 .v-sheet { animation: v-sheetin 320ms var(--drawer) both; overscroll-behavior: contain; box-shadow: var(--float); }
+@keyframes v-sheetin { from { translate: 100% 0; } to { translate: 0 0; } }
+.dv2 .v-sheet-up { animation: v-sheetup 320ms var(--drawer) both; overscroll-behavior: contain; }
+@keyframes v-sheetup { from { translate: 0 100%; } to { translate: 0 0; } }
+@media (hover: hover) and (pointer: fine) {
+  .dv2 .v-lift:hover { transform: translateY(-1px); box-shadow: var(--float); }
+  .dv2 .v-row:hover { background: #F7F9FC; }
+  .dv2 .v-btn-p:hover:not(:disabled) { background: #2F5EE0; }
+  .dv2 :is(.v-btn-s, .v-icon-btn):hover:not(:disabled) { background: #F3F6FB; }
+  .dv2 .v-btn-danger:hover:not(:disabled) { background: #FDECEA; }
+  .dv2 .v-navi:hover { background: #EEF1F6; }
+}
+
+/* Small things */
+.dv2 .v-delta { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 700; padding: 3px 8px; border-radius: 999px; }
+.dv2 .v-up { color: #1F7A52; background: #E9F7EF; }
+.dv2 .v-down { color: #B42318; background: #FDECEA; }
+.dv2 .v-flat { color: #3B4252; background: #F1F3F7; }
+.dv2 .v-av { width: 32px; height: 32px; border-radius: 50%; background: #EEF1F6; color: #3B4252; font-size: 13px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; overflow: hidden; }
+.dv2 .v-status { display: inline-flex; align-items: center; gap: 7px; font-size: 14px; font-weight: 700; white-space: nowrap; }
+.dv2 .v-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.dv2 .v-ping { box-shadow: 0 0 0 3px rgba(54, 105, 246, .18); }
+.dv2 .v-sw { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; display: inline-block; }
+.dv2 .v-search { height: 40px; box-sizing: border-box; padding: 0 14px; border-radius: 999px; border: 1px solid #E3E8F0; background: #FFFFFF; display: flex; align-items: center; gap: 8px; }
+.dv2 .v-search input { border: 0; outline: 0; font: inherit; font-size: 14px; width: 100%; min-width: 0; background: transparent; color: #14161C; }
+.dv2 .v-input { height: 44px; box-sizing: border-box; padding: 0 14px; border-radius: 12px; border: 1px solid #CBD3DF; font: inherit; font-size: 16px; color: #14161C; background: #FFFFFF; width: 100%; transition: border-color 150ms ease, box-shadow 150ms ease; }
+.dv2 .v-input:focus { outline: none; border-color: #3669F6; box-shadow: 0 0 0 4px rgba(54, 105, 246, 0.16); }
+.dv2 textarea.v-input { height: auto; padding: 12px 14px; line-height: 1.5; resize: vertical; }
+.dv2 .v-viz-toggle { border: 0; background: transparent; font: inherit; font-size: 13px; font-weight: 700; color: #2451D6; cursor: pointer; padding: 6px 4px; }
+.dv2 .v-bar-btn { border: 0; padding: 0; margin: 0; background: transparent; cursor: pointer; font: inherit; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; position: relative; }
+.dv2 .v-bar-btn:focus-visible { outline: 2px solid #3669F6; outline-offset: 3px; border-radius: 6px; }
+.dv2 .v-tip { position: absolute; z-index: 5; background: #14161C; color: #FFFFFF; border-radius: 10px; padding: 8px 11px; font-size: 12px; line-height: 1.35; white-space: nowrap; pointer-events: none; box-shadow: var(--float); display: flex; flex-direction: column; gap: 2px; animation: v-pop 125ms var(--ease) both; }
+.dv2 .v-tip b { font-size: 14px; font-weight: 800; }
+.dv2 .v-tip span { color: #C9CFDA; }
+
+/* Entrances: set style={{ "--i": n }} to stagger */
+.dv2 .v-bf { animation: v-bf 320ms var(--ease) both; animation-delay: calc(var(--i, 0) * 40ms); }
+@keyframes v-bf { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.dv2 .v-al { animation: v-al 280ms var(--ease) both; animation-delay: calc(120ms + var(--i, 0) * 35ms); }
+@keyframes v-al { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.dv2 .v-grow { transform-origin: bottom; animation: v-grow 560ms var(--ease) both; animation-delay: calc(80ms + var(--i, 0) * 30ms); }
+@keyframes v-grow { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+.dv2 .v-growx { transform-origin: left; animation: v-growx 560ms var(--ease) both; animation-delay: calc(80ms + var(--i, 0) * 40ms); }
+@keyframes v-growx { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+.dv2 .v-reveal { animation: v-reveal 700ms var(--ease) 80ms both; }
+@keyframes v-reveal { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+.dv2 .v-fade { animation: v-fadein 240ms ease 500ms both; }
+@keyframes v-fadein { from { opacity: 0; } to { opacity: 1; } }
+.dv2 .v-skel { background: #EEF1F6; border-radius: 10px; animation: v-skel 1.4s ease-in-out infinite; }
+@keyframes v-skel { 50% { opacity: .55; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .dv2 *, .dv2 *::before, .dv2 *::after { animation-name: v-fadein !important; animation-duration: 150ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important; transition-property: opacity, background-color, color !important; }
+}

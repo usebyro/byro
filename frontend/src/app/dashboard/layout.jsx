@@ -12,11 +12,15 @@ import { useAuth } from "@/redux/useAuth";
 import { signOut } from "@/redux/auth/authSlice";
 import UserMenu from "@/components/auth/UserMenu";
 import NotificationBell from "@/components/dashboard/NotificationBell";
+import DashSearch from "@/components/dashboard/DashSearch";
+import API from "@/services/api";
+import "./dashboard-v2.css";
 
 // Icons are the stroke paths from the dashboard design, so the nav matches it exactly.
 const NAV = [
   { label: "Overview", href: "/dashboard/overview", icon: "M4 11l8-7 8 7v9h-5v-6H9v6H4z", exact: true },
   { label: "Events",   href: "/dashboard/events",   icon: "M4 6h16v14H4zM4 10h16M9 3v4M15 3v4" },
+  { label: "Community", href: "/dashboard/community", icon: "M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM2.5 20c.8-3.5 3.4-5.5 6.5-5.5s5.7 2 6.5 5.5M16 4.5a3.5 3.5 0 0 1 0 6.5M18 14.5c2 .6 3.2 2.6 3.5 5.5" },
   { label: "Messages", href: "/dashboard/messages", icon: "M4 6h16v12H4zM4 7l8 6 8-6" },
   { label: "Merch",    href: "/dashboard/merch",    icon: "M5 8h14l-1 13H6zM9 8V6a3 3 0 0 1 6 0v2" },
   { label: "Payouts",  href: "/dashboard/payouts",  icon: "M3 7h18v10H3zM12 12m-2 0a2 2 0 1 0 4 0a2 2 0 1 0-4 0" },
@@ -54,6 +58,7 @@ function StudioShell({ children }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const menuButtonRef = useRef(null);
+  const [followers, setFollowers] = useState(null);
   const closeButtonRef = useRef(null);
 
   // Close the mobile drawer whenever the route changes
@@ -84,6 +89,11 @@ function StudioShell({ children }) {
     };
   }, [mobileOpen]);
 
+  useEffect(() => {
+    if (!token) return;
+    API.getCommunityStats().then((c) => setFollowers(c?.followers ?? null)).catch(() => {});
+  }, [token]);
+
   const handleLogout = () => {
     dispatch(signOut());
     router.push("/");
@@ -100,6 +110,7 @@ function StudioShell({ children }) {
 
   const communityName = user?.display_name || user?.displayName || user?.name || user?.handle || "Your community";
   const communityHref = user?.handle ? `/u/${user.handle}` : "/dashboard/profile";
+  const followerLine = followers == null ? "Organiser" : `Organiser · ${followers.toLocaleString("en-NG")} follower${followers === 1 ? "" : "s"}`;
 
   const renderSidebarContent = (collapsed, closeMobile = null) => (
     <>
@@ -113,7 +124,8 @@ function StudioShell({ children }) {
         {!closeMobile && (
           <button
             onClick={() => setIsCollapsed(!isCollapsed)}
-            className="hidden h-11 w-11 items-center justify-center rounded-full text-muted transition-[background-color,scale] hover:bg-paper active:scale-[0.97] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand md:flex"
+            className="v-icon-btn ghost hidden text-muted md:inline-flex"
+            style={{ width: 34, height: 34 }}
             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             aria-expanded={!collapsed}
           >
@@ -128,7 +140,7 @@ function StudioShell({ children }) {
           <button
             ref={closeButtonRef}
             onClick={closeMobile}
-            className="flex h-11 w-11 items-center justify-center rounded-full text-muted hover:bg-paper focus:outline-none focus-visible:ring-2 focus-visible:ring-brand md:hidden"
+            className="v-icon-btn ghost text-muted md:hidden"
             aria-label="Close menu"
           >
             <HugeiconsIcon icon={Cancel01Icon} size={18} color="currentColor" />
@@ -139,27 +151,25 @@ function StudioShell({ children }) {
       <Link
         href={communityHref}
         title={collapsed ? undefined : "View your community page"}
-        className={`group relative flex h-14 shrink-0 items-center rounded-xl border border-line bg-white transition-[background-color,scale] hover:bg-paper active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
+        className={`v-press group relative flex h-[58px] shrink-0 items-center rounded-[14px] bg-white text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
           collapsed ? "justify-center" : "gap-2.5 px-2.5"
         }`}
       >
-        <span aria-hidden="true" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-ink font-display text-sm font-bold text-white">
+        <span aria-hidden="true" className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[10px] bg-ink font-display text-[15px] font-bold text-white">
           {communityName.trim().charAt(0).toUpperCase()}
         </span>
         {collapsed && <RailLabel label={communityName} collapsed />}
         {!collapsed && (
-          <>
-            <span className="flex min-w-0 flex-1 flex-col">
-              <span className="truncate text-sm font-extrabold">{communityName}</span>
-              <span className="text-xs text-muted">Organiser</span>
-            </span>
-          </>
+          <span className="flex min-w-0 flex-1 flex-col">
+            <span className="truncate text-sm font-extrabold">{communityName}</span>
+            <span className="truncate text-xs text-muted">{followerLine}</span>
+          </span>
         )}
       </Link>
 
       <nav aria-label="Dashboard" className="flex flex-col gap-0.5">
         {NAV.map((item) => {
-          const active = item.exact ? pathname === item.href : pathname.startsWith(item.href);
+          const active = item.exact ? pathname === item.href || pathname === "/dashboard" : pathname.startsWith(item.href);
           return (
             <Link
               key={item.href}
@@ -167,9 +177,9 @@ function StudioShell({ children }) {
               aria-current={active ? "page" : undefined}
               className={`group relative flex h-[42px] items-center rounded-xl text-[15px] transition-[background-color,color,scale] active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
                 collapsed ? "justify-center" : "gap-3 px-3"
-              } ${active ? "bg-[#EEF3FF] font-extrabold text-brand-dark" : "font-semibold text-[#3B4252] hover:bg-paper"}`}
+              } ${active ? "bg-white font-extrabold text-ink shadow-[0_1px_3px_rgba(20,22,28,.08)]" : "v-navi font-semibold text-body"}`}
             >
-              <span className={active ? "text-brand-dark" : "text-muted"}>
+              <span className={active ? "text-brand" : "text-muted"}>
                 <Stroke d={item.icon} />
               </span>
               <RailLabel label={item.label} collapsed={collapsed} />
@@ -182,7 +192,7 @@ function StudioShell({ children }) {
 
       <Link
         href="/home"
-        className={`group relative flex h-[42px] shrink-0 items-center rounded-xl text-sm font-bold text-muted transition-[background-color,scale] hover:bg-paper active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
+        className={`v-navi group relative flex h-[42px] shrink-0 items-center rounded-xl text-sm font-bold text-muted transition-[background-color,scale] active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
           collapsed ? "justify-center" : "gap-3 px-3"
         }`}
       >
@@ -195,7 +205,7 @@ function StudioShell({ children }) {
   const sidebarPad = "flex flex-col gap-[18px] px-3.5 pb-5 pt-[18px]";
 
   return (
-    <div className="flex h-dvh overflow-hidden bg-white">
+    <div className="dv2 flex h-dvh overflow-hidden bg-[#F6F8FB]">
       <a
         href="#main"
         className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[60] focus:rounded-full focus:bg-ink focus:px-4 focus:py-2.5 focus:text-sm focus:font-bold focus:text-white"
@@ -203,7 +213,7 @@ function StudioShell({ children }) {
         Skip to content
       </a>
 
-      <aside aria-label="Sidebar" className={`${sidebarPad} hidden shrink-0 border-r border-hairline bg-white transition-[width] duration-300 motion-reduce:transition-none md:flex ${
+      <aside aria-label="Sidebar" className={`${sidebarPad} hidden shrink-0 overflow-y-auto transition-[width] duration-300 motion-reduce:transition-none md:flex ${
         isCollapsed ? "w-[76px]" : "w-[248px]"
       }`}>
         {renderSidebarContent(isCollapsed)}
@@ -212,10 +222,10 @@ function StudioShell({ children }) {
       {mobileOpen && (
         <div className="md:hidden fixed inset-0 z-50 flex overscroll-contain" role="dialog" aria-modal="true" aria-label="Menu">
           <div
-            className="absolute inset-0 bg-black/40 backdrop-blur-[2px] transition-opacity duration-300"
+            className="v-scrim absolute inset-0 bg-black/40 backdrop-blur-[2px]"
             onClick={() => setMobileOpen(false)}
           />
-          <aside className={`${sidebarPad} relative z-10 h-full w-[264px] max-w-[84vw] overflow-y-auto overscroll-contain bg-white shadow-2xl animate-slide-in-left motion-reduce:animate-none`}>
+          <aside className={`${sidebarPad} relative z-10 h-full w-[264px] max-w-[84vw] overflow-y-auto overscroll-contain bg-[#F6F8FB] shadow-2xl animate-slide-in-left motion-reduce:animate-none`}>
             {renderSidebarContent(false, () => setMobileOpen(false))}
           </aside>
         </div>
@@ -223,22 +233,23 @@ function StudioShell({ children }) {
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden" inert={mobileOpen}>
 
-        <header className="flex h-16 shrink-0 items-center gap-3 border-b border-hairline bg-white px-4 sm:px-8 lg:px-12">
+        <header className="flex min-h-16 shrink-0 items-center gap-3 px-4 py-3 sm:px-[clamp(16px,3vw,40px)]">
           <button
             ref={menuButtonRef}
             onClick={() => setMobileOpen(true)}
-            className="flex h-11 w-11 items-center justify-center rounded-lg text-muted transition-colors hover:bg-paper hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-brand md:hidden"
+            className="v-icon-btn ghost text-muted md:hidden"
             aria-label="Open menu"
           >
             <HugeiconsIcon icon={Menu01Icon} size={20} color="currentColor" />
           </button>
 
+          <DashSearch />
           <div className="flex-1" />
           <NotificationBell />
           <UserMenu user={user} onLogout={handleLogout} size="sm" />
         </header>
 
-        <main id="main" tabIndex={-1} className="flex-1 overflow-y-auto bg-white focus:outline-none">
+        <main id="main" tabIndex={-1} className="flex-1 overflow-y-auto focus:outline-none">
           {children}
         </main>
       </div>
