@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import API from "@/services/api";
+import { useConfirm } from "@/components/admin/ui";
 import EventImage from "@/components/brand/EventImage";
 import { dayParts, formatTime } from "@/lib/eventFormat";
 
@@ -189,6 +190,7 @@ function SentStatus({ m, onCancel }) {
 }
 
 export default function MessagesPage() {
+  const confirm = useConfirm();
   const [data, setData] = useState(null);
   const [dashboard, setDashboard] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -339,7 +341,12 @@ export default function MessagesPage() {
 
   const send = async () => {
     const count = activeAudience?.count ?? 0;
-    if (!window.confirm(`Send “${subject.trim()}” to ${people(count)}?\n\nThis can’t be undone.`)) return;
+    const ok = await confirm({
+      title: `Send “${subject.trim()}” to ${people(count)}?`,
+      body: "This can’t be undone.",
+      confirmLabel: "Send",
+    });
+    if (!ok) return;
     setSending(true);
     try {
       await API.sendMessage(payload());
@@ -397,7 +404,14 @@ export default function MessagesPage() {
   };
 
   const cancelScheduled = async (m) => {
-    if (!window.confirm(`Cancel “${m.subject}”? It won’t be sent.`)) return;
+    const ok = await confirm({
+      title: `Cancel “${m.subject}”?`,
+      body: "It won’t be sent.",
+      confirmLabel: "Cancel message",
+      cancelLabel: "Keep it",
+      tone: "danger",
+    });
+    if (!ok) return;
     try {
       await API.cancelScheduledMessage(m.id);
       toast.success("Message cancelled");

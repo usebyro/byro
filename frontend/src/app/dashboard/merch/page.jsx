@@ -5,6 +5,7 @@ import Link from "next/link";
 import { toast } from "sonner";
 import axiosInstance from "@/utils/axios";
 import { useAuth } from "@/redux/useAuth";
+import { useConfirm } from "@/components/admin/ui";
 
 const EMPTY_FORM = {
   name: "",
@@ -81,6 +82,7 @@ const ALERT_STYLE = {
 };
 
 export default function MerchPage() {
+  const confirm = useConfirm();
   const { user } = useAuth();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -219,7 +221,13 @@ export default function MerchPage() {
   };
 
   const handleDelete = async (item) => {
-    if (!window.confirm(`Remove "${item.name}" from your merch?`)) return;
+    const ok = await confirm({
+      title: `Remove “${item.name}” from your merch?`,
+      body: "It comes off your public page.",
+      confirmLabel: "Remove",
+      tone: "danger",
+    });
+    if (!ok) return;
     setDeletingId(item.id);
     try {
       await axiosInstance.delete(`merch/${item.id}/`);
