@@ -241,7 +241,7 @@ function PersonRow({ p, i }) {
           </span>
         </span>
       </td>
-      <td className="px-3 py-2.5">
+      <td data-l="Events" className="px-3 py-2.5">
         <span className="flex items-center gap-[3px]" aria-label={`${p.events} events`}>
           {Array.from({ length: PIPS }, (_, j) => (
             <span key={j} className="h-3.5 w-1.5 rounded-sm" style={{ background: j < p.events ? "#3669F6" : "#E3E8F0" }} />
@@ -249,19 +249,19 @@ function PersonRow({ p, i }) {
           <span className="v-tab ml-2 text-sm font-extrabold">{p.events}</span>
         </span>
       </td>
-      <td className="px-3 py-2.5">
+      <td data-l="First came" className="px-3 py-2.5">
         <span className="flex flex-col">
           <span className="text-sm font-bold">{firstWhat}</span>
           <span className="text-[13px] text-muted">{firstWhen}</span>
         </span>
       </td>
-      <td className="px-3 py-2.5">
+      <td data-l="Last seen" className="px-3 py-2.5">
         <span className="flex flex-col">
           <span className="text-sm font-bold">{p.events ? p.last_event : "Not yet"}</span>
           {p.events > 0 && <span className="text-[13px] text-muted">{monthYear(p.last_at)}</span>}
         </span>
       </td>
-      <td className="py-2.5 pl-3 pr-5">
+      <td data-l="Status" className="py-2.5 pl-3 pr-5">
         <span className={`rounded-full px-2.5 py-1 text-[13px] font-extrabold ${tagCls}`}>{tag}</span>
       </td>
     </tr>
@@ -364,7 +364,7 @@ export default function CommunityPage() {
   const organiser = summary?.organizer_name;
 
   return (
-    <div className="mx-auto flex w-full max-w-[1240px] flex-col gap-6 px-4 pb-12 pt-2 sm:px-[clamp(16px,3vw,40px)]">
+    <div className="mx-auto flex w-full max-w-[1240px] flex-col gap-5 px-4 pb-12 pt-4 sm:px-[clamp(16px,3vw,40px)] md:gap-6 md:pt-2">
       <div className="v-bf flex flex-wrap items-end gap-4" style={{ "--i": 0 }}>
         <div className="flex min-w-0 flex-[1_1_320px] flex-col gap-1.5">
           <h1 className="v-h1">Community</h1>
@@ -444,7 +444,7 @@ export default function CommunityPage() {
         ) : (
           <>
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[820px] border-collapse">
+              <table className="v-stack w-full min-w-[820px] border-collapse">
                 <thead>
                   <tr className="border-y border-hairline">
                     <th scope="col" className="v-th px-5 py-3 text-left">Person</th>
