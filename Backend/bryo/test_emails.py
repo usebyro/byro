@@ -61,7 +61,7 @@ class DesignTests(SimpleTestCase):
     def test_reminder_email(self):
         m = e.event_reminder_email("Tunde", "Tech Meetup", DATE, TIME, "Cafe One, Yaba", tier_label="General admission × 1")
         self.assertEqual(m["subject"], "Tech Meetup is tomorrow")
-        for text in ("See you tomorrow at Tech Meetup", "Quick details so you can plan your day.", "Get directions",
+        for text in ("Quick details so you can plan your day.", "Get directions",
                      "Before you go", "Have your QR ready (a screenshot works)",
                      "Doors open on time, so arriving 10 minutes early helps", "Show my ticket",
                      "You&#8217;re getting this because you have a ticket for Tech Meetup."):
@@ -71,7 +71,7 @@ class DesignTests(SimpleTestCase):
     def test_host_reminder_email(self):
         m = e.organizer_event_reminder_email("Sam", "Tech Meetup", DATE, TIME, 5, location="Cafe One, Yaba", revenue=Decimal("200"))
         self.assertEqual(m["subject"], "Tech Meetup starts tomorrow")
-        for text in ("For organisers", "Your event starts tomorrow", "tickets sold", "No cap", "₦200", "Get ready",
+        for text in ("For organisers", "tickets sold", "No cap", "₦200", "Get ready",
                      "Open the check-in scanner on your phone and test it once", "Add co-hosts who will help at the door",
                      "Share the link one more time for last-minute sales", "Open check-in", "Manage event"):
             self.assertIn(text, m["html"])
@@ -122,7 +122,7 @@ class DesignTests(SimpleTestCase):
         m = e.payout_requested_email("Sam", 200, "GTBank", "0123456789", event_name="Tech Meetup",
                                      requested_at="5 Oct 2026, 2:10 PM", reference="PO-7")
         self.assertEqual(m["subject"], "We got your payout request for ₦200")
-        for text in ("We got your payout request", "We&#8217;re reviewing it now.", "AMOUNT", "₦200", "GTBank ••••6789",
+        for text in ("We&#8217;re reviewing it now.", "AMOUNT", "₦200", "GTBank ••••6789",
                      "5 Oct 2026, 2:10 PM", "PO-7", "Requested", "Approved", "Usually within 24 hours", "Paid to your bank",
                      "View payouts", "Didn&#8217;t request it? Reply right away."):
             self.assertIn(text, m["html"])
@@ -146,6 +146,20 @@ class DesignTests(SimpleTestCase):
             e.cohost_invite_email(evil, evil, "https://x"),
         ):
             self.assertNotIn("<script>", m["html"])
+
+
+class NoRepeatedSubjectTests(SimpleTestCase):
+
+    def test_emails_dont_repeat_their_subject_as_a_heading(self):
+        mails = [
+            e.event_reminder_email("Tunde", "Tech Meetup", DATE, TIME, "Cafe One, Yaba"),
+            e.organizer_event_reminder_email("Sam", "Tech Meetup", DATE, TIME, 5),
+            e.event_published_email("Sam", "Tech Meetup", DATE, TIME, "Cafe One", "https://x/e"),
+            e.cohost_invite_email("Tech Meetup", "Sam", "https://x/e"),
+            e.payout_requested_email("Sam", 200, "GTBank", "0123456789"),
+        ]
+        for mail in mails:
+            self.assertNotIn('<h1 class="h1"', mail["html"], mail["subject"])
 
 
 class OrganizerMessageTests(SimpleTestCase):

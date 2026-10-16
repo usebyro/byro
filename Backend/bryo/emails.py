@@ -345,7 +345,7 @@ def event_reminder_email(name, event_name, date, time, location, ticket_url=None
     short = " · ".join(x for x in [date, time] if x)
     html = _shell(
         _badge("Tomorrow", TIME, TIME_BG),
-        f"See you tomorrow at {_h(event_name)}",
+        "",  # the subject line already says this
         body_html,
         f"You&#8217;re getting this because you have a ticket for {_h(event_name)}.",
         preheader=f"{short}{' at ' + _h(location) if location else ''}. Your ticket is inside.",
@@ -385,7 +385,7 @@ def organizer_event_reminder_email(name, event_name, date, time, tickets_sold, d
     )
     html = _shell(
         _badge("For organisers", NEUTRAL, NEUTRAL_BG),
-        "Your event starts tomorrow",
+        "",  # the subject line already says this
         body_html,
         f"You&#8217;re getting this because you host {_h(event_name)} on byro.",
         preheader=f"{tickets_sold} {sold_word} sold so far. Here is your check-in plan.",
@@ -470,7 +470,7 @@ def event_published_email(name, event_name, date, time, location, event_url, sha
     )
     html = _shell(
         _badge("Live", MONEY, MONEY_BG),
-        f"{_h(event_name)} is live",
+        "",  # the subject line already says this
         body_html,
         "You&#8217;re getting this because you published an event on byro.",
         preheader="Your event page is up. Share the link to start selling.",
@@ -597,7 +597,7 @@ def cohost_invite_email(event_name, inviter_name, event_url, is_new_user=False, 
     )
     html = _shell(
         _badge("Invite", NEUTRAL, NEUTRAL_BG),
-        f"{inviter} invited you to co-host {_h(event_name)}",
+        "",  # the subject line already says this
         body_html,
         f"You&#8217;re getting this because {inviter} added this email as a co-host.",
         preheader="Accept to help manage the event and check guests in.",
@@ -642,7 +642,7 @@ def payout_requested_email(name, amount, bank_name, account_number, event_name=N
     )
     html = _shell(
         _badge("Payout", TIME, TIME_BG),
-        "We got your payout request",
+        "",  # the subject line already says this
         body_html,
         "You&#8217;re getting this because a payout was requested from your byro account. Didn&#8217;t request it? Reply right away.",
         preheader="We&#8217;re reviewing it now. Here&#8217;s what happens next.",
@@ -777,7 +777,7 @@ def event_cancelled_email(name, event_name, date, time, location, reason, refund
                 "processing charge cannot be refunded. We will send it to the card or bank account you paid with "
                 "and email you again as soon as it has been sent. There is nothing you need to do.\n\n"
             )
-            label = "Your refund"
+            label = "Your refund is being arranged"
             headline = f"{event_name} was cancelled. Your refund is being arranged."
             subject = f"{event_name} has been cancelled: your refund of {amount}"
         money_html = f"""
@@ -820,7 +820,7 @@ def event_cancelled_email(name, event_name, date, time, location, reason, refund
 
     html = _shell(
         _badge("Refund sent" if (refund_state == 'sent' and refund_amount is not None) else "Cancelled", "#8A1C1C", "#FDECEC"),
-        escape(headline),
+        "",  # the subject line already says this
         body_html,
         "You&#8217;re getting this because you held a ticket for this event on Byro.",
     )
@@ -894,7 +894,7 @@ def event_suspended_email(name, event_name, date, time, location, event_url=None
     )
     html = _shell(
         _badge("Event on hold", TIME, TIME_BG),
-        f"{_h(event_name)} is on hold",
+        "",  # the subject line already says this
         body_html,
         f"You&#8217;re getting this because you hold a ticket for {_h(event_name)} on Byro.",
         preheader="Your ticket is safe. Nothing for you to do right now.",
@@ -922,7 +922,7 @@ def event_reinstated_email(name, event_name, date, time, location, event_url=Non
     )
     html = _shell(
         _badge("Back on", NEUTRAL, NEUTRAL_BG),
-        f"{_h(event_name)} is back on",
+        "",  # the subject line already says this
         body_html,
         f"You&#8217;re getting this because you hold a ticket for {_h(event_name)} on Byro.",
         preheader="The event is going ahead and your ticket is still valid.",
@@ -960,7 +960,7 @@ def organizer_event_suspended_email(name, event_name, date, time, location, even
     )
     html = _shell(
         _badge("Event suspended", TIME, TIME_BG),
-        f"{_h(event_name)} has been suspended",
+        "",  # the subject line already says this
         body_html,
         f"You&#8217;re getting this because you&#8217;re the organiser of {_h(event_name)} on Byro.",
         preheader="Please don't panic. Our team will be in touch shortly with a few questions.",
@@ -997,7 +997,7 @@ def organizer_event_reinstated_email(name, event_name, date, time, location, eve
     )
     html = _shell(
         _badge("Back on", NEUTRAL, NEUTRAL_BG),
-        f"{_h(event_name)} is live again",
+        "",  # the subject line already says this
         body_html,
         f"You&#8217;re getting this because you&#8217;re the organiser of {_h(event_name)} on Byro.",
         preheader="Your event is back on sale.",
