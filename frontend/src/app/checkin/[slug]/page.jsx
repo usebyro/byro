@@ -325,7 +325,7 @@ function CheckInScreen() {
                       <p className="text-sm text-white/60 truncate">{g.tier_name || "General admission"} · {g.current_owner_email}</p>
                     </div>
                     {g.checked_in ? (
-                      <span className="shrink-0 rounded-full bg-[#16A34A]/20 px-3 py-1.5 text-sm font-bold text-[#4ADE80]">In</span>
+                      <span className="shrink-0 rounded-full bg-[#16A34A]/20 px-3 py-1.5 text-sm font-bold text-[#4ADE80]">Checked in</span>
                     ) : (
                       <button
                         type="button"

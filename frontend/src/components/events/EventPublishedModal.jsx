@@ -114,7 +114,7 @@ export default function EventPublishedModal({ event, onClose }) {
 
         <h2 className="text-xl font-bold text-gray-900 mb-1.5">You&apos;re live! Time to fill the room.</h2>
         <p className="text-sm text-gray-500 mb-6">
-          Share your link now, early shares get your first ticket sales.
+          Share your link now. Early shares bring in your first sales.
         </p>
 
         <div className="flex items-center justify-center gap-3 mb-5">

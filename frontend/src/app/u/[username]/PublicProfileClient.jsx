@@ -104,7 +104,7 @@ export default function PublicProfileClient({ username }) {
       <div className="flex min-h-screen flex-col bg-white font-body text-ink">
         <Navbar />
         <div className="mx-auto flex w-full max-w-xl flex-1 flex-col items-start gap-4 px-4 pt-20 md:px-8">
-          <h1 className="font-display text-[44px] font-bold leading-none tracking-[-0.04em] md:text-6xl">Community not found</h1>
+          <h1 className="font-display text-[44px] font-bold leading-none tracking-[-0.04em] md:text-6xl">Page not found</h1>
           <p className="text-lg leading-relaxed text-muted">We couldn&apos;t find that organiser. The link may be wrong, or the page may have moved.</p>
           <Link href="/communities" className="mt-2 flex h-[52px] items-center rounded-full bg-brand px-7 text-base font-bold text-white transition-[filter,scale] hover:brightness-90 active:scale-[0.96]">
             Browse communities

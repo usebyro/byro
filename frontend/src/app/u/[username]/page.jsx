@@ -24,7 +24,7 @@ export async function generateMetadata({ params }) {
   const profile = await fetchProfileData(username);
 
   if (!profile) {
-    return { title: "Profile not found | Byro" };
+    return { title: "Page not found | Byro" };
   }
 
   const name = profile.display_name || profile.handle || "Organiser";

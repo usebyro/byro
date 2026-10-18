@@ -131,7 +131,7 @@ export default function ViewEventClient({ slug, initialEvent = null }) {
             setSelectedTier((cur) => (resolvedTiers.some((t) => String(t.id) === cur) ? cur : firstOpenTier(resolvedTiers)));
           }
         } else {
-          throw new Error("Invalid event data");
+          throw new Error("We couldn't find this event. The link may be wrong, or the event was removed.");
         }
         if (ticketData?.registered) { setRegistered(true); setTicketId(ticketData.ticket_id || null); }
       } catch (err) {
@@ -139,8 +139,8 @@ export default function ViewEventClient({ slug, initialEvent = null }) {
           setSuspended(err.event);
         } else {
           console.error(err);
-          setError(err.message || "Failed to load event");
-          toast.error("Couldn't load event", { description: err.message });
+          setError(err.message || "We couldn't load this event.");
+          toast.error("Couldn't load event", { description: err.message || "Check your connection and refresh." });
         }
       } finally {
         setLoading(false);
@@ -167,6 +167,7 @@ export default function ViewEventClient({ slug, initialEvent = null }) {
 
   /* Transfer */
   const [showTransfer, setShowTransfer] = useState(false);
+  const [confirmingCancel, setConfirmingCancel] = useState(false);
   const [transferEmail, setTransferEmail] = useState("");
   const [transferName, setTransferName] = useState("");
 
@@ -186,8 +187,8 @@ export default function ViewEventClient({ slug, initialEvent = null }) {
     if (!ticketId) return;
     try {
       await API.cancelRegistration(ticketId);
-      setRegistered(false); setTicketId(null);
-      toast.success("Registration cancelled");
+      setRegistered(false); setTicketId(null); setConfirmingCancel(false);
+      toast.success("Spot cancelled", { description: "You can register again while places are left." });
     } catch (err) {
       toast.error("Couldn't cancel registration", { description: err.message });
     }
@@ -253,7 +254,7 @@ export default function ViewEventClient({ slug, initialEvent = null }) {
 
   const tiers = realTiers.length > 0
     ? realTiers.map(t => ({ ...t, desc: t.description || "", price: parseFloat(String(t.price)) || 0 }))
-    : (isFree ? [] : [{ id: "general", name: "General Admission", desc: "", price: ticketPrice }]);
+    : (isFree ? [] : [{ id: "general", name: "General admission", desc: "", price: ticketPrice }]);
 
   const activeTier   = tiers.find(t => String(t.id) === String(selectedTier)) || tiers[0] || { price: 0, name: "" };
   // A group tier (admits_count > 1) is a SINGLE ticket that admits several
@@ -406,7 +407,7 @@ export default function ViewEventClient({ slug, initialEvent = null }) {
                     dangerouslySetInnerHTML={{ __html: event.description }}
                   />
                 ) : (
-                  <p className="max-w-[680px] text-[17px] leading-[1.7] text-[#3B4252]">No description provided for this event.</p>
+                  <p className="max-w-[680px] text-[17px] leading-[1.7] text-[#3B4252]">The organiser hasn&apos;t added details yet.</p>
                 )}
                 <div className="mt-1 flex flex-wrap gap-2">
                   {event.transferable && (
@@ -427,7 +428,7 @@ export default function ViewEventClient({ slug, initialEvent = null }) {
                 <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                   <span className="text-[13px] text-muted">Organised by</span>
                   <span className="truncate text-lg font-extrabold">
-                    {event.owner_handle ? `@${event.owner_handle}` : event.owner_name || "Byro Africa"}
+                    {event.owner_handle ? `@${event.owner_handle}` : event.owner_name || "Organiser"}
                   </span>
                   <span className="text-[13px] text-muted">
                     {event.owner_events_count ?? 0} event{event.owner_events_count === 1 ? "" : "s"} hosted
@@ -449,7 +450,7 @@ export default function ViewEventClient({ slug, initialEvent = null }) {
                 <div className="flex flex-col gap-1.5">
                   <span className="font-display text-2xl font-bold tracking-[-0.01em]">Collect this stamp</span>
                   <span className="max-w-[460px] text-base leading-[1.55] text-muted">
-                    Check in at the door.
+                    Check in at the door to add this stamp to your profile.
                   </span>
                 </div>
               </div>
@@ -484,6 +485,7 @@ export default function ViewEventClient({ slug, initialEvent = null }) {
                   </button>
                   {showTransfer && (
                     <form onSubmit={handleTransferSubmit} className="mt-4 max-w-sm space-y-3">
+                      <p className="text-sm text-muted">The ticket moves to them and stops working for you. This can&apos;t be undone.</p>
                       <div>
                         <label htmlFor="transfer-name" className="mb-1 block text-sm font-bold">Recipient&apos;s name</label>
                         <input id="transfer-name" type="text" value={transferName} onChange={e => setTransferName(e.target.value)} className={inputCls} placeholder="John Doe" required />
@@ -519,14 +521,36 @@ export default function ViewEventClient({ slug, initialEvent = null }) {
                   >
                     View ticket
                   </button>
-                  {isFree && (
+                  {isFree && !confirmingCancel && (
                     <button
                       type="button"
-                      onClick={handleCancelRegistration}
+                      onClick={() => setConfirmingCancel(true)}
                       className="h-12 rounded-full border border-red-200 text-sm font-bold text-red-600 transition-colors hover:bg-red-50"
                     >
-                      Cancel registration
+                      Cancel my spot
                     </button>
+                  )}
+                  {isFree && confirmingCancel && (
+                    <div role="alertdialog" aria-labelledby="cancel-spot-title" className="flex flex-col gap-3 rounded-2xl border border-red-200 bg-red-50 p-4">
+                      <p id="cancel-spot-title" className="text-sm font-bold text-red-700">Cancel your spot?</p>
+                      <p className="text-sm text-red-700">Your ticket stops working and someone else can take your place.</p>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={handleCancelRegistration}
+                          className="h-11 flex-1 rounded-full bg-red-600 px-4 text-sm font-bold text-white transition-colors hover:bg-red-700"
+                        >
+                          Cancel my spot
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmingCancel(false)}
+                          className="h-11 flex-1 rounded-full border border-line bg-white px-4 text-sm font-bold transition-colors hover:bg-mist"
+                        >
+                          Keep my ticket
+                        </button>
+                      </div>
+                    </div>
                   )}
                 </div>
               ) : (
@@ -609,7 +633,7 @@ export default function ViewEventClient({ slug, initialEvent = null }) {
                     disabled={registrationClosed}
                     className="flex h-14 items-center justify-center rounded-full bg-brand text-[17px] font-bold text-white transition-[filter,scale] hover:brightness-90 active:scale-[0.96] focus:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-line disabled:text-faint disabled:hover:brightness-100"
                   >
-                    {event?.cancelled_at ? "Event cancelled" : registrationClosed ? "Registration closed" : isFree ? "Register" : "Get tickets"}
+                    {event?.cancelled_at ? "Event cancelled" : registrationClosed ? (isFree ? "Registration closed" : "Sales ended") : isFree ? "Register" : "Get tickets"}
                   </button>
                   <p className="flex items-center justify-center gap-1.5 text-center text-[13px] text-muted">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2F9E6E" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

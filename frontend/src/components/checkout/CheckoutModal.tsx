@@ -200,13 +200,13 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
   const hasTiers = tiersProp && tiersProp.length > 0;
   const tiers: TicketTier[] = hasTiers
     ? tiersProp!.map(t => ({ ...t, price: parseFloat(String(t.price)) || 0 }))
-    : [{ id: "general", name: "General Admission", price: event.ticket_price }];
+    : [{ id: "general", name: "General admission", price: event.ticket_price }];
 
   const [quantities, setQuantities] = useState<Record<string, number>>(() => {
     const init: Record<string, number> = {};
     const src = (tiersProp && tiersProp.length > 0)
       ? tiersProp
-      : [{ id: "general", name: "General Admission", price: event.ticket_price }];
+      : [{ id: "general", name: "General admission", price: event.ticket_price }];
     src.forEach((t, i) => { init[String(t.id)] = i === 0 ? 1 : 0; });
     return init;
   });

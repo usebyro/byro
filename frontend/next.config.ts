@@ -68,6 +68,18 @@ const nextConfig: NextConfig = {
         missing: [{ type: 'host', value: 'admin.usebyro.com' }],
       },
       {
+        // Old browse page and payment-link form; Discover replaced them.
+        source: '/events/browse',
+        destination: '/discover',
+        permanent: true,
+        missing: [{ type: 'host', value: 'admin.usebyro.com' }],
+      },
+      {
+        source: '/:path(payment|payment-page)',
+        destination: '/discover',
+        permanent: true,
+      },
+      {
         source: '/ticket-confirmation',
         destination: '/order-confirmed',
         permanent: true,

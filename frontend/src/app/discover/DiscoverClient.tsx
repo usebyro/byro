@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { StackTile } from "@/components/brand/EventTile";
@@ -391,10 +392,22 @@ export default function DiscoverClient({ search, initialEvents }: { search: stri
                 </div>
               ) : visibleEvents.length === 0 ? (
                 <div className="flex flex-col items-start gap-3 rounded-[30px] bg-mist p-8 md:p-12">
-                  <p className="font-display text-2xl font-bold">No events match</p>
-                  <p className="text-muted">
-                    {activeCount > 0 || search ? "Remove a filter or change your search to see more." : "Nothing is on yet. Check back soon."}
+                  <p className="font-display text-2xl font-bold">
+                    {activeCount > 0 || search ? "No events match" : "No events yet"}
                   </p>
+                  <p className="text-muted">
+                    {activeCount > 0 || search
+                      ? "Remove a filter or change your search to see more."
+                      : "New events show up here as organisers publish them."}
+                  </p>
+                  {!(activeCount > 0 || search) && (
+                    <Link
+                      href="/events/create"
+                      className="mt-1 flex h-12 items-center rounded-full bg-brand px-6 font-bold text-white transition-[filter,scale] hover:brightness-90 active:scale-[0.96]"
+                    >
+                      Host an event
+                    </Link>
+                  )}
                   {(activeCount > 0 || search) && (
                     <button
                       type="button"

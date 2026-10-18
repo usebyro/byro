@@ -157,7 +157,7 @@ const formatDisplayTime = (timeStr) => {
 
 const formatDateForServer = (d) => {
   if (!d?.trim()) { toast.error("Event date is required"); return null; }
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) { toast.error("Invalid date format"); return null; }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) { toast.error("Pick a date from the calendar"); return null; }
   return d;
 };
 
@@ -243,6 +243,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
   const [tiers, setTiers] = useState(DEFAULT_TIERS);
   const [originalTiers, setOriginalTiers] = useState([]); // snapshot of saved tiers, for edit diffing
   const [editingTierId, setEditingTierId] = useState(null);
+  const [confirmDeleteTierId, setConfirmDeleteTierId] = useState(null);
   const [editTierData, setEditTierData] = useState({});
 
   /* submission */
@@ -369,9 +370,9 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
 
   const addTier = () => {
     const newId = `tier_${Date.now()}`;
-    setTiers(prev => [...prev, { id: newId, name: "New Tier", available: "Unlimited", price: "", admits: "1", perPerson: "5", minPerPerson: "1", description: "" }]);
+    setTiers(prev => [...prev, { id: newId, name: "General admission", available: "Unlimited", price: "", admits: "1", perPerson: "5", minPerPerson: "1", description: "" }]);
     setEditingTierId(newId);
-    setEditTierData({ name: "New Tier", available: "Unlimited", price: "", admits: "1", perPerson: "5", minPerPerson: "1", description: "" });
+    setEditTierData({ name: "General admission", available: "Unlimited", price: "", admits: "1", perPerson: "5", minPerPerson: "1", description: "" });
   };
 
   const handleVenueChange = useCallback((val) => {
@@ -556,7 +557,9 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
           const results = await Promise.allSettled(tierOps);
           const failures = results.filter((r) => r.status === "rejected");
           if (failures.length > 0) {
-            toast.error("Some tiers didn't save", { description: `Event saved. ${failures.length} tier change(s) failed: ${failures[0]?.reason?.message || "unknown error"}` });
+            toast.error("Some ticket types didn't save", {
+              description: `Your event is saved, but ${failures.length === 1 ? "1 ticket type" : `${failures.length} ticket types`} didn't. Open ${failures.length === 1 ? "it" : "them"} and save again.`,
+            });
           }
         }
 
@@ -565,7 +568,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
           try {
             await API.saveFormQuestions(slug, questionPayload);
           } catch (qErr) {
-            toast.error("Questions didn't save", { description: `Event saved, questions weren't: ${qErr?.message || "unknown error"}` });
+            toast.error("Questions didn't save", { description: "Your event is saved, but its questions aren't. Open Questions and save again." });
           }
         }
 
@@ -625,7 +628,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
             ) : (
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12" /></svg>
             )}
-            {isSubmitting ? "Saving..." : editSlug && !wasDraft ? "Save changes" : "Publish event"}
+            {isSubmitting ? (editSlug && !wasDraft ? "Saving…" : "Publishing…") : editSlug && !wasDraft ? "Save changes" : "Publish event"}
           </button>
         </div>
       </div>
@@ -835,11 +838,11 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
 
           <Collapsible
             id="sec-tiers"
-            title="Ticket tiers"
+            title="Ticket types"
             summary={
               [
                 capacity.trim() ? `${capacity} seats` : "Unlimited seats",
-                tiers.length > 0 ? `${tiers.length} tier${tiers.length === 1 ? "" : "s"}` : null,
+                tiers.length > 0 ? `${tiers.length} ticket type${tiers.length === 1 ? "" : "s"}` : null,
                 tiers.length === 0 ? `up to ${maxPerPerson} per person` : null,
               ].filter(Boolean).join(", ")
             }
@@ -854,7 +857,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
                 className="flex items-center gap-1.5 min-h-[44px] md:min-h-0 px-2 text-blue-600 text-sm font-semibold hover:text-blue-700 transition-colors"
               >
                 <HugeiconsIcon icon={Add01Icon} size={15} color="#2563eb" />
-                Add tier
+                Add ticket type
               </button>
             }
           >
@@ -899,7 +902,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
                     <div className="border border-blue-200 bg-blue-50/40 rounded-xl p-4 space-y-3">
                       <div className="grid grid-cols-3 gap-3">
                         <div className="col-span-2">
-                          <label className="text-xs font-medium text-gray-600 mb-1 block">Tier name</label>
+                          <label className="text-xs font-medium text-gray-600 mb-1 block">Ticket type name</label>
                           <input
                             type="text"
                             value={editTierData.name}
@@ -991,7 +994,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
                         </p>
                       </div>
                       <div>
-                        <label className="text-xs font-medium text-gray-600 mb-1 block">Price (₦) — leave blank for free</label>
+                        <label className="text-xs font-medium text-gray-600 mb-1 block">Price (₦)</label>
                         <input
                           type="text"
                           inputMode="decimal"
@@ -1009,9 +1012,18 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
                         />
                       </div>
                       <div className="flex gap-2">
-                        <button type="button" onClick={saveEditTier} className="bg-blue-600 text-white text-xs font-semibold px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">Save</button>
+                        <button type="button" onClick={saveEditTier} className="bg-blue-600 text-white text-xs font-semibold px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">Save ticket type</button>
                         <button type="button" onClick={() => setEditingTierId(null)} className="border border-gray-200 text-gray-600 text-xs font-medium px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors">Cancel</button>
                       </div>
+                    </div>
+                  ) : confirmDeleteTierId === tier.id ? (
+                    /* Delete confirmation */
+                    <div role="alertdialog" aria-label={`Delete ${tier.name}?`} className="flex flex-wrap items-center gap-3 p-4 border border-red-200 bg-red-50 rounded-xl">
+                      <p className="flex-1 min-w-0 text-sm text-red-700">
+                        <span className="font-semibold">Delete {tier.name}?</span> People choosing tickets won&apos;t see it any more.
+                      </p>
+                      <button type="button" onClick={() => { deleteTier(tier.id); setConfirmDeleteTierId(null); }} className="bg-red-600 text-white text-xs font-semibold px-4 py-2 rounded-lg hover:bg-red-700 transition-colors">Delete ticket type</button>
+                      <button type="button" onClick={() => setConfirmDeleteTierId(null)} className="border border-gray-200 bg-white text-gray-600 text-xs font-medium px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors">Keep it</button>
                     </div>
                   ) : (
                     /* Display state */
@@ -1041,11 +1053,11 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
                           <p className="text-xs text-gray-500">per ticket</p>
                         ) : null}
                       </div>
-                      <button type="button" onClick={() => startEditTier(tier)} className="text-gray-400 hover:text-gray-700 transition-colors p-1">
+                      <button type="button" onClick={() => startEditTier(tier)} aria-label={`Edit ${tier.name}`} className="text-gray-400 hover:text-gray-700 transition-colors p-1">
                         <HugeiconsIcon icon={Edit01Icon} size={15} color="currentColor" />
                       </button>
                       {tiers.length > 1 && (
-                        <button type="button" onClick={() => deleteTier(tier.id)} className="text-red-400 hover:text-red-600 transition-colors p-1">
+                        <button type="button" onClick={() => setConfirmDeleteTierId(tier.id)} aria-label={`Delete ${tier.name}`} className="text-red-400 hover:text-red-600 transition-colors p-1">
                           <HugeiconsIcon icon={Delete01Icon} size={15} color="currentColor" />
                         </button>
                       )}
@@ -1056,7 +1068,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
             </div>
 
             <p className="text-xs text-gray-400 mt-4">
-              Free event? Skip this section. For paid events, add at least one tier with a price, the first tier&apos;s price becomes the event ticket price.
+              Add one ticket type per price. Leave the price blank for a free ticket.
             </p>
           </Collapsible>
 
@@ -1140,8 +1152,8 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
                       </label>
                     </div>
                   )}
-                  {q.kind === "yesno" && <p className="text-sm text-[#5B6272]">Buyers choose Yes or No.</p>}
-                  {q.kind === "textarea" && <p className="text-sm text-[#5B6272]">Buyers type their own answer.</p>}
+                  {q.kind === "yesno" && <p className="text-sm text-[#5B6272]">Attendees choose Yes or No.</p>}
+                  {q.kind === "textarea" && <p className="text-sm text-[#5B6272]">Attendees type their own answer.</p>}
 
                   <label className="flex items-center gap-2 text-sm font-bold text-[#14161C]">
                     <input type="checkbox" checked={q.required} onChange={(e) => updateQuestion(q.key, { required: e.target.checked })} className="w-4 h-4" />

@@ -69,7 +69,7 @@ export default function CohostsDialog({ open, onClose, slug, ownerEmail, cohosts
     setInviting(true);
     try {
       const res = await API.addCohost(slug, email.trim(), role);
-      toast.success("Invitation sent", { description: res?.message });
+      toast.success("Invite sent", { description: res?.message });
       setEmail("");
       onChanged();
     } catch (err) {
@@ -205,7 +205,7 @@ export default function CohostsDialog({ open, onClose, slug, ownerEmail, cohosts
                 return (
                   <li key={c.id} className="flex items-center gap-2 rounded-lg bg-red-50 px-3 py-2">
                     <span className="flex-1 min-w-0 truncate text-[13px] text-red-800">
-                      {pending ? "Cancel the invite to" : "Remove"} {c.email}?
+                      {pending ? `Cancel the invite to ${c.email}?` : `Remove ${c.email}? They'll lose access to this event.`}
                     </span>
                     <button
                       type="button"
@@ -213,14 +213,14 @@ export default function CohostsDialog({ open, onClose, slug, ownerEmail, cohosts
                       disabled={busyId === c.id}
                       className="shrink-0 rounded-md bg-red-600 px-2.5 h-8 text-[13px] font-semibold text-white hover:bg-red-700 disabled:opacity-60"
                     >
-                      {pending ? "Cancel invite" : "Remove"}
+                      {pending ? "Cancel invite" : "Remove access"}
                     </button>
                     <button
                       type="button"
                       onClick={() => setConfirmId(null)}
                       className="shrink-0 rounded-md px-2.5 h-8 text-[13px] font-medium text-gray-600 hover:bg-white"
                     >
-                      Keep
+                      {pending ? "Keep invite" : "Keep access"}
                     </button>
                   </li>
                 );
