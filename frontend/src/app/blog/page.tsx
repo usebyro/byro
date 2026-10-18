@@ -4,14 +4,35 @@ import {HugeiconsIcon} from '@hugeicons/react'
 import {ArrowRight02Icon} from '@hugeicons/core-free-icons'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
+import {SITE_URL} from '@/lib/site'
+import {serializeJsonLd} from '@/lib/jsonLd'
 import {formatShortDate, getBlogPosts} from './blog-data'
 import BlogGrid from './BlogGrid'
 import {BlogCover, HostBand, ReadTime, TopicPill, topicOf} from './blog-ui'
 
+const DESCRIPTION = 'Guides for running events on Byro, and news on what we’re building.'
+const BLOG_URL = `${SITE_URL}/blog`
+const SHARE_IMAGE = {url: `${BLOG_URL}/og`, width: 1200, height: 630, alt: 'The Byro blog'}
+
 export const metadata: Metadata = {
   title: 'Blog',
-  alternates: {canonical: '/blog'},
-  description: 'Guides for running events on Byro, and news on what we’re building.',
+  description: DESCRIPTION,
+  alternates: {canonical: BLOG_URL},
+  openGraph: {
+    type: 'website',
+    siteName: 'Byro',
+    locale: 'en_NG',
+    url: BLOG_URL,
+    title: 'Blog | Byro',
+    description: DESCRIPTION,
+    images: [SHARE_IMAGE],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Blog | Byro',
+    description: DESCRIPTION,
+    images: [SHARE_IMAGE.url],
+  },
 }
 
 export default async function BlogPage() {
@@ -19,8 +40,24 @@ export default async function BlogPage() {
   const featured = posts.find((post) => post.featured) || posts[0]
   const rest = featured ? posts.filter((post) => post._id !== featured._id) : []
 
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Blog',
+    name: 'Byro blog',
+    description: DESCRIPTION,
+    url: BLOG_URL,
+    publisher: {'@type': 'Organization', name: 'Byro', url: SITE_URL},
+    blogPost: posts.slice(0, 20).map((post) => ({
+      '@type': 'BlogPosting',
+      headline: post.title,
+      url: `${BLOG_URL}/${post.slug}`,
+      datePublished: post.publishedAt,
+    })),
+  }
+
   return (
     <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{__html: serializeJsonLd(jsonLd)}} />
       <Navbar />
       <main className="bg-white font-body text-ink">
         <section aria-labelledby="blog-title" className="mx-auto flex max-w-[1120px] flex-col gap-3.5 px-4 pb-7 pt-10 motion-safe:animate-rise md:px-6 md:pb-12 md:pt-[88px]">

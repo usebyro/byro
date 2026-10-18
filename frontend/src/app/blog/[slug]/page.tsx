@@ -6,21 +6,55 @@ import {ArrowLeft01Icon, ArrowRight02Icon} from '@hugeicons/core-free-icons'
 import {notFound} from 'next/navigation'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
+import {SITE_URL} from '@/lib/site'
+import {serializeJsonLd} from '@/lib/jsonLd'
 import {formatShortDate, getBlogPost, getBlogPosts} from '../blog-data'
+import type {BlogPost} from '../blog-data'
 import {BlogCover, HostBand, ReadTime, TopicPill, toneFor, topicOf} from '../blog-ui'
 import {ShareBox, ShareRow} from './BlogShare'
 
 type PageProps = {params: Promise<{slug: string}>}
 
+/** The cover cropped to the 1200×630 preview size by Sanity's image CDN, or the generated title card. */
+function shareImage(post: BlogPost, postUrl: string) {
+  return post.coverImageUrl
+    ? {url: `${post.coverImageUrl}?w=1200&h=630&fit=crop&auto=format`, width: 1200, height: 630, alt: post.title}
+    : {url: `${postUrl}/og`, width: 1200, height: 630, alt: post.title}
+}
+
 export async function generateMetadata({params}: PageProps): Promise<Metadata> {
   const {slug} = await params
   const post = await getBlogPost(slug)
-  if (!post) return {title: 'Post Not Found'}
+  if (!post) return {title: 'Post not found', robots: {index: false, follow: false}}
+
+  const postUrl = `${SITE_URL}/blog/${post.slug}`
+  const description = post.excerpt || `${post.title}, on the Byro blog.`
+  const image = shareImage(post, postUrl)
 
   return {
     title: post.title,
-    description: post.excerpt || `${post.title} — Byro blog`,
-    alternates: {canonical: `/blog/${post.slug}`},
+    description,
+    alternates: {canonical: postUrl},
+    authors: [{name: post.authorName}],
+    openGraph: {
+      type: 'article',
+      siteName: 'Byro',
+      locale: 'en_NG',
+      url: postUrl,
+      title: post.title,
+      description,
+      publishedTime: post.publishedAt,
+      authors: [post.authorName],
+      tags: post.tags,
+      images: [image],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: post.title,
+      description,
+      images: [image.url],
+      creator: '@byroafrica',
+    },
   }
 }
 
@@ -31,9 +65,27 @@ export default async function PostPage({params}: PageProps) {
   if (!post) return notFound()
 
   const more = posts.filter((item) => item.slug !== post.slug).slice(0, 2)
+  const postUrl = `${SITE_URL}/blog/${post.slug}`
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'BlogPosting',
+    headline: post.title,
+    description: post.excerpt || undefined,
+    image: [shareImage(post, postUrl).url],
+    datePublished: post.publishedAt,
+    author: {'@type': 'Organization', name: post.authorName},
+    publisher: {
+      '@type': 'Organization',
+      name: 'Byro',
+      logo: {'@type': 'ImageObject', url: `${SITE_URL}/favicon_io/android-chrome-512x512.png`},
+    },
+    mainEntityOfPage: postUrl,
+    keywords: post.tags.length ? post.tags.join(', ') : undefined,
+  }
 
   return (
     <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{__html: serializeJsonLd(jsonLd)}} />
       <Navbar />
       <main className="bg-white font-body text-ink">
         <article>
@@ -79,7 +131,7 @@ export default async function PostPage({params}: PageProps) {
           ) : null}
 
           <div className="mx-auto max-w-[720px] px-4 pb-14 pt-10 md:px-6 md:pb-[88px]">
-            <ShareBox slug={post.slug} />
+            <ShareBox slug={post.slug} title={post.title} />
           </div>
         </article>
 

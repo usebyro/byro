@@ -34,9 +34,10 @@ function useCopyLink(slug: string) {
 const press = 'transition-[transform,background-color,color] duration-150 active:scale-[0.96] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2'
 
 /** Copy link + X, LinkedIn and WhatsApp, under the post's title. */
-export function ShareRow({slug, title}: {slug: string; title: string}) {
+export function ShareRow({slug, title, onTint = false}: {slug: string; title: string; onTint?: boolean}) {
   const {copied, copy} = useCopyLink(slug)
   const enc = encodeURIComponent
+  const idle = onTint ? 'bg-white hover:bg-[#E6EAF1]' : 'bg-[#F1F3F7] hover:bg-[#E6EAF1]'
   const channels = [
     // Each in its own brand colour, as in the app's share menu.
     {label: 'Share on X', icon: NewTwitterIcon, color: '#000000', href: `https://twitter.com/intent/tweet?url=${enc(shareLink(slug, 'twitter'))}&text=${enc(title)}`},
@@ -50,7 +51,7 @@ export function ShareRow({slug, title}: {slug: string; title: string}) {
         type="button"
         onClick={copy}
         className={`inline-flex min-h-11 items-center gap-2 rounded-full pl-3.5 pr-4 text-sm font-extrabold ${press} ${
-          copied ? 'bg-good-tint text-good' : 'bg-[#F1F3F7] text-ink hover:bg-[#E6EAF1]'
+          copied ? 'bg-good-tint text-good' : `${idle} text-ink`
         }`}
       >
         <HugeiconsIcon icon={copied ? Tick02Icon : Link01Icon} size={18} color="currentColor" aria-hidden />
@@ -63,7 +64,7 @@ export function ShareRow({slug, title}: {slug: string; title: string}) {
           target="_blank"
           rel="noopener noreferrer"
           aria-label={label}
-          className={`inline-flex size-11 items-center justify-center rounded-full bg-[#F1F3F7] hover:bg-[#E6EAF1] ${press}`}
+          className={`inline-flex size-11 items-center justify-center rounded-full ${idle} ${press}`}
         >
           <HugeiconsIcon icon={icon} size={20} color={color} strokeWidth={1.8} aria-hidden />
         </a>
@@ -72,23 +73,15 @@ export function ShareRow({slug, title}: {slug: string; title: string}) {
   )
 }
 
-/** "Found this useful?" box at the end of the post. */
-export function ShareBox({slug}: {slug: string}) {
-  const {copied, copy} = useCopyLink(slug)
+/** The end of the post: the same share buttons as under the title, for people who read to the end. */
+export function ShareBox({slug, title}: {slug: string; title: string}) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-4 rounded-3xl bg-[#F4F6FA] p-6">
       <div className="flex flex-col gap-1">
-        <span className="font-display text-xl font-bold tracking-[-0.02em]">Found this useful?</span>
-        <span className="text-[15px] text-body">Send it to someone hosting their first event.</span>
+        <span className="font-display text-xl font-bold tracking-[-0.02em]">Enjoyed this post?</span>
+        <span className="text-[15px] text-body">Share it with someone who’d find it useful.</span>
       </div>
-      <button
-        type="button"
-        onClick={copy}
-        className={`inline-flex min-h-12 items-center gap-2 rounded-full bg-ink pl-[18px] pr-5 text-sm font-extrabold text-white ${press}`}
-      >
-        <HugeiconsIcon icon={copied ? Tick02Icon : Link01Icon} size={18} color="currentColor" aria-hidden />
-        {copied ? 'Copied' : 'Copy link'}
-      </button>
+      <ShareRow slug={slug} title={title} onTint />
     </div>
   )
 }
