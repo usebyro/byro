@@ -34,8 +34,7 @@ class DesignTests(SimpleTestCase):
         ]
         for mail in mails:
             html = mail["html"]
-            self.assertIn("Create communities. Discover events. Create memories.", html)
-            self.assertNotIn("byro &middot; Create communities", html)
+            self.assertNotIn("Create communities", html)
             self.assertIn("support@usebyro.com", html)
             self.assertIn("logo-email.png", html)
             self.assertTrue(mail["text"].strip())

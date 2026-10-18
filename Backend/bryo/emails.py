@@ -127,8 +127,7 @@ def _shell(badge_html, headline, body_html, footer_text, preheader=""):
     <tr>
       <td style="text-align:center;padding:16px 8px 0;">
         <p style="color:{MUTED};font-size:12px;line-height:1.6;margin:0 0 6px;">{footer_text}</p>
-        <p style="color:{MUTED};font-size:12px;line-height:1.6;margin:0 0 6px;">Questions? Reply to this email or write to <a href="mailto:support@usebyro.com" style="color:{BRAND_DARK};font-weight:700;text-decoration:none;">support@usebyro.com</a></p>
-        <p style="color:{BODY};font-size:12px;font-weight:700;line-height:1.6;margin:0;">Create communities. Discover events. Create memories.</p>
+        <p style="color:{MUTED};font-size:12px;line-height:1.6;margin:0;">Questions? Reply to this email or write to <a href="mailto:support@usebyro.com" style="color:{BRAND_DARK};font-weight:700;text-decoration:none;">support@usebyro.com</a></p>
       </td>
     </tr>
   </table>
