@@ -1,377 +1,273 @@
 "use client";
 import useFeeInfo from "@/lib/useFeeInfo";
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import {
-  FiBarChart2,
-  FiZap,
-  FiGift,
-  FiUserPlus,
-  FiTag,
-  FiClock,
-} from "react-icons/fi";
 
-const eventManagementFeatures = [
-  {
-    icon: FiGift,
-    title: "Free tickets",
-    description:
-      "Create free tickets with no charge to attendees or event hosts. We only make money when you do.",
-  },
-  {
-    icon: FiClock,
-    title: "Flexible payout frequencies",
-    description:
-      "Choose how and when you receive your earnings with customisable payout schedules that fit your cash flow needs.",
-  },
-  {
-    icon: FiBarChart2,
-    title: "Event analytics",
-    description:
-      "Track ticket sales and attendee engagement in real time to optimise pricing and sell more.",
-  },
-  {
-    icon: FiZap,
-    title: "Easy event creation",
-    description:
-      "Set up your event in minutes, including customisable ticket types and pricing.",
-  },
-  {
-    icon: FiUserPlus,
-    title: "Group tickets",
-    description:
-      "Offer discounted group pricing to encourage bigger orders per checkout.",
-  },
-  {
-    icon: FiTag,
-    title: "E-tickets & QR entry",
-    description:
-      "Secure QR codes are generated instantly for fast, frictionless check-in.",
-  },
+const freeFeatures = [
+  "Unlimited events and guests",
+  "Registration questions",
+  "QR tickets and check-in",
+  "Email your attendees",
 ];
 
-const standardFeatures = [
-  "Unlimited free events",
-  "Unlimited ticket volume",
-  "Byro checkout & QR entry",
-  "Reserved seating & tiers",
-  "Payout in 24 hours",
-  "Email support",
+const paidFeatures = [
+  "Everything in free events",
+  "Ticket types and promo codes",
+  "Co-hosts and door staff",
+  "Payouts to your bank",
 ];
 
-const faqs = [
-  {
-    q: "When do I get paid?",
-    a: "Payouts land in your bank within 24 hours of submitting a payout request on the dashboard.",
-  },
-  {
-    q: "What happens if I cancel an event?",
-    a: "Your attendees are told straight away and everyone who paid is refunded the ticket price. Byro's service fee and the payment processing charge are not refunded. Buyers can't ask for refunds themselves.",
-  },
-  {
-    q: "Who pays the fees?",
-    a: "You choose: absorb the fee or pass it to attendees at checkout.",
-  },
-];
+const PRICE_PRESETS = [2000, 5000, 10000, 25000];
 
+const naira = (v) => `₦${Math.round(v).toLocaleString("en-NG")}`;
 
-function formatNaira(amount) {
-  return `₦${amount.toLocaleString("en-NG", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  })}`;
-}
+/** Delay for the staggered entrance (`motion-safe:animate-rise`, skipped for people who ask for reduced motion). */
+const rise = (i) => ({ style: { animationDelay: `${i * 60}ms` } });
 
-function PayoutCalculator() {
-  const { defaultPercent } = useFeeInfo();
-  const feeRate = Number(defaultPercent) / 100;
-  const [price, setPrice] = useState(10000);
-  const [quantity, setQuantity] = useState(50);
-  const [attendeePaysFee, setAttendeePaysFee] = useState(true);
+function TakeHome({ percent }) {
+  const rate = Number(percent) / 100;
+  const [price, setPrice] = useState(5000);
+  const [guestsPay, setGuestsPay] = useState(true);
 
-  const { grossRevenue, totalFee, payout } = useMemo(() => {
-    const p = Number(price) || 0;
-    const q = Number(quantity) || 0;
-    const feePerTicket = attendeePaysFee ? 0 : p * feeRate;
-    return {
-      grossRevenue: p * q,
-      totalFee: feePerTicket * q,
-      payout: (p - feePerTicket) * q,
-    };
-  }, [price, quantity, attendeePaysFee, feeRate]);
-
-  const handleNumberChange = (setter) => (e) => {
-    const val = e.target.value;
-    if (val === "") return setter("");
-    const num = Number(val.replace(/[^0-9.]/g, ""));
-    if (!Number.isNaN(num)) setter(num);
-  };
+  const fee = Math.round(price * rate);
+  const guestPays = guestsPay ? price + fee : price;
+  const youGet = guestsPay ? price : price - fee;
 
   return (
-    <div className="h-full flex flex-col justify-between bg-[#0B0F19] text-white rounded-3xl p-6 sm:p-8 shadow-xl shadow-indigo-950/20">
-      <div>
-        <p className="text-[10px] font-extrabold uppercase tracking-widest text-[#4F6EF7]">
-          Payout calculator
-        </p>
-        <p className="text-[11px] text-slate-500 mt-1 mb-6">
-          Estimate what you&apos;ll take home before you set your ticket
-          price.
-        </p>
+    <div className="flex flex-col gap-5 rounded-3xl bg-[#F4F6FA] p-5 md:p-7">
+      <label className="flex flex-col gap-2">
+        <span className="text-[15px] font-bold">Ticket price</span>
+        <span className="flex min-h-14 items-center gap-1.5 rounded-[14px] bg-white px-4 focus-within:ring-2 focus-within:ring-brand">
+          <span className="font-display text-[22px] font-bold text-muted">₦</span>
+          <input
+            inputMode="numeric"
+            aria-label="Ticket price in naira"
+            value={price.toLocaleString("en-NG")}
+            onChange={(e) => setPrice(parseInt(e.target.value.replace(/[^0-9]/g, ""), 10) || 0)}
+            className="min-w-0 flex-1 bg-transparent font-display text-[22px] font-bold tabular-nums text-ink outline-none"
+          />
+        </span>
+      </label>
 
-        <div className="grid grid-cols-2 gap-4 mb-6">
-          <label className="block">
-            <span className="text-[11px] font-semibold text-slate-400">
-              Ticket price
-            </span>
-            <div className="mt-1.5 flex items-center bg-white/5 border border-slate-800 rounded-xl px-3 py-2.5 focus-within:border-[#4F6EF7]/60 transition-colors">
-              <span className="text-xs text-slate-500 mr-1">₦</span>
-              <input
-                type="text"
-                inputMode="decimal"
-                value={price}
-                onChange={handleNumberChange(setPrice)}
-                className="w-full bg-transparent text-sm font-bold text-white outline-none"
-              />
-            </div>
-          </label>
-
-          <label className="block">
-            <span className="text-[11px] font-semibold text-slate-400">
-              Tickets sold
-            </span>
-            <div className="mt-1.5 flex items-center bg-white/5 border border-slate-800 rounded-xl px-3 py-2.5 focus-within:border-[#4F6EF7]/60 transition-colors">
-              <input
-                type="text"
-                inputMode="numeric"
-                value={quantity}
-                onChange={handleNumberChange(setQuantity)}
-                className="w-full bg-transparent text-sm font-bold text-white outline-none"
-              />
-            </div>
-          </label>
-        </div>
-
-        <div className="flex items-center justify-between bg-white/5 border border-slate-800 rounded-xl px-3.5 py-3 mb-6">
-          <span className="text-[11px] font-semibold text-slate-300">
-            I absorb fee
-          </span>
+      <div className="-mt-2 flex flex-wrap gap-2">
+        {PRICE_PRESETS.map((v) => (
           <button
+            key={v}
             type="button"
-            onClick={() => setAttendeePaysFee((v) => !v)}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-              !attendeePaysFee ? "bg-[#4F6EF7]" : "bg-slate-700"
+            aria-pressed={price === v}
+            onClick={() => setPrice(v)}
+            className={`min-h-10 rounded-full px-3.5 text-sm font-bold tabular-nums transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 ${
+              price === v ? "bg-ink text-white" : "bg-white text-ink"
             }`}
           >
-            <span
-              className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
-                !attendeePaysFee ? "translate-x-6" : "translate-x-1"
-              }`}
-            />
+            {naira(v)}
           </button>
+        ))}
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <span id="who-pays" className="text-[15px] font-bold">
+          Who pays the {percent}%?
+        </span>
+        <div role="group" aria-labelledby="who-pays" className="inline-flex rounded-full bg-[#E6EAF1] p-[3px]">
+          {[
+            [true, "Guests"],
+            [false, "Me"],
+          ].map(([value, label]) => (
+            <button
+              key={label}
+              type="button"
+              aria-pressed={guestsPay === value}
+              onClick={() => setGuestsPay(value)}
+              className={`min-h-10 rounded-full px-4 text-sm font-bold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
+                guestsPay === value ? "bg-white text-ink shadow-[0_1px_2px_rgba(20,22,28,0.08)]" : "text-muted"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
         </div>
       </div>
 
-      <div className="space-y-4">
-        <div className="flex justify-between items-center pb-4 border-b border-slate-800">
-          <span className="text-xs text-slate-300">
-            Gross revenue ({Number(quantity) || 0} tickets)
-          </span>
-          <span className="text-sm font-bold">
-            {formatNaira(grossRevenue)}
+      <div aria-live="polite" className="grid grid-cols-2 gap-3 border-t border-line pt-5">
+        <div className="flex flex-col gap-1">
+          <span className="text-sm text-muted">Guest pays</span>
+          <span className="font-display text-[30px] font-bold tabular-nums tracking-[-0.02em]">{naira(guestPays)}</span>
+        </div>
+        <div className="flex flex-col gap-1">
+          <span className="text-sm text-muted">You get</span>
+          <span className="font-display text-[30px] font-bold tabular-nums tracking-[-0.02em] text-brand-dark">
+            {naira(youGet)}
           </span>
         </div>
-        <div className="flex justify-between items-center pb-4 border-b border-slate-800">
-          <span className="text-xs text-slate-300">
-            Platform fee ({defaultPercent}% per ticket)
-          </span>
-          <span className="text-sm font-bold text-[#4F6EF7]">
-            −{formatNaira(totalFee)}
-          </span>
-        </div>
-        <div className="flex justify-between items-center">
-          <span className="text-xs text-slate-300 font-semibold">
-            Your payout
-          </span>
-          <span className="text-lg font-black">{formatNaira(payout)}</span>
-        </div>
-        <p className="text-[10px] text-slate-500 leading-relaxed text-center">
-          Final payment charge is dependent on payment gateway.
-        </p>
       </div>
     </div>
   );
 }
 
-function CheckIcon({ color = "#4F6EF7" }) {
+/** One answer open at a time; the first starts open. */
+function Questions({ faqs }) {
+  const [open, setOpen] = useState(0);
   return (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke={color}
-      strokeWidth="2.5"
-      className="flex-shrink-0 mt-0.5"
-    >
-      <polyline points="20 6 9 17 4 12" />
-    </svg>
+    <div className="flex flex-col gap-2.5">
+      {faqs.map(({ q, a }, i) => {
+        const isOpen = open === i;
+        return (
+          <div key={q} className="rounded-[18px] bg-white">
+            <h3>
+              <button
+                type="button"
+                aria-expanded={isOpen}
+                aria-controls={`faq-${i}`}
+                onClick={() => setOpen(isOpen ? -1 : i)}
+                className="group flex min-h-16 w-full items-center justify-between gap-4 rounded-[18px] px-5 text-left text-[17px] font-extrabold text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+              >
+                {q}
+                <span
+                  aria-hidden="true"
+                  className={`flex size-7 shrink-0 items-center justify-center rounded-full transition-[transform,background-color] duration-[240ms] ease-[cubic-bezier(0.77,0,0.175,1)] motion-reduce:transition-none ${
+                    isOpen ? "rotate-45 bg-[#EAF0FF]" : "bg-[#F1F3F7] group-hover:bg-[#E6EAF1]"
+                  }`}
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round">
+                    <path d="M12 5v14M5 12h14" />
+                  </svg>
+                </span>
+              </button>
+            </h3>
+            <div
+              id={`faq-${i}`}
+              role="region"
+              className="grid transition-[grid-template-rows] duration-[260ms] ease-[cubic-bezier(0.77,0,0.175,1)] motion-reduce:transition-none"
+              style={{ gridTemplateRows: isOpen ? "1fr" : "0fr" }}
+            >
+              <div className="overflow-hidden">
+                <p className="px-5 pb-5 text-base leading-[1.55] text-body">{a}</p>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
 export default function PricingPage() {
   const { defaultPercent } = useFeeInfo();
+
+  const faqs = [
+    {
+      q: "When do I get paid?",
+      a: "Withdraw from your dashboard any time. It reaches your bank within 24 hours.",
+    },
+    {
+      q: "Are free events really free?",
+      a: "Yes. No fees for you or your guests, however many people come.",
+    },
+    {
+      q: `Who pays the ${defaultPercent}%?`,
+      a: "You choose for each event: add it to the ticket price at checkout, or cover it yourself.",
+    },
+    {
+      q: "How do guests pay?",
+      a: "Card or bank transfer through Paystack. No account needed.",
+    },
+    {
+      q: "What if I cancel an event?",
+      a: "Everyone who paid is refunded the ticket price straight away. Byro's service fee and the payment processing charge are not refunded.",
+    },
+  ];
+
+  const ctaBase =
+    "inline-flex min-h-12 items-center justify-center whitespace-nowrap rounded-full px-[22px] text-base font-bold transition-[transform,background-color] duration-150 active:scale-[0.97] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2";
+
   return (
     <>
       <Navbar />
-      <div className="min-h-screen bg-[#F8FAFC] space-y-16 pb-12">
-        <div className="text-center pt-20 pb-4 px-4 relative">
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-64 h-64 bg-indigo-200/10 blur-3xl rounded-full -z-10 pointer-events-none" />
-          <span className="text-[#4F6EF7] text-xs font-extrabold tracking-widest uppercase bg-indigo-50 px-3 py-1 rounded-full">
-            Pricing plans
-          </span>
-          <h1 className="text-4xl sm:text-6xl font-black text-gray-900 tracking-tight mt-5 leading-tight">
-            We earn when you{" "}
-            <span
-              className="italic text-[#4F6EF7]"
-              style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}
-            >
-              sell
-            </span>
+      <main className="bg-white font-body text-ink">
+        <section
+          aria-labelledby="pricing-title"
+          {...rise(0)}
+          className="mx-auto flex max-w-[880px] flex-col items-center gap-4 px-4 pb-12 pt-14 text-center motion-safe:animate-rise md:px-6 md:pt-28"
+        >
+          <h1 id="pricing-title" className="font-display text-[44px] font-bold leading-none tracking-[-0.045em] md:text-[72px]">
+            Pricing
           </h1>
-          <p className="text-gray-500 mt-4 text-xs sm:text-sm max-w-sm sm:max-w-md mx-auto leading-relaxed">
-            Simple and transparent fee structure. No setup costs. Free tickets are always 100% free.
+          <p className="max-w-[36ch] text-[17px] leading-normal text-body md:text-[19px]">
+            Free to use. We only take a small fee when you sell a ticket.
           </p>
-        </div>
+        </section>
 
-        <div className="max-w-4xl mx-auto px-4 relative">
-          <div
-            aria-hidden
-            className="absolute -inset-x-24 -top-8 -bottom-8 -z-10 bg-indigo-50/30 blur-3xl rounded-full pointer-events-none"
-          />
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-stretch">
-            <div className="bg-[#0B0F19] text-white border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-sm relative">
-              <div className="absolute top-6 right-6">
-                <span className="bg-[#4F6EF7] text-white text-[10px] font-extrabold px-3 py-1 rounded-full uppercase tracking-wider">
-                  Active
+        <section aria-label="Plans" className="mx-auto max-w-[880px] px-4 pb-16 md:px-6 md:pb-28">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div {...rise(1)} className="flex flex-col gap-5 rounded-3xl bg-[#F4F6FA] p-7 motion-safe:animate-rise">
+              <div className="flex flex-col gap-1.5">
+                <span className="text-base font-bold">Free events</span>
+                <span className="font-display text-[56px] font-bold leading-none tabular-nums tracking-[-0.04em]">₦0</span>
+                <span className="text-[15px] text-muted">No fees for you or your guests.</span>
+              </div>
+              <ul className="flex flex-col gap-2.5 text-[15px]">
+                {freeFeatures.map((f) => (
+                  <li key={f}>{f}</li>
+                ))}
+              </ul>
+              <Link href="/events/create" className={`${ctaBase} mt-auto bg-white text-ink hover:bg-[#DFE3EA]`}>
+                Create a free event
+              </Link>
+            </div>
+
+            <div {...rise(2)} className="flex flex-col gap-5 rounded-3xl bg-brand p-7 text-white motion-safe:animate-rise">
+              <div className="flex flex-col gap-1.5">
+                <span className="text-base font-bold">Paid events</span>
+                <span className="font-display text-[56px] font-bold leading-none tabular-nums tracking-[-0.04em]">
+                  {defaultPercent}%
                 </span>
+                <span className="text-[15px] text-[#E3EAFF]">Per ticket sold. Pass it to guests or cover it.</span>
               </div>
-              <div>
-                <h2 className="text-xl font-bold text-white tracking-tight">Standard</h2>
-                <p className="text-slate-400 text-xs mt-1.5">
-                  For everyone hosting and selling tickets.
-                </p>
-
-                <div className="mt-6">
-                  <span className="text-5xl sm:text-6xl font-black text-white">Free</span>
-                </div>
-                <p className="text-slate-400 text-xs mt-1 mb-6">
-                  {defaultPercent}% per paid ticket sold
-                </p>
-              </div>
-
-              <div>
-                <Link
-                  href="/events/create"
-                  className="block w-full text-center bg-[#4F6EF7] hover:bg-blue-700 text-white text-xs font-bold py-3.5 px-4 rounded-full transition-colors"
-                >
-                  Start free
-                </Link>
-
-                <ul className="mt-8 space-y-3.5 border-t border-slate-800/80 pt-6">
-                  {standardFeatures.map((f) => (
-                    <li
-                      key={f}
-                      className="flex items-start gap-2.5 text-xs text-slate-300"
-                    >
-                      <CheckIcon color="#4F6EF7" />
-                      {f}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-
-            <PayoutCalculator />
-          </div>
-        </div>
-
-        <div className="bg-[#EEF2FF]/40 border-y border-indigo-50/50 py-20 relative">
-          <div className="absolute inset-0 bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:14px_24px] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_50%,#000_70%,transparent_100%)] pointer-events-none" />
-          <div className="w-[90%] max-w-6xl mx-auto relative z-10">
-            <div className="text-center mb-12">
-              <span className="text-[#4F6EF7] text-xs font-bold tracking-widest uppercase bg-indigo-50 px-2.5 py-1 rounded-full">
-                What&apos;s included
-              </span>
-              <h2 className="text-2xl sm:text-4xl font-extrabold text-gray-900 mt-4 max-w-2xl mx-auto leading-tight tracking-tight">
-                Everything needed to manage your event
-              </h2>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {eventManagementFeatures.map((feature) => {
-                const Icon = feature.icon;
-                return (
-                  <div
-                    key={feature.title}
-                    className="bg-white rounded-2xl border border-gray-100/80 shadow-sm p-6 hover:shadow-md hover:-translate-y-1 transition-all duration-300 group"
-                  >
-                    <div className="w-10 h-10 rounded-lg bg-indigo-50 text-[#4F6EF7] flex items-center justify-center group-hover:bg-[#4F6EF7] group-hover:text-white transition-all duration-300">
-                      <Icon size={18} />
-                    </div>
-                    <h3 className="mt-4 text-base font-bold text-gray-900">
-                      {feature.title}
-                    </h3>
-                    <p className="mt-2.5 text-xs text-gray-500 leading-relaxed">
-                      {feature.description}
-                    </p>
-                  </div>
-                );
-              })}
+              <ul className="flex flex-col gap-2.5 text-[15px]">
+                {paidFeatures.map((f) => (
+                  <li key={f}>{f}</li>
+                ))}
+              </ul>
+              <Link href="/events/create" className={`${ctaBase} mt-auto bg-white text-ink focus-visible:ring-white focus-visible:ring-offset-brand`}>
+                Start selling tickets
+              </Link>
             </div>
           </div>
-        </div>
-
-        <div className="w-[90%] mx-auto max-w-4xl">
-          <div className="bg-white rounded-3xl p-6 sm:p-10 shadow-sm border border-gray-100/80">
-            <h2 className="text-2xl font-black text-gray-900 mb-8 text-center tracking-tight">
-              Common questions
-            </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-8 gap-y-8">
-              {faqs.map((faq, i) => (
-                <div key={i} className="flex gap-3 hover:bg-slate-50/50 p-2 rounded-lg transition-colors duration-200">
-                  <CheckIcon color="#4F6EF7" />
-                  <div>
-                    <p className="font-bold text-gray-900 text-sm mb-1.5">
-                      {faq.q}
-                    </p>
-                    <p className="text-gray-500 text-xs leading-relaxed">
-                      {faq.a}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <div className="max-w-2xl mx-auto px-4 text-center">
-          <h2 className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight">
-            Ready to start selling?
-          </h2>
-          <p className="text-gray-500 mt-3 text-xs sm:text-sm max-w-sm mx-auto leading-relaxed">
-            Create your first event in minutes. No setup costs, no monthly
-            fees. We only earn when you sell.
+          <p {...rise(3)} className="mt-4 text-center text-sm leading-normal text-body motion-safe:animate-rise">
+            No setup or monthly fees. Paystack card and bank processing is shown to the buyer at checkout.
           </p>
-          <Link
-            href="/events/create"
-            className="inline-block mt-6 bg-[#4F6EF7] hover:bg-blue-700 text-white text-xs font-bold py-3.5 px-8 rounded-full transition-colors"
-          >
-            Start free
+        </section>
+
+        <section aria-labelledby="take-home" className="bg-white py-14 md:py-24">
+          <div className="mx-auto flex max-w-[640px] flex-col gap-6 px-4 md:px-6">
+            <h2 id="take-home" className="text-center font-display text-[28px] font-bold tracking-[-0.03em] md:text-4xl">
+              What you’ll take home
+            </h2>
+            <TakeHome percent={defaultPercent} />
+          </div>
+        </section>
+
+        <section aria-labelledby="questions" className="bg-[#F4F6FA] py-14 md:py-24">
+          <div className="mx-auto flex max-w-[720px] flex-col gap-8 px-4 md:px-6">
+            <h2 id="questions" className="font-display text-[28px] font-bold tracking-[-0.03em] md:text-4xl">
+              Questions
+            </h2>
+            <Questions faqs={faqs} />
+          </div>
+        </section>
+
+        <section aria-labelledby="start" className="flex flex-col items-center gap-5 bg-ink px-4 py-[72px] text-center text-white md:py-[120px]">
+          <h2 id="start" className="font-display text-[32px] font-bold tracking-[-0.035em] md:text-5xl">
+            Start for free.
+          </h2>
+          <Link href="/events/create" className={`${ctaBase} bg-brand text-white hover:bg-[#2F5EE0] focus-visible:ring-offset-ink`}>
+            Create an event
           </Link>
-        </div>
-      </div>
+        </section>
+      </main>
       <Footer />
     </>
   );
