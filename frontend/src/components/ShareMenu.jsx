@@ -115,7 +115,7 @@ export default function ShareMenu({
         navigator.clipboard
           .writeText(link("copy_link"))
           .then(() => toast.success("Link copied"))
-          .catch(() => toast.error("Couldn't copy link"));
+          .catch(() => toast.error("Couldn't copy link", { description: "Copy it from the address bar instead." }));
       },
     },
   ];

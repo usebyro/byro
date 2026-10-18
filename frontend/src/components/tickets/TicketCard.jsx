@@ -38,7 +38,7 @@ function status(ticket) {
   if (ticket.payment_status === "paid" || ticket.payment_status === "free") {
     return { text: "Valid · show this at the door", tone: "bg-[#E9F7EF] text-[#1F7A52]", dot: "bg-[#2F9E6E]" };
   }
-  return { text: "Payment not confirmed", tone: "bg-[#FFF4E5] text-[#9A5B00]", dot: "bg-[#E08A00]" };
+  return { text: "Payment not confirmed yet · refresh in a minute", tone: "bg-[#FFF4E5] text-[#9A5B00]", dot: "bg-[#E08A00]" };
 }
 
 export default function TicketCard({ ticket }) {

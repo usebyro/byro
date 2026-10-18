@@ -105,7 +105,7 @@ export default function ReportButton({ target, slug, handle, name, className = "
             </fieldset>
 
             <label className="flex flex-col gap-1.5 text-sm font-bold">
-              Details {reason === "other" ? <span className="font-normal text-red-600">(needed)</span> : <span className="font-normal text-muted">(optional)</span>}
+              Details {reason === "other" ? <span className="font-normal text-red-600">(required)</span> : <span className="font-normal text-muted">(optional)</span>}
               <textarea
                 name="details"
                 value={details}

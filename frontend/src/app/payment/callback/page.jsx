@@ -88,7 +88,7 @@ function PaymentCallbackContent() {
         <h2 className="text-2xl font-bold text-gray-900">This event was cancelled</h2>
         <p className="text-gray-600 max-w-md">{cancelledMsg}</p>
         <p className="text-sm text-gray-500 max-w-md">
-          Byro&apos;s service fee and the payment processing charge cannot be refunded. You will get an email when your refund is sent.
+          We&apos;ll email you when your ticket price is refunded. Byro&apos;s service fee and the payment processing charge aren&apos;t refundable.
         </p>
         <button
           onClick={() => router.push("/")}
@@ -106,8 +106,8 @@ function PaymentCallbackContent() {
         <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center">
           <HugeiconsIcon icon={BadgeCheckIcon} size={40} color="#22c55e" />
         </div>
-        <h2 className="text-2xl font-bold text-gray-900">Payment Successful!</h2>
-        <p className="text-gray-600">Redirecting to your ticket...</p>
+        <h2 className="text-2xl font-bold text-gray-900">Payment confirmed</h2>
+        <p className="text-gray-600">Taking you to your ticket…</p>
       </div>
     );
   }

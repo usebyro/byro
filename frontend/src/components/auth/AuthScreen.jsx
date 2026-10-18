@@ -294,13 +294,16 @@ export default function AuthScreen() {
                   <div ref={turnstileRef} className="flex justify-center" />
 
                   {error && <p className="text-sm text-red-600">{error}</p>}
+                  {email.trim() && !turnstileToken && !error && (
+                    <p className="text-center text-xs text-gray-500">Complete the check above to continue.</p>
+                  )}
 
                   <button
                     type="submit"
                     disabled={!email.trim() || isSubmittingEmail || !turnstileToken}
                     className="w-full bg-blue-600 text-white font-semibold py-3 rounded-full hover:bg-blue-700 transition-colors text-sm disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                    {isSubmittingEmail ? "Sending..." : "Continue"}
+                    {isSubmittingEmail ? "Sending…" : "Email me a code"}
                   </button>
                 </form>
 
@@ -317,7 +320,7 @@ export default function AuthScreen() {
                   className="w-full flex items-center justify-center gap-2 border border-gray-200 rounded-full py-3 text-sm font-medium text-gray-900 hover:bg-gray-50 transition-colors disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                 >
                   <FcGoogle size={18} />
-                  {isStartingGoogle ? "Opening Google..." : "Continue with Google"}
+                  {isStartingGoogle ? "Opening Google…" : "Continue with Google"}
                 </button>
               </>
             ) : (

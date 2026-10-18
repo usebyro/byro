@@ -67,7 +67,7 @@ function TicketConfirmationContent() {
       location: ticketData.eventLocation || "",
       startDate: startDateTime,
       endDate: endDateTime,
-      organizer: "Byro Africa",
+      organizer: "Byro",
     });
 
     downloadICS(ics, `${(ticketData.eventName || "event").replace(/\s+/g, "_")}.ics`);
@@ -206,8 +206,12 @@ function TicketConfirmationContent() {
             <div className="flex min-w-0 flex-col gap-2">
               <span className="text-[15px] font-extrabold">Show this at the door</span>
               <span className="break-all text-[13px] leading-[1.5] text-muted">
-                {ticketData.ticketId ? `Ticket ID ${String(ticketData.ticketId).slice(0, 13)}` : "Also in your email"}
-                <br />
+                {ticketData.ticketId && (
+                  <>
+                    {`Ticket ID ${String(ticketData.ticketId).slice(0, 13)}`}
+                    <br />
+                  </>
+                )}
                 Also in your email
               </span>
               {ticketData.ticketId && (

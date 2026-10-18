@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import AuthScreen from "@/components/auth/AuthScreen";
 
 export const metadata = {
-  title: "Log in",
+  title: "Sign in",
 };
 
 export default function LoginPage() {

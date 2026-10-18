@@ -315,10 +315,10 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
   // Validate buyer + all required recipient rows. Returns an error string or null.
   const validateAttendees = (): string | null => {
     if (!fullName.trim() || !email.trim()) {
-      return "Please fill in your name and email before proceeding.";
+      return "Add your name and email so we can send your tickets.";
     }
     if (!isValidEmail(email)) {
-      return "Please enter a valid email address.";
+      return "Enter a valid email, like name@example.com.";
     }
     for (const q of formQuestions) {
       const a = answers[q.id];
@@ -374,7 +374,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
       setAppliedPromo(null);
       const message =
         (err as { response?: { data?: { error?: string } } })?.response?.data?.error ||
-        "Invalid or expired promo code.";
+        "That code isn't valid or has expired.";
       setPromoError(message);
     } finally {
       setIsApplyingPromo(false);
@@ -389,7 +389,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
     }
 
     if (!agreed) {
-      toast.error("Agree to the terms", { description: "Accept Byro's Terms and Refund policy to continue." });
+      toast.error("Agree to the terms", { description: "Tick the box to accept Byro's Terms, Refund policy and Privacy policy." });
       return;
     }
 
@@ -535,7 +535,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
       disabled={payDisabled}
       className="flex h-[54px] w-full items-center justify-center gap-2 rounded-full bg-brand text-[17px] font-bold text-white transition-[filter,scale] hover:brightness-90 active:scale-[0.96] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40"
     >
-      {isProcessing ? "Processing..." : isFreeOrder ? "Register" : `Pay ${fmt(total)}`}
+      {isProcessing ? (isFreeOrder ? "Registering…" : "Processing…") : isFreeOrder ? "Register" : `Pay ${fmt(total)}`}
     </button>
   );
 
@@ -653,7 +653,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                   Choose your tickets
                 </h1>
                 <p className="text-sm text-muted mb-6">
-                  Select the tiers and quantities you want.{" "}
+                  Pick a ticket type and how many.{" "}
                   {(() => {
                     if (!showRemaining) return null;
                     const trackedTiers = tiers.filter(t => t.remaining != null);
@@ -661,7 +661,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                     const totalRemaining = trackedTiers.reduce((s, t) => s + (t.remaining as number), 0);
                     return totalRemaining > 0 ? (
                       <span className="text-orange-500 font-semibold">
-                        {totalRemaining.toLocaleString()} tickets left.
+                        {totalRemaining.toLocaleString()} {totalRemaining === 1 ? "ticket" : "tickets"} left.
                       </span>
                     ) : null;
                   })()}
@@ -855,7 +855,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                   </p>
                   {isMultiSeat ? (
                     <p className="text-sm text-muted">
-                      Enter the details of the guest&apos;s below
+                      Add each guest&apos;s name and email.
                     </p>
                   ) : (
                     /* Single ticket — optional redirect, unselected by default */
@@ -1123,8 +1123,8 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                               <line x1="12" y1="16" x2="12" y2="12" />
                               <line x1="12" y1="8" x2="12.01" y2="8" />
                             </svg>
-                            <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block whitespace-nowrap bg-gray-800 text-white text-[10px] leading-tight px-2.5 py-1.5 rounded-lg pointer-events-none shadow-lg z-10">
-                              To serve you better
+                            <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-52 whitespace-normal text-center bg-gray-800 text-white text-[10px] leading-tight px-2.5 py-1.5 rounded-lg pointer-events-none shadow-lg z-10">
+                              Covers secure payments and keeps Byro running. Not refundable.
                               <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
                             </span>
                           </span>
@@ -1246,7 +1246,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                     )}
                     {step === 2 && (
                       <>
-                        {isFreeOrder ? "Continue" : "Continue to payment"}
+                        {isFreeOrder ? "Review registration" : "Continue to payment"}
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                           <path d="M5 12h14M12 5l7 7-7 7" />
                         </svg>

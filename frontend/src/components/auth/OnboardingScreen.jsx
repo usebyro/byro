@@ -14,13 +14,13 @@ const ROLES = [
   {
     id: "attendee",
     icon: CompassIcon,
-    label: "Discover and Attend Events",
+    label: "Find and attend events",
     description: "Find events and get tickets.",
   },
   {
     id: "organizer",
     icon: Megaphone01Icon,
-    label: "Host Event",
+    label: "Host events",
     description: "Create and manage your own events.",
   },
 ];
@@ -159,6 +159,12 @@ export default function OnboardingScreen() {
     return !hostForm[field.key]?.trim();
   });
 
+  // What the Skip hint names when a required field on this step is still empty.
+  const missingField = ORGANIZER_STEPS[wizardStep].fields.find(
+    (field) => field.required && (field.type === "avatar" ? !avatarPreview : !hostForm[field.key]?.trim())
+  );
+  const missingFieldName = missingField?.type === "avatar" ? "photo" : missingField?.label?.toLowerCase();
+
   const handleNext = async () => {
     if (isNextDisabled) return;
     setStepError("");
@@ -243,9 +249,9 @@ export default function OnboardingScreen() {
           <div className={`w-full ${stage === "select" ? "max-w-sm" : "max-w-md"}`}>
             {stage === "select" && (
               <>
-                <h2 className="font-serif text-3xl text-gray-900 mb-2">Welcome</h2>
+                <h2 className="font-serif text-3xl text-gray-900 mb-2">How will you use Byro?</h2>
                 <p className="text-gray-500 text-sm mb-8">
-                  Welcome to Byro. Set up your account.
+                  You can do both later.
                 </p>
 
                 <div className="space-y-3">
@@ -311,7 +317,7 @@ export default function OnboardingScreen() {
                     ) : field.type === "toggle" ? (
                       <label key={field.key} className="flex items-start justify-between gap-4 border border-gray-200 rounded-2xl p-4 cursor-pointer">
                         <span>
-                          <span className="block text-sm font-semibold text-gray-900">List Community publicly</span>
+                          <span className="block text-sm font-semibold text-gray-900">List my community publicly</span>
                           <span className="block text-xs text-gray-500 mt-0.5">
                             Your profile will be publicly listed on the community page
                           </span>
@@ -368,17 +374,17 @@ export default function OnboardingScreen() {
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M15 18l-6-6 6-6" />
                     </svg>
-                    {wizardStep === 0 ? "Back" : "Previous"}
+                    Back
                   </button>
                   <div className="flex items-center gap-4">
                     <button
                       type="button"
                       onClick={handleSkip}
                       disabled={isNextDisabled || isSaving}
-                      title={isNextDisabled ? "Fill in the required field before skipping" : undefined}
+                      title={isNextDisabled ? `Add your ${missingFieldName} first` : undefined}
                       className="text-sm font-medium text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-gray-400"
                     >
-                      Skip
+                      Skip the rest
                     </button>
                     <button
                       type="button"
