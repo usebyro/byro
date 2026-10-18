@@ -42,6 +42,13 @@ from .services.workos_api import WorkOSAPIError
 
 logger = logging.getLogger(__name__)
 
+# Shown when sign-in worked at WorkOS but the Byro account couldn't be built;
+# the real reason goes to the logs, not the user.
+SIGN_IN_FAILED = (
+    "We couldn't finish signing you in. Try again, or contact "
+    "support@usebyro.com if it keeps happening."
+)
+
 from django.contrib.auth import get_user_model  # noqa: E402
 
 User = get_user_model()
@@ -319,7 +326,7 @@ class MagicAuthVerifyView(_AuthEndpoint):
 
         if not email or not code:
             return Response(
-                {'error': 'email and code are both required'},
+                {'error': 'Enter your email and the code we sent you.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -334,10 +341,10 @@ class MagicAuthVerifyView(_AuthEndpoint):
             return Response(complete_sign_in(auth_response, request))
         except ValueError as e:
             logger.error("Magic auth succeeded but the local user could not be built: %s", e)
-            return Response({'error': str(e)}, status=status.HTTP_502_BAD_GATEWAY)
+            return Response({'error': SIGN_IN_FAILED}, status=status.HTTP_502_BAD_GATEWAY)
         except IntegrityError as e:
             logger.error("Failed to upsert user after magic auth: %s", e)
-            return Response({'error': 'Could not sync this account'}, status=status.HTTP_409_CONFLICT)
+            return Response({'error': SIGN_IN_FAILED}, status=status.HTTP_409_CONFLICT)
 
 
 # ---------------------------------------------------------------------------
@@ -408,10 +415,10 @@ class OAuthCallbackView(_AuthEndpoint):
             return Response(complete_sign_in(auth_response, request))
         except ValueError as e:
             logger.error("OAuth succeeded but the local user could not be built: %s", e)
-            return Response({'error': str(e)}, status=status.HTTP_502_BAD_GATEWAY)
+            return Response({'error': SIGN_IN_FAILED}, status=status.HTTP_502_BAD_GATEWAY)
         except IntegrityError as e:
             logger.error("Failed to upsert user after OAuth: %s", e)
-            return Response({'error': 'Could not sync this account'}, status=status.HTTP_409_CONFLICT)
+            return Response({'error': SIGN_IN_FAILED}, status=status.HTTP_409_CONFLICT)
 
 
 # ---------------------------------------------------------------------------

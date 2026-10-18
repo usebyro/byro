@@ -119,6 +119,15 @@ def _release_reservation(payment):
     Payment.objects.filter(pk=payment.pk, status='pending').update(status='failed')
 
 
+def _not_enough_left(left):
+    """The sold-out / too-many message a buyer sees, with how many are left."""
+    if left <= 0:
+        return "Sorry, these tickets just sold out."
+    if left == 1:
+        return "Only 1 ticket left. Choose 1 to continue."
+    return f"Only {left} tickets left. Choose {left} or fewer."
+
+
 def lock_and_check_capacity(event, tier_id, quantity):
     """
     Must be called inside transaction.atomic(). Locks the event row and then the
@@ -137,7 +146,7 @@ def lock_and_check_capacity(event, tier_id, quantity):
         try:
             tier = TicketTier.objects.select_for_update().get(pk=tier_id, event=event)
         except TicketTier.DoesNotExist:
-            raise InsufficientCapacityError("Ticket tier not found for this event")
+            raise InsufficientCapacityError("That ticket type isn't available anymore. Refresh the page and pick another.")
 
     seats = _seats_for(tier, quantity)
 
@@ -145,13 +154,13 @@ def lock_and_check_capacity(event, tier_id, quantity):
         sold = locked_event.tickets.filter(payment_status__in=['paid', 'free']).count()
         reserved = _pending_reservation_count(locked_event.payments.all())
         if sold + reserved + seats > locked_event.capacity:
-            raise InsufficientCapacityError("Not enough tickets available")
+            raise InsufficientCapacityError(_not_enough_left(locked_event.capacity - sold - reserved))
 
     if tier is not None and tier.capacity is not None:
         sold = tier.tickets.filter(payment_status__in=['paid', 'free']).count()
         reserved = _pending_reservation_count(tier.payments.all())
         if sold + reserved + seats > tier.capacity:
-            raise InsufficientCapacityError("Not enough tickets available in this tier")
+            raise InsufficientCapacityError(_not_enough_left(tier.capacity - sold - reserved))
 
     return tier
 
@@ -725,7 +734,7 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
 
         if not all([event_slug, customer_email, customer_name]):
             return Response(
-                {'error': 'event_slug, customer_email, and customer_name are required'},
+                {'error': 'Add your name and email so we can send your tickets.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -960,16 +969,16 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                 }, status=status.HTTP_200_OK)
             else:
                 _release_reservation(payment)
+                logger.error("Paystack initialize failed for %s: %s", reference, response_data.get('message'))
                 return Response({
-                    'error': 'Failed to initialize payment',
-                    'details': response_data.get('message', 'Unknown error')
+                    'error': "We couldn't start your payment. You haven't been charged. Try again in a minute."
                 }, status=status.HTTP_400_BAD_REQUEST)
                 
         except requests.exceptions.RequestException as e:
             _release_reservation(payment)
+            logger.error("Paystack initialize request failed: %s", e)
             return Response({
-                'error': 'Payment gateway error',
-                'details': str(e)
+                'error': "We couldn't reach our payment provider. You haven't been charged. Try again in a minute."
             }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
     
     @action(detail=False, methods=['get'], url_path='verify/(?P<reference>[^/.]+)')
@@ -1030,8 +1039,10 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                         reference, paid_amount_kobo, expected_amount_kobo
                     )
                     return Response({
-                        'error': 'Amount mismatch',
-                        'details': 'Paid amount does not match expected amount'
+                        'error': (
+                            "We couldn't confirm your payment. Contact support@usebyro.com "
+                            f"with reference {reference} and we'll sort it out."
+                        )
                     }, status=status.HTTP_400_BAD_REQUEST)
 
                 if txn_status == 'success':
@@ -1095,18 +1106,21 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                     # pending, abandoned, ongoing — leave payment pending
                     return Response({
                         'status': 'processing',
-                        'message': f'Payment status is {txn_status}. Please try again later.'
+                        'message': "Your payment hasn't gone through yet. If you finished paying, refresh in a minute."
                     }, status=status.HTTP_202_ACCEPTED)
             else:
+                logger.error("Paystack verify failed for %s: %s", reference, response_data.get('message'))
                 return Response({
-                    'error': 'Failed to verify payment',
-                    'details': response_data.get('message', 'Unknown error')
+                    'error': (
+                        "We couldn't confirm your payment yet. If you were charged, contact "
+                        f"support@usebyro.com with reference {reference}."
+                    )
                 }, status=status.HTTP_400_BAD_REQUEST)
                 
         except requests.exceptions.RequestException as e:
+            logger.error("Paystack verify request failed: %s", e)
             return Response({
-                'error': 'Payment gateway error',
-                'details': str(e)
+                'error': "We couldn't reach our payment provider. Refresh in a minute to check your payment."
             }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
     
     @action(detail=False, methods=['post'], permission_classes=[AllowAny])
@@ -2662,7 +2676,7 @@ class EventViewSet(viewsets.ModelViewSet):
         except Exception as e:
             logger.exception("Error in event registration")
             return Response(
-                {"error": "An error occurred during registration"},
+                {"error": "We couldn't register you. Try again in a moment."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
@@ -3277,7 +3291,7 @@ class TicketViewSet(
             return Response({
                 "transfer_id": transfer.id,
                 "transfer_url": transfer_url,
-                "message": "Transfer initiated. Share this URL with the recipient"
+                "message": "Transfer ready. Send this link to the person you're giving the ticket to."
             }, status=status.HTTP_201_CREATED)
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -3515,7 +3529,7 @@ class PayoutRequestView(APIView):
         amount = serializer.validated_data.get('amount')
         if amount is not None and amount > available:
             return Response(
-                {'error': f'Amount exceeds your available balance of {available}.'},
+                {'error': f'You can withdraw up to ₦{available:,.2f}. Enter that amount or less.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -3529,7 +3543,7 @@ class PayoutRequestView(APIView):
                 {'error': (
                     'You cannot withdraw this yet. Money already paid out for an event that was '
                     'cancelled has been refunded to its buyers, and it is being taken out of your '
-                    f'ticket sales first. Your balance across all events is {overall}.'
+                    f'ticket sales first. Your balance across all events is ₦{overall:,.2f}.'
                 )},
                 status=status.HTTP_400_BAD_REQUEST,
             )
@@ -3815,7 +3829,7 @@ class PaystackBankListView(APIView):
                 timeout=30,
             )
         except requests.RequestException:
-            return Response({'error': 'Could not reach Paystack'}, status=status.HTTP_502_BAD_GATEWAY)
+            return Response({'error': "We couldn't reach our payment provider. Try again in a minute."}, status=status.HTTP_502_BAD_GATEWAY)
 
         return Response(response.json(), status=response.status_code)
 
@@ -3829,7 +3843,7 @@ class PaystackResolveAccountView(APIView):
         bank_code = request.query_params.get('bank_code')
         if not account_number or not bank_code:
             return Response(
-                {'error': 'account_number and bank_code are required'},
+                {'error': 'Enter your account number and choose your bank.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -3842,7 +3856,7 @@ class PaystackResolveAccountView(APIView):
                 timeout=30,
             )
         except requests.RequestException:
-            return Response({'error': 'Could not reach Paystack'}, status=status.HTTP_502_BAD_GATEWAY)
+            return Response({'error': "We couldn't reach our payment provider. Try again in a minute."}, status=status.HTTP_502_BAD_GATEWAY)
 
         return Response(response.json(), status=response.status_code)
 

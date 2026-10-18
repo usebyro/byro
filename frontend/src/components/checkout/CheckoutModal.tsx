@@ -454,12 +454,12 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
         // The purchase is counted on /payment/callback, once Paystack confirms it was paid.
         window.location.href = result.data.authorization_url;
       } else {
-        toast.error("Couldn't get payment link", { description: "Please try again." });
+        toast.error("We couldn't start your payment", { description: "You haven't been charged. Try again." });
       }
     } catch (err: unknown) {
       console.error("Payment error:", err);
-      const message = err instanceof Error ? err.message : "Please try again.";
-      toast.error("Payment didn't go through", { description: message });
+      const message = err instanceof Error ? err.message : "Try again.";
+      toast.error("We couldn't start your payment", { description: message });
       resetTs();
     } finally {
       setIsProcessing(false);

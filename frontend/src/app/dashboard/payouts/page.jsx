@@ -188,11 +188,11 @@ export default function StudioPayouts() {
           setBankForm((p) => ({ ...p, accountName: name }));
         } else {
           setResolvedName("");
-          setResolveError(res?.message || "Couldn't verify this account.");
+          setResolveError("We couldn't find this account. Check the 10-digit number and the bank.");
         }
       } catch (err) {
         setResolvedName("");
-        setResolveError(err?.message || "Couldn't verify this account.");
+        setResolveError("We couldn't find this account. Check the 10-digit number and the bank.");
       } finally {
         setResolving(false);
       }
@@ -252,7 +252,9 @@ export default function StudioPayouts() {
       loadPayouts();
       loadBalance();
     } catch (err) {
-      toast.error("Couldn't submit request", { description: err?.message || "Please try again." });
+      toast.error("Your withdrawal didn't go through", {
+        description: `${err?.message || "Try again."} Your balance hasn't changed.`,
+      });
     } finally {
       setSubmitting(false);
     }

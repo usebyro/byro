@@ -5,22 +5,26 @@ const handleApiError = (error) => {
   if (error.response) {
     const data = error.response.data;
 
-    // DRF returns errors as { detail: "..." } or { field: ["msg", ...] }
+    // Our API returns { error }, DRF returns { detail } or { field: ["msg", ...] }.
+    // Show the sentence only, never the field names.
+    const firstFieldMessage =
+      data && typeof data === "object"
+        ? Object.values(data)
+            .flat()
+            .find((v) => typeof v === "string")
+        : null;
     const message =
+      data?.error ||
       data?.message ||
       data?.detail ||
-      (typeof data === "object"
-        ? Object.entries(data)
-            .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(", ") : v}`)
-            .join(" | ")
-        : null) ||
-      "An unexpected error occurred";
+      firstFieldMessage ||
+      "Something didn't work on our side. Try again in a minute.";
 
     throw new Error(message);
   } else if (error.request) {
-    throw new Error("No response from server. Please check your connection.");
+    throw new Error("We couldn't reach Byro. Check your connection and try again.");
   } else {
-    throw new Error("Error setting up request: " + error.message);
+    throw new Error("Something didn't work on our side. Try again in a minute.");
   }
 };
 
