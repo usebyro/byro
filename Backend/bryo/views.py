@@ -3857,9 +3857,12 @@ class AdminAnalyticsSummaryView(APIView):
         active_events = Event.objects.filter(is_active=True).count()
         private_events = Event.objects.filter(visibility='private').count()
         draft_events = Event.objects.filter(is_draft=True).count()
-        total_users = User.objects.count()
-        total_organizers = UserProfile.objects.filter(role='organizer').count()
-        total_attendees = UserProfile.objects.filter(role='attendee').count()
+        from .accounts import DELETED_DOMAIN
+        # Deleted accounts are kept (anonymised) for the money records, but they aren't users any more.
+        total_users = User.objects.exclude(email__endswith=DELETED_DOMAIN).count()
+        profiles = UserProfile.objects.exclude(user__email__endswith=DELETED_DOMAIN)
+        total_organizers = profiles.filter(role='organizer').count()
+        total_attendees = profiles.filter(role='attendee').count()
 
         return Response({
             'total_tickets_sold': total_tickets,
@@ -3974,9 +3977,13 @@ class AdminUsersListView(APIView):
     permission_classes = [IsAdminMember]
 
     def get(self, request):
+        from .accounts import DELETED_DOMAIN
         role = (request.query_params.get('role') or '').strip()
 
-        profiles = UserProfile.objects.select_related('user').annotate(
+        # Deleted accounts stay in the database (anonymised) for the money records; they aren't listed.
+        profiles = UserProfile.objects.select_related('user').exclude(
+            user__email__endswith=DELETED_DOMAIN,
+        ).annotate(
             events_created=Count('user__owned_events', distinct=True),
         )
         if role in dict(UserProfile.ROLE_CHOICES):
@@ -5165,11 +5172,11 @@ class AdminUserDeleteView(APIView):
     min_role = AdminMember.ROLE_OWNER
 
     def post(self, request, pk):
-        from .accounts import anonymise, delete_blockers
+        from .accounts import DELETED_DOMAIN, anonymise, delete_blockers
         user = User.objects.filter(pk=pk).first()
         if not user:
             return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
-        if user.email.endswith('@deleted.usebyro.com'):
+        if user.email.endswith(DELETED_DOMAIN):
             return Response({'error': 'This account is already deleted.'}, status=status.HTTP_400_BAD_REQUEST)
         if user == request.user:
             return Response({'error': "You can't delete your own account here."}, status=status.HTTP_400_BAD_REQUEST)

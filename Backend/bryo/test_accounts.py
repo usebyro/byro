@@ -101,6 +101,15 @@ class DeleteTests(AccountBase):
         # Twice is refused
         self.assertEqual(self.delete(self.fan).status_code, 400)
 
+    def test_deleted_accounts_leave_the_users_list_and_totals(self):
+        before = self.client.get('/api/admin/analytics/summary/').json()['total_users']
+        self.assertEqual(self.delete(self.fan).status_code, 200)
+        self.client.force_authenticate(self.boss)
+        ids = [u['id'] for u in self.client.get('/api/admin/users/').json()]
+        self.assertNotIn(self.fan.pk, ids)
+        self.assertIn(self.owner.pk, ids)
+        self.assertEqual(self.client.get('/api/admin/analytics/summary/').json()['total_users'], before - 1)
+
     def test_cannot_delete_an_organiser_with_upcoming_sold_events_or_money_owed(self):
         paid_order(self.event)
         res = self.delete(self.owner)

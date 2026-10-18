@@ -17,10 +17,11 @@ from .models import (
 )
 
 DELETED_NAME = 'Deleted user'
+DELETED_DOMAIN = '@deleted.usebyro.com'
 
 
 def deleted_email(user):
-    return f'deleted-{user.pk}@deleted.usebyro.com'
+    return f'deleted-{user.pk}{DELETED_DOMAIN}'
 
 
 def _mine(user, field):
