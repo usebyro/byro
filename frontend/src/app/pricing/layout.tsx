@@ -2,11 +2,11 @@ import type {Metadata} from 'next'
 
 export const metadata: Metadata = {
   title: 'Pricing',
-  description: 'See how Byro pricing works for organisers and attendees. Free tickets stay free, and fees only apply when you sell paid tickets.',
+  description: 'Byro is free to use. Free events cost nothing for you or your guests, and paid events have a small fee per ticket sold.',
   alternates: {canonical: '/pricing'},
   openGraph: {
     title: 'Pricing | Byro',
-    description: 'See how Byro pricing works for organisers and attendees. Free tickets stay free, and fees only apply when you sell paid tickets.',
+    description: 'Byro is free to use. Free events cost nothing for you or your guests, and paid events have a small fee per ticket sold.',
   },
 }
 
