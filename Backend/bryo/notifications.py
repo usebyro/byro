@@ -56,11 +56,17 @@ def _naira(amount):
         return str(amount)
 
 
-def ticket_sale(event, count, *, paid_amount=None):
-    """Tell the organiser tickets were sold or claimed."""
+def ticket_sale(event, count, *, paid_amount=None, payment=None):
+    """Tell the organiser tickets were sold or claimed, and the admin team when money came in."""
+    noun = 'ticket' if count == 1 else 'tickets'
+    if paid_amount:
+        notify_admins(
+            'payment', f"{_naira(paid_amount)} paid",
+            body=f"{count} {noun}, {event.name}",
+            link=f"/payments/{payment.pk}" if payment is not None else '/payments',
+        )
     if not event.owner_id:
         return
-    noun = 'ticket' if count == 1 else 'tickets'
     if paid_amount:
         title = f"{count} {noun} sold"
         body = f"{event.name}, {_naira(paid_amount)}"

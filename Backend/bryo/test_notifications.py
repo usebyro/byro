@@ -92,3 +92,38 @@ class AdminNotificationTests(CommunityBase):
         self.assertEqual(told.kind, 'payout_processed')
         self.assertEqual(told.audience, 'organiser')
         self.assertIn('5,000', told.title)
+
+
+class AdminSaleAndPublishTests(CommunityBase):
+
+    def setUp(self):
+        super().setUp()
+        self.boss = self.fan('boss@example.com')
+        AdminMember.objects.create(email='boss@example.com', role='admin')
+
+    def admin_kinds(self):
+        return list(Notification.objects.filter(recipient=self.boss, audience='admin').values_list('kind', flat=True))
+
+    def test_the_team_hears_about_each_paid_order_but_not_free_claims(self):
+        from .notifications import ticket_sale
+        from .test_refunds import make_payment
+        payment = make_payment(self.event, reference='EVT-admin-push', amount='10500.00', seats=2)
+        ticket_sale(self.event, 2, paid_amount=payment.amount, payment=payment)
+        told = Notification.objects.get(recipient=self.boss, kind='payment')
+        self.assertEqual(told.title, '₦10,500 paid')
+        self.assertIn('2 tickets', told.body)
+        self.assertEqual(told.link, f'/payments/{payment.pk}')
+
+        ticket_sale(self.event, 1)  # a free claim
+        self.assertEqual(self.admin_kinds(), ['payment'])
+
+    def test_a_draft_going_live_tells_the_team_once(self):
+        self.event.is_draft = True
+        self.event.save()
+        self.client.force_authenticate(self.owner)
+        res = self.client.patch(f'/api/events/{self.event.slug}/', {'is_draft': False}, format='json')
+        self.assertEqual(res.status_code, 200, res.content)
+        self.assertEqual(self.admin_kinds(), ['event_created'])
+        # Editing the live event afterwards says nothing new.
+        self.client.patch(f'/api/events/{self.event.slug}/', {'description': 'Updated'}, format='json')
+        self.assertEqual(self.admin_kinds(), ['event_created'])

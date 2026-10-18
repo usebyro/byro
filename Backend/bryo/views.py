@@ -1057,7 +1057,7 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                                 target_label=payment.event.name,
                                 detail=f"{len(new_tickets)} ticket(s), {payment.currency} {payment.amount}",
                             )
-                            ticket_sale(payment.event, len(new_tickets), paid_amount=payment.amount)
+                            ticket_sale(payment.event, len(new_tickets), paid_amount=payment.amount, payment=payment)
                         if apps.posthog_client is not None:
                             apps.posthog_client.capture(
                                 'payment_completed',
@@ -1187,7 +1187,7 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                             target_label=payment.event.name,
                             detail=f"{len(new_tickets)} ticket(s), {payment.currency} {payment.amount}",
                         )
-                        ticket_sale(payment.event, len(new_tickets), paid_amount=payment.amount)
+                        ticket_sale(payment.event, len(new_tickets), paid_amount=payment.amount, payment=payment)
                     if apps.posthog_client is not None:
                         apps.posthog_client.capture(
                             'payment_completed',
@@ -2397,6 +2397,7 @@ class EventViewSet(viewsets.ModelViewSet):
             )
         
         old_image = instance.event_image.name if instance.event_image else None
+        was_draft = instance.is_draft
 
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
@@ -2414,6 +2415,12 @@ class EventViewSet(viewsets.ModelViewSet):
 
         # A draft that has just been published tells the organiser's followers (once).
         notify_followers_in_background(serializer.instance)
+        # ...and the admin team, as a new event. A live event can't go back to draft, so this is once.
+        if was_draft and not serializer.instance.is_draft:
+            notify_admins(
+                'event_created', f"New event: {serializer.instance.name}",
+                body=serializer.instance.owner.email if serializer.instance.owner_id else '', link='/events',
+            )
 
         if apps.posthog_client is not None:
             apps.posthog_client.capture('event_updated')
@@ -4334,7 +4341,7 @@ class AdminPaymentPaystackView(APIView):
             p.save(update_fields=['channel'])
         if new_tickets:
             _email_tickets(new_tickets, p.event)
-            ticket_sale(p.event, len(new_tickets), paid_amount=p.amount)
+            ticket_sale(p.event, len(new_tickets), paid_amount=p.amount, payment=p)
         _log_admin_action(request, AdminAction.ACTION_ORDER_FULFILLED, 'payment', p.paystack_reference,
                           p.event.name[:255], f'{len(new_tickets)} ticket(s) to {p.customer_email}')
         return Response({'issued': len(new_tickets), 'status': p.status})
