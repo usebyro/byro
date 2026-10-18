@@ -2,91 +2,15 @@ import type {Metadata} from 'next'
 import Link from 'next/link'
 import {PortableText} from 'next-sanity'
 import {HugeiconsIcon} from '@hugeicons/react'
-import {ArrowLeft01Icon, FavouriteIcon} from '@hugeicons/core-free-icons'
+import {ArrowLeft01Icon, ArrowRight02Icon} from '@hugeicons/core-free-icons'
 import {notFound} from 'next/navigation'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
-import BlogShareButton from './BlogShareButton'
-import {
-  formatLongDate,
-  getBlogPost,
-  getBlogPosts,
-  } from '../blog-data'
-import type {BlogPost} from '../blog-data'
+import {formatShortDate, getBlogPost, getBlogPosts} from '../blog-data'
+import {BlogCover, HostBand, ReadTime, TopicPill, toneFor, topicOf} from '../blog-ui'
+import {ShareBox, ShareRow} from './BlogShare'
 
 type PageProps = {params: Promise<{slug: string}>}
-
-function BlogImage({post, className = ''}: {post: BlogPost; className?: string}) {
-  return (
-    <div className={`relative overflow-hidden bg-gradient-to-br ${post.gradient} ${className}`}>
-      {post.coverImageUrl && <img src={post.coverImageUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />}
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_72%_36%,rgba(255,255,255,0.16),transparent_28%),radial-gradient(circle_at_16%_82%,rgba(19,33,36,0.42),transparent_34%)]" />
-    </div>
-  )
-}
-
-function Avatar({post}: {post: BlogPost}) {
-  return (
-    <span
-      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-blue-100 text-sm font-black text-blue-700"
-    >
-      {post.authorInitials}
-    </span>
-  )
-}
-
-function FallbackArticle() {
-  return (
-    <div className="space-y-8 text-[18px] leading-8 text-[#68738f]">
-      <p>
-        The difference between a half-full room and a sold-out night often comes down to one thing: how you
-        structure your ticket tiers. Get it right and you capture every segment of demand. Get it wrong and
-        you leave money — or worse, atmosphere — on the table.
-      </p>
-
-      <section>
-        <h2 className="mb-3 font-serif text-[29px] font-black leading-tight text-[#10182f]">Start with three, never five</h2>
-        <p>
-          Most first-time organisers over-segment. Five tiers feels generous; in practice it paralyses buyers.
-          Three is the sweet spot: an accessible General Admission, an aspirational VIP, and a premium Table or
-          Box for groups who want to be seen.
-        </p>
-      </section>
-
-      <blockquote className="rounded-r-xl border-l-4 border-[#4f84ff] bg-white px-7 py-6 font-serif text-[22px] font-black italic leading-8 text-[#10182f]">
-        &quot;Price the cheapest tier so it sells out first. Scarcity at the bottom pushes everyone up.&quot;
-      </blockquote>
-
-      <section>
-        <h2 className="mb-3 font-serif text-[29px] font-black leading-tight text-[#10182f]">Let the floor create the urgency</h2>
-        <p>
-          When General Admission shows “340 left” and ticks down in real time, the VIP tier suddenly looks like
-          the safe choice. Byro surfaces live inventory on every event page — use it.
-        </p>
-      </section>
-
-      <p>
-        Set your tiers, watch the data, and adjust. The best promoters treat pricing as a living thing, not a
-        one-time decision.
-      </p>
-    </div>
-  )
-}
-
-function RelatedCard({post}: {post: BlogPost}) {
-  return (
-    <Link
-      href={`/blog/${post.slug}`}
-      className="group flex items-center gap-4 rounded-xl border border-[#ced8ef] bg-white p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-    >
-      <BlogImage post={post} className="h-[64px] w-[64px] shrink-0 rounded-lg" />
-      <div>
-        <h3 className="text-[15px] font-black leading-5 text-[#1b2540] transition group-hover:text-[#4f84ff]">{post.title}</h3>
-        <p className="mt-1 text-sm text-[#9aa4bd]">{post.readTime}</p>
-      </div>
-    </Link>
-  )
-}
 
 export async function generateMetadata({params}: PageProps): Promise<Metadata> {
   const {slug} = await params
@@ -95,7 +19,8 @@ export async function generateMetadata({params}: PageProps): Promise<Metadata> {
 
   return {
     title: post.title,
-    description: post.excerpt || `${post.title} — Byro Journal`,
+    description: post.excerpt || `${post.title} — Byro blog`,
+    alternates: {canonical: `/blog/${post.slug}`},
   }
 }
 
@@ -105,67 +30,98 @@ export default async function PostPage({params}: PageProps) {
 
   if (!post) return notFound()
 
-  const relatedPosts = posts.filter((item) => item.slug !== post.slug && !item.featured).slice(0, 2)
-  const tag = post.tags[0] || 'Journal'
+  const more = posts.filter((item) => item.slug !== post.slug).slice(0, 2)
 
   return (
     <>
       <Navbar />
-      <main className="bg-[#f3f6ff] text-[#10182f]">
-        <article className="mx-auto max-w-[680px] px-6 py-12 lg:px-0">
-          <div className="mb-6 flex flex-wrap items-center gap-3">
-            <Link href="/blog" className="inline-flex items-center gap-2 text-sm font-bold text-[#76829d] hover:text-[#4f84ff]">
-              <HugeiconsIcon icon={ArrowLeft01Icon} size={16} color="currentColor" />
-              Back to journal
+      <main className="bg-white font-body text-ink">
+        <article>
+          <header className="mx-auto flex max-w-[720px] flex-col gap-5 px-4 pt-8 motion-safe:animate-rise md:px-6 md:pt-16">
+            <Link
+              href="/blog"
+              className="-ml-1.5 inline-flex min-h-11 items-center gap-1 self-start rounded-full text-[15px] font-bold text-muted transition-colors hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+            >
+              <HugeiconsIcon icon={ArrowLeft01Icon} size={20} color="currentColor" aria-hidden />
+              All posts
             </Link>
-            <span className="rounded-full bg-[#dce8ff] px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-[#4f84ff]">
-              {tag}
-            </span>
-          </div>
-
-          <h1 className="font-serif text-[42px] font-black leading-[1.02] tracking-[-0.02em] text-[#10182f] sm:text-[48px]">
-            {post.title}
-          </h1>
-
-          <div className="mt-6 flex items-center justify-between border-b border-[#dce3f3] pb-8">
-            <div className="flex items-center gap-4">
-              <Avatar post={post} />
-              <div>
-                <p className="text-sm font-black text-[#1b2540]">{post.authorName}</p>
-                <p className="text-sm text-[#9aa4bd]">
-                  {formatLongDate(post.publishedAt)} · {post.readTime}
-                </p>
+            <TopicPill tag={topicOf(post)} />
+            <h1 className="text-balance font-display text-[36px] font-bold leading-[1.03] tracking-[-0.04em] md:text-[56px]">
+              {post.title}
+            </h1>
+            {post.excerpt && <p className="text-lg leading-normal text-body md:text-xl">{post.excerpt}</p>}
+            <div className="flex flex-wrap items-center justify-between gap-4 border-y border-line py-5">
+              <div className="flex items-center gap-3">
+                <span aria-hidden="true" className="flex size-11 items-center justify-center rounded-full bg-ink font-display text-[15px] font-extrabold text-white">
+                  {post.authorInitials}
+                </span>
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-[15px] font-extrabold">{post.authorName}</span>
+                  <span className="flex flex-wrap items-center gap-1.5 text-sm text-muted">
+                    {formatShortDate(post.publishedAt)}
+                    <span aria-hidden="true">·</span>
+                    <ReadTime value={post.readTime} size={15} />
+                  </span>
+                </div>
               </div>
+              <ShareRow slug={post.slug} title={post.title} />
             </div>
-            <div className="flex gap-3">
-              <BlogShareButton slug={post.slug} title={post.title} />
-              <button aria-label="Save post" className="flex h-10 w-10 items-center justify-center rounded-full border border-[#d7e0f2] text-[#76829d]">
-                <HugeiconsIcon icon={FavouriteIcon} size={18} color="currentColor" />
-              </button>
-            </div>
+          </header>
+
+          <div className="mx-auto max-w-[1120px] px-4 pt-8 md:px-6">
+            <BlogCover post={post} className="aspect-[21/9] min-h-[220px] rounded-[28px]" markClassName="text-[72px] md:text-[160px]" />
           </div>
 
-          <BlogImage post={post} className="mt-8 h-[285px] rounded-2xl sm:h-[304px]" />
+          {post.body?.length ? (
+            <div className="prose prose-lg mx-auto max-w-[720px] px-4 pt-8 md:px-6 prose-headings:font-display prose-headings:font-bold prose-headings:tracking-[-0.025em] prose-headings:text-ink prose-p:leading-[1.7] prose-p:text-[#2B303B] prose-a:text-brand-dark prose-strong:text-ink prose-li:text-[#2B303B]">
+              <PortableText value={post.body} />
+            </div>
+          ) : null}
 
-          <div className="mt-8">
-            {post.body?.length ? (
-              <div className="prose prose-lg max-w-none prose-headings:font-serif prose-headings:text-[#10182f] prose-p:text-[#68738f] prose-p:leading-8 prose-blockquote:rounded-r-xl prose-blockquote:border-l-[#4f84ff] prose-blockquote:bg-white prose-blockquote:px-7 prose-blockquote:py-5 prose-blockquote:font-serif prose-blockquote:text-[#10182f]">
-                <PortableText value={post.body} />
+          <div className="mx-auto max-w-[720px] px-4 pb-14 pt-10 md:px-6 md:pb-[88px]">
+            <ShareBox slug={post.slug} />
+          </div>
+        </article>
+
+        {more.length > 0 && (
+          <section aria-labelledby="keep-reading" className="bg-[#F4F6FA] py-12 md:py-[88px]">
+            <div className="mx-auto flex max-w-[720px] flex-col gap-6 px-4 md:px-6">
+              <div className="flex items-center justify-between gap-4">
+                <h2 id="keep-reading" className="font-display text-[26px] font-bold tracking-[-0.03em] md:text-[32px]">
+                  Keep reading
+                </h2>
+                <Link href="/blog" className="inline-flex min-h-11 items-center gap-1.5 text-[15px] font-extrabold text-brand-dark">
+                  All posts
+                  <HugeiconsIcon icon={ArrowRight02Icon} size={18} color="currentColor" aria-hidden />
+                </Link>
               </div>
-            ) : (
-              <FallbackArticle />
-            )}
-          </div>
-
-          <section className="mt-12">
-            <h2 className="mb-5 font-serif text-[27px] font-black text-[#10182f]">Keep reading</h2>
-            <div className="grid gap-4 sm:grid-cols-2">
-              {relatedPosts.map((item) => (
-                <RelatedCard key={item._id} post={item} />
-              ))}
+              <div className="grid grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-2">
+                {more.map((item) => {
+                  const tag = topicOf(item)
+                  return (
+                    <Link
+                      key={item._id}
+                      href={`/blog/${item.slug}`}
+                      className="group flex flex-col gap-3.5 rounded-[20px] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-4 focus-visible:ring-offset-[#F4F6FA]"
+                    >
+                      <BlogCover post={item} className="aspect-[16/10] rounded-[20px]" />
+                      <div className="flex flex-col gap-1.5">
+                        <span className="text-[13px] text-muted">
+                          <b style={{color: toneFor(tag).label}}>{tag}</b> · {item.readTime}
+                        </span>
+                        <h3 className="font-display text-[21px] font-bold leading-[1.15] tracking-[-0.02em] transition-colors group-hover:text-brand-dark">
+                          {item.title}
+                        </h3>
+                      </div>
+                    </Link>
+                  )
+                })}
+              </div>
             </div>
           </section>
-        </article>
+        )}
+
+        <HostBand />
       </main>
       <Footer />
     </>

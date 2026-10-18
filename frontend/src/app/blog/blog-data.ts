@@ -13,9 +13,7 @@ export type BlogPost = {
   featured?: boolean
   authorName: string
   authorInitials: string
-  authorRole?: string
   coverImageUrl?: string
-  gradient: string
   body?: TypedObject[]
 }
 
@@ -53,14 +51,13 @@ const POST_QUERY = defineQuery(
 
 const options = {next: {revalidate: 30}}
 
-const gradients = [
-  'from-[#16052f] via-[#55269d] to-[#8638f2]',
-  'from-[#180731] via-[#5a28b1] to-[#d653a8]',
-  'from-[#00372e] via-[#027b68] to-[#08c7b7]',
-  'from-[#3d124b] via-[#a02c67] to-[#d85dc5]',
-]
+/** Sanity's read time is typed as "4 min"; show it as "4 min read". */
+function readTimeLabel(value: unknown) {
+  const text = String(value || '4 min').trim()
+  return /read$/i.test(text) ? text : `${text} read`
+}
 
-function normalizePost(post: SanityDocument, index = 0): BlogPost {
+function normalizePost(post: SanityDocument): BlogPost {
   const slug = typeof post.slug === 'string' ? post.slug : post.slug?.current
 
   return {
@@ -69,14 +66,12 @@ function normalizePost(post: SanityDocument, index = 0): BlogPost {
     slug: String(slug || post._id),
     excerpt: String(post.excerpt || ''),
     publishedAt: String(post.publishedAt || new Date().toISOString()),
-    readTime: String(post.readTime || '4 min read'),
+    readTime: readTimeLabel(post.readTime),
     tags: Array.isArray(post.tags) ? post.tags.map(String) : [],
     featured: Boolean(post.featured),
-    authorName: String(post.authorName || 'Byro Editorial'),
-    authorInitials: String(post.authorInitials || 'BE'),
-    authorRole: 'Editor, The Byro Journal',
+    authorName: String(post.authorName || 'Byro team'),
+    authorInitials: String(post.authorInitials || 'BT'),
     coverImageUrl: typeof post.coverImageUrl === 'string' ? post.coverImageUrl : undefined,
-    gradient: gradients[index % gradients.length],
     body: Array.isArray(post.body) ? post.body : undefined,
   }
 }
@@ -84,7 +79,7 @@ function normalizePost(post: SanityDocument, index = 0): BlogPost {
 export async function getBlogPosts() {
   try {
     const posts = await client.fetch<SanityDocument[]>(POSTS_QUERY, {}, options)
-    return posts.map(normalizePost)
+    return posts.map((post) => normalizePost(post))
   } catch {
     return []
   }
@@ -107,14 +102,4 @@ export function formatShortDate(date: string) {
 
 export function formatLongDate(date: string) {
   return new Date(date).toLocaleDateString('en-GB', {day: 'numeric', month: 'long', year: 'numeric'})
-}
-
-export function initialsGradient(initials: string) {
-  const colors: Record<string, string> = {
-    AO: 'from-[#ff5e9e] to-[#7d46ff]',
-    TB: 'from-[#45a6ff] to-[#00c8b8]',
-    ZM: 'from-[#f160ad] to-[#9257ff]',
-  }
-
-  return colors[initials] || 'from-[#5b7cff] to-[#7f5cff]'
 }

@@ -1,167 +1,81 @@
 import type {Metadata} from 'next'
 import Link from 'next/link'
+import {HugeiconsIcon} from '@hugeicons/react'
+import {ArrowRight02Icon} from '@hugeicons/core-free-icons'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 import {formatShortDate, getBlogPosts} from './blog-data'
-import type {BlogPost} from './blog-data'
+import BlogGrid from './BlogGrid'
+import {BlogCover, HostBand, ReadTime, TopicPill, topicOf} from './blog-ui'
 
 export const metadata: Metadata = {
   title: 'Blog',
   alternates: {canonical: '/blog'},
-  description:
-    'Stories from the scene — guides for organisers, what-is-on roundups, and the culture behind the events.',
-}
-
-const filters = ['All', 'For organisers', 'Music', 'Nightlife', 'Sports', 'Product']
-
-function BlogImage({post, className = ''}: {post: BlogPost; className?: string}) {
-  return (
-    <div className={`relative overflow-hidden bg-gradient-to-br ${post.gradient} ${className}`}>
-      {post.coverImageUrl && <img src={post.coverImageUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />}
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_72%_36%,rgba(255,255,255,0.16),transparent_28%),radial-gradient(circle_at_18%_88%,rgba(255,92,153,0.35),transparent_34%)]" />
-    </div>
-  )
-}
-
-function Tag({children, tone = 'blue'}: {children: React.ReactNode; tone?: 'blue' | 'pink' | 'teal' | 'purple'}) {
-  const tones = {
-    blue: 'border-[#5284ff]/40 bg-[#5284ff]/10 text-[#5284ff]',
-    pink: 'border-[#ff609b]/40 bg-[#ff609b]/10 text-[#ff609b]',
-    teal: 'border-[#00b6a8]/40 bg-[#00b6a8]/10 text-[#00a899]',
-    purple: 'border-[#8f61ff]/40 bg-[#8f61ff]/10 text-[#8f61ff]',
-  }
-
-  return (
-    <span className={`inline-flex rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] ${tones[tone]}`}>
-      {children}
-    </span>
-  )
-}
-
-function Avatar({post}: {post: BlogPost}) {
-  return (
-    <span
-      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100 text-[11px] font-black text-blue-700"
-    >
-      {post.authorInitials}
-    </span>
-  )
-}
-
-function PostCard({post, index}: {post: BlogPost; index: number}) {
-  const tone = index === 0 ? 'pink' : index === 1 ? 'teal' : 'purple'
-
-  return (
-    <Link
-      href={`/blog/${post.slug}`}
-      className="group overflow-hidden rounded-2xl border border-[#ced8ef] bg-white shadow-[0_8px_24px_rgba(36,57,107,0.08)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_18px_36px_rgba(36,57,107,0.12)]"
-    >
-      <div className="relative h-[150px] sm:h-[168px]">
-        <BlogImage post={post} className="h-full w-full" />
-        <div className="absolute left-4 top-4">
-          <Tag tone={tone}>{post.tags[0] || 'Journal'}</Tag>
-        </div>
-      </div>
-      <div className="p-5">
-        <p className="mb-3 text-[13px] text-[#8793b0]">
-          {formatShortDate(post.publishedAt)} · {post.readTime.replace(' read', '')}
-        </p>
-        <h3 className="font-serif text-[21px] font-black leading-[1.12] text-[#10182f] transition group-hover:text-[#4f84ff]">
-          {post.title}
-        </h3>
-        <p className="mt-3 min-h-[44px] text-[15px] leading-6 text-[#59647f]">{post.excerpt}</p>
-        <div className="mt-5 flex items-center gap-3">
-          <Avatar post={post} />
-          <span className="text-sm font-bold text-[#56617d]">{post.authorName}</span>
-        </div>
-      </div>
-    </Link>
-  )
+  description: 'Guides for running events on Byro, and news on what we’re building.',
 }
 
 export default async function BlogPage() {
   const posts = await getBlogPosts()
   const featured = posts.find((post) => post.featured) || posts[0]
-  const regular = featured ? posts.filter((post) => post.slug !== featured.slug) : posts
-  const cardPosts = regular.slice(0, 3)
+  const rest = featured ? posts.filter((post) => post._id !== featured._id) : []
 
   return (
     <>
       <Navbar />
-      <main className="bg-[#f3f6ff] text-[#10182f]">
-        <section className="mx-auto max-w-[1240px] px-6 pb-8 pt-12 lg:px-8 lg:pt-14">
-          <p className="text-[12px] font-black uppercase tracking-[0.18em] text-[#4f84ff]">The Byro Journal</p>
-          <h1 className="mt-5 font-serif text-[42px] font-black leading-[0.98] tracking-[-0.02em] sm:text-[54px]">
-            Stories from the <span className="italic text-[#4f84ff]">scene</span>
+      <main className="bg-white font-body text-ink">
+        <section aria-labelledby="blog-title" className="mx-auto flex max-w-[1120px] flex-col gap-3.5 px-4 pb-7 pt-10 motion-safe:animate-rise md:px-6 md:pb-12 md:pt-[88px]">
+          <h1 id="blog-title" className="font-display text-[44px] font-bold leading-none tracking-[-0.045em] md:text-[72px]">
+            Blog
           </h1>
-          <p className="mt-5 max-w-3xl text-[17px] leading-7 text-[#52607e]">
-            Guides for organisers, what is-on roundups, and the culture behind the events.
+          <p className="max-w-[44ch] text-[17px] leading-normal text-body md:text-[19px]">
+            Guides for running events on Byro, and news on what we’re building.
           </p>
         </section>
 
         {featured ? (
-          <section className="mx-auto max-w-[1240px] px-6 lg:px-8">
+          <section aria-label="Featured post" className="mx-auto max-w-[1120px] px-4 pb-12 motion-safe:animate-rise md:px-6 md:pb-[88px]" style={{animationDelay: '60ms'}}>
             <Link
               href={`/blog/${featured.slug}`}
-              className="group grid overflow-hidden rounded-3xl border border-[#cbd6ed] bg-white shadow-[0_14px_32px_rgba(28,42,88,0.12)] md:grid-cols-[46%_54%]"
+              className="group grid grid-cols-1 items-center gap-5 rounded-3xl focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-4 md:grid-cols-2 md:gap-10"
             >
-              <div className="relative min-h-[250px] md:min-h-[300px]">
-                <BlogImage post={featured} className="h-full w-full" />
-                <div className="absolute left-5 top-5">
-                  <Tag>Featured</Tag>
-                </div>
+              <div className="overflow-hidden rounded-3xl">
+                <BlogCover
+                  post={featured}
+                  className="aspect-[4/3] transition-transform duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] motion-safe:group-hover:scale-[1.02]"
+                  markClassName="text-[64px] md:text-[104px]"
+                />
               </div>
-              <div className="flex flex-col justify-center p-8 md:p-10">
-                <p className="mb-4 text-[14px] text-[#8793b0]">
-                  {formatShortDate(featured.publishedAt)} · {featured.readTime}
-                </p>
-                <h2 className="max-w-2xl font-serif text-[31px] font-black leading-[1.04] tracking-[-0.01em] text-[#10182f] transition group-hover:text-[#4f84ff] sm:text-[37px]">
+              <div className="flex flex-col gap-3.5">
+                <div className="flex flex-wrap items-center gap-2.5 text-sm text-muted">
+                  <TopicPill tag={topicOf(featured)} />
+                  <span>{formatShortDate(featured.publishedAt)}</span>
+                  <span aria-hidden="true">·</span>
+                  <ReadTime value={featured.readTime} />
+                </div>
+                <h2 className="text-balance font-display text-[30px] font-bold leading-[1.05] tracking-[-0.035em] transition-colors group-hover:text-brand-dark md:text-[44px]">
                   {featured.title}
                 </h2>
-                <p className="mt-5 max-w-2xl text-[16px] leading-7 text-[#52607e]">{featured.excerpt}</p>
-                <div className="mt-7 flex items-center gap-4">
-                  <Avatar post={featured} />
-                  <div>
-                    <p className="text-sm font-black text-[#1d273f]">{featured.authorName}</p>
-                    <p className="text-sm text-[#9aa4bd]">{featured.authorRole || 'Editor, The Byro Journal'}</p>
-                  </div>
-                </div>
+                {featured.excerpt && <p className="max-w-[46ch] text-[17px] leading-[1.55] text-body">{featured.excerpt}</p>}
+                {/* Styled as a button; the whole card is the link, so it can't be a real <button> inside it. */}
+                <span className="mt-1 inline-flex min-h-12 items-center gap-2 self-start rounded-full bg-brand pl-[22px] pr-5 text-base font-bold text-white transition-[transform,background-color] duration-150 group-hover:bg-[#2F5EE0] group-active:scale-[0.97]">
+                  Read more
+                  <HugeiconsIcon icon={ArrowRight02Icon} size={18} color="currentColor" aria-hidden />
+                </span>
               </div>
             </Link>
           </section>
         ) : (
-          <section className="mx-auto max-w-[1240px] px-6 lg:px-8">
-            <div className="rounded-3xl border border-[#cbd6ed] bg-white px-8 py-14 text-center shadow-[0_14px_32px_rgba(28,42,88,0.08)]">
-              <h2 className="font-serif text-[31px] font-black text-[#10182f]">No stories published yet</h2>
-              <p className="mt-3 text-[16px] leading-7 text-[#52607e]">
-                Published Sanity posts will appear here automatically.
-              </p>
+          <section className="mx-auto max-w-[1120px] px-4 pb-16 md:px-6">
+            <div className="flex flex-col items-start gap-2 rounded-3xl bg-[#F4F6FA] p-8 md:p-12">
+              <h2 className="font-display text-2xl font-bold">No posts yet</h2>
+              <p className="text-body">Check back soon for guides and news.</p>
             </div>
           </section>
         )}
 
-        <section className="mx-auto max-w-[1240px] px-6 py-9 lg:px-8">
-          <div className="flex gap-3 overflow-x-auto pb-1">
-            {filters.map((filter, index) => (
-              <button
-                key={filter}
-                className={`shrink-0 rounded-full border px-5 py-2 text-sm font-bold ${
-                  index === 0
-                    ? 'border-[#4f84ff] bg-[#4f84ff] text-white'
-                    : 'border-[#cbd6ed] bg-white text-[#52607e]'
-                }`}
-              >
-                {filter}
-              </button>
-            ))}
-          </div>
+        {rest.length > 0 && <BlogGrid posts={rest} />}
 
-          <div className="mt-6 grid gap-6 md:grid-cols-3">
-            {cardPosts.map((post, index) => (
-              <PostCard key={post._id} post={post} index={index} />
-            ))}
-          </div>
-        </section>
+        <HostBand />
       </main>
       <Footer />
     </>
