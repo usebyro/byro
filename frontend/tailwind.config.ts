@@ -68,6 +68,10 @@ export default {
           '0%': { opacity: '0', transform: 'translateY(-4px) scale(0.97)' },
           '100%': { opacity: '1', transform: 'translateY(0) scale(1)' },
         },
+        rise: {
+          '0%': { opacity: '0', transform: 'translateY(10px)' },
+          '100%': { opacity: '1', transform: 'none' },
+        },
         float: {
           '0%, 100%': { transform: 'translateY(0px)' },
           '50%': { transform: 'translateY(-10px)' },
@@ -88,6 +92,7 @@ export default {
         'dialog-in': 'dialog-in 180ms cubic-bezier(0.23, 1, 0.32, 1) both',
         'scrim-in': 'scrim-in 150ms ease-out both',
         'panel-in': 'panel-in 220ms cubic-bezier(0.32, 0.72, 0, 1) both',
+        rise: 'rise 420ms cubic-bezier(0.23, 1, 0.32, 1) both',
         float: 'float 3s ease-in-out infinite',
         bounce: 'bounce 1s infinite',
       },
