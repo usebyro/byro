@@ -100,6 +100,34 @@ function Skeleton() {
   );
 }
 
+// Shown to a new organiser until their first event exists.
+function SetupCard({ steps }) {
+  return (
+    <section aria-labelledby="setup-title" className="v-card v-bf flex flex-col gap-4 px-6 py-5" style={{ "--i": 1 }}>
+      <div className="flex flex-col gap-1">
+        <h2 id="setup-title" className="text-lg font-extrabold">Get ready to sell</h2>
+        <p className="v-hint m-0">Three steps and your first event can go live.</p>
+      </div>
+      <ol className="m-0 flex list-none flex-col gap-2 p-0">
+        {steps.map((step, i) => (
+          <li key={step.label}>
+            <Link href={step.href} className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-ink no-underline hover:bg-[#F6F8FB]">
+              <span
+                aria-hidden="true"
+                className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm font-extrabold ${step.done ? "bg-[#E9F7EF] text-[#1F7A52]" : "bg-[#EEF2FF] text-brand"}`}
+              >
+                {step.done ? "✓" : i + 1}
+              </span>
+              <span className={`text-[15px] font-bold ${step.done ? "text-muted line-through" : ""}`}>{step.label}</span>
+              <span className="sr-only">{step.done ? "(done)" : ""}</span>
+            </Link>
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
 export default function StudioDashboard() {
   const [period, setPeriod] = useState("30d");
   const [data, setData] = useState(null);
@@ -110,6 +138,9 @@ export default function StudioDashboard() {
   const [table, setTable] = useState(false);
   const [balance, setBalance] = useState(null);
   const [bank, setBank] = useState(null);
+  // First-run checklist: null until we know, so it never flashes for set-up organisers.
+  const [hasEvents, setHasEvents] = useState(null);
+  const [profileDone, setProfileDone] = useState(null);
   const latest = useRef(0);
   const user = useSelector((s) => s.auth?.user);
 
@@ -155,6 +186,15 @@ export default function StudioDashboard() {
   }, [period, load]);
 
   useEffect(() => {
+    API.getDashboardEvents()
+      .then((res) => setHasEvents((res?.events || []).length > 0))
+      .catch(() => {});
+    API.getProfile()
+      .then((p) => setProfileDone(Boolean(p?.bio?.trim() && p?.avatar_url)))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
     API.getPayoutBalance().then(setBalance).catch(() => {});
     const saved = readSavedBank();
     if (saved) {
@@ -187,6 +227,14 @@ export default function StudioDashboard() {
           Create event
         </Link>
       </div>
+
+      {hasEvents === false && profileDone !== null && (
+        <SetupCard steps={[
+          { label: "Create your first event", done: false, href: "/dashboard/events/create" },
+          { label: "Add a bank account so you can get paid", done: Boolean(bank), href: "/dashboard/payouts" },
+          { label: "Finish your profile", done: profileDone, href: "/dashboard/profile" },
+        ]} />
+      )}
 
       <div className="v-bf flex flex-wrap items-center gap-3" style={{ "--i": 1 }}>
         <div role="group" aria-label="Time period" className="v-seg">
@@ -389,7 +437,7 @@ function Content({ data, meta, isAll, busy, table, setTable, balance, bank }) {
             ) : (
               <span className="flex min-w-0 grow flex-col">
                 <span className="text-sm font-extrabold">No bank account yet</span>
-                <span className="v-hint text-xs">Add one on Payouts to withdraw</span>
+                <span className="v-hint text-xs">Add a bank account to get paid</span>
               </span>
             )}
             <Link href="/dashboard/payouts" className="v-btn v-btn-p v-btn-sm">{bank ? "Withdraw" : "Add bank"}</Link>
@@ -401,7 +449,7 @@ function Content({ data, meta, isAll, busy, table, setTable, balance, bank }) {
         <section aria-label="Recent sales" className="v-card v-bf min-w-0 flex-[2_1_520px] px-5 pb-2 pt-5" style={{ "--i": 7 }}>
           <div className="flex items-baseline justify-between px-1 pb-2">
             <h2 className="v-h2">Recent sales</h2>
-            <Link href={data.next_event ? `/dashboard/events/${data.next_event.slug}` : "/dashboard/events"} className="text-sm font-bold text-brand-dark no-underline">All guests</Link>
+            <Link href={data.next_event ? `/dashboard/events/${data.next_event.slug}` : "/dashboard/events"} className="text-sm font-bold text-brand-dark no-underline">See guests</Link>
           </div>
           {data.recent_sales.length === 0 ? (
             <p className="v-hint px-2 pb-4 pt-2">No sales yet. They show up here as people get tickets.</p>

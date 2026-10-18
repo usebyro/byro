@@ -33,7 +33,7 @@ export default function StudioCheckIn() {
     <div className="p-4 sm:p-6 max-w-5xl mx-auto space-y-4">
       <div className="pb-2 border-b border-gray-100/50">
         <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Check-in</h1>
-        <p className="text-xs text-gray-500 mt-0.5">Select an event to start checking in attendees.</p>
+        <p className="text-xs text-gray-500 mt-0.5">Pick an event to check guests in.</p>
       </div>
 
       {loading ? (
@@ -55,7 +55,7 @@ export default function StudioCheckIn() {
             <HugeiconsIcon icon={QrCodeIcon} size={20} color="#9ca3af" />
           </div>
           <p className="text-xs text-gray-600 font-bold mb-0.5">No upcoming events</p>
-          <p className="text-xs text-gray-500">Create an event to start checking in attendees.</p>
+          <p className="text-xs text-gray-500">Create an event to start checking guests in.</p>
           <Link
             href="/dashboard/events/create"
             className="inline-block mt-4 bg-[#4F6EF7] text-white text-xs font-semibold px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"

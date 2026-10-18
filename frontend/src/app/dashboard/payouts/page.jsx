@@ -42,10 +42,10 @@ function fmtDate(iso) {
   });
 }
 
-// "Today, 2:14 PM" for today, otherwise "22 Aug 2026, 2:14 PM".
+// "Today, 14:14" for today, otherwise "22 Aug 2026, 14:14".
 function fmtWhen(iso) {
   const d = new Date(iso);
-  const time = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  const time = d.toLocaleTimeString("en-GB", { hour: "numeric", minute: "2-digit" });
   const day = d.toDateString() === new Date().toDateString() ? "Today" : fmtDate(iso);
   return `${day}, ${time}`;
 }
@@ -246,7 +246,9 @@ export default function StudioPayouts() {
         account_number: bankDetails.accountNumber,
         account_name: bankDetails.accountName,
       });
-      toast.success("Withdrawal requested");
+      toast.success("Withdrawal requested", {
+        description: `${fmt(amount)} should reach ${bankDetails.bankName} within 24 hours.`,
+      });
       setWithdrawAmount("");
       setConfirming(false);
       loadPayouts();
@@ -473,12 +475,11 @@ export default function StudioPayouts() {
                   <span className="v-dot v-ping bg-brand" />
                   Processing
                 </span>
-                <span className="v-hint">Within 24 hours</span>
+                <span className="v-hint">Usually within 24 hours</span>
               </li>
               <li className="flex min-w-0 flex-col gap-2">
                 <span className="h-1 rounded-full bg-[#DCE6FD]" />
-                <span className="text-[14px] font-extrabold text-muted">Sent to your bank</span>
-                <span className="v-hint">Within 24 hours</span>
+                <span className="text-[14px] font-extrabold text-muted">Arrives in your bank</span>
               </li>
             </ol>
           )}
@@ -533,7 +534,7 @@ export default function StudioPayouts() {
           </div>
         ) : payouts.length === 0 ? (
           <div className="border-t border-hairline px-[22px] py-10 text-center">
-            <p className="m-0 text-[15px] font-extrabold">No payout requests yet</p>
+            <p className="m-0 text-[15px] font-extrabold">No withdrawals yet</p>
             <p className="v-hint m-0 mt-1">Once your tickets sell, request a withdrawal to your bank here.</p>
           </div>
         ) : rows.length === 0 ? (
@@ -568,6 +569,9 @@ export default function StudioPayouts() {
                           <span className="v-dot" style={{ background: s.dot }} />
                           {s.label || p.status}
                         </span>
+                        {p.status === "rejected" && (
+                          <span className="v-hint mt-1 block text-xs">Back in your balance. Check your bank details or contact support.</span>
+                        )}
                       </td>
                     </tr>
                   );

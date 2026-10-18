@@ -296,7 +296,7 @@ export default function StudioEventPage() {
     const code = discountForm.code.trim().toUpperCase();
     if (!code || !discountForm.value || savingDiscount) return;
     if (discountCodes.some((d) => d.code === code)) {
-      toast.error("Code already exists");
+      toast.error(`You already have a code called ${code}`, { description: "Try another name." });
       return;
     }
     setSavingDiscount(true);
@@ -352,7 +352,7 @@ export default function StudioEventPage() {
   };
 
   const getDiscountStatus = (d) => {
-    if (!d.active) return { label: "Deactivated", tone: "muted" };
+    if (!d.active) return { label: "Paused", tone: "muted" };
     if (d.expiresAt && new Date(d.expiresAt) < new Date()) return { label: "Expired", tone: "danger" };
     if (d.maxUses && d.used >= d.maxUses) return { label: "Used up", tone: "waiting" };
     return { label: "Active", tone: "good" };
@@ -863,7 +863,7 @@ export default function StudioEventPage() {
                 ) : (
                   <>
                     <p className="m-0 text-[15px] font-extrabold">No guests yet</p>
-                    <p className="v-hint m-0">Share your event link to get your first sign-ups.</p>
+                    <p className="v-hint m-0">Share your event link to get your first guests.</p>
                     {!isCancelled && <button type="button" className="v-btn v-btn-p mt-3" onClick={copyEventLink}>Copy event link</button>}
                   </>
                 )}
@@ -1204,7 +1204,7 @@ export default function StudioEventPage() {
         <Modal labelledBy="delete-title" onClose={() => { setShowDelete(false); setDeleteConfirm(""); }} busy={deleting}>
           <h2 id="delete-title" className="v-h2">Delete event?</h2>
           <p className="v-hint mb-4 mt-2 text-sm">
-            This permanently deletes <b className="text-ink">{event?.name}</b>. It can&apos;t be undone.
+            This permanently deletes <b className="text-ink">{event?.name}</b> and takes its page offline. Anyone registered for free loses their spot. It can&apos;t be undone.
           </p>
           <label htmlFor="delete-confirm" className="v-lbl mb-1.5 block">
             Type <span className="font-extrabold">{event?.name}</span> to confirm

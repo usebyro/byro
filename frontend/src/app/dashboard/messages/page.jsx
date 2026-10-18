@@ -343,14 +343,14 @@ export default function MessagesPage() {
     const count = activeAudience?.count ?? 0;
     const ok = await confirm({
       title: `Send “${subject.trim()}” to ${people(count)}?`,
-      body: "This can’t be undone.",
-      confirmLabel: "Send",
+      body: "Emails go out right away. You can’t unsend them.",
+      confirmLabel: `Send to ${people(count)}`,
     });
     if (!ok) return;
     setSending(true);
     try {
       await API.sendMessage(payload());
-      toast.success("Message queued", { description: `Going to ${people(count)}` });
+      toast.success(`Sending to ${people(count)}`, { description: "It can take a few minutes to reach everyone." });
       setSubject(BLANK.subject);
       setBody(BLANK.body);
       setAttach(false);
@@ -430,7 +430,7 @@ export default function MessagesPage() {
   const footNote = isAnnounce
     ? left > 0
       ? `${left} of ${data?.announcements_per_week ?? 2} announcements left this week`
-      : "You’ve used this week’s announcements. Event updates still go out."
+      : "You’ve used both announcements for the last 7 days. Each one frees up 7 days after it was sent. Event updates still go out."
     : "Event updates always reach ticket holders";
 
   const eventLine = (e) =>

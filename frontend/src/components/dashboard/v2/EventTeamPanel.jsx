@@ -132,7 +132,7 @@ const EventTeamPanel = forwardRef(function EventTeamPanel({ slug, ownerEmail, ow
                   <button type="button" className="v-btn v-btn-danger v-btn-sm" onClick={() => remove(c)} disabled={busy}>
                     {pending ? "Cancel invite" : "Remove"}
                   </button>
-                  <button type="button" className="v-btn v-btn-t v-btn-sm" onClick={() => setConfirmId(null)}>Keep</button>
+                  <button type="button" className="v-btn v-btn-t v-btn-sm" onClick={() => setConfirmId(null)}>Keep it</button>
                 </li>
               );
             }

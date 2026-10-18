@@ -442,7 +442,7 @@ function ProfilePageContent() {
                 maxLength={100}
                 onChange={(e) => field("location", e.target.value)}
                 className={inputCls}
-                placeholder="Lagos, Nigeria…"
+                placeholder="e.g. Lagos, Nigeria"
                 autoComplete="address-level2"
               />
             </Field>
@@ -537,7 +537,7 @@ function ProfilePageContent() {
             <div className="flex items-center gap-3.5">
               <span id="listing-label" className="flex flex-grow flex-col gap-0.5">
                 <span className="text-[15px] font-extrabold">List on the communities page</span>
-                <span className="v-hint">People can find you in byro&rsquo;s community directory.</span>
+                <span className="v-hint">People can find you in Byro&rsquo;s community directory.</span>
               </span>
               <button
                 type="button"

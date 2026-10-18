@@ -416,7 +416,7 @@ export default function StudioEvents() {
               <div className="flex flex-col items-center gap-2 px-4 py-14 text-center">
                 <p className="text-base font-extrabold">{q ? "No events match your search" : emptyTitle}</p>
                 <p className="v-hint">
-                  {q ? "Try another name or place." : filter === "draft" ? "Events you save without publishing show up here." : "They'll show up here."}
+                  {q ? "Try another name or place." : filter === "draft" ? "Events you save without publishing show up here." : filter === "past" ? "Past events show up here after they end." : "Events you publish show up here."}
                 </p>
                 {q && (
                   <button type="button" className="v-btn v-btn-s v-btn-sm mt-2" onClick={() => {

@@ -41,7 +41,7 @@ function stockCell(item) {
 }
 
 function statusOf(item) {
-  if (item.removed_by_admin) return { text: "Taken down by byro", ink: "text-[#B42318]", dot: "bg-[#D92D20]" };
+  if (item.removed_by_admin) return { text: "Taken down by Byro", ink: "text-[#B42318]", dot: "bg-[#D92D20]" };
   if (item.is_active) return { text: "On profile", ink: "text-[#1F7A52]", dot: "bg-[#2F9E6E]" };
   return { text: "Hidden", ink: "text-muted", dot: "bg-[#CBD3DF]" };
 }
@@ -172,7 +172,7 @@ export default function MerchPage() {
     e.target.value = "";
     if (!files.length) return;
     const tooBig = files.filter((f) => f.size > MAX_IMAGE_BYTES);
-    if (tooBig.length) toast.error("Photo is too big", { description: "Use ones under 5MB" });
+    if (tooBig.length) toast.error("Photo is too big", { description: "Use photos under 5 MB." });
     const room = MAX_PHOTOS - photos.length;
     const ok = files.filter((f) => f.size <= MAX_IMAGE_BYTES);
     if (ok.length > room) toast.error(`Up to ${MAX_PHOTOS} photos`, { description: room ? `Added the first ${room}` : "Remove one to add another" });
@@ -256,7 +256,7 @@ export default function MerchPage() {
     try {
       await axiosInstance.delete(`merch/${item.id}/`);
       setItems((prev) => prev.filter((i) => i.id !== item.id));
-      toast.success("Removed");
+      toast.success(`${item.name} removed from your page`);
       if (editing?.id === item.id) closeModal();
     } catch {
       toast.error("Couldn't remove item");
@@ -409,7 +409,7 @@ export default function MerchPage() {
                 </tbody>
               </table>
             </div>
-            <p className="v-hint m-0 px-5 py-3.5">byro doesn&apos;t take merch payments yet, so sales happen on your link.</p>
+            <p className="v-hint m-0 px-5 py-3.5">Byro doesn&apos;t take merch payments yet, so sales happen on your link.</p>
           </>
         )}
       </section>
@@ -440,7 +440,7 @@ export default function MerchPage() {
 
               {editing?.removed_by_admin && (
                 <p className="m-0 rounded-[14px] bg-[#FDECEA] p-3.5 text-[13px] text-[#912018]">
-                  <b className="text-[#B42318]">Taken down by byro.</b> It won&apos;t show on your profile, whatever you set here. Email support@usebyro.com if you think this is a mistake.
+                  <b className="text-[#B42318]">Taken down by Byro.</b> It won&apos;t show on your profile, whatever you set here. Email support@usebyro.com if you think this is a mistake.
                 </p>
               )}
 
@@ -478,7 +478,7 @@ export default function MerchPage() {
                   <label className="v-press flex h-[88px] cursor-pointer items-center justify-center gap-4 rounded-2xl border-[1.5px] border-dashed border-[#9DB6FF] bg-[#F5F8FF] px-4 text-[#2451D6] focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-brand">
                     <span className="flex flex-col items-center gap-1 text-center">
                       <span className="text-[15px] font-extrabold">{photos.length ? "Add more photos" : "Add photos"}</span>
-                      <span className="v-hint">Up to {MAX_PHOTOS}, 5MB each. The first is the cover.</span>
+                      <span className="v-hint">Up to {MAX_PHOTOS}, 5 MB each. The first is the cover.</span>
                     </span>
                     <input type="file" accept="image/*" multiple className="sr-only" onChange={handleImageChange} />
                   </label>
@@ -552,7 +552,7 @@ export default function MerchPage() {
                   onChange={(e) => setForm((f) => ({ ...f, purchase_link: e.target.value }))}
                   placeholder="https://paystack.shop/your-store/item"
                 />
-                <span className="v-hint">Buyers go here to pay. byro doesn&apos;t take merch payments yet.</span>
+                <span className="v-hint">Buyers go here to pay. Byro doesn&apos;t take merch payments yet.</span>
               </label>
 
               <label className="flex cursor-pointer items-center gap-2.5 text-sm font-bold">
