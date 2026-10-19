@@ -16,6 +16,7 @@ import EventImageFallback from "@/components/ui/EventImageFallback";
 import EventSalesChart from "@/components/dashboard/v2/EventSalesChart";
 import EventGuestSheet from "@/components/dashboard/v2/EventGuestSheet";
 import EventTeamPanel from "@/components/dashboard/v2/EventTeamPanel";
+import SectionError from "@/components/dashboard/v2/SectionError";
 
 const BASE_URL = (process.env.NEXT_PUBLIC_API_URL || "https://byro.onrender.com").replace(/\/api\/?$/, "");
 const PAGE_SIZE = 25;
@@ -115,6 +116,8 @@ export default function StudioEventPage() {
   const [checkedInCount, setCheckedInCount] = useState(0);
   const [loadingEvent, setLoadingEvent] = useState(true);
   const [loadingAttendees, setLoadingAttendees] = useState(true);
+  const [attendeesLoaded, setAttendeesLoaded] = useState(false);
+  const [attendeesError, setAttendeesError] = useState(false);
   const [eventError, setEventError] = useState(false);
   const [activeTab, setActiveTab] = useState("guests");
   const [search, setSearch] = useState("");
@@ -204,6 +207,7 @@ export default function StudioEventPage() {
   const loadAttendees = () => {
     if (!slug) return;
     setLoadingAttendees(true);
+    setAttendeesError(false);
     API.getEventAttendees(slug)
       .then((res) => {
         const mapped = (res.attendees || []).map((t) => ({
@@ -226,13 +230,17 @@ export default function StudioEventPage() {
         }));
         setAttendees(mapped);
         setCheckedInCount(res.checked_in_count || 0);
+        setAttendeesLoaded(true);
       })
-      .catch(() => {})
+      .catch(() => setAttendeesError(true))
       .finally(() => setLoadingAttendees(false));
   };
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { loadAttendees(); }, [slug]);
+  // Placeholders only on the first load; a refresh keeps the numbers people are reading.
+  const guestsFirstLoad = loadingAttendees && !attendeesLoaded;
+  const guestsUnknown = attendeesError && !attendeesLoaded;
 
   useEffect(() => {
     if (!slug) return;
@@ -530,7 +538,7 @@ export default function StudioEventPage() {
   const openGuest = openGuestId ? attendees.find((a) => a.id === openGuestId) : null;
 
   const TABS = [
-    { key: "guests", label: "Guests", n: loadingAttendees ? "" : num(sold) },
+    { key: "guests", label: "Guests", n: guestsFirstLoad || guestsUnknown ? "" : num(sold) },
     ...(canEdit ? [
       { key: "tickets", label: "Tickets", n: String(tierRows.length) },
       { key: "discounts", label: "Discounts", n: String(discountCodes.length) },
@@ -695,9 +703,9 @@ export default function StudioEventPage() {
       <section aria-label="Totals" className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(220px, 100%), 1fr))" }}>
         <div className="v-card v-bf flex flex-col gap-2.5 px-5 py-[18px]" style={{ "--i": 2 }}>
           <span className="v-eyebrow">Tickets sold</span>
-          {loadingAttendees ? <span className="v-skel h-7 w-20" /> : (
+          {guestsFirstLoad ? <span className="v-skel h-7 w-20" /> : (
             <span className="flex items-baseline gap-1.5">
-              <span className="v-fig">{num(sold)}</span>
+              <span className="v-fig">{guestsUnknown ? "—" : num(sold)}</span>
               {capacity ? <span className="v-hint">of {num(capacity)}</span> : null}
             </span>
           )}
@@ -721,9 +729,9 @@ export default function StudioEventPage() {
         )}
         <div className="v-card v-bf flex flex-col gap-2.5 px-5 py-[18px]" style={{ "--i": 4 }}>
           <span className="v-eyebrow">Checked in</span>
-          {loadingAttendees ? <span className="v-skel h-7 w-20" /> : (
+          {guestsFirstLoad ? <span className="v-skel h-7 w-20" /> : (
             <span className="flex items-baseline gap-1.5">
-              <span className="v-fig">{num(checkedInCount)}</span>
+              <span className="v-fig">{guestsUnknown ? "—" : num(checkedInCount)}</span>
               <span className="v-hint">of {num(sold)}</span>
             </span>
           )}
@@ -741,7 +749,7 @@ export default function StudioEventPage() {
       </section>
 
       <div className="flex flex-wrap items-stretch gap-5">
-        {loadingAttendees ? (
+        {guestsFirstLoad ? (
           <section aria-label="Sales over time" className="v-card flex min-w-0 flex-[3_1_480px] flex-col gap-4 p-[22px]">
             <div className="v-skel h-5 w-48" />
             <div className="v-skel h-[190px] w-full" />
@@ -838,7 +846,9 @@ export default function StudioEventPage() {
               </div>
             </div>
 
-            {loadingAttendees ? (
+            {attendeesError && !attendeesLoaded ? (
+              <SectionError what="your guests" onRetry={loadAttendees} className="border-t border-hairline" />
+            ) : guestsFirstLoad ? (
               <div className="flex flex-col gap-3 border-t border-hairline px-5 py-4">
                 {[0, 1, 2, 3, 4].map((i) => (
                   <div key={i} className="flex items-center gap-3">

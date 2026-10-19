@@ -70,6 +70,7 @@ function CheckInScreen() {
   const [event, setEvent] = useState(null);
   const [loadError, setLoadError] = useState(false);
   const [guests, setGuests] = useState([]);
+  const [guestsFailed, setGuestsFailed] = useState(false);
   const [counts, setCounts] = useState({ checked_in: 0, total: 0 });
   const [mode, setMode] = useState("scan"); // scan | guests
   const [search, setSearch] = useState("");
@@ -106,6 +107,7 @@ function CheckInScreen() {
         const pending = new Set((readSaved(queueKey(slug)) || []).map((q) => q.value));
         const list = (res.attendees || []).map((g) => (pending.has(g.qr_token) ? { ...g, checked_in: true } : g));
         setGuests(list);
+        setGuestsFailed(false);
         setCounts((c) => ({ checked_in: res.checked_in_count ?? c.checked_in, total: list.length }));
         save(guestsKey(slug), list);
       })
@@ -115,6 +117,8 @@ function CheckInScreen() {
         if (Array.isArray(saved)) {
           setGuests(saved);
           setCounts({ checked_in: saved.filter((g) => g.checked_in).length, total: saved.length });
+        } else {
+          setGuestsFailed(true);
         }
       });
   }, [slug]);
@@ -505,7 +509,18 @@ function CheckInScreen() {
               />
               <ul className="mt-3 divide-y divide-white/10 rounded-2xl bg-white/5">
                 {filtered.length === 0 && (
-                  <li className="px-4 py-6 text-center text-sm text-white/60">{guests.length ? "Nobody matches that." : "No guests yet."}</li>
+                  <li className="px-4 py-6 text-center text-sm text-white/60">
+                    {guests.length ? (
+                      "Nobody matches that."
+                    ) : guestsFailed ? (
+                      <>
+                        We couldn&apos;t load the guest list. You can still scan tickets.{" "}
+                        <button type="button" onClick={loadGuests} className="font-bold text-white underline">Try again</button>
+                      </>
+                    ) : (
+                      "No guests yet."
+                    )}
+                  </li>
                 )}
                 {filtered.map((g) => (
                   <li key={g.ticket_id} className="flex items-center gap-3 px-4 py-3">

@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import API from "@/services/api";
 import { useConfirm } from "@/components/admin/ui";
 import EventImage from "@/components/brand/EventImage";
+import SectionError from "@/components/dashboard/v2/SectionError";
 import { dayParts, formatTime } from "@/lib/eventFormat";
 
 const KINDS = [
@@ -194,6 +195,7 @@ export default function MessagesPage() {
   const [data, setData] = useState(null);
   const [dashboard, setDashboard] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [sending, setSending] = useState(false);
   const [testing, setTesting] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
@@ -232,14 +234,20 @@ export default function MessagesPage() {
 
   const load = useCallback(() => API.getMessages().then(setData).catch(() => {}), []);
 
-  useEffect(() => {
-    Promise.allSettled([API.getMessages(), API.getDashboard()])
+  const loadAll = useCallback(() => {
+    setLoading(true);
+    return Promise.allSettled([API.getMessages(), API.getDashboard()])
       .then(([m, d]) => {
         setData(m.status === "fulfilled" ? m.value : null);
         setDashboard(d.status === "fulfilled" ? d.value : null);
+        setLoadFailed(m.status === "rejected" || d.status === "rejected");
       })
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    loadAll();
+  }, [loadAll]);
 
   // While a message is going out, check back until it has finished.
   const goingOut = Boolean(data?.sent?.some((m) => m.status === "sending"));
@@ -486,6 +494,8 @@ export default function MessagesPage() {
             <span className="v-lbl">Send to</span>
             {loading ? (
               <div className="v-skel h-[52px]" />
+            ) : loadFailed ? (
+              <SectionError what="who you can message" onRetry={loadAll} className="rounded-xl bg-paper" />
             ) : audiences.length === 0 ? (
               <p className="v-hint rounded-xl bg-paper px-4 py-4">
                 No one to send an event update to yet. Ticket holders show up here once an event has sales.
@@ -676,6 +686,8 @@ export default function MessagesPage() {
               <div key={i} className="v-skel h-12" />
             ))}
           </div>
+        ) : loadFailed && !data ? (
+          <SectionError what="your messages" onRetry={loadAll} className="border-t border-hairline" />
         ) : data?.sent?.length ? (
           <div className="overflow-x-auto">
             <table className="v-stack w-full min-w-[520px] border-collapse">

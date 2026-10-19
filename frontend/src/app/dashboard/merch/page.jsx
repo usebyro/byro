@@ -7,6 +7,7 @@ import axiosInstance from "@/utils/axios";
 import { useAuth } from "@/redux/useAuth";
 import { useConfirm } from "@/components/admin/ui";
 import MerchSlideshow from "@/components/merch/MerchSlideshow";
+import SectionError from "@/components/dashboard/v2/SectionError";
 
 const EMPTY_FORM = {
   name: "",
@@ -103,12 +104,15 @@ export default function MerchPage() {
   const nameRef = useRef(null);
   const stockRef = useRef(null);
 
+  const [loadFailed, setLoadFailed] = useState(false);
+
   const loadItems = () => {
     setLoading(true);
+    setLoadFailed(false);
     axiosInstance
       .get("merch/")
       .then((res) => setItems(Array.isArray(res.data) ? res.data : res.data?.results ?? []))
-      .catch(() => toast.error("Couldn't load merch"))
+      .catch(() => setLoadFailed(true))
       .finally(() => setLoading(false));
   };
 
@@ -324,6 +328,8 @@ export default function MerchPage() {
               </div>
             ))}
           </div>
+        ) : loadFailed ? (
+          <SectionError what="your merch" onRetry={loadItems} />
         ) : items.length === 0 ? (
           <div className="flex flex-col items-center gap-2 px-5 py-12 text-center">
             <span className="mb-1 flex h-14 w-14 items-center justify-center rounded-2xl bg-mist text-body">

@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { toast } from "sonner";
 import API from "@/services/api";
 import BankLogo from "@/components/dashboard/BankLogo";
+import SectionError from "@/components/dashboard/v2/SectionError";
 
 // Backend status -> label, status ink, dot, amount ink (design: Paid / Pending / Cancelled-style grey).
 const STATUS = {
@@ -53,6 +54,8 @@ function fmtWhen(iso) {
 export default function StudioPayouts() {
   const [payouts, setPayouts] = useState([]);
   const [loadingPayouts, setLoadingPayouts] = useState(true);
+  const [payoutsFailed, setPayoutsFailed] = useState(false);
+  const [balanceFailed, setBalanceFailed] = useState(false);
   const [filter, setFilter] = useState("all");
 
   const [banks, setBanks] = useState([]);
@@ -109,8 +112,9 @@ export default function StudioPayouts() {
               }
         );
       }
+      setPayoutsFailed(false);
     } catch {
-      toast.error("Couldn't load payout history");
+      setPayoutsFailed(true);
     } finally {
       setLoadingPayouts(false);
     }
@@ -124,9 +128,11 @@ export default function StudioPayouts() {
     try {
       const data = await API.getPayoutBalance();
       setBalance(data);
+      setBalanceFailed(false);
     } catch {
-      // Non-fatal — the page still works without the balance summary.
+      // The rest of the page still works; say so next to the balance instead of showing a bare dash.
       setBalance(null);
+      setBalanceFailed(true);
     } finally {
       setLoadingBalance(false);
     }
@@ -302,6 +308,14 @@ export default function StudioPayouts() {
               <span className="v-skel block h-[52px] w-56 max-w-full" aria-label="Loading balance" />
             ) : (
               <span className="v-hero break-words">{balance ? fmt(balance.available) : "—"}</span>
+            )}
+            {balanceFailed && !loadingBalance && (
+              <p role="alert" className="v-hint m-0">
+                We couldn&apos;t load your balance.{" "}
+                <button type="button" onClick={() => { setLoadingBalance(true); loadBalance(); }} className="font-bold text-brand-dark underline">
+                  Try again
+                </button>
+              </p>
             )}
           </div>
 
@@ -532,6 +546,8 @@ export default function StudioPayouts() {
               <div key={i} className="v-skel h-6" />
             ))}
           </div>
+        ) : payoutsFailed ? (
+          <SectionError what="your withdrawals" onRetry={() => { setLoadingPayouts(true); loadPayouts(); }} className="border-t border-hairline" />
         ) : payouts.length === 0 ? (
           <div className="border-t border-hairline px-[22px] py-10 text-center">
             <p className="m-0 text-[15px] font-extrabold">No withdrawals yet</p>

@@ -6,6 +6,7 @@ import Image from "next/image";
 import EventImageFallback from "@/components/ui/EventImageFallback";
 import AppLayout from "@/layout/app";
 import API from "@/services/api";
+import SectionError from "@/components/dashboard/v2/SectionError";
 import "@/app/dashboard/dashboard-v2.css";
 
 const BASE_URL = (process.env.NEXT_PUBLIC_API_URL || "https://byro.onrender.com").replace(/\/api\/?$/, "");
@@ -286,12 +287,22 @@ export default function HomePage() {
   const [dashboard, setDashboard] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("upcoming");
+  const [failed, setFailed] = useState(false);
 
-  useEffect(() => {
+  const load = () => {
+    setLoading(true);
+    setFailed(false);
     API.getDashboard()
       .then(setDashboard)
-      .catch(() => setDashboard(null))
+      .catch(() => {
+        setDashboard(null);
+        setFailed(true);
+      })
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    load();
   }, []);
 
   const hostingUpcoming = dashboard?.hosting?.upcoming || [];
@@ -343,6 +354,10 @@ export default function HomePage() {
 
           {loading ? (
             <SkeletonList />
+          ) : failed ? (
+            <section className="v-card v-bf" style={{ "--i": 1 }}>
+              <SectionError what="your events" onRetry={load} />
+            </section>
           ) : isEmpty ? (
             <EmptyTab tab={activeTab} />
           ) : (
