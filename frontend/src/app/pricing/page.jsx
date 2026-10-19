@@ -13,7 +13,7 @@ const freeFeatures = [
 ];
 
 const paidFeatures = [
-  "Everything in free events",
+  "Everything in Free events",
   "Ticket types and promo codes",
   "Co-hosts and door staff",
   "Payouts to your bank",
@@ -95,6 +95,7 @@ function TakeHome({ percent }) {
         <div className="flex flex-col gap-1">
           <span className="text-sm text-muted">Guest pays</span>
           <span className="font-display text-[30px] font-bold tabular-nums tracking-[-0.02em]">{naira(guestPays)}</span>
+          <span className="text-xs text-muted">plus Paystack processing, shown at checkout</span>
         </div>
         <div className="flex flex-col gap-1">
           <span className="text-sm text-muted">You get</span>
@@ -172,11 +173,11 @@ export default function PricingPage() {
     },
     {
       q: "How do guests pay?",
-      a: "Card or bank transfer through Paystack. No account needed.",
+      a: "Card, bank transfer or USSD through Paystack. No account needed.",
     },
     {
       q: "What if I cancel an event?",
-      a: "Everyone who paid is refunded the ticket price straight away. Byro's service fee and the payment processing charge are not refunded.",
+      a: "Everyone who paid gets the ticket price back automatically, and banks usually show it within 3 to 10 working days. Byro's service fee and the payment processing charge are not refunded.",
     },
   ];
 
@@ -193,10 +194,10 @@ export default function PricingPage() {
           className="mx-auto flex max-w-[880px] flex-col items-center gap-4 px-4 pb-12 pt-14 text-center motion-safe:animate-rise md:px-6 md:pt-28"
         >
           <h1 id="pricing-title" className="font-display text-[44px] font-bold leading-none tracking-[-0.045em] md:text-[72px]">
-            Pricing
+            Free to host. Pay only when you sell.
           </h1>
           <p className="max-w-[36ch] text-[17px] leading-normal text-body md:text-[19px]">
-            Free to use. We only take a small fee when you sell a ticket.
+            Free events cost nothing. On paid tickets, we take a small fee per sale.
           </p>
         </section>
 
@@ -261,10 +262,10 @@ export default function PricingPage() {
 
         <section aria-labelledby="start" className="flex flex-col items-center gap-5 bg-ink px-4 py-[72px] text-center text-white md:py-[120px]">
           <h2 id="start" className="font-display text-[32px] font-bold tracking-[-0.035em] md:text-5xl">
-            Start for free.
+            Your first event is free to set up.
           </h2>
           <Link href="/events/create" className={`${ctaBase} bg-brand text-white hover:bg-[#2F5EE0] focus-visible:ring-offset-ink`}>
-            Create an event
+            Create your free event
           </Link>
         </section>
       </main>

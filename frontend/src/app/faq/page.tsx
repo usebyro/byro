@@ -9,9 +9,7 @@ import {
   Ticket01Icon,
   CreditCardIcon,
   UserIcon,
-  Calendar01Icon,
   Store01Icon,
-  Notification01Icon,
   Mail01Icon,
   ArrowRight01Icon,
 } from "@hugeicons/core-free-icons";
@@ -27,78 +25,108 @@ declare global {
 
 const TOPICS = [
   {
+    key: "tickets",
     icon: Ticket01Icon,
     color: "bg-blue-50 text-blue-600",
     title: "Tickets & entry",
-    desc: "Find passes, QR codes, transfers",
+    desc: "QR codes, transfers, check-in",
   },
   {
+    key: "payments",
     icon: CreditCardIcon,
     color: "bg-teal-50 text-teal-600",
     title: "Payments & refunds",
-    desc: "Charges, refunds, payment methods",
+    desc: "Paying, refunds, receipts",
   },
   {
+    key: "account",
     icon: UserIcon,
     color: "bg-purple-50 text-purple-600",
-    title: "Account & profile",
-    desc: "Sign-in, security, preferences",
+    title: "Account",
+    desc: "Signing in, your email",
   },
   {
-    icon: Calendar01Icon,
-    color: "bg-orange-50 text-orange-500",
-    title: "Booking events",
-    desc: "Reserving, quantities, waitlists",
-  },
-  {
+    key: "organisers",
     icon: Store01Icon,
     color: "bg-rose-50 text-rose-500",
     title: "For organisers",
-    desc: "Listing, payouts, verification",
-  },
-  {
-    icon: Notification01Icon,
-    color: "bg-sky-50 text-sky-500",
-    title: "Notifications",
-    desc: "Alerts, reminders, email settings",
+    desc: "Fees, payouts, check-in, cancelling",
   },
 ];
 
 const FAQS = [
   {
+    topic: "tickets",
     q: "How do I transfer a ticket to a friend?",
-    a: "Go to your Profile, open My Tickets, and tap the ticket you want to transfer. Select Transfer, enter your friend's name and email, then confirm. They'll receive an email with a link to accept the ticket. Transfers are only available for events that allow it.",
+    a: "Sign in, open the event page and tap Transfer ticket. Enter your friend's name and email. They get an email with a link to accept, and your ticket stops working once you send it. Only events whose organiser allows transfers show this option.",
   },
   {
+    topic: "tickets",
+    q: "My QR code won't scan at the door",
+    a: "Turn your screen brightness all the way up and hold the phone steady a few inches from the scanner. If it still won't scan, show the door staff your ticket ID (it's in your confirmation email). They can find you on the guest list and check you in.",
+  },
+  {
+    topic: "payments",
+    q: "How do I pay?",
+    a: "Card, bank transfer or USSD through Paystack. You don't need a Byro account to buy a ticket.",
+  },
+  {
+    topic: "payments",
     q: "Can I get a refund?",
-    a: "Tickets can't be refunded on request. If an organiser cancels an event, you are refunded the ticket price you paid (Byro's service fee and the payment processing charge are not refunded). You don't need to ask: we email you when the event is cancelled and again when your refund is sent.",
+    a: "Tickets can't be refunded on request. If an organiser cancels an event, you get back the ticket price you paid (Byro's service fee and the payment processing charge aren't refunded). You don't need to ask: we email you when the event is cancelled and again when your refund is sent.",
   },
   {
+    topic: "payments",
     q: "When will I receive my refund?",
-    a: "Once we send your refund it goes back to the card or bank account you paid with, and banks usually show it within 3–10 business days. We email you when it has been sent. If it hasn't arrived after 10 business days, write to support@usebyro.com with your ticket ID.",
+    a: "Your refund goes back to the card or bank account you paid with. Banks usually show it within 3 to 10 working days. We email you when it has been sent. If it hasn't arrived after 10 working days, write to support@usebyro.com with your ticket ID.",
   },
   {
-    q: "My QR code won't scan at the gate",
-    a: "Make sure your screen brightness is turned all the way up and hold the phone steady a few inches from the scanner. If it still won't scan, show the gate staff your ticket reference number (found in your booking confirmation email) — they can look you up manually.",
+    topic: "payments",
+    q: "Can I get a receipt for my order?",
+    a: "Yes. Your confirmation email lists the event, how many tickets you bought and the amount paid. If you need a formal invoice, write to support@usebyro.com with your ticket ID.",
   },
   {
+    topic: "account",
+    q: "How do I sign in?",
+    a: "Enter your email and we'll send you a code, or continue with Google. There's no password to remember.",
+  },
+  {
+    topic: "account",
     q: "How do I change the email on my account?",
-    a: "Head to Profile → Settings and update your email address. You'll receive a verification link at the new address. The change takes effect once you click that link.",
+    a: "Write to support@usebyro.com from your current email address and tell us the new one. We'll move your account and tickets over.",
   },
   {
-    q: "Can I get a receipt or invoice for my booking?",
-    a: "Yes — your booking confirmation email contains a full receipt with the event name, quantity, and amount paid. You can also find it in your Profile under My Tickets. If you need a formal invoice, contact our support team with your booking reference.",
+    topic: "organisers",
+    q: "What does it cost to host on Byro?",
+    a: "Free events cost nothing. On paid tickets Byro takes a small service fee per sale, and you choose for each event whether guests pay it at checkout or you cover it. See Pricing for the exact rate and a calculator.",
+  },
+  {
+    topic: "organisers",
+    q: "How do I get paid?",
+    a: "Add your bank account in Payouts, then withdraw your available balance whenever you like. Withdrawals usually reach your bank within 24 hours. If one is rejected, the money goes back into your balance.",
+  },
+  {
+    topic: "organisers",
+    q: "How do I check guests in?",
+    a: "Open your event in the dashboard and go to Check-in. Scan each guest's QR code with your phone camera, or find them on the guest list. You can add co-hosts who can only check people in.",
+  },
+  {
+    topic: "organisers",
+    q: "What happens if I cancel an event?",
+    a: "Everyone who paid gets the ticket price back automatically and is told by email. Byro's service fee and the payment processing charge aren't refunded. If you've already withdrawn money from that event, it's taken out of your future ticket sales.",
   },
 ];
 
 export default function FAQPage() {
   const [search, setSearch] = useState("");
+  const [topic, setTopic] = useState<string | null>(null);
   const [openIndex, setOpenIndex] = useState<number | null>(null);
 
   const filteredFaqs = FAQS.filter(
     (faq) =>
-      faq.q.toLowerCase().includes(search.toLowerCase()) ||
-      faq.a.toLowerCase().includes(search.toLowerCase())
+      (!topic || faq.topic === topic) &&
+      (faq.q.toLowerCase().includes(search.toLowerCase()) ||
+        faq.a.toLowerCase().includes(search.toLowerCase()))
   );
 
   const handleLiveChat = () => {
@@ -146,32 +174,33 @@ export default function FAQPage() {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search help articles..."
+              placeholder="Search questions"
+              aria-label="Search questions"
               className="flex-1 min-w-0 px-3 sm:px-4 py-3.5 sm:py-4 text-sm text-gray-700 placeholder-gray-400 focus:outline-none bg-transparent"
             />
-            <button className="m-1.5 shrink-0 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg transition-colors">
-              Search
-            </button>
           </div>
         </div>
       </section>
 
       <section className="max-w-5xl mx-auto w-full px-4 sm:px-6 py-14">
         <h2 className="text-xl font-bold text-gray-900 mb-6">Browse by topic</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {TOPICS.map((topic) => (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {TOPICS.map((t) => (
             <button
-              key={topic.title}
-              className="flex items-start gap-4 p-5 border border-gray-100 rounded-2xl bg-white hover:border-gray-200 hover:shadow-sm transition-all text-left group"
+              key={t.title}
+              type="button"
+              aria-pressed={t.key === topic}
+              onClick={() => { setTopic(t.key === topic ? null : t.key); setOpenIndex(null); }}
+              className={`flex items-start gap-4 p-5 border rounded-2xl bg-white hover:border-gray-200 hover:shadow-sm transition-all text-left group ${t.key === topic ? "border-blue-500 ring-1 ring-blue-500" : "border-gray-100"}`}
             >
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${topic.color}`}>
-                <HugeiconsIcon icon={topic.icon} size={20} />
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${t.color}`}>
+                <HugeiconsIcon icon={t.icon} size={20} />
               </div>
               <div>
                 <p className="text-sm font-semibold text-gray-900 mb-0.5 group-hover:text-blue-600 transition-colors">
-                  {topic.title}
+                  {t.title}
                 </p>
-                <p className="text-xs text-gray-500">{topic.desc}</p>
+                <p className="text-xs text-gray-500">{t.desc}</p>
               </div>
             </button>
           ))}
@@ -179,11 +208,13 @@ export default function FAQPage() {
       </section>
 
       <section className="max-w-5xl mx-auto w-full px-4 sm:px-6 pb-14">
-        <h2 className="text-xl font-bold text-gray-900 mb-5">Popular questions</h2>
+        <h2 className="text-xl font-bold text-gray-900 mb-5">
+          {topic ? TOPICS.find((t) => t.key === topic)?.title : "Popular questions"}
+        </h2>
 
         {filteredFaqs.length === 0 ? (
           <div className="text-center py-12 text-gray-400 text-sm">
-            No results for &ldquo;{search}&rdquo;. Try a different search.
+            No questions match &ldquo;{search}&rdquo;. Try another word, or ask us below.
           </div>
         ) : (
           <div className="border border-gray-100 rounded-2xl overflow-hidden divide-y divide-gray-100">
@@ -216,13 +247,11 @@ export default function FAQPage() {
         <div className="bg-gray-50 border border-gray-100 rounded-2xl px-6 py-10 text-center">
           <h3 className="text-xl font-bold text-gray-900 mb-2">Still need a hand?</h3>
           <p className="text-sm text-gray-500 mb-7">
-            Our Lagos support team replies within a few hours.
+            Email us or start a live chat and a person on our team will reply.
           </p>
           <div className="flex items-center justify-center gap-3 flex-wrap">
             <Link
-              href="https://app.notion.com/p/26e027404f2948ef8b15a77d16ddddf4?pvs=106"
-              target="_blank"
-              rel="noopener noreferrer"
+              href="mailto:support@usebyro.com"
               className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-6 py-3 rounded-full transition-colors"
             >
               <HugeiconsIcon icon={Mail01Icon} size={16} color="white" />

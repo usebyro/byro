@@ -89,7 +89,7 @@ const Navbar = () => {
     <div className="sticky top-0 z-50 px-3 pt-3 font-body md:px-8 md:pt-5 xl:px-16">
       <nav aria-label="Main" className="mx-auto max-w-[1312px]">
         <div className={`${pill} flex h-14 items-center gap-2 pl-4 pr-1.5 md:h-16 md:gap-7 md:pl-6 md:pr-2.5`}>
-          <Link href="/" className="flex shrink-0" aria-label="byro home">
+          <Link href="/" className="flex shrink-0" aria-label="Byro home">
             <Image src="/assets/images/logo.svg" alt="byro" width={63} height={36} className="h-7 w-auto md:h-9" priority />
           </Link>
 

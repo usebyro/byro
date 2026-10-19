@@ -61,8 +61,7 @@ export default function Hero({ event }: { event?: EventLike }) {
           </h1>
 
           <p style={{ animationDelay: "0.16s" }} className="byro-in mt-4 max-w-[470px] text-pretty text-base leading-[1.55] text-muted md:mt-[26px] md:text-[19px] md:leading-[1.6]">
-            Byro is a community events platform. Discover events near you, buy tickets in seconds, and collect a
-            stamp every time you show up. Organisers use Byro to create events, sell tickets and check guests in.
+            Find events near you, get your ticket in seconds, and collect a stamp every time you show up.
           </p>
 
           <form

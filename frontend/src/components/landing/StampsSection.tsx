@@ -28,7 +28,7 @@ export default function StampsSection() {
             leaves a stamp.
           </h2>
           <p className="max-w-[420px] text-[15px] leading-[1.55] text-muted md:text-lg md:leading-[1.6]">
-            Your byro passport fills up as you go. Look back at the gigs, runs and dinners that made the year.
+            Your Byro passport fills up as you go. Look back at the gigs, runs and dinners that made the year.
           </p>
           <ol className="mt-2 flex flex-col gap-4">
             {steps.map((s, i) => (

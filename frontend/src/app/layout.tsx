@@ -22,45 +22,45 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: "Byro. Build Communities and Discover Events",
+    default: "Byro: Go out. Keep the memory.",
     template: "%s | Byro",
   },
   description:
-    "Create communities. Discover events. Create memories. Byro is the community events platform built for organisers and attendees.",
+    "Find events near you, get tickets in seconds and collect a stamp every time you show up. Organisers create events, sell tickets and check guests in for free.",
   keywords: [
     "community events",
     "discover events",
     "event communities",
     "event platform",
-    "memory badges",
+    "event stamps",
     "community platform",
   ],
   authors: [{ name: "Byro" }],
   creator: "Byro",
   openGraph: {
     type: "website",
-    locale: "en_US",
+    locale: "en_GB",
     url: SITE_URL,
     siteName: "Byro",
-    title: "Byro. Build Communities and Discover Events",
+    title: "Byro: Go out. Keep the memory.",
     description:
-      "Create communities. Discover events. Create memories. Byro is the community events platform built for organisers and attendees.",
+      "Find events near you, get tickets in seconds and collect a stamp every time you show up. Organisers create events, sell tickets and check guests in for free.",
     images: [
       {
         url: "/og-image.png",
         width: 1200,
         height: 630,
-        alt: "Byro. Community Events Platform",
+        alt: "Byro: Go out. Keep the memory.",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Byro. Build Communities and Discover Events",
+    title: "Byro: Go out. Keep the memory.",
     description:
-      "Create communities. Discover events. Create memories. Byro is the community events platform built for organisers and attendees.",
+      "Find events near you, get tickets in seconds and collect a stamp every time you show up. Organisers create events, sell tickets and check guests in for free.",
     images: ["/og-image.png"],
-    creator: "@byroafrica",
+    creator: "@usebyro",
   },
   robots: {
     index: true,

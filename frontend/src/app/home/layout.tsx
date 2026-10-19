@@ -1,12 +1,12 @@
 import type {Metadata} from 'next'
 
 export const metadata: Metadata = {
-  title: 'Events near you',
-  description: 'Browse what is on in your city and find communities worth following on Byro.',
+  title: 'Your events',
+  description: 'Your tickets and the events you host on Byro.',
   alternates: {canonical: '/home'},
   openGraph: {
-    title: 'Events near you | Byro',
-    description: 'Browse what is on in your city and find communities worth following on Byro.',
+    title: 'Your events | Byro',
+    description: 'Your tickets and the events you host on Byro.',
   },
 }
 

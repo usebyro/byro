@@ -3,7 +3,7 @@ import { Reveal } from "./Reveal";
 const items = [
   {
     title: "Secure checkout",
-    body: "Card, transfer or USSD through Paystack.",
+    body: "Card, bank transfer or USSD through Paystack.",
     bg: "bg-sky",
     icon: (
       <>

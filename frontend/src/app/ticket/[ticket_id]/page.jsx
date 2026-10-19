@@ -18,7 +18,7 @@ function refundLine(refund, email) {
     case "processing":
     case "submitting":
     case "pending":
-      return `Your refund of ${amount} has been sent to the card or bank account you paid with. Banks usually show it within 3–10 business days.`;
+      return `Your refund of ${amount} has been sent to the card or bank account you paid with. Banks usually show it within 3 to 10 working days.`;
     case "failed":
     case "needs_attention":
       return `There is a problem sending your refund of ${amount}. Our team has been told and will contact you at ${email}. You can also write to support@usebyro.com.`;

@@ -35,7 +35,7 @@ export default function CancelledPanel({ slug, reason, initial = null }) {
     if (p.processed === p.total_refunds) line = "All refunds have been returned to your buyers.";
     else if (p.awaiting > 0 && p.processing + p.processed === 0) line = "Byro will check and send the refunds shortly. Each buyer is emailed when theirs goes out.";
     else if (p.failed > 0) line = `${p.failed} refund${p.failed === 1 ? "" : "s"} need${p.failed === 1 ? "s" : ""} Byro's attention. We'll sort it out and contact the buyer if we need anything.`;
-    else line = "Refunds are being sent. Banks usually take 3–10 business days to show them.";
+    else line = "Refunds are being sent. Banks usually take 3 to 10 working days to show them.";
   }
 
   return (

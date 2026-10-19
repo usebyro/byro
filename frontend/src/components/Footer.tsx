@@ -69,12 +69,12 @@ const Footer = () => {
       <div className="mx-auto max-w-[1440px] px-4 pb-8 pt-12 md:px-12 md:pb-10 md:pt-[72px] xl:px-24">
         <div className="grid gap-10 md:grid-cols-2 lg:grid-cols-[1.6fr_1fr_1fr_1fr] lg:gap-14">
           <div className="flex flex-col gap-4">
-            <Link href="/" className="inline-block" aria-label="byro home">
+            <Link href="/" className="inline-block" aria-label="Byro home">
               <Image src="/assets/images/logo.svg" alt="byro" width={88} height={50} className="h-10 w-auto md:h-12" />
             </Link>
             <p className="text-base">Go out. Keep the memory.</p>
             <form onSubmit={handleSubscribe} className="mt-2 flex max-w-md gap-2">
-              <label htmlFor="footer-email" className="sr-only">Email address</label>
+              <label htmlFor="footer-email" className="sr-only">Email for the week&apos;s best events</label>
               <input
                 id="footer-email"
                 type="email"
@@ -84,7 +84,7 @@ const Footer = () => {
                   setEmail(e.target.value);
                   if (status !== "loading") setStatus("idle");
                 }}
-                placeholder="Get the week's best events by email"
+                placeholder="Your email for the week's best events"
                 className="h-12 min-w-0 flex-1 rounded-full border border-line bg-white px-[18px] text-sm text-ink placeholder:text-faint focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
               />
               <button

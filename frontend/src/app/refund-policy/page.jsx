@@ -28,7 +28,7 @@ export default function RefundPolicyPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-gray-900 mb-2">2. Refunds Are Not Available On Request</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-2">2. Refunds are not available on request</h2>
             <p>
               Once you have bought a ticket, it cannot be refunded because you changed your mind,
               cannot attend, or no longer want it. Please check the date, venue and details of an
@@ -38,7 +38,7 @@ export default function RefundPolicyPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-gray-900 mb-2">3. When an Organiser Cancels an Event</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-2">3. When an organiser cancels an event</h2>
             <p>
               If an organiser cancels an event, every ticket for it stops being valid and everyone
               who paid is refunded. We email all ticket holders as soon as the event is cancelled,
@@ -51,7 +51,7 @@ export default function RefundPolicyPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-gray-900 mb-2">4. What You Get Back</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-2">4. What you get back</h2>
             <p>
               You are refunded the <strong>ticket price</strong> you paid, after any discount code.
               The following are <strong>not refunded</strong>:
@@ -66,7 +66,7 @@ export default function RefundPolicyPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-gray-900 mb-2">5. Postponed or Rescheduled Events</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-2">5. Postponed or rescheduled events</h2>
             <p>
               If an event is postponed or rescheduled but not cancelled, your ticket stays valid for
               the new date and no refund is due. If the organiser cancels instead, section 3 applies.
@@ -74,7 +74,7 @@ export default function RefundPolicyPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-gray-900 mb-2">6. Free Tickets</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-2">6. Free tickets</h2>
             <p>
               Free tickets carry no monetary value, so there is nothing to refund. If you can no
               longer attend, you can cancel your registration through the Platform.
@@ -82,7 +82,7 @@ export default function RefundPolicyPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-gray-900 mb-2">7. How Refunds Are Paid</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-2">7. How refunds are paid</h2>
             <p>
               Refunds go back to the payment method you used: the same card, or the bank account you
               paid from. We cannot send a refund to a different account. If your bank has not shown the
@@ -95,16 +95,16 @@ export default function RefundPolicyPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-gray-900 mb-2">8. Refund Processing Time</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-2">8. Refund processing time</h2>
             <p>
-              Once we have sent a refund, banks usually show it within 3&ndash;10 business days,
+              Once we have sent a refund, banks usually show it within 3 to 10 working days,
               depending on your bank or payment provider. Byro is not responsible for delays caused
               by financial institutions.
             </p>
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-gray-900 mb-2">9. Contact Us</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-2">9. Contact us</h2>
             <p>
               If you have any questions about this Refund Policy, please contact us at{" "}
               <a href="mailto:support@usebyro.com" className="text-blue-600 hover:underline">

@@ -9,8 +9,8 @@ import { Reveal, useInView } from "./Reveal";
 const steps = [
   { title: "Describe your event", body: "Name it, pick a category, write a description and add a cover image." },
   { title: "Set the date and place", body: "Choose the date, start time and venue." },
-  { title: "Set up your tickets", body: "Free or paid tiers, how many you'll sell, and whether tickets can be transferred." },
-  { title: "Publish and share", body: "List it publicly or keep it unlisted, then share the link on WhatsApp, X or Telegram." },
+  { title: "Set up your tickets", body: "Free or paid ticket types, how many you'll sell, and whether tickets can be transferred." },
+  { title: "Publish and share", body: "Share the link on WhatsApp, X or Telegram. Guests who follow you hear about your next event by email." },
 ];
 
 const shareChip = "flex h-9 flex-1 items-center justify-center gap-1 rounded-[10px] text-[11px] font-bold";
@@ -23,7 +23,7 @@ export default function HostsSection() {
     <section className="mx-auto max-w-[1440px] px-4 pt-5 md:px-12 md:pt-[140px] xl:px-24">
       <div className="relative flex flex-col gap-10 overflow-hidden rounded-[30px] bg-blush px-[22px] py-8 md:gap-[60px] md:rounded-[40px] md:p-[72px] lg:min-h-[700px] lg:flex-row">
         <Reveal className="flex flex-col gap-4 md:gap-5 lg:w-[520px] lg:shrink-0">
-          <span className="text-xs font-extrabold tracking-[0.14em] text-[#C2527A] md:text-[13px]">FOR HOSTS</span>
+          <span className="text-xs font-extrabold tracking-[0.14em] text-[#C2527A] md:text-[13px]">FOR ORGANISERS</span>
           <h2 className="-mt-1.5 text-balance font-display text-[34px] font-bold leading-none tracking-[-0.035em] md:text-[56px]">
             Host it.
             <br />

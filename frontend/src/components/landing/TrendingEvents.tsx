@@ -20,9 +20,9 @@ export default function TrendingEvents({ events }: { events: EventLike[] }) {
     <section className="mx-auto max-w-[1440px] px-4 pt-16 md:px-12 md:pt-[120px] xl:px-24">
       <Reveal className="flex items-end justify-between gap-4">
         <h2 className="font-display text-4xl font-bold leading-none tracking-[-0.035em] md:text-[56px]">
-          This week,
+          Coming up
           <br />
-          <span className="text-faint">near you.</span>
+          <span className="text-faint">on Byro.</span>
         </h2>
         <Link
           href="/discover"

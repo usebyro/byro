@@ -22,7 +22,7 @@ export default function FinalCta() {
             </Link>
             <Link
               href="/events/create"
-              className="hidden h-[54px] items-center justify-center rounded-full border-[1.5px] border-white/60 px-7 text-base font-bold text-white transition-[background-color,scale] hover:bg-white/10 active:scale-[0.96] focus:outline-none focus-visible:ring-2 focus-visible:ring-white md:flex"
+              className="flex h-[50px] items-center justify-center rounded-full border-[1.5px] border-white/60 px-7 text-base font-bold text-white transition-[background-color,scale] hover:bg-white/10 active:scale-[0.96] focus:outline-none focus-visible:ring-2 focus-visible:ring-white md:h-[54px]"
             >
               Create an event
             </Link>
