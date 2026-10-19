@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import { FaXTwitter, FaInstagram, FaLinkedinIn, FaTelegram, FaWhatsapp } from "react-icons/fa6";
 import API from "@/services/api";
@@ -12,6 +12,7 @@ import VerifiedBadge from "@/components/community/VerifiedBadge";
 import ReportButton from "@/components/ReportButton";
 import EventImage from "@/components/brand/EventImage";
 import MerchSlideshow from "@/components/merch/MerchSlideshow";
+import Delayed from "@/components/dashboard/v2/Delayed";
 import { categoryTone, dayParts, eventInitials, formatTime, priceLabel } from "@/lib/eventFormat";
 
 const PAST_PAGE = 6;
@@ -30,6 +31,16 @@ export default function PublicProfileClient({ username }) {
   const [tab, setTab] = useState("upcoming");
   const [followers, setFollowers] = useState(0);
   const [page, setPage] = useState("events"); // events | merch
+  const [openMerch, setOpenMerch] = useState(null);
+
+  // Arrow keys move between the Events and Merch tabs, and focus follows.
+  const onTabKey = (e) => {
+    if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+    e.preventDefault();
+    const next = page === "events" ? "merch" : "events";
+    setPage(next);
+    document.getElementById(`tab-${next}`)?.focus();
+  };
   const [showAllPast, setShowAllPast] = useState(false);
 
   useEffect(() => {
@@ -86,15 +97,53 @@ export default function PublicProfileClient({ username }) {
     return { upcomingEvents: upcoming, pastEvents: past };
   }, [events]);
 
+  // Shaped like the loaded page (board 35): cover, avatar, name, stats, then the real tabs.
   if (loading) {
     return (
-      <div className="flex min-h-screen flex-col bg-white font-body">
+      <div className="flex min-h-screen flex-col bg-white font-body text-ink">
         <Navbar />
-        <div className="mx-auto w-full max-w-[1120px] animate-pulse px-4 pt-8 md:px-8">
-          <div className="h-[180px] rounded-[20px] bg-mist md:h-[280px]" />
-          <div className="mt-6 h-12 w-1/2 rounded-2xl bg-mist" />
-          <div className="mt-4 h-24 rounded-3xl bg-mist" />
-        </div>
+        <Delayed slowAfter={null}>
+          <main aria-busy="true" className="mx-auto flex w-full max-w-[1120px] flex-col gap-12 px-4 pb-16 pt-6 md:gap-14 md:px-8 md:pt-8">
+            <section className="flex flex-col">
+              <div className="h-[180px] rounded-[20px] bg-[#EEF1F6] animate-pulse motion-reduce:animate-none md:h-[280px]" />
+              <div className="relative z-10 -mt-9 flex items-end gap-3 px-2 md:-mt-11 md:px-8">
+                <span className="h-[88px] w-[88px] shrink-0 rounded-full border-4 border-white bg-[#E3E8F0] md:h-[104px] md:w-[104px]" />
+                <span className="flex-1" />
+                <span className="h-12 w-12 rounded-full bg-[#EEF1F6] animate-pulse motion-reduce:animate-none" />
+                <span className="h-12 w-[124px] rounded-full bg-[#EEF1F6] animate-pulse motion-reduce:animate-none" />
+              </div>
+              <div className="flex flex-col gap-3 px-2 pt-4 md:px-8">
+                <span className="h-9 w-full max-w-[360px] rounded-xl bg-[#EEF1F6] animate-pulse motion-reduce:animate-none md:h-10" />
+                <span className="h-3.5 w-48 rounded bg-[#EEF1F6] animate-pulse motion-reduce:animate-none" />
+                <span className="h-3.5 w-full max-w-[560px] rounded bg-[#EEF1F6] animate-pulse motion-reduce:animate-none" />
+                <span className="h-3.5 w-2/3 max-w-[420px] rounded bg-[#EEF1F6] animate-pulse motion-reduce:animate-none" />
+                <span className="mt-2 h-5 w-64 rounded bg-[#EEF1F6] animate-pulse motion-reduce:animate-none" />
+                <span className="mt-1 flex gap-2.5">
+                  {[0, 1, 2, 3].map((i) => (
+                    <span key={i} className="h-10 w-10 rounded-full bg-[#EEF1F6] animate-pulse motion-reduce:animate-none" />
+                  ))}
+                </span>
+              </div>
+            </section>
+            <div className="flex flex-col gap-6">
+              <div className="flex gap-8 border-b border-line px-1">
+                <span className="-mb-px flex h-[52px] items-center border-b-2 border-ink text-base font-bold">Events</span>
+                <span className="flex h-[52px] items-center text-base font-bold text-muted">Merch</span>
+              </div>
+              {[0, 1].map((i) => (
+                <div key={i} className="flex items-center gap-5">
+                  <span className="h-[96px] w-[152px] shrink-0 rounded-2xl bg-[#EEF1F6] animate-pulse motion-reduce:animate-none" />
+                  <span className="flex flex-1 flex-col gap-2.5">
+                    <span className="h-3 w-24 rounded bg-[#EEF1F6] animate-pulse motion-reduce:animate-none" />
+                    <span className="h-5 w-3/5 rounded bg-[#EEF1F6] animate-pulse motion-reduce:animate-none" />
+                    <span className="h-3 w-2/5 rounded bg-[#EEF1F6] animate-pulse motion-reduce:animate-none" />
+                  </span>
+                  <span className="hidden h-11 w-[118px] rounded-full bg-[#EEF1F6] animate-pulse motion-reduce:animate-none md:block" />
+                </div>
+              ))}
+            </div>
+          </main>
+        </Delayed>
       </div>
     );
   }
@@ -145,7 +194,6 @@ export default function PublicProfileClient({ username }) {
     },
   ].filter(Boolean);
 
-  const hasTabs = merchItems.length > 0;
   const visiblePast = showAllPast ? pastEvents : pastEvents.slice(0, PAST_PAGE);
 
   const seg = (on) =>
@@ -249,8 +297,7 @@ export default function PublicProfileClient({ username }) {
         </section>
 
         <div className="flex flex-col gap-6">
-          {hasTabs && (
-            <div role="tablist" aria-label="Community sections" className="flex gap-8 border-b border-line px-1">
+          <div role="tablist" aria-label="Community sections" className="flex gap-8 border-b border-line px-1">
               {[
                 { id: "events", label: "Events", count: events.length },
                 { id: "merch", label: "Merch", count: merchItems.length },
@@ -262,7 +309,9 @@ export default function PublicProfileClient({ username }) {
                   id={`tab-${t.id}`}
                   aria-selected={page === t.id}
                   aria-controls={`panel-${t.id}`}
+                  tabIndex={page === t.id ? 0 : -1}
                   onClick={() => setPage(t.id)}
+                  onKeyDown={onTabKey}
                   className={`-mb-px h-[52px] border-b-2 text-base font-bold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
                     page === t.id ? "border-ink text-ink" : "border-transparent text-muted hover:text-ink"
                   }`}
@@ -271,14 +320,12 @@ export default function PublicProfileClient({ username }) {
                 </button>
               ))}
             </div>
-          )}
 
           {page === "events" && (
             <section
               id="panel-events"
-              role={hasTabs ? "tabpanel" : undefined}
-              aria-labelledby={hasTabs ? "tab-events" : undefined}
-              aria-label={hasTabs ? undefined : "Events"}
+              role="tabpanel"
+              aria-labelledby="tab-events"
               className="flex flex-col gap-6"
             >
               <div className="flex">
@@ -366,15 +413,22 @@ export default function PublicProfileClient({ username }) {
             </section>
           )}
 
-          {hasTabs && page === "merch" && (
+          {page === "merch" && (
             <section id="panel-merch" role="tabpanel" aria-labelledby="tab-merch">
-              <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-                {merchItems.map((item) => (
-                  <MerchTile key={item.id} item={item} />
-                ))}
-              </ul>
+              {merchItems.length === 0 ? (
+                <p className="rounded-3xl bg-paper px-6 py-10 text-center text-[15px] text-muted">
+                  No merch yet. When {name} adds something to buy, it shows up here.
+                </p>
+              ) : (
+                <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+                  {merchItems.map((item) => (
+                    <MerchTile key={item.id} item={item} onOpen={setOpenMerch} />
+                  ))}
+                </ul>
+              )}
             </section>
           )}
+          {openMerch && <MerchDialog item={openMerch} storeName={name} onClose={() => setOpenMerch(null)} />}
         </div>
         <div className="flex justify-center pt-2">
           <ReportButton target="community" handle={profile.handle || username} name={name} />
@@ -398,63 +452,139 @@ function EmptyState({ message }) {
 }
 
 /** One merch item: a photo on a neutral tile, then name and price. Opens the organiser's store when there is one. */
-function MerchTile({ item }) {
+const merchPrice = (item) => (item.price ? `₦${Number(item.price).toLocaleString("en-NG")}` : "Price on request");
+const merchPhotos = (item) => (item.photos?.length ? item.photos.map((p) => p.url) : item.image_url ? [item.image_url] : []);
+const merchStock = (item) => {
   const hasStock = item.stock !== null && item.stock !== undefined;
-  const soldOut = hasStock && item.stock <= 0;
-  const price = item.price ? `₦${Number(item.price).toLocaleString("en-NG")}` : "Price on request";
-  const linked = !!item.purchase_link && !soldOut;
+  if (!hasStock) return null;
+  if (item.stock <= 0) return "Sold out";
+  return item.stock <= 5 ? `Only ${item.stock} left` : null;
+};
 
-  const photos = item.photos?.length ? item.photos.map((p) => p.url) : item.image_url ? [item.image_url] : [];
-  const bag = (
-    <span className="flex h-full items-center justify-center text-[#3B4252]">
-      <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        <path d="M5 8h14l-1 13H6zM9 8V6a3 3 0 0 1 6 0v2" />
-      </svg>
-    </span>
-  );
+const bag = (
+  <span className="flex h-full items-center justify-center text-[#3B4252]">
+    <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M5 8h14l-1 13H6zM9 8V6a3 3 0 0 1 6 0v2" />
+    </svg>
+  </span>
+);
+
+// A tile opens a preview first (board 8c); buying happens on the organiser's own store.
+function MerchTile({ item, onOpen }) {
+  const stock = merchStock(item);
+  const photos = merchPhotos(item);
   const picture = (
-    <MerchSlideshow photos={photos} alt={item.name} className="h-[180px] rounded-[20px] bg-mist" fallback={bag}>
-      {soldOut && <span className="absolute left-3 top-3 flex h-7 items-center rounded-full bg-white px-2.5 text-xs font-extrabold">Sold out</span>}
+    <MerchSlideshow photos={photos} alt={item.name} className="h-[200px] rounded-[20px] bg-mist" fallback={bag}>
+      {stock && <span className="absolute left-3 top-3 flex h-7 items-center rounded-full bg-white px-2.5 text-xs font-extrabold">{stock}</span>}
     </MerchSlideshow>
   );
   const label = (
-    <div className="flex items-baseline justify-between gap-2.5">
-      <span className="text-base font-extrabold">{item.name}</span>
-      <span className="whitespace-nowrap text-[15px] font-bold">{price}</span>
-    </div>
+    <span className="flex items-baseline justify-between gap-2.5">
+      <span className="text-base font-extrabold group-hover:underline">{item.name}</span>
+      <span className="whitespace-nowrap text-[15px] font-bold">{merchPrice(item)}</span>
+    </span>
   );
-  const linkClass = "flex flex-col gap-2.5 transition-[scale] active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand";
-  const toStore = (children) => (
-    <a href={item.purchase_link} target="_blank" rel="noopener noreferrer" className={linkClass}>
+  const open = (children) => (
+    <button
+      type="button"
+      onClick={() => onOpen(item)}
+      aria-label={`${item.name}, ${merchPrice(item)}${stock ? `, ${stock}` : ""}`}
+      className="group flex w-full flex-col gap-2.5 border-0 bg-transparent p-0 text-left text-ink transition-[scale] active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+    >
       {children}
-      <span className="sr-only">(opens the organiser&apos;s store)</span>
-    </a>
+    </button>
   );
 
-  // Several photos: the slideshow has its own buttons, so only the name and price open the store.
+  // Several photos: the slideshow has its own buttons, so only the name and price open the preview.
   if (photos.length > 1) {
     return (
       <li className="flex flex-col gap-2.5">
         {picture}
-        {linked ? toStore(label) : label}
+        {open(label)}
       </li>
     );
   }
   return (
     <li>
-      {linked ? (
-        toStore(
-          <>
+      {open(
+        <>
+          <span className="block overflow-hidden rounded-[20px] [&_img]:transition-transform [&_img]:duration-300 group-hover:[&_img]:scale-[1.03] motion-reduce:[&_img]:transition-none">
             {picture}
-            {label}
-          </>
-        )
-      ) : (
-        <div className="flex flex-col gap-2.5">
-          {picture}
+          </span>
           {label}
-        </div>
+        </>
       )}
     </li>
+  );
+}
+
+function MerchDialog({ item, storeName, onClose }) {
+  const stock = merchStock(item);
+  const soldOut = stock === "Sold out";
+  const closeRef = useRef(null);
+
+  useEffect(() => {
+    const opener = document.activeElement;
+    closeRef.current?.focus();
+    const onKey = (e) => e.key === "Escape" && onClose();
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      opener?.focus?.();
+    };
+  }, [onClose]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4">
+      <button type="button" aria-label="Close" onClick={onClose} className="absolute inset-0 border-0 bg-[rgba(20,22,28,.4)]" />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="merch-title"
+        className="relative flex max-h-[92dvh] w-full flex-col gap-4 overflow-y-auto rounded-t-[24px] bg-white p-5 shadow-[0_24px_60px_rgba(20,22,28,0.22)] sm:w-[440px] sm:rounded-[24px]"
+      >
+        <div className="relative">
+          <MerchSlideshow photos={merchPhotos(item)} alt={item.name} className="h-[300px] rounded-[18px] bg-mist" fallback={bag} />
+          <button
+            ref={closeRef}
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="absolute right-3 top-3 flex h-10 w-10 items-center justify-center rounded-full border-0 bg-white text-ink shadow-[0_4px_14px_rgba(20,22,28,0.12)] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
+              <path d="M6 6l12 12M18 6L6 18" />
+            </svg>
+          </button>
+        </div>
+        <div className="flex items-baseline justify-between gap-3">
+          <h2 id="merch-title" className="font-display text-2xl font-bold leading-tight">{item.name}</h2>
+          <span className="whitespace-nowrap text-lg font-bold">{merchPrice(item)}</span>
+        </div>
+        {item.description?.trim() && <p className="text-[15px] leading-[1.55] text-[#3B4252]">{item.description}</p>}
+        {stock && <p className={`text-sm font-bold ${soldOut ? "text-[#B42318]" : "text-[#8A5A00]"}`}>{stock}</p>}
+        {item.purchase_link && !soldOut ? (
+          <>
+            <a
+              href={item.purchase_link}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex h-[52px] items-center justify-center gap-2 rounded-full bg-brand text-base font-bold text-white transition-[filter,scale] hover:brightness-90 active:scale-[0.97]"
+            >
+              Buy
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M7 17L17 7M9 7h8v8" />
+              </svg>
+              <span className="sr-only">(opens {storeName}&apos;s store)</span>
+            </a>
+            <p className="text-center text-[13px] text-muted">You&apos;ll pay on {storeName}&apos;s store.</p>
+          </>
+        ) : (
+          <p className="text-center text-[13px] text-muted">
+            {soldOut ? "This item is sold out." : `Ask ${storeName} how to buy this.`}
+          </p>
+        )}
+      </div>
+    </div>
   );
 }

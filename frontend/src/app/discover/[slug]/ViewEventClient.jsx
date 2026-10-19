@@ -15,6 +15,7 @@ import ShareMenu from "@/components/ShareMenu";
 import EventPublishedModal from "@/components/events/EventPublishedModal";
 import EventImage from "@/components/brand/EventImage";
 import Stamp from "@/components/brand/Stamp";
+import Delayed from "@/components/dashboard/v2/Delayed";
 import { StackTile } from "@/components/brand/EventTile";
 import { categoryTone, dayParts, formatNaira, formatTime, isPast } from "@/lib/eventFormat";
 import { trackViewEvent, trackShareEvent, trackSaveEvent, trackBeginCheckout } from "@/lib/analytics";
@@ -205,15 +206,66 @@ export default function ViewEventClient({ slug, initialEvent = null }) {
     return new Date() > closeAt;
   }, [event?.day, event?.time_to, event?.time_from]);
 
+  // Shaped like the real page (board 34): the navbar and headings are real, the rest waits.
   if (loading) return (
     <Providers>
-      <div className="min-h-screen bg-white font-body">
+      <div className="min-h-screen bg-white font-body text-ink">
         <Navbar />
-        <div className="mx-auto max-w-[1440px] animate-pulse px-4 pt-8 md:px-12 xl:px-24">
-          <div className="h-[260px] rounded-3xl bg-mist md:h-[460px] md:rounded-[36px]" />
-          <div className="mt-10 h-12 w-2/3 rounded-2xl bg-mist" />
-          <div className="mt-6 h-24 rounded-3xl bg-mist" />
-        </div>
+        <Delayed slowAfter={null}>
+          <main aria-busy="true" className="pb-28 lg:pb-0">
+            <section className="mx-auto max-w-[1440px] px-4 pt-4 md:px-12 md:pt-6 xl:px-24">
+              <div className="h-[260px] rounded-3xl bg-[#EEF1F6] animate-pulse motion-reduce:animate-none md:h-[460px] md:rounded-[36px]" />
+            </section>
+            <section className="mx-auto flex max-w-[1440px] flex-col gap-10 px-4 pt-8 md:px-12 md:pt-11 lg:flex-row lg:items-start lg:gap-16 xl:px-24">
+              <div className="flex min-w-0 flex-1 flex-col gap-9">
+                <div className="flex flex-col gap-3.5">
+                  <span className="h-[30px] w-[84px] rounded-full bg-[#EEF1F6] animate-pulse motion-reduce:animate-none" />
+                  <span className="h-10 w-full max-w-[520px] rounded-xl bg-[#EEF1F6] animate-pulse motion-reduce:animate-none md:h-14" />
+                  <span className="h-10 w-2/3 rounded-xl bg-[#EEF1F6] animate-pulse motion-reduce:animate-none md:hidden" />
+                  <div className="mt-1.5 grid gap-3 md:grid-cols-2">
+                    {[0, 1].map((i) => (
+                      <div key={i} className="flex h-[92px] items-center gap-3.5 rounded-[20px] bg-paper px-5">
+                        <span className="h-14 w-[52px] shrink-0 rounded-[14px] bg-white" />
+                        <span className="flex flex-col gap-2">
+                          <span className="h-3.5 w-36 rounded bg-[#EEF1F6] animate-pulse motion-reduce:animate-none" />
+                          <span className="h-3 w-24 rounded bg-[#EEF1F6] animate-pulse motion-reduce:animate-none" />
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex flex-col gap-3">
+                  <h2 className="font-display text-[26px] font-bold">About this event</h2>
+                  <span className="h-3.5 w-[96%] rounded bg-[#EEF1F6] animate-pulse motion-reduce:animate-none" />
+                  <span className="h-3.5 w-[90%] rounded bg-[#EEF1F6] animate-pulse motion-reduce:animate-none" />
+                  <span className="h-3.5 w-[62%] rounded bg-[#EEF1F6] animate-pulse motion-reduce:animate-none" />
+                </div>
+              </div>
+              <aside aria-label="Tickets" className="hidden w-[420px] shrink-0 flex-col gap-3 rounded-[30px] border border-hairline bg-white p-7 shadow-[0_24px_60px_rgba(20,22,28,0.08)] lg:flex">
+                <h2 className="font-display text-2xl font-bold">Tickets</h2>
+                {[0, 1, 2].map((i) => (
+                  <div key={i} className="flex h-16 items-center gap-3 rounded-xl border border-hairline px-4">
+                    <span className="h-5 w-5 shrink-0 rounded-full bg-[#EEF1F6] animate-pulse motion-reduce:animate-none" />
+                    <span className="flex flex-1 flex-col gap-1.5">
+                      <span className="h-3.5 w-28 rounded bg-[#EEF1F6] animate-pulse motion-reduce:animate-none" />
+                      <span className="h-2.5 w-20 rounded bg-[#EEF1F6] animate-pulse motion-reduce:animate-none" />
+                    </span>
+                    <span className="h-3.5 w-16 rounded bg-[#EEF1F6] animate-pulse motion-reduce:animate-none" />
+                  </div>
+                ))}
+                <span className="mt-2 h-[52px] w-full rounded-full bg-[#EEF1F6] animate-pulse motion-reduce:animate-none" />
+              </aside>
+            </section>
+          </main>
+          {/* Phone: the buy bar's shape, with the button greyed until the event arrives. */}
+          <div className="fixed inset-x-0 bottom-0 z-40 flex items-center gap-4 border-t border-hairline bg-white/95 px-4 py-3 lg:hidden">
+            <span className="flex flex-1 flex-col gap-1.5">
+              <span className="h-2.5 w-10 rounded bg-[#EEF1F6] animate-pulse motion-reduce:animate-none" />
+              <span className="h-5 w-24 rounded bg-[#EEF1F6] animate-pulse motion-reduce:animate-none" />
+            </span>
+            <span className="flex h-12 items-center rounded-full bg-line px-7 text-[15px] font-bold text-faint">Get tickets</span>
+          </div>
+        </Delayed>
       </div>
     </Providers>
   );

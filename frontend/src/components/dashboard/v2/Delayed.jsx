@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 
 /**
  * Placeholders for something that's loading. Nothing shows for the first 300ms, so fast loads
- * just appear without a grey flash; after 8s a "Still loading" note goes above the placeholders.
+ * just appear without a grey flash; after 8s a "Still loading" note goes above the placeholders
+ * (pass slowAfter={null} to leave the note out).
  */
 export default function Delayed({ children, onRetry, delay = 300, slowAfter = 8000 }) {
   const [shown, setShown] = useState(false);
@@ -12,7 +13,7 @@ export default function Delayed({ children, onRetry, delay = 300, slowAfter = 80
 
   useEffect(() => {
     const show = setTimeout(() => setShown(true), delay);
-    const late = setTimeout(() => setSlow(true), slowAfter);
+    const late = slowAfter == null ? null : setTimeout(() => setSlow(true), slowAfter);
     return () => {
       clearTimeout(show);
       clearTimeout(late);
