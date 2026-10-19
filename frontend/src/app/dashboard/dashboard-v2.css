@@ -102,7 +102,9 @@
 @keyframes v-reveal { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
 .dv2 .v-fade { animation: v-fadein 240ms ease 500ms both; }
 @keyframes v-fadein { from { opacity: 0; } to { opacity: 1; } }
-.dv2 .v-skel { background: #EEF1F6; border-radius: 10px; animation: v-skel 1.4s ease-in-out infinite; }
+.dv2 .v-skel { background: #EEF1F6; animation: v-skel 1.4s ease-in-out infinite; }
+/* Default corners only when the element doesn't set its own (so rounded-full circles stay circles). */
+.dv2 .v-skel:not([class*="rounded"]) { border-radius: 10px; }
 @keyframes v-skel { 50% { opacity: .55; } }
 
 @media (prefers-reduced-motion: reduce) {

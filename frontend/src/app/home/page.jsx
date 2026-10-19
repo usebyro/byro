@@ -8,6 +8,7 @@ import AppLayout from "@/layout/app";
 import API from "@/services/api";
 import SectionError from "@/components/dashboard/v2/SectionError";
 import "@/app/dashboard/dashboard-v2.css";
+import Delayed from "@/components/dashboard/v2/Delayed";
 
 const BASE_URL = (process.env.NEXT_PUBLIC_API_URL || "https://byro.onrender.com").replace(/\/api\/?$/, "");
 
@@ -353,7 +354,9 @@ export default function HomePage() {
           </div>
 
           {loading ? (
-            <SkeletonList />
+            <Delayed onRetry={load}>
+              <SkeletonList />
+            </Delayed>
           ) : failed ? (
             <section className="v-card v-bf" style={{ "--i": 1 }}>
               <SectionError what="your events" onRetry={load} />

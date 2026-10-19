@@ -116,14 +116,8 @@ function StudioShell({ children }) {
     router.push("/");
   };
 
-  if (!token) {
-    return (
-      <div role="status" className="min-h-dvh flex items-center justify-center bg-white">
-        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-brand motion-reduce:animate-none" />
-        <span className="sr-only">Loading…</span>
-      </div>
-    );
-  }
+  // The frame (sidebar, header, tab bar) is real straight away; only the page waits for the login.
+  const signedIn = Boolean(token);
 
   const communityName = user?.display_name || user?.displayName || user?.name || user?.handle || "Your community";
   const communityHref = user?.handle ? `/u/${user.handle}` : "/dashboard/profile";
@@ -274,21 +268,37 @@ function StudioShell({ children }) {
 
         <header className="flex shrink-0 items-center gap-2 bg-[rgba(246,248,251,.86)] px-4 py-2.5 backdrop-blur-[20px] backdrop-saturate-[1.8] md:min-h-16 md:gap-3 md:bg-transparent md:px-[clamp(16px,3vw,40px)] md:py-3 md:backdrop-filter-none">
           {/* Phone: your community instead of the search. */}
+          {!signedIn ? (
+            <span aria-hidden="true" className="flex h-11 min-w-0 flex-1 items-center gap-2.5 md:hidden">
+              <span className="v-skel h-[34px] w-[34px] shrink-0" />
+              <span className="v-skel h-4 w-32" />
+            </span>
+          ) : (
           <Link href={communityHref} className="v-press flex h-11 min-w-0 flex-1 items-center gap-2.5 md:hidden" aria-label={`${communityName}, view your community page`}>
             <span aria-hidden="true" className="v-d flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[10px] bg-ink text-[15px] font-bold text-white">
               {communityName.trim().charAt(0).toUpperCase()}
             </span>
             <span className="truncate text-base font-extrabold">{communityName}</span>
           </Link>
+          )}
           <div className="hidden min-w-0 flex-1 md:flex">
             <DashSearch />
           </div>
-          <NotificationBell />
-          <UserMenu user={user} onLogout={handleLogout} size="sm" />
+          {signedIn ? (
+            <>
+              <NotificationBell />
+              <UserMenu user={user} onLogout={handleLogout} size="sm" />
+            </>
+          ) : (
+            <span aria-hidden="true" className="flex items-center gap-2">
+              <span className="v-skel h-9 w-9 !rounded-full" />
+              <span className="v-skel h-9 w-9 !rounded-full" />
+            </span>
+          )}
         </header>
 
         <main id="main" tabIndex={-1} className="flex-1 overflow-y-auto pb-[92px] focus:outline-none md:pb-0">
-          {children}
+          {signedIn ? children : <span role="status" className="sr-only">Loading</span>}
         </main>
       </div>
 

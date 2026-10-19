@@ -8,6 +8,7 @@ import EventImageFallback from "@/components/ui/EventImageFallback";
 import OverviewRevenueChart from "@/components/dashboard/v2/OverviewRevenueChart";
 import API from "@/services/api";
 import BankLogo from "@/components/dashboard/BankLogo";
+import Delayed from "@/components/dashboard/v2/Delayed";
 
 // Saved by the Payouts page when the organiser sets their bank account.
 const BANK_DETAILS_STORAGE_KEY = "byro_payout_bank_details";
@@ -244,16 +245,27 @@ export default function StudioDashboard() {
             </button>
           ))}
         </div>
-        {updatedAt && (
+        {data && loading ? (
+          // A refresh keeps the numbers on screen; this says they're on their way.
+          <span role="status" className="v-hint inline-flex items-center gap-2">
+            <svg className="animate-spin motion-reduce:animate-none" width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <circle cx="12" cy="12" r="9" stroke="#5B6272" strokeOpacity="0.25" strokeWidth="3" />
+              <path d="M21 12a9 9 0 0 0-9-9" stroke="#5B6272" strokeWidth="3" strokeLinecap="round" />
+            </svg>
+            Updating
+          </span>
+        ) : updatedAt ? (
           <span className="v-hint inline-flex items-center gap-2">
             <span className="v-dot v-ping bg-[#1F7A52]" />
             Live · {updatedText}
           </span>
-        )}
+        ) : null}
       </div>
 
       {!data && loading ? (
-        <Skeleton />
+        <Delayed onRetry={() => load(period)}>
+          <Skeleton />
+        </Delayed>
       ) : !data && failed ? (
         <section className="v-card flex flex-col items-start gap-3 p-6">
           <h2 className="v-h2">Couldn’t load your numbers</h2>
@@ -322,7 +334,7 @@ function Content({ data, meta, isAll, busy, table, setTable, balance, bank }) {
   ];
 
   return (
-    <div className={`flex flex-col gap-5 md:gap-6 transition-opacity ${busy ? "opacity-60" : ""}`} aria-busy={busy}>
+    <div className="flex flex-col gap-5 md:gap-6" aria-busy={busy}>
       <div className="flex flex-wrap items-stretch gap-5">
         <section aria-label="Revenue" className="v-card v-bf flex min-w-0 flex-[2_1_520px] flex-col gap-[18px] px-6 pb-[18px] pt-6" style={{ "--i": 2 }}>
           <div className="flex flex-wrap items-start gap-3">

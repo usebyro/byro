@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import EventCreationForm from "@/components/events/EventCreationForm";
 import API from "@/services/api";
+import Delayed from "@/components/dashboard/v2/Delayed";
 
 // Editing from the dashboard stays in the dashboard (sidebar and header).
 // The standalone /discover/<slug>/edit page still exists for links from the public site.
@@ -38,10 +39,16 @@ export default function DashboardEditEventPage() {
   }, [slug, router]);
 
   if (loading) {
+    // Shaped like the form's sections, not a full-page spinner.
     return (
-      <div className="flex items-center justify-center py-24">
-        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-[#4F6EF7]" />
-      </div>
+      <Delayed>
+        <div className="mx-auto flex w-full max-w-[860px] flex-col gap-4 px-4 py-6 md:px-6">
+          <span className="v-skel h-9 w-64 max-w-full" />
+          {[0, 1, 2, 3].map((i) => (
+            <span key={i} className="v-skel h-[88px] w-full !rounded-2xl" />
+          ))}
+        </div>
+      </Delayed>
     );
   }
 

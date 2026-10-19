@@ -5,6 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import EventImageFallback from "@/components/ui/EventImageFallback";
 import API from "@/services/api";
+import Delayed from "@/components/dashboard/v2/Delayed";
 
 const PAGE_SIZE = 10;
 
@@ -352,7 +353,9 @@ export default function StudioEvents() {
       </div>
 
       {loading ? (
-        <Skeleton />
+        <Delayed onRetry={fetchEvents}>
+          <Skeleton />
+        </Delayed>
       ) : failed ? (
         <section className="v-card flex flex-col items-center gap-3 px-4 py-14 text-center">
           <p className="v-h2">Couldn&apos;t load your events</p>

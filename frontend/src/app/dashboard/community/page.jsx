@@ -47,6 +47,19 @@ function barLabels(point, unit, last) {
   return { label: month, short: month[0], full: `${full}${last ? " (so far)" : ""}` };
 }
 
+// Shown next to numbers that are refreshing; the old numbers stay on screen meanwhile.
+function Updating() {
+  return (
+    <span role="status" className="inline-flex items-center gap-1.5 text-xs font-bold text-muted">
+      <svg className="animate-spin motion-reduce:animate-none" width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <circle cx="12" cy="12" r="9" stroke="#5B6272" strokeOpacity="0.25" strokeWidth="3" />
+        <path d="M21 12a9 9 0 0 0-9-9" stroke="#5B6272" strokeWidth="3" strokeLinecap="round" />
+      </svg>
+      Updating
+    </span>
+  );
+}
+
 function Skel({ className }) {
   return <span aria-hidden="true" className={`v-skel block ${className}`} />;
 }
@@ -277,6 +290,8 @@ export default function CommunityPage() {
   const summaryKey = `${range}:${summaryTry}`;
   const summaryLoading = summaryDone.key !== summaryKey;
   const summaryError = !summaryLoading && summaryDone.error;
+  // Placeholders only before the first numbers arrive; after that a range change keeps them up.
+  const summaryFirstLoad = summaryLoading && !summary;
 
   const [filter, setFilter] = useState("all");
   const [query, setQuery] = useState("");
@@ -388,6 +403,7 @@ export default function CommunityPage() {
             </button>
           ))}
         </div>
+        {summaryLoading && summary && <Updating />}
       </div>
 
       {summaryError && !summaryLoading ? (
@@ -399,10 +415,10 @@ export default function CommunityPage() {
         </div>
       ) : (
         <div className="flex flex-wrap items-stretch gap-5">
-          <FollowersCard summary={summary} loading={summaryLoading} rangeName={rangeName} />
+          <FollowersCard summary={summary} loading={summaryFirstLoad} rangeName={rangeName} />
           <div className="flex min-w-0 flex-[2_1_300px] flex-col gap-5">
-            <MembersCard stats={summary?.stats} loading={summaryLoading} />
-            <GrewCard top={summary?.top_events || []} loading={summaryLoading} rangeName={rangeName} />
+            <MembersCard stats={summary?.stats} loading={summaryFirstLoad} />
+            <GrewCard top={summary?.top_events || []} loading={summaryFirstLoad} rangeName={rangeName} />
           </div>
         </div>
       )}
