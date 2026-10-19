@@ -1,7 +1,5 @@
 import type {Metadata} from 'next'
 import Link from 'next/link'
-import {HugeiconsIcon} from '@hugeicons/react'
-import {ArrowRight02Icon} from '@hugeicons/core-free-icons'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 import {SITE_URL} from '@/lib/site'
@@ -94,9 +92,8 @@ export default async function BlogPage() {
                 </h2>
                 {featured.excerpt && <p className="max-w-[46ch] text-[17px] leading-[1.55] text-body">{featured.excerpt}</p>}
                 {/* Styled as a button; the whole card is the link, so it can't be a real <button> inside it. */}
-                <span className="mt-1 inline-flex min-h-12 items-center gap-2 self-start rounded-full bg-brand pl-[22px] pr-5 text-base font-bold text-white transition-[transform,background-color] duration-150 group-hover:bg-[#2F5EE0] group-active:scale-[0.97]">
-                  Read more
-                  <HugeiconsIcon icon={ArrowRight02Icon} size={18} color="currentColor" aria-hidden />
+                <span className="mt-1 inline-flex min-h-12 items-center self-start rounded-full bg-brand px-[22px] text-base font-bold text-white transition-[transform,background-color] duration-150 group-hover:bg-[#2F5EE0] group-active:scale-[0.97]">
+                  Continue reading
                 </span>
               </div>
             </Link>
