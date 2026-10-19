@@ -1452,6 +1452,38 @@ class MyStampsView(APIView):
         return Response({'count': len(passport), 'stamps': _stamp_payload(passport[:200])})
 
 
+class ShareStampView(APIView):
+    """POST /api/stamps/<pk>/share/ — the holder makes (or gets back) a public link to one of their stamps."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        import secrets
+        from .models import Stamp
+        stamp = stamps_for_user(request.user).filter(pk=pk).first()
+        if stamp is None:
+            return Response({'error': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+        if not stamp.share_token:
+            stamp.share_token = secrets.token_urlsafe(12)
+            stamp.save(update_fields=['share_token'])
+        site = (settings.FRONTEND_URL or "https://usebyro.com").rstrip('/')
+        return Response({'token': stamp.share_token, 'url': f"{site}/s/{stamp.share_token}"})
+
+
+class SharedStampView(APIView):
+    """GET /api/stamps/shared/<token>/ — the public view of a shared stamp: the event and the holder's first name."""
+    permission_classes = [AllowAny]
+
+    def get(self, request, token):
+        from .models import Stamp
+        stamp = Stamp.objects.select_related('event', 'organizer__profile', 'ticket').filter(share_token=token).first()
+        if stamp is None:
+            return Response({'error': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+        holder = (stamp.ticket.current_owner_name if stamp.ticket_id else '') or ''
+        payload = _stamp_payload([stamp])[0]
+        payload['first_name'] = holder.strip().split(' ')[0] if holder.strip() else ''
+        return Response(payload)
+
+
 class CommunityDashboardView(APIView):
     """GET /api/dashboard/community/ — followers, attendance and regulars for the signed-in organiser."""
     permission_classes = [IsAuthenticated]

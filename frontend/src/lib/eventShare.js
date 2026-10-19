@@ -18,6 +18,17 @@ export async function fetchShareEvent(slug) {
   }
 }
 
+/** A shared stamp (/s/<token>): the event and the holder's first name, or null. */
+export async function fetchSharedStamp(token) {
+  try {
+    const res = await fetch(`${API_BASE}stamps/shared/${encodeURIComponent(token)}/`, { next: { revalidate: 300 } });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
 /** The uploaded event image as an absolute https URL, or null. */
 export function shareImageUrl(event) {
   let raw = event?.event_image_url || event?.event_image;

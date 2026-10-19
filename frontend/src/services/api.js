@@ -796,6 +796,16 @@ const API = {
     }
   },
 
+  // A public link to one of your stamps: { token, url }. Asking again returns the same link.
+  shareStamp: async (stampId) => {
+    try {
+      const response = await axiosInstance.post(`stamps/${stampId}/share/`);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
   // The signed-in user's passport of stamps.
   getMyStamps: async () => {
     try {

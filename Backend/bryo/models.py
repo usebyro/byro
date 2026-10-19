@@ -1009,6 +1009,8 @@ class Stamp(models.Model):
     )
     email = models.EmailField(db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    # Set the first time the holder shares this stamp: the unguessable part of its public link (/s/<token>).
+    share_token = models.CharField(max_length=32, unique=True, null=True, blank=True)
 
     class Meta:
         ordering = ['-created_at']

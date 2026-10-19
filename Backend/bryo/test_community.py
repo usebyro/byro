@@ -647,3 +647,30 @@ class ThanksForComingTests(CommunityBase):
             call_command('send_event_reminders')
         thanks = [c for c in sent.call_args_list if c.kwargs.get('subject', '').startswith('Thanks for coming')]
         self.assertEqual(len(thanks), 1)
+
+
+class SharedStampTests(CommunityBase):
+
+    def test_the_holder_shares_and_anyone_sees_first_name_and_event(self):
+        fan = self.fan('fan@example.com')
+        record_stamp(ticket(self.event, email='fan@example.com', name='Adaeze Okafor'))
+        stamp = Stamp.objects.get()
+        self.client.force_authenticate(fan)
+        first = self.client.post(f'/api/stamps/{stamp.pk}/share/').json()
+        again = self.client.post(f'/api/stamps/{stamp.pk}/share/').json()
+        self.assertEqual(first['token'], again['token'])  # one link per stamp
+        self.assertTrue(first['url'].endswith(f"/s/{first['token']}"))
+        self.client.force_authenticate(None)
+        body = self.client.get(f"/api/stamps/shared/{first['token']}/").json()
+        self.assertEqual(body['first_name'], 'Adaeze')
+        self.assertEqual(body['event_slug'], self.event.slug)
+        self.assertNotIn('email', body)
+
+    def test_only_the_holder_can_share(self):
+        record_stamp(ticket(self.event, email='fan@example.com'))
+        stamp = Stamp.objects.get()
+        self.client.force_authenticate(self.fan('someone@example.com'))
+        self.assertEqual(self.client.post(f'/api/stamps/{stamp.pk}/share/').status_code, 404)
+
+    def test_an_unknown_link_is_not_found(self):
+        self.assertEqual(self.client.get('/api/stamps/shared/nope/').status_code, 404)

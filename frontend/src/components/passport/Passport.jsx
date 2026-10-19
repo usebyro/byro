@@ -6,6 +6,7 @@ import Stamp from "@/components/brand/Stamp";
 import SectionError from "@/components/dashboard/v2/SectionError";
 import Delayed from "@/components/dashboard/v2/Delayed";
 import { stampLook, stampMonth, stampWords } from "@/lib/stamps";
+import API from "@/services/api";
 
 const FIRST_PAGE = 24;
 
@@ -107,6 +108,31 @@ function StampSheet({ stamp, onClose }) {
   const look = stampLook(stamp);
   const closeRef = useRef(null);
   const place = (stamp.location || "").split(",").pop().trim();
+  const [share, setShare] = useState("idle"); // idle | busy | copied | failed
+
+  // Phones open the share menu; elsewhere the link is copied.
+  const shareStamp = async () => {
+    setShare("busy");
+    try {
+      const { url } = await API.shareStamp(stamp.id);
+      if (navigator.share) {
+        try {
+          await navigator.share({ title: `I was at ${stamp.event_name}`, url });
+          setShare("idle");
+          return;
+        } catch (e) {
+          if (e?.name === "AbortError") {
+            setShare("idle");
+            return;
+          }
+        }
+      }
+      await navigator.clipboard.writeText(url);
+      setShare("copied");
+    } catch {
+      setShare("failed");
+    }
+  };
 
   useEffect(() => {
     const opener = document.activeElement;
@@ -156,11 +182,23 @@ function StampSheet({ stamp, onClose }) {
             </p>
           )}
         </div>
-        {stamp.event_slug && (
-          <Link href={`/discover/${stamp.event_slug}`} className="v-btn v-btn-s v-btn-lg w-full">
-            Event page
-          </Link>
-        )}
+        <div className="flex w-full flex-col gap-2.5">
+          <button type="button" onClick={shareStamp} disabled={share === "busy"} className="v-btn v-btn-p v-btn-lg w-full">
+            {share === "busy" ? "Getting your link…" : share === "copied" ? "Copy the link again" : "Share this stamp"}
+          </button>
+          {stamp.event_slug && (
+            <Link href={`/discover/${stamp.event_slug}`} className="v-btn v-btn-s v-btn-lg w-full">
+              Event page
+            </Link>
+          )}
+        </div>
+        <p role="status" className="v-hint m-0 min-h-[20px]">
+          {share === "copied"
+            ? "Link copied. Anyone with it can see this stamp and your first name."
+            : share === "failed"
+              ? "Couldn't make the link. Check your connection and try again."
+              : "Sharing shows this stamp and your first name to anyone with the link."}
+        </p>
       </div>
     </div>
   );
