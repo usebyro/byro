@@ -2083,6 +2083,7 @@ class EventViewSet(viewsets.ModelViewSet):
           date       - exact date "YYYY-MM-DD" (takes precedence over `when`)
           min_price / max_price - filter on the event's effective ticket price
                        (cheapest tier price if tiers exist, else ticket_price)
+          host       - an organiser's handle: only their events (the community page)
           sort       - "trending" | "newest" (default) | "date" | "price_low" | "price_high"
         """
         queryset = Event.objects.select_related('owner').prefetch_related('cohosts__user', 'tiers')
@@ -2092,6 +2093,11 @@ class EventViewSet(viewsets.ModelViewSet):
         if category:
             categories = [c.strip() for c in category.split(',') if c.strip()]
             queryset = queryset.filter(category__in=categories)
+
+        # One community's events (the community page), matched by the organiser's handle.
+        host = (self.request.query_params.get('host') or '').strip()
+        if host:
+            queryset = queryset.filter(owner__profile__handle__iexact=host)
 
         # Search filtering
         search = self.request.query_params.get('search', None)

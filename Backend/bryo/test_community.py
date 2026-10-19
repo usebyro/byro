@@ -570,3 +570,19 @@ class EmailPrivacyTests(CommunityBase):
     def test_directory_and_public_pages_carry_no_emails(self):
         self.client.force_authenticate(None)
         self.assertNotIn(self.owner.email, str(self.client.get('/api/communities/').json()))
+
+
+class HostFilterTests(CommunityBase):
+
+    def test_host_returns_only_that_organisers_events(self):
+        from .models import Event, UserProfile
+        UserProfile.objects.update_or_create(user=self.owner, defaults={'handle': 'lagos-run'})
+        other = self.fan('other-host@example.com')
+        Event.objects.create(
+            name='Someone else', slug='someone-else', owner=other, day=self.event.day,
+            time_from=self.event.time_from, time_to=self.event.time_to, location='Lagos', is_active=True,
+        )
+        res = self.client.get('/api/events/', {'host': 'LAGOS-RUN'})
+        self.assertEqual(res.status_code, 200)
+        rows = res.json() if isinstance(res.json(), list) else res.json().get('results', [])
+        self.assertEqual({r['slug'] for r in rows}, {self.event.slug})

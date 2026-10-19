@@ -54,18 +54,12 @@ export default function PublicProfileClient({ username }) {
         setProfile(profileData);
         setFollowers(profileData.followers_count ?? 0);
 
-        // Fetch all public events to filter client-side
-        const eventsRes = await API.getEvents();
-        const allEvents = Array.isArray(eventsRes)
-          ? eventsRes
-          : Array.isArray(eventsRes?.results)
-          ? eventsRes.results
-          : [];
-
-        // This community's events: matched by its handle. Email addresses are private, so the
-        // server doesn't send them and the page doesn't rely on them.
+        // Only this community's events, matched on the server by its handle.
         const handle = (profileData.handle || username || "").toLowerCase();
-        const filtered = allEvents.filter((evt) => (evt.owner_handle || "").toLowerCase() === handle);
+        const eventsRes = await API.getEvents({ host: handle });
+        const list = Array.isArray(eventsRes) ? eventsRes : Array.isArray(eventsRes?.results) ? eventsRes.results : [];
+        // Belt and braces until every server has the filter: keep the handle check.
+        const filtered = list.filter((evt) => (evt.owner_handle || "").toLowerCase() === handle);
 
         setEvents(filtered);
       } catch (err) {
