@@ -120,7 +120,7 @@ export default async function PostPage({params}: PageProps) {
             </div>
           </header>
 
-          <div className="mx-auto max-w-[1120px] px-4 pt-8 md:px-6">
+          <div className="mx-auto max-w-[720px] px-4 pt-8 md:px-6">
             <BlogCover post={post} className="aspect-[21/9] min-h-[220px] rounded-[28px]" markClassName="text-[72px] md:text-[160px]" />
           </div>
 
