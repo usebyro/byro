@@ -174,3 +174,21 @@ class NewOrganiserNotificationTests(CommunityBase):
         event_reminder(self.owner, self.event, 3)
         n = Notification.objects.get(recipient=self.owner, kind='event_reminder')
         self.assertEqual(n.title, f'{self.event.name} is in 3 days.')
+
+
+class NotificationSettingsTests(CommunityBase):
+
+    def test_a_muted_kind_stays_out_of_the_bell(self):
+        from .notifications import ticket_sale
+        self.client.force_authenticate(self.owner)
+        res = self.client.patch('/api/notifications/settings/', {'muted': ['ticket_sale', 'not_a_kind']}, format='json')
+        self.assertEqual(res.status_code, 200, res.content)
+        self.assertEqual(res.json()['muted'], ['ticket_sale'])
+        ticket_sale(self.event, 1)
+        self.assertFalse(Notification.objects.filter(recipient=self.owner, kind='ticket_sale').exists())
+        self.assertEqual(self.client.get('/api/notifications/settings/').json()['muted'], ['ticket_sale'])
+
+    def test_payouts_cannot_be_muted(self):
+        self.client.force_authenticate(self.owner)
+        res = self.client.patch('/api/notifications/settings/', {'muted': ['payout_processed']}, format='json')
+        self.assertEqual(res.json()['muted'], [])

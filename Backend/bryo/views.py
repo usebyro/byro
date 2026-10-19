@@ -497,14 +497,16 @@ def _milestones_up_to(count):
     return sorted(thresholds)
 
 
-def _organizer_recipients(event):
-    """(name, email) pairs for the event owner and every accepted co-host."""
+def _organizer_recipients(event, unless_muted=None):
+    """(name, email) pairs for the event owner and every accepted co-host,
+    leaving out anyone who turned `unless_muted` off in Settings."""
+    from .notifications import is_muted
     recipients = []
-    if event.owner_id and event.owner.email:
+    if event.owner_id and event.owner.email and not (unless_muted and is_muted(event.owner, unless_muted)):
         name = event.owner.get_full_name() or event.owner.email
         recipients.append((name, event.owner.email))
     for cohost in event.cohosts.filter(status=EventCoHost.STATUS_ACCEPTED).select_related('user'):
-        if cohost.user and cohost.user.email:
+        if cohost.user and cohost.user.email and not (unless_muted and is_muted(cohost.user, unless_muted)):
             name = cohost.user.get_full_name() or cohost.user.email
             recipients.append((name, cohost.user.email))
     return recipients
@@ -531,7 +533,7 @@ def _check_and_notify_milestones(event):
 
         frontend_url = (settings.FRONTEND_URL or "https://usebyro.com").rstrip('/')
         dashboard_url = f"{frontend_url}/dashboard/events/{event.slug}"
-        recipients = _organizer_recipients(event)
+        recipients = _organizer_recipients(event, unless_muted='milestone_email')
 
         for milestone in newly_crossed:
             for name, email in recipients:

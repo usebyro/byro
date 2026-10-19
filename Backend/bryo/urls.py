@@ -42,6 +42,7 @@ from .views import (
 )
 from .notifications import (
     MyNotificationsView, MyNotificationsReadView, AdminNotificationsView, AdminNotificationsReadView,
+    NotificationSettingsView,
 )
 from .newsletter_views import NewsletterSubscribeView
 from .dash_events import DashboardEventsView
@@ -139,6 +140,7 @@ urlpatterns = [
     path('api/admin/analytics/summary/', AdminAnalyticsSummaryView.as_view(), name='admin-analytics-summary'),
     path('api/notifications/', MyNotificationsView.as_view(), name='notifications'),
     path('api/notifications/read/', MyNotificationsReadView.as_view(), name='notifications-read'),
+    path('api/notifications/settings/', NotificationSettingsView.as_view(), name='notifications-settings'),
     path('api/admin/notifications/', AdminNotificationsView.as_view(), name='admin-notifications'),
     path('api/admin/notifications/read/', AdminNotificationsReadView.as_view(), name='admin-notifications-read'),
     path('api/admin/analytics/activity-trend/', AdminAnalyticsActivityTrendView.as_view(), name='admin-analytics-activity-trend'),

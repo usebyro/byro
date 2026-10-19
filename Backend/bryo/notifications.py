@@ -20,10 +20,22 @@ logger = logging.getLogger(__name__)
 
 KEEP_LATEST = 30
 
+# What organisers can turn off in Settings. Payouts and events going on hold always reach them.
+MUTABLE_KINDS = ['ticket_sale', 'new_follower', 'milestone', 'cohost_joined', 'event_reminder', 'milestone_email']
+
+
+def is_muted(user, kind):
+    """Read fresh: a user object held during a sale may carry a profile from before they changed Settings."""
+    from .models import UserProfile
+    muted = UserProfile.objects.filter(user_id=user.pk).values_list('muted_notifications', flat=True).first()
+    return kind in (muted or [])
+
 
 def notify(user, kind, title, *, body='', link='', audience=Notification.AUDIENCE_ORGANISER):
     try:
         if user is None or not getattr(user, 'pk', None):
+            return None
+        if audience == Notification.AUDIENCE_ORGANISER and is_muted(user, kind):
             return None
         n = Notification.objects.create(
             recipient=user, audience=audience, kind=kind,
@@ -149,6 +161,28 @@ class _NotificationsReadBase(_NotificationsBase):
             mine = mine.filter(pk__in=[i for i in ids if isinstance(i, int)])
         mine.update(read_at=timezone.now())
         return Response({'unread': self._mine(request).filter(read_at__isnull=True).count()})
+
+
+class NotificationSettingsView(APIView):
+    """GET/PATCH /api/notifications/settings/  {muted: [...kinds]} for the signed-in organiser."""
+    permission_classes = [IsAuthenticated]
+
+    def _profile(self, request):
+        from .models import UserProfile
+        return UserProfile.objects.get_or_create(user=request.user)[0]
+
+    def get(self, request):
+        profile = self._profile(request)
+        return Response({'muted': [k for k in (profile.muted_notifications or []) if k in MUTABLE_KINDS]})
+
+    def patch(self, request):
+        muted = request.data.get('muted')
+        if not isinstance(muted, list):
+            return Response({'error': 'Send the list of notifications to turn off.'}, status=400)
+        profile = self._profile(request)
+        profile.muted_notifications = sorted({k for k in muted if k in MUTABLE_KINDS})
+        profile.save(update_fields=['muted_notifications'])
+        return Response({'muted': profile.muted_notifications})
 
 
 class MyNotificationsView(_NotificationsBase):

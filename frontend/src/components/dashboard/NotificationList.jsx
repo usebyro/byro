@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import API from "@/services/api";
 
@@ -244,6 +245,14 @@ export default function NotificationList({ state, onNavigate, inset = "px-5" }) 
           ))
         )}
       </div>
+
+      <Link
+        href="/dashboard/settings"
+        onClick={() => onNavigate?.()}
+        className="flex h-12 shrink-0 items-center justify-center border-t border-hairline text-sm font-bold text-[#2451D6] no-underline hover:bg-[#F7F9FC]"
+      >
+        Notification settings
+      </Link>
     </div>
   );
 }

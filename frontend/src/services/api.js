@@ -768,6 +768,25 @@ const API = {
     }
   },
 
+  // Which notifications the organiser turned off: { muted: ["ticket_sale", ...] }.
+  getNotificationSettings: async () => {
+    try {
+      const response = await axiosInstance.get("notifications/settings/");
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  updateNotificationSettings: async (muted) => {
+    try {
+      const response = await axiosInstance.patch("notifications/settings/", { muted });
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
   markNotificationsRead: async (ids) => {
     try {
       const response = await axiosInstance.post("notifications/read/", ids ? { ids } : {});

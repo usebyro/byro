@@ -135,6 +135,8 @@ class UserProfile(models.Model):
     verified = models.BooleanField(default=False)
     # Set by Byro owners: this organiser's own service fee rate (0.03 = 3%). Empty = the platform default.
     fee_rate_override = models.DecimalField(max_digits=5, decimal_places=4, null=True, blank=True)
+    # Notification kinds this person turned off in Settings (bell kinds, plus 'milestone_email').
+    muted_notifications = models.JSONField(default=list, blank=True)
     # What kind of community this is, shown beside the location on the community page.
     CATEGORY_CHOICES = [
         ('tech', 'Tech'), ('music', 'Music'), ('fitness', 'Fitness'),

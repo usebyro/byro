@@ -401,6 +401,11 @@ def organizer_event_reminder_email(name, event_name, date, time, tickets_sold, d
     return {"subject": f"{event_name} starts tomorrow", "html": html, "text": text}
 
 
+def _settings_url():
+    from django.conf import settings
+    return f"{(getattr(settings, 'FRONTEND_URL', '') or 'https://usebyro.com').rstrip('/')}/dashboard/settings"
+
+
 def _next_milestone(n):
     for step in (1, 10, 25, 50, 100):
         if n < step:
@@ -424,7 +429,8 @@ def milestone_reached_email(name, event_name, milestone, tickets_sold, dashboard
         banner
         + _lead(f"People are showing up for you. Your next milestone is <b>{nxt} tickets</b>. A quick post or a message in your community group usually helps.")
         + _btn_row(_btn(share, "Share event"), _btn(dash, "See sales", primary=False))
-        + _small("Milestone emails go out at 1, 10, 25 and 50 tickets, then every 100. Reply to this email if you would rather not get them.")
+        + _small("Milestone emails go out at 1, 10, 25 and 50 tickets, then every 100. "
+                 f'<a href="{_settings_url()}" style="color:{BRAND_DARK};font-weight:700;text-decoration:none;">Turn them off in Settings</a>.')
     )
     html = _shell(
         "", None, body_html,
@@ -434,7 +440,7 @@ def milestone_reached_email(name, event_name, milestone, tickets_sold, dashboard
     text = (
         f"{milestone} {word} sold for {event_name}\n\nPeople are showing up for you. Your next milestone is {nxt} tickets. "
         f"A quick post or a message in your community group usually helps.\n\nShare event: {share}\nSee sales: {dash}\n\n"
-        "Milestone emails go out at 1, 10, 25 and 50 tickets, then every 100. Reply to this email if you would rather not get them.\n\n"
+        f"Milestone emails go out at 1, 10, 25 and 50 tickets, then every 100. Turn them off in Settings: {_settings_url()}\n\n"
         "Byro Team\nsupport@usebyro.com"
     )
     return {"subject": f"{milestone} {word} sold for {event_name}", "html": html, "text": text}
