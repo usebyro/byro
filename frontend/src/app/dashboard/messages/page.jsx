@@ -6,6 +6,7 @@ import API from "@/services/api";
 import { useConfirm } from "@/components/admin/ui";
 import EventImage from "@/components/brand/EventImage";
 import SectionError from "@/components/dashboard/v2/SectionError";
+import BusyButton, { useButtonResult } from "@/components/dashboard/v2/BusyButton";
 import { dayParts, formatTime } from "@/lib/eventFormat";
 
 const KINDS = [
@@ -335,12 +336,17 @@ export default function MessagesPage() {
     });
   };
 
+  const [testResult, flashTest] = useButtonResult();
+  const [sendResult, flashSend] = useButtonResult();
+
   const sendTest = async () => {
     setTesting(true);
     try {
       const res = await API.sendMessage(payload({ test: true }));
       toast.success("Test sent", { description: res.sent_to });
+      flashTest("done");
     } catch (err) {
+      flashTest("failed");
       toast.error("Couldn’t send test", { description: err?.message || "Try again." });
     } finally {
       setTesting(false);
@@ -362,8 +368,10 @@ export default function MessagesPage() {
       setSubject(BLANK.subject);
       setBody(BLANK.body);
       setAttach(false);
+      flashSend("done");
       await load();
     } catch (err) {
+      flashSend("failed");
       toast.error("Couldn’t send message", { description: err?.message || "Try again." });
     } finally {
       setSending(false);
@@ -575,14 +583,18 @@ export default function MessagesPage() {
 
           <div className="flex flex-wrap items-center gap-2.5">
             <span className="v-hint flex-[1_1_200px]">{footNote}</span>
-            <button
+            <BusyButton
               type="button"
               onClick={sendTest}
-              disabled={testing || sending || !hasDraft || (!isAnnounce && !activeAudience)}
+              busy={testing}
+              result={testResult}
+              busyLabel="Sending test"
+              doneLabel="Test sent"
+              disabled={sending || !hasDraft || (!isAnnounce && !activeAudience)}
               className="v-btn v-btn-t"
             >
-              {testing ? "Sending test…" : "Send me a test"}
-            </button>
+              Send me a test
+            </BusyButton>
             <button
               type="button"
               onClick={openSchedule}
@@ -593,9 +605,18 @@ export default function MessagesPage() {
             >
               Schedule
             </button>
-            <button type="button" onClick={send} disabled={!canSend || sending} className="v-btn v-btn-p v-btn-lg">
-              {sending ? "Sending…" : activeAudience ? `Send to ${n(activeAudience.count)}` : "Send"}
-            </button>
+            <BusyButton
+              type="button"
+              onClick={send}
+              busy={sending}
+              result={sendResult}
+              busyLabel="Sending"
+              doneLabel="Sent"
+              disabled={!canSend}
+              className="v-btn v-btn-p v-btn-lg"
+            >
+              {activeAudience ? `Send to ${n(activeAudience.count)}` : "Send"}
+            </BusyButton>
           </div>
 
           {scheduleOpen && canSend && (

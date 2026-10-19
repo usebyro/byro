@@ -8,6 +8,7 @@ import { useAuth } from "@/redux/useAuth";
 import { useConfirm } from "@/components/admin/ui";
 import MerchSlideshow from "@/components/merch/MerchSlideshow";
 import SectionError from "@/components/dashboard/v2/SectionError";
+import BusyButton, { useButtonResult } from "@/components/dashboard/v2/BusyButton";
 
 const EMPTY_FORM = {
   name: "",
@@ -96,6 +97,7 @@ export default function MerchPage() {
   const [photos, setPhotos] = useState([]);
   const [removedPhotoIds, setRemovedPhotoIds] = useState([]);
   const [saving, setSaving] = useState(false);
+  const [saveResult, flashSave] = useButtonResult();
   const [deletingId, setDeletingId] = useState(null);
   const [togglingId, setTogglingId] = useState(null);
   const [focusField, setFocusField] = useState("name");
@@ -211,6 +213,7 @@ export default function MerchPage() {
     photos.filter((p) => p.id).forEach((p) => payload.append("photo_order", String(p.id)));
 
     setSaving(true);
+    flashSave(null);
     try {
       const res = editing
         ? await axiosInstance.patch(`merch/${editing.id}/`, payload)
@@ -228,6 +231,7 @@ export default function MerchPage() {
     } catch (err) {
       const data = err?.response?.data;
       const firstField = data && typeof data === "object" ? Object.values(data).flat()[0] : null;
+      flashSave("failed");
       toast.error("Couldn't save item", { description: data?.detail || (typeof firstField === "string" ? firstField : undefined) });
     } finally {
       setSaving(false);
@@ -609,9 +613,9 @@ export default function MerchPage() {
                 <button type="button" className="v-btn v-btn-s v-btn-lg" onClick={closeModal}>
                   Cancel
                 </button>
-                <button type="submit" className="v-btn v-btn-p v-btn-lg" disabled={saving}>
-                  {saving ? "Saving…" : editing ? "Save changes" : "Publish item"}
-                </button>
+                <BusyButton type="submit" className="v-btn v-btn-p v-btn-lg" busy={saving} result={saveResult} busyLabel={editing ? "Saving" : "Publishing"}>
+                  {editing ? "Save changes" : "Publish item"}
+                </BusyButton>
               </div>
             </form>
           </aside>

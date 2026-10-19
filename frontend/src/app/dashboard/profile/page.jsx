@@ -10,6 +10,7 @@ import { handleProblem } from "@/lib/handle";
 import API from "@/services/api";
 import { useConfirm } from "@/components/admin/ui";
 import { toast } from "sonner";
+import BusyButton, { useButtonResult } from "@/components/dashboard/v2/BusyButton";
 
 const BIO_MAX = 500;
 
@@ -80,7 +81,7 @@ function ProfilePageContent() {
   const [errors,    setErrors]    = useState({});
   const [avatarRemoved, setAvatarRemoved] = useState(false);
   const [stats, setStats] = useState(null);
-  const [justSaved, setJustSaved] = useState(false);
+  const [saveResult, flashSave] = useButtonResult();
 
   const [avatarFile,        setAvatarFile]        = useState(null);
   const [avatarPreview,     setAvatarPreview]     = useState("");
@@ -250,11 +251,12 @@ function ProfilePageContent() {
         token,
       }));
 
-      setJustSaved(true);
+      flashSave("done");
       toast.success("Changes saved");
     } catch (err) {
       const message = err?.message || "Try again.";
       if (/handle/i.test(message)) setErrors({ handle: message });
+      flashSave("failed");
       toast.error("Couldn't save changes", { description: message });
     } finally {
       setIsSaving(false);
@@ -314,7 +316,6 @@ function ProfilePageContent() {
   const extraSocials = SOCIALS.filter((x) => (x.key === "linkedin" || x.key === "telegram") && form[x.key].trim());
 
   const bioLen = form.bio.length;
-  const saveLabel = isSaving ? "Saving…" : !dirty && justSaved ? "Saved" : "Save changes";
 
   return (
     <div className="mx-auto flex w-full max-w-[1240px] flex-col gap-5 px-4 pb-12 pt-4 sm:px-[clamp(16px,3vw,40px)] md:gap-6 md:pt-2">
@@ -326,15 +327,18 @@ function ProfilePageContent() {
         <button type="button" onClick={handleDiscard} disabled={isSaving} className="v-btn v-btn-s v-btn-lg">
           Discard
         </button>
-        <button
+        <BusyButton
           type="button"
           onClick={handleSave}
-          disabled={isSaving}
+          busy={isSaving}
+          result={saveResult}
+          busyLabel="Saving"
+          doneLabel="Saved"
           title="Save changes (Ctrl or Cmd + S)"
           className="v-btn v-btn-p v-btn-lg"
         >
-          {saveLabel}
-        </button>
+          Save changes
+        </BusyButton>
       </div>
 
       <p className="sr-only" aria-live="polite">

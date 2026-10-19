@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import API from "@/services/api";
 import BankLogo from "@/components/dashboard/BankLogo";
 import SectionError from "@/components/dashboard/v2/SectionError";
+import BusyButton, { useButtonResult } from "@/components/dashboard/v2/BusyButton";
 
 // Backend status -> label, status ink, dot, amount ink (design: Paid / Pending / Cancelled-style grey).
 const STATUS = {
@@ -55,6 +56,7 @@ export default function StudioPayouts() {
   const [payouts, setPayouts] = useState([]);
   const [loadingPayouts, setLoadingPayouts] = useState(true);
   const [payoutsFailed, setPayoutsFailed] = useState(false);
+  const [withdrawResult, flashWithdraw] = useButtonResult();
   const [balanceFailed, setBalanceFailed] = useState(false);
   const [filter, setFilter] = useState("all");
 
@@ -243,6 +245,7 @@ export default function StudioPayouts() {
     }
 
     setSubmitting(true);
+    flashWithdraw(null);
     try {
       await API.createPayout({
         method: "bank",
@@ -260,6 +263,7 @@ export default function StudioPayouts() {
       loadPayouts();
       loadBalance();
     } catch (err) {
+      flashWithdraw("failed");
       toast.error("Your withdrawal didn't go through", {
         description: `${err?.message || "Try again."} Your balance hasn't changed.`,
       });
@@ -467,9 +471,9 @@ export default function StudioPayouts() {
                 <button type="button" className="v-btn v-btn-s" onClick={() => setConfirming(false)}>
                   Cancel
                 </button>
-                <button type="submit" className="v-btn v-btn-p" disabled={submitting}>
-                  {submitting ? "Submitting…" : "Confirm withdrawal"}
-                </button>
+                <BusyButton type="submit" className="v-btn v-btn-p" busy={submitting} result={withdrawResult} busyLabel="Sending request">
+                  Confirm withdrawal
+                </BusyButton>
               </div>
             </form>
           )}
