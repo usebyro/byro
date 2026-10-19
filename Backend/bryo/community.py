@@ -201,6 +201,57 @@ def passport_for_user(user):
     return sorted(first.values(), key=lambda st: (st.event.day, st.created_at), reverse=True)
 
 
+def send_thanks_for_coming(event):
+    """The morning-after email (board 30): one per person checked in, with the stamp they collected.
+
+    Everyone checked in gets it. Returns how many were sent; never raises for a single bad address.
+    """
+    from urllib.parse import quote
+    from django.contrib.auth import get_user_model
+    from .emails import thanks_for_coming_email
+
+    site = (getattr(settings, 'FRONTEND_URL', '') or 'https://usebyro.com').rstrip('/')
+    owner = event.owner
+    oprofile = getattr(owner, 'profile', None) if owner else None
+    org_name = (oprofile.display_name if oprofile else '') or event_host_name(event)
+    community_url = f"{site}/u/{oprofile.handle}" if oprofile and oprofile.handle else ''
+    User = get_user_model()
+
+    first_by_email = {}
+    for st in event.stamps.select_related('ticket').order_by('created_at'):
+        if st.email:
+            first_by_email.setdefault(st.email.lower(), st)
+
+    sent = 0
+    for email, st in first_by_email.items():
+        try:
+            user = User.objects.filter(email__iexact=email).first()
+            follows = bool(user and owner and Follow.objects.filter(follower=user, following=owner).exists())
+            # Their nth visit: distinct events they've a stamp for, this one included.
+            mine = Q(email__iexact=email) | Q(user=user) if user else Q(email__iexact=email)
+            number = Stamp.objects.filter(mine).values('event_id').distinct().count()
+            passport = f"/home?tab=passport&stamp={event.slug}"
+            passport_url = f"{site}{passport}" if user else (
+                f"{site}/login?redirect={quote(passport, safe='')}&email={quote(email, safe='')}"
+            )
+            data = thanks_for_coming_email(
+                name=st.ticket.current_owner_name if st.ticket_id else '',
+                event_name=event.name,
+                stamp_number=number,
+                stamp_image_url=f"{site}/discover/{event.slug}/stamp?id={st.pk}",
+                passport_url=passport_url,
+                organizer_name=org_name if community_url else '',
+                community_url=community_url,
+                follows=follows,
+                has_account=bool(user),
+            )
+            send_email(to=email, subject=data['subject'], html=data['html'], text=data['text'])
+            sent += 1
+        except Exception:
+            logger.exception('Could not send thanks-for-coming email for event %s', event.pk)
+    return sent
+
+
 # -- community numbers ------------------------------------------------------
 
 def community_stats(organizer):

@@ -646,6 +646,48 @@ def ticket_transfer_email(sender_name, recipient_name, event_name, date, time, l
     return {"subject": f"{sender} sent you a ticket to {event_name}", "html": html, "text": text}
 
 
+def _ordinal(n):
+    suffix = "th" if 10 <= n % 100 <= 20 else {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
+    return f"{n}{suffix}"
+
+
+def thanks_for_coming_email(name, event_name, stamp_number, stamp_image_url, passport_url,
+                            organizer_name="", community_url="", follows=False, has_account=True):
+    """The morning after: the stamp they collected, as an image (email apps drop CSS borders and rotation)."""
+    first = stamp_number <= 1
+    count_line = "Your first stamp. Your passport starts here." if first else (
+        f"That&#8217;s your {_ordinal(stamp_number)} stamp. It&#8217;s in your passport with the rest."
+    )
+    count_text = "Your first stamp. Your passport starts here." if first else (
+        f"That's your {_ordinal(stamp_number)} stamp. It's in your passport with the rest."
+    )
+    passport_label = "See your passport" if has_account else "Create your passport"
+    buttons = []
+    if organizer_name and community_url:
+        org_label = f"See what&#8217;s next from {_h(organizer_name)}" if follows else f"Follow {_h(organizer_name)}"
+        buttons.append(_btn(community_url, org_label))
+    buttons.append(_btn(passport_url, passport_label, primary=not buttons))
+    body_html = (
+        f'<div style="margin:0 0 24px;"><img src="{stamp_image_url}" width="200" height="200" '
+        f'alt="Your stamp for {_h(event_name)}" style="display:block;width:200px;height:200px;border:0;"></div>'
+        + _lead(f"Hi {_h(_first(name) or 'there')}, {count_line}")
+        + _btn_row(*buttons)
+    )
+    html = _shell(
+        "", f"Thanks for coming to {_h(event_name)}", body_html,
+        f"You&#8217;re getting this because you checked in at {_h(event_name)}.",
+        preheader=count_line,
+    )
+    org_text = ""
+    if organizer_name and community_url:
+        org_text = f"{'See what' + chr(39) + 's next from' if follows else 'Follow'} {organizer_name}: {community_url}\n"
+    text = (
+        f"Hi {_first(name) or 'there'},\n\nThanks for coming to {event_name}. {count_text}\n\n"
+        + org_text + f"{passport_label}: {passport_url}\n\nByro Team\nsupport@usebyro.com"
+    )
+    return {"subject": f"Thanks for coming to {event_name}", "html": html, "text": text}
+
+
 def _payout_destination(bank_name, account_number):
     last4 = (account_number or "")[-4:]
     return f"{_h(bank_name)} ••••{last4}" if last4 else _h(bank_name)

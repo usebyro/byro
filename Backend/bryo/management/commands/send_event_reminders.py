@@ -130,6 +130,18 @@ class Command(BaseCommand):
                 event.reminder_sent_at = timezone.now()
                 event.save(update_fields=['reminder_sent_at'])
 
+        # The morning after: "Thanks for coming" with the stamp, to everyone checked in (once per event).
+        from bryo.community import send_thanks_for_coming
+        yesterday = (timezone.now() - timedelta(days=1)).date()
+        for event in Event.objects.filter(day=yesterday, cancelled_at__isnull=True, thanks_sent_at__isnull=True):
+            if dry_run:
+                self.stdout.write(f"[dry-run] {event.name}: thanks-for-coming to {event.stamps.values('email').distinct().count()}")
+                continue
+            sent = send_thanks_for_coming(event)
+            event.thanks_sent_at = timezone.now()
+            event.save(update_fields=['thanks_sent_at'])
+            self.stdout.write(f"{event.name}: {sent} thanks-for-coming email(s)")
+
         # In-app heads-up for the team three days out (once each; see notifications.event_reminder).
         from bryo.notifications import event_reminder
         soon = (timezone.now() + timedelta(days=REMIND_TEAM_DAYS)).date()

@@ -418,6 +418,8 @@ class Event(models.Model):
         null=True, blank=True,
         help_text="When the 24h-before attendee/organizer reminder was sent"
     )
+    # Set once the morning-after 'Thanks for coming' emails have gone out (send_event_reminders).
+    thanks_sent_at = models.DateTimeField(null=True, blank=True)
     milestones_notified = models.JSONField(
         default=list, blank=True,
         help_text="Ticket-sold milestone thresholds already emailed to the organizer"

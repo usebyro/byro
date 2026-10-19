@@ -615,3 +615,35 @@ class HostFilterTests(CommunityBase):
         self.assertEqual(res.status_code, 200)
         rows = res.json() if isinstance(res.json(), list) else res.json().get('results', [])
         self.assertEqual({r['slug'] for r in rows}, {self.event.slug})
+
+
+class ThanksForComingTests(CommunityBase):
+
+    def test_one_email_per_person_with_their_stamp_count(self):
+        from unittest import mock
+        from .community import send_thanks_for_coming
+        for _ in range(2):  # two tickets on one email: still one email
+            record_stamp(ticket(self.event, email='fan@example.com'))
+        record_stamp(ticket(self.event, email='new@example.com'))
+        with mock.patch('bryo.community.send_email') as sent:
+            self.assertEqual(send_thanks_for_coming(self.event), 2)
+        by_to = {c.kwargs['to']: c.kwargs for c in sent.call_args_list}
+        self.assertEqual(by_to['fan@example.com']['subject'], f'Thanks for coming to {self.event.name}')
+        self.assertIn('Your first stamp', by_to['fan@example.com']['text'])
+        self.assertIn('/stamp?id=', by_to['fan@example.com']['html'])
+        # No account yet: the button invites them to make one.
+        self.assertIn('Create your passport', by_to['new@example.com']['text'])
+
+    def test_the_daily_job_sends_once(self):
+        from datetime import timedelta
+        from unittest import mock
+        from django.core.management import call_command
+        from django.utils import timezone
+        self.event.day = (timezone.now() - timedelta(days=1)).date()
+        self.event.save()
+        record_stamp(ticket(self.event, email='fan@example.com'))
+        with mock.patch('bryo.community.send_email') as sent:
+            call_command('send_event_reminders')
+            call_command('send_event_reminders')
+        thanks = [c for c in sent.call_args_list if c.kwargs.get('subject', '').startswith('Thanks for coming')]
+        self.assertEqual(len(thanks), 1)
