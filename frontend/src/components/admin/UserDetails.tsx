@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useAdminMe } from "@/components/admin/AdminMe";
-import { useConfirm } from "@/components/admin/ui";
+import { useConfirm, throwIfFailed } from "@/components/admin/ui";
 import { publicHref } from "@/lib/adminNav";
 import { formatNaira } from "@/lib/eventFormat";
 
@@ -81,11 +81,11 @@ export default function UserDetails({ userId, onDeleted }: { userId: number; onD
     setBusy(true);
     try {
       const res = await fetch(`/api/admin/users/${userId}/messaging`, { method: "POST", body: JSON.stringify({ blocked }) });
-      if (!res.ok) throw new Error();
+      await throwIfFailed(res);
       toast.success(blocked ? "Blocked from messaging" : "Can message again");
       await load();
-    } catch {
-      toast.error("Couldn't update messaging");
+    } catch (err) {
+      toast.error("Couldn't update messaging", { description: err instanceof Error && err.message ? err.message : "Try again." });
     } finally {
       setBusy(false);
     }

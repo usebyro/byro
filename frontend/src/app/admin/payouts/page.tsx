@@ -1,7 +1,7 @@
 "use client";
 
 import { useAdminMe } from "@/components/admin/AdminMe";
-import { useConfirm, SkeletonRows } from "@/components/admin/ui";
+import { useConfirm, SkeletonRows, throwIfFailed } from "@/components/admin/ui";
 import { useEffect, useState, useCallback } from "react";
 
 type PayoutStatus = "pending" | "processed" | "rejected";
@@ -125,11 +125,11 @@ export default function AdminPayoutsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status }),
       });
-      if (!res.ok) throw new Error("Failed to update payout");
+      await throwIfFailed(res);
       const updated = await res.json();
       setPayouts((prev) => prev.map((p) => (p.id === id ? updated : p)));
-    } catch {
-      setError(`Couldn't ${status === "processed" ? "process" : "reject"} that payout. Please try again.`);
+    } catch (err) {
+      setError(`Couldn't ${status === "processed" ? "process" : "reject"} that payout. ${err instanceof Error && err.message ? err.message : "Try again."}`);
     } finally {
       setUpdatingId(null);
     }
@@ -139,10 +139,10 @@ export default function AdminPayoutsPage() {
     setUpdatingId(id);
     try {
       const res = await fetch(`/api/admin/payouts/${id}`, { method: "DELETE" });
-      if (!res.ok && res.status !== 204) throw new Error("Failed to delete payout");
+      if (res.status !== 204) await throwIfFailed(res);
       setPayouts((prev) => prev.filter((p) => p.id !== id));
-    } catch {
-      setError("Couldn't delete that payout. Please try again.");
+    } catch (err) {
+      setError(`Couldn't delete that payout. ${err instanceof Error && err.message ? err.message : "Try again."}`);
     } finally {
       setUpdatingId(null);
     }
@@ -202,7 +202,7 @@ export default function AdminPayoutsPage() {
     <div className="p-5 md:p-8">
       <div className="mb-6">
         <h1 className="font-display text-ink text-3xl font-extrabold tracking-tight">Payouts</h1>
-        <p className="text-muted text-sm mt-1">Review and process organiser withdrawal requests</p>
+        <p className="text-muted text-sm mt-1">Review and process organiser payout requests</p>
       </div>
 
       {error && (

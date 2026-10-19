@@ -188,7 +188,7 @@ export default function AdminDashboardPage() {
         })
         .then((data: AnalyticsSummary) => setSummary(data)),
     ])
-      .catch(() => setError("Failed to load platform analytics."))
+      .catch(() => setError("Couldn't load platform analytics. Try again."))
       .finally(() => setLoading(false));
   }, []);
 

@@ -7,16 +7,15 @@ from .models import (
     TicketTransfer, Payment, UserProfile, EventFormQuestion, EventFormAnswer,
     TicketTier, PayoutRequest, PromoCode, MerchItem, MerchPhoto,
 )
-from django.core.mail import send_mail
 from django.contrib.auth import get_user_model
 from django.urls import reverse
 from django.conf import settings
+import logging
 import re
 from .community import event_host_name, host_name_for_new_event
 
 User = get_user_model()
-
-
+logger = logging.getLogger(__name__)
 
 
 class WaitListSerializer(serializers.Serializer):
@@ -616,20 +615,28 @@ class TicketTransferSerializer(serializers.ModelSerializer):
         # Check if ticket is transferable
         ticket = validated_data['ticket']
         if not ticket.event.transferable:
-            raise serializers.ValidationError("This ticket is not transferable")
+            raise serializers.ValidationError("The organiser has turned off ticket transfers for this event.")
         
         # Create transfer
         transfer = super().create(validated_data)
         
-        # Send transfer email
-        transfer_link = self.get_transfer_link(transfer)
-        send_mail(
-            f'Ticket Transfer: {ticket.event.name}',
-            f'You have received a ticket transfer. Click here to accept: {transfer_link}',
-            settings.DEFAULT_FROM_EMAIL,
-            [validated_data['to_user_email']],
-            fail_silently=False,
-        )
+        # Best-effort: the sender also gets the link back to share themselves.
+        from .emails import format_event_date, format_event_time, ticket_transfer_email
+        from .mailer import send_email
+        event = ticket.event
+        try:
+            email_data = ticket_transfer_email(
+                sender_name=transfer.from_user_name,
+                recipient_name=transfer.to_user_name,
+                event_name=event.name,
+                date=format_event_date(event.day),
+                time=format_event_time(event.time_from),
+                location=event.location or '',
+                accept_url=self.get_transfer_link(transfer),
+            )
+            send_email(transfer.to_user_email, email_data['subject'], email_data['html'], email_data['text'])
+        except Exception:
+            logger.exception("Couldn't send ticket transfer email for transfer %s", transfer.pk)
         
         return transfer
 

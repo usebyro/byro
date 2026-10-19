@@ -60,8 +60,8 @@ def notify_event_status_change(event, suspended):
             from .notifications import notify
             notify(
                 owner, 'event_status',
-                f"{event.name} was " + ('suspended' if suspended else 'reinstated'),
-                body='Check your email for details.' if suspended else 'It is live again.',
+                f"{event.name} is " + ('on hold' if suspended else 'live again'),
+                body='Ticket sales are paused. Check your email for details.' if suspended else 'Ticket sales are back on.',
                 link=f"/dashboard/events/{event.slug}",
             )
 

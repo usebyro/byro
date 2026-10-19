@@ -2,7 +2,7 @@
 
 import { useAdminMe } from "@/components/admin/AdminMe";
 import UserDetails from "@/components/admin/UserDetails";
-import { SidePanel, useConfirm } from "@/components/admin/ui";
+import { SidePanel, useConfirm, throwIfFailed } from "@/components/admin/ui";
 import { useEffect, useMemo, useState, useCallback } from "react";
 
 interface AdminUser {
@@ -127,7 +127,7 @@ export default function AdminUsersPage() {
         if (!cancelled) setUsers(Array.isArray(data) ? data : []);
       })
       .catch(() => {
-        if (!cancelled) setError("Failed to load users.");
+        if (!cancelled) setError("Couldn't load users. Try again.");
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -176,10 +176,10 @@ export default function AdminUsersPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ role }),
       });
-      if (!res.ok) throw new Error("Failed to update role");
-    } catch {
+      await throwIfFailed(res);
+    } catch (err) {
       applyUpdate(user.id, { role: previous });
-      setRoleError("Couldn't update this user's role. Please try again.");
+      setRoleError(`Couldn't update this user's role. ${err instanceof Error && err.message ? err.message : "Try again."}`);
     } finally {
       setSavingRole(false);
     }
@@ -215,10 +215,10 @@ export default function AdminUsersPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ is_active: next }),
       });
-      if (!res.ok) throw new Error("Failed to update status");
-    } catch {
+      await throwIfFailed(res);
+    } catch (err) {
       applyUpdate(user.id, { is_active: previous });
-      setStatusError(`Couldn't ${action === "suspend" ? "suspend" : "reactivate"} this user. Please try again.`);
+      setStatusError(`Couldn't ${action} this user. ${err instanceof Error && err.message ? err.message : "Try again."}`);
     } finally {
       setUpdatingStatus(false);
     }

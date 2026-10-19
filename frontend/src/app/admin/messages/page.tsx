@@ -131,7 +131,7 @@ export default function AdminMessagesPage() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error);
       toast.success(blocked ? "Organiser blocked from messaging" : "Organiser can message again", {
-        description: blocked && data.scheduled_cancelled ? `${data.scheduled_cancelled} scheduled message(s) cancelled` : name,
+        description: blocked && data.scheduled_cancelled ? `${data.scheduled_cancelled} scheduled ${data.scheduled_cancelled === 1 ? "message" : "messages"} cancelled` : name,
       });
       await load();
     } catch (err) {

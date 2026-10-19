@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { formatNaira, isPaidEvent, priceLabel } from "@/lib/eventFormat";
 import { useAdminMe } from "@/components/admin/AdminMe";
-import { SidePanel, useConfirm, SkeletonRows } from "@/components/admin/ui";
+import { SidePanel, useConfirm, SkeletonRows, throwIfFailed, SUSPEND_EVENT_BODY } from "@/components/admin/ui";
 import { publicHref } from "@/lib/adminNav";
 
 interface EventTier {
@@ -315,7 +315,7 @@ export default function AdminEventsPage() {
         setEvents(rows);
         setOverview(Object.fromEntries(rows.map((r) => [r.id, r])));
       })
-      .catch(() => { if (!cancelled) setError("Failed to load events."); })
+      .catch(() => { if (!cancelled) setError("Couldn't load events. Try again."); })
       .finally(() => { if (!cancelled) setLoading(false); });
 
     // Platform-wide tickets-sold total, from the same admin-authorized endpoint
@@ -338,7 +338,7 @@ export default function AdminEventsPage() {
     try {
       if (action === "delete") {
         const res = await fetch(`/api/admin/events/${event.id}`, { method: "DELETE" });
-        if (!res.ok) throw new Error("Failed to delete event");
+        await throwIfFailed(res);
         setEvents((prev) => prev.filter((e) => e.id !== event.id));
         setSelected(null);
       } else {
@@ -348,17 +348,14 @@ export default function AdminEventsPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ is_active }),
         });
-        if (!res.ok) throw new Error("Failed to update event");
+        await throwIfFailed(res);
         const updated: Event = await res.json();
         setEvents((prev) => prev.map((e) => (e.id === event.id ? { ...e, ...updated } : e)));
         setSelected((prev) => (prev && prev.id === event.id ? { ...prev, ...updated } : prev));
       }
-    } catch {
-      setActionError(
-        action === "delete"
-          ? "Couldn't delete this event. Please try again."
-          : `Couldn't ${action === "suspend" ? "suspend" : "reactivate"} this event. Please try again.`
-      );
+    } catch (err) {
+      const reason = err instanceof Error && err.message ? err.message : "Try again.";
+      setActionError(`Couldn't ${action} this event. ${reason}`);
     } finally {
       setUpdatingId(null);
     }
@@ -369,7 +366,7 @@ export default function AdminEventsPage() {
     const copy = {
       suspend: {
         title: `Suspend “${event.name}”?`,
-        body: "It comes off Discover and its page, nobody can buy tickets, and the organiser is told by email. You can reactivate it later.",
+        body: SUSPEND_EVENT_BODY,
         confirmLabel: "Suspend event",
         tone: "danger" as const,
       },

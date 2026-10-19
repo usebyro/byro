@@ -111,7 +111,7 @@ def _shell(badge_html, headline, body_html, footer_text, preheader=""):
         <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="width:100%;">
           <tr>
             <td class="bar" style="height:72px;padding:0 32px;border-bottom:1px solid {HAIRLINE};">
-              <img src="{_logo_url()}" alt="byro" width="54" height="26" style="display:block;height:26px;width:54px;border:0;">
+              <img src="{_logo_url()}" alt="Byro" width="54" height="26" style="display:block;height:26px;width:54px;border:0;">
             </td>
           </tr>
           <tr>
@@ -388,7 +388,7 @@ def organizer_event_reminder_email(name, event_name, date, time, tickets_sold, d
         _badge("For organisers", NEUTRAL, NEUTRAL_BG),
         "",  # the subject line already says this
         body_html,
-        f"You&#8217;re getting this because you host {_h(event_name)} on byro.",
+        f"You&#8217;re getting this because you host {_h(event_name)} on Byro.",
         preheader=f"{tickets_sold} {sold_word} sold so far. Here is your check-in plan.",
     )
     text = (
@@ -428,7 +428,7 @@ def milestone_reached_email(name, event_name, milestone, tickets_sold, dashboard
     )
     html = _shell(
         "", None, body_html,
-        f"You&#8217;re getting this because you host {_h(event_name)} on byro.",
+        f"You&#8217;re getting this because you host {_h(event_name)} on Byro.",
         preheader="Nice work. Keep it going.",
     )
     text = (
@@ -473,7 +473,7 @@ def event_published_email(name, event_name, date, time, location, event_url, sha
         _badge("Live", MONEY, MONEY_BG),
         "",  # the subject line already says this
         body_html,
-        "You&#8217;re getting this because you published an event on byro.",
+        "You&#8217;re getting this because you published an event on Byro.",
         preheader="Your event page is up. Share the link to start selling.",
     )
     text = (
@@ -496,7 +496,7 @@ def follower_new_event_email(name, organizer_name, event_name, date, time, locat
     if tickets_label:
         rows.append(("Tickets", _h(tickets_label)))
     organiser = _h(organizer_name)
-    hello = f"Hi {_h(name)}, " if name else ""
+    hello = f"Hi {_h(_first(name))}, " if name else ""
     body_html = (
         _lead(f"{hello}{organiser} just announced a new event.")
         + _rows(rows)
@@ -510,7 +510,7 @@ def follower_new_event_email(name, organizer_name, event_name, date, time, locat
         _badge("New event", BRAND, BRAND_BG),
         f"{_h(event_name)}",
         body_html,
-        f"You&#8217;re getting this because you follow {organiser} on byro.{unfollow}",
+        f"You&#8217;re getting this because you follow {organiser} on Byro.{unfollow}",
         preheader=f"{organizer_name} just announced {event_name}.",
     )
     text = (
@@ -559,7 +559,7 @@ def organizer_message_email(name, organizer_name, kind, subject, body, event=Non
             f' <a href="{unfollow_url}" style="color:{MUTED};text-decoration:underline;">Unfollow</a> to stop these emails.'
             if unfollow_url else ""
         )
-        footer = f"You&#8217;re getting this because you follow {organiser} on byro.{unfollow}"
+        footer = f"You&#8217;re getting this because you follow {organiser} on Byro.{unfollow}"
     # The subject is already the email's subject line, so it isn't repeated as a heading inside.
     html = _shell(
         badge,
@@ -573,7 +573,7 @@ def organizer_message_email(name, organizer_name, kind, subject, body, event=Non
         text += f"\nGet tickets: {event['url']}\n"
     if kind != "update" and unfollow_url:
         text += f"\nUnfollow: {unfollow_url}\n"
-    text += f"\n{organizer_name} via byro"
+    text += f"\n{organizer_name} via Byro"
     return {"subject": f"[Test] {subject}" if is_test else subject, "html": html, "text": text}
 
 
@@ -594,7 +594,7 @@ def cohost_invite_email(event_name, inviter_name, event_url, is_new_user=False, 
         + _callout("As a co-host you can", can)
         + _btn_row(_btn(event_url, "Accept invite" if is_new_user else "Open event"))
         + _small("Not expecting this? Just ignore this email. Nothing changes unless you accept.")
-        + (_small("If you don&#8217;t have a byro account yet, you can create one when you accept.") if is_new_user else "")
+        + (_small("If you don&#8217;t have a Byro account yet, you can create one when you accept.") if is_new_user else "")
     )
     html = _shell(
         _badge("Invite", NEUTRAL, NEUTRAL_BG),
@@ -608,10 +608,36 @@ def cohost_invite_email(event_name, inviter_name, event_url, is_new_user=False, 
         + "As a co-host you can:\n" + "".join(f"- {c}\n" for c in can_text)
         + f"\n{'Accept invite' if is_new_user else 'Open event'}: {event_url}\n\n"
         "Not expecting this? Just ignore this email. Nothing changes unless you accept.\n"
-        + ("If you don't have a byro account yet, you can create one when you accept.\n" if is_new_user else "")
+        + ("If you don't have a Byro account yet, you can create one when you accept.\n" if is_new_user else "")
         + "\nByro Team\nsupport@usebyro.com"
     )
     return {"subject": f"{inviter_name} invited you to co-host {event_name}", "html": html, "text": text}
+
+
+def ticket_transfer_email(sender_name, recipient_name, event_name, date, time, location, accept_url):
+    """To someone a ticket holder is giving their ticket to."""
+    sender = sender_name or "Someone"
+    body_html = (
+        _lead(f"Hi {_h(_first(recipient_name) or 'there')}, {_h(sender)} is giving you their ticket.")
+        + _rows(_event_rows(event_name, date, time, location))
+        + _btn_row(_btn(accept_url, "Accept ticket"))
+        + _small("Not expecting this? Just ignore this email. Nothing changes unless you accept.")
+    )
+    html = _shell(
+        _badge("Ticket", NEUTRAL, NEUTRAL_BG),
+        "",  # the subject line already says this
+        body_html,
+        f"You&#8217;re getting this because {_h(sender)} sent a ticket to this email on Byro.",
+        preheader="Accept it and the ticket is yours.",
+    )
+    text = (
+        f"Hi {_first(recipient_name) or 'there'},\n\n{sender} is giving you their ticket.\n\n"
+        + _event_text(event_name, date, time, location)
+        + f"\nAccept ticket: {accept_url}\n\n"
+        "Not expecting this? Just ignore this email. Nothing changes unless you accept.\n\n"
+        "Byro Team\nsupport@usebyro.com"
+    )
+    return {"subject": f"{sender} sent you a ticket to {event_name}", "html": html, "text": text}
 
 
 def _payout_destination(bank_name, account_number):
@@ -645,7 +671,7 @@ def payout_requested_email(name, amount, bank_name, account_number, event_name=N
         _badge("Payout", TIME, TIME_BG),
         "",  # the subject line already says this
         body_html,
-        "You&#8217;re getting this because a payout was requested from your byro account. Didn&#8217;t request it? Reply right away.",
+        "You&#8217;re getting this because a payout was requested from your Byro account. Didn&#8217;t request it? Reply right away.",
         preheader="We&#8217;re reviewing it now. Here&#8217;s what happens next.",
     )
     text = (
@@ -672,7 +698,7 @@ def payout_completed_email(name, amount, bank_name, account_number, event_name=N
         f'<table cellpadding="0" cellspacing="0" style="width:100%;margin:0 0 20px;"><tr><td style="background:#E3F5EC;border-radius:20px;padding:24px;">'
         f'<table cellpadding="0" cellspacing="0"><tr><td style="background:#ffffff;border-radius:999px;padding:6px 12px;color:#1F6B47;font-size:12px;font-weight:800;letter-spacing:0.08em;">PAID</td></tr></table>'
         f'<div style="font-family:{DISPLAY_STACK};font-size:52px;font-weight:700;line-height:1.1;color:{INK};padding-top:6px;">{shown}</div>'
-        f'<div style="font-size:16px;font-weight:700;color:#1F6B47;">is on its way to your bank</div></td></tr></table>'
+        f'<div style="font-size:16px;font-weight:700;color:#1F6B47;">has been sent to your bank</div></td></tr></table>'
     )
     body_html = (
         banner + _rows(rows)
@@ -681,16 +707,16 @@ def payout_completed_email(name, amount, bank_name, account_number, event_name=N
     )
     html = _shell(
         "", None, body_html,
-        "You&#8217;re getting this because you requested a payout from your byro account.",
+        "You&#8217;re getting this because you requested a payout from your Byro account.",
         preheader="Your payout is complete.",
     )
     text = (
-        f"{shown} is on its way to your bank\n\n"
+        f"{shown} has been sent to your bank\n\n"
         + "".join(f"{label}: {value}\n" for label, value in [("To", f'{bank_name} ••••{(account_number or "")[-4:]}'), ("Paid on", paid_on), ("Reference", reference)] if value)
         + "\nDepending on your bank, it can take a little while to show in your account. If it hasn't arrived after 24 hours, "
         f"reply with the reference above.\n\nView payouts: {url}\n\nByro Team\nsupport@usebyro.com"
     )
-    return {"subject": f"{shown} has been paid to your bank", "html": html, "text": text}
+    return {"subject": f"{shown} has been sent to your bank", "html": html, "text": text}
 
 
 def order_refunded_email(name, event_name, refund_amount, reason=""):
@@ -758,12 +784,12 @@ def event_cancelled_email(name, event_name, date, time, location, reason, refund
         if refund_state == 'sent':
             how_html = (
                 f"{fees_note} Your refund has been sent to the card or bank account you paid with. "
-                "It usually shows up within 3&#8211;10 business days, depending on your bank."
+                "It usually shows up within 3 to 10 working days, depending on your bank."
             )
             how_text = (
                 "That is the ticket price you paid, after any discount code. Byro's service fee and the payment "
                 "processing charge cannot be refunded. Your refund has been sent to the card or bank account you "
-                "paid with. It usually shows up within 3-10 business days, depending on your bank.\n\n"
+                "paid with. It usually shows up within 3 to 10 working days, depending on your bank.\n\n"
             )
             label = "Refund sent"
             headline = f"Your refund for {event_name} has been sent."
@@ -944,7 +970,7 @@ def organizer_event_suspended_email(name, event_name, date, time, location, even
     body_html = (
         _lead(f"Hi {_h(_first(name))}, we&#8217;ve suspended <b>{_h(event_name)}</b> because it doesn&#8217;t currently "
               f'meet our <a href="{terms_url}" style="color:{BRAND_DARK};font-weight:700;text-decoration:none;">Terms of Service</a>. '
-              "Please don&#8217;t panic. This is a pause while we check things, and we just need to ask you a few questions.")
+              "This is a pause, not a decision. We just need to ask you a few questions.")
         + _rows(_event_rows(event_name, date, time, location))
         + _callout("What this means for now", [
             "Ticket sales are paused, and the event page shows that it&#8217;s on hold.",
@@ -964,11 +990,11 @@ def organizer_event_suspended_email(name, event_name, date, time, location, even
         "",  # the subject line already says this
         body_html,
         f"You&#8217;re getting this because you&#8217;re the organiser of {_h(event_name)} on Byro.",
-        preheader="Please don't panic. Our team will be in touch shortly with a few questions.",
+        preheader="Ticket sales are paused. Our team will be in touch shortly with a few questions.",
     )
     text = (
         f"Hi {_first(name)},\n\nWe've suspended {event_name} because it doesn't currently meet our Terms of Service "
-        f"({terms_url}). Please don't panic. This is a pause while we check things, and we just need to ask you a few questions.\n\n"
+        f"({terms_url}). This is a pause, not a decision. We just need to ask you a few questions.\n\n"
         + _event_text(event_name, date, time, location)
         + "\nWhat this means for now\n"
         "- Ticket sales are paused, and the event page shows that it's on hold.\n"

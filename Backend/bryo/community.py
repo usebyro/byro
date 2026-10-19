@@ -37,7 +37,7 @@ def follow_organizer(user, event):
             from .notifications import notify
             profile = _profile_of(user)
             name = (profile.display_name if profile else '') or user.get_full_name() or 'Someone'
-            notify(event.owner, 'new_follower', f"{name} followed you", body=f"After {event.name}", link='/dashboard/overview')
+            notify(event.owner, 'new_follower', f"{name} followed you", body=f"After going to {event.name}", link='/dashboard/overview')
         return True
     except Exception:
         logger.exception('Could not auto-follow organiser')

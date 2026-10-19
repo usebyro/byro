@@ -125,6 +125,17 @@ export function Toggle({ on, label, disabled, onChange }: { on: boolean; label: 
 
 /* ----------------------------------------------------------- confirm dialog */
 
+/** The consequence shown wherever staff suspend an event. */
+export const SUSPEND_EVENT_BODY =
+  "It comes off Byro straight away, nobody can buy tickets, and the organiser is told by email. You can reactivate it later.";
+
+/** Throws the API's own reason (e.g. why an event can't be deleted) when a request fails. */
+export async function throwIfFailed(res: Response): Promise<void> {
+  if (res.ok) return;
+  const data = await res.json().catch(() => ({}));
+  throw new Error(data?.error || data?.detail || "");
+}
+
 export interface ConfirmOptions {
   title: string;
   /** What will happen, in a sentence or two. */

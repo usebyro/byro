@@ -3752,7 +3752,7 @@ class AdminPayoutView(APIView):
         try:
             payout = PayoutRequest.objects.select_related('user').get(pk=pk)
         except PayoutRequest.DoesNotExist:
-            return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'error': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
         _log_admin_action(
             request, AdminAction.ACTION_PAYOUT_DELETED, 'payout', payout.pk,
             payout.user.email if payout.user_id else '', str(payout.amount),
@@ -3764,7 +3764,7 @@ class AdminPayoutView(APIView):
         try:
             payout = PayoutRequest.objects.get(pk=pk)
         except PayoutRequest.DoesNotExist:
-            return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'error': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
 
         new_status = request.data.get('status')
         if new_status not in dict(PayoutRequest.STATUS_CHOICES):
@@ -3920,7 +3920,7 @@ class AdminEventDetailView(APIView):
     def patch(self, request, pk):
         event = self._get_event(pk)
         if event is None:
-            return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'error': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
         is_active = request.data.get('is_active')
         if is_active is not None and bool(is_active) != event.is_active:
             event.is_active = bool(is_active)
@@ -3937,7 +3937,7 @@ class AdminEventDetailView(APIView):
     def delete(self, request, pk):
         event = self._get_event(pk)
         if event is None:
-            return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'error': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
         if _refunds_unfinished(event):
             return Response(
                 {'error': 'This event has refunds that have not been completed. Finish or resolve them before deleting it.'},
@@ -3962,7 +3962,7 @@ class AdminEventAttendeesView(APIView):
         try:
             event = Event.objects.get(slug=slug)
         except Event.DoesNotExist:
-            return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'error': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
 
         tickets = event.tickets.select_related('user').prefetch_related('form_answers__question')
 
@@ -5140,14 +5140,14 @@ class AdminUserDetailView(APIView):
         from .accounts import summary
         user = self.User.objects.filter(pk=pk).first()
         if not user:
-            return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'error': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
         return Response(summary(user))
 
     def patch(self, request, pk):
         try:
             user = self.User.objects.select_related('profile').get(pk=pk)
         except self.User.DoesNotExist:
-            return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'error': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
 
         profile = getattr(user, 'profile', None)
         if profile is None:
@@ -5196,7 +5196,7 @@ class AdminUserDeleteView(APIView):
         from .accounts import DELETED_DOMAIN, anonymise, delete_blockers
         user = User.objects.filter(pk=pk).first()
         if not user:
-            return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'error': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
         if user.email.endswith(DELETED_DOMAIN):
             return Response({'error': 'This account is already deleted.'}, status=status.HTTP_400_BAD_REQUEST)
         if user == request.user:
@@ -5285,7 +5285,7 @@ class AdminTeamDetailView(APIView):
     def patch(self, request, pk):
         m = self._get(pk)
         if m is None:
-            return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'error': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
         role = request.data.get('role')
         if role not in AdminMember.ROLE_RANK:
             return Response({'error': 'Invalid role'}, status=status.HTTP_400_BAD_REQUEST)
@@ -5300,7 +5300,7 @@ class AdminTeamDetailView(APIView):
     def delete(self, request, pk):
         m = self._get(pk)
         if m is None:
-            return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'error': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
         if m.pk == request.admin_member.pk:
             return Response({'error': "You can't remove yourself"}, status=status.HTTP_400_BAD_REQUEST)
         _log_admin_action(request, AdminAction.ACTION_TEAM_REMOVED, 'member', m.pk, m.email, m.role)

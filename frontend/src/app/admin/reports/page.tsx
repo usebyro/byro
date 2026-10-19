@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useAdminMe } from "@/components/admin/AdminMe";
-import { useConfirm } from "@/components/admin/ui";
+import { useConfirm, SUSPEND_EVENT_BODY } from "@/components/admin/ui";
 import { publicHref } from "@/lib/adminNav";
 
 interface AdminReport {
@@ -113,7 +113,7 @@ export default function AdminReportsPage() {
     if (!r.event) return;
     const ok = await confirm({
       title: `Suspend “${r.event.name}”?`,
-      body: "It comes off Byro straight away, nobody can buy tickets, and the organiser is told by email.",
+      body: SUSPEND_EVENT_BODY,
       confirmLabel: "Suspend event",
       tone: "danger",
     });

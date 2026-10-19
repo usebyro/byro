@@ -97,7 +97,7 @@ class DesignTests(SimpleTestCase):
         self.assertEqual(m["subject"], "Tech Meetup is live")
         for text in ("Your event page is up and tickets are on sale.", "Share it now", "WhatsApp", "Post on X",
                      "https://wa.me/?text=", "twitter.com/intent/tweet", "General admission · Free", "View event page",
-                     "Manage event", "Sharing in the first hour helps early sales", "you published an event on byro."):
+                     "Manage event", "Sharing in the first hour helps early sales", "you published an event on Byro."):
             self.assertIn(text, m["html"])
 
     def test_cohost_email(self):
@@ -129,8 +129,8 @@ class DesignTests(SimpleTestCase):
 
     def test_payout_paid_email(self):
         m = e.payout_completed_email("Sam", 200, "GTBank", "0123456789", paid_on="6 Oct 2026", reference="PO-7")
-        self.assertEqual(m["subject"], "₦200 has been paid to your bank")
-        for text in ("PAID", "₦200", "is on its way to your bank", "GTBank ••••6789", "6 Oct 2026", "PO-7",
+        self.assertEqual(m["subject"], "₦200 has been sent to your bank")
+        for text in ("PAID", "₦200", "has been sent to your bank", "GTBank ••••6789", "6 Oct 2026", "PO-7",
                      "Depending on your bank", "reply with the reference above", "View payouts"):
             self.assertIn(text, m["html"])
 
@@ -238,7 +238,7 @@ class SuspensionAndResponsiveTests(SimpleTestCase):
         host = e.organizer_event_suspended_email("Sam", "Tech Meetup", DATE, TIME, "Cafe One, Yaba")
         self.assertEqual(host["subject"], "Your event Tech Meetup has been suspended")
         self.assertIn("doesn&#8217;t currently meet our", host["html"])
-        self.assertIn("don&#8217;t panic", host["html"])
+        self.assertIn("a pause, not a decision", host["html"])
         self.assertIn("reach out shortly", host["html"])
         self.assertIn("just reply to this email", host["text"])
         self.assertNotIn('class="btn"', host["html"])

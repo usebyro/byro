@@ -106,7 +106,7 @@ export default function AdminPaymentDetailPage({ params }: { params: Promise<{ i
       const res = await fetch(`/api/admin/payments/${id}/paystack`, { method: "POST" });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body?.error);
-      toast.success("Tickets issued", { description: `${body.issued} ticket(s) sent to ${data.customer_email}` });
+      toast.success("Tickets issued", { description: `${body.issued} ${body.issued === 1 ? "ticket" : "tickets"} sent to ${data.customer_email}` });
       setCheck(null);
       await load();
     } catch (err) {
