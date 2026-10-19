@@ -27,6 +27,8 @@ function refundLine(refund, email) {
   }
 }
 
+const DOOR_POLL_MS = 5000;
+
 function CancelledNotice({ ticket }) {
   return (
     <section role="status" className="rounded-3xl border border-[#F2C4C4] bg-[#FDECEC] p-6 text-[#8A1C1C]">
@@ -61,6 +63,7 @@ export default function TicketPage() {
   const [ticket, setTicket] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [justStamped, setJustStamped] = useState(false);
 
   useEffect(() => {
     if (!ticketId) return;
@@ -69,6 +72,30 @@ export default function TicketPage() {
       .catch(() => setError(true))
       .finally(() => setLoading(false));
   }, [ticketId]);
+
+  // On the event day, while the ticket is on screen and not yet scanned, check every few seconds
+  // so the stamp lands the moment the door checks this ticket in (board 29).
+  const waitingAtDoor =
+    ticket &&
+    !ticket.checked_in &&
+    !ticket.event_cancelled_at &&
+    ["paid", "free"].includes(ticket.payment_status) &&
+    ticket.event_date === new Date().toLocaleDateString("en-CA");
+  useEffect(() => {
+    if (!waitingAtDoor) return;
+    const t = setInterval(() => {
+      if (document.visibilityState !== "visible") return;
+      API.getTicket(ticketId)
+        .then((next) => {
+          if (next.checked_in) {
+            setJustStamped(true);
+            setTicket(next);
+          }
+        })
+        .catch(() => {});
+    }, DOOR_POLL_MS);
+    return () => clearInterval(t);
+  }, [waitingAtDoor, ticketId]);
 
   if (loading) {
     return (
@@ -109,7 +136,7 @@ export default function TicketPage() {
               <p className="mb-4 text-center text-xs font-extrabold tracking-[0.12em] text-[#2451D6]">
                 YOUR TICKET
               </p>
-              <TicketCard ticket={ticket} />
+              <TicketCard ticket={ticket} justStamped={justStamped} />
             </>
           )}
         </div>

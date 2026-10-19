@@ -538,7 +538,9 @@ class TicketSerializer(serializers.ModelSerializer):
     ticket_price = serializers.SerializerMethodField()
     event_cancelled_at = serializers.DateTimeField(source='event.cancelled_at', read_only=True)
     event_cancel_reason = serializers.CharField(source='event.cancel_reason', read_only=True)
+    event_category = serializers.CharField(source='event.category', read_only=True)
     refund = serializers.SerializerMethodField()
+    stamp_id = serializers.SerializerMethodField()
 
     class Meta:
         model = Ticket
@@ -551,7 +553,7 @@ class TicketSerializer(serializers.ModelSerializer):
             'is_transferred', 'payment_status',
             'checked_in', 'checked_in_at', 'qr_token',
             'created_at', 'transferable',
-            'form_answers',
+            'form_answers', 'event_category', 'stamp_id',
         ]
         read_only_fields = [
             'ticket_id', 'is_transferred', 'created_at',
@@ -560,6 +562,17 @@ class TicketSerializer(serializers.ModelSerializer):
             'event_location', 'event_image_url', 'tier_name', 'tier_price',
             'event_hosted_by', 'ticket_price',
         ]
+
+    def get_stamp_id(self, obj):
+        """The holder's stamp for this event once they're checked in: the same one their passport shows
+        (the first, if they held several tickets), so it looks the same in both places."""
+        if not obj.checked_in:
+            return None
+        from .models import Stamp
+        return (
+            Stamp.objects.filter(event_id=obj.event_id, email__iexact=obj.current_owner_email or '')
+            .order_by('created_at').values_list('pk', flat=True).first()
+        )
 
     def get_refund(self, obj):
         """What the buyer is getting back, once the event this ticket was for is cancelled."""

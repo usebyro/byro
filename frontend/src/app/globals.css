@@ -190,3 +190,20 @@ input[type=number] {
     transform: none;
   }
 }
+
+/* A stamp landing on a ticket after check-in: in from 1.4x, a touch past 1, settling. ~350ms. */
+@keyframes stamp-land {
+  from { opacity: 0; transform: scale(1.4) rotate(-10deg); }
+  40% { opacity: 1; }
+  to { opacity: 1; transform: none; }
+}
+@keyframes stamp-rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes stamp-fade { from { opacity: 0; } to { opacity: 1; } }
+.stamp-land { animation: stamp-land 350ms cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+.stamp-rise { animation: stamp-rise 280ms cubic-bezier(0.23, 1, 0.32, 1) 260ms both; }
+@media (prefers-reduced-motion: reduce) {
+  .stamp-land, .stamp-rise { animation: stamp-fade 150ms ease both; }
+}

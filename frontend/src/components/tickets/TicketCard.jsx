@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { toPng } from "html-to-image";
 import API from "@/services/api";
 import { formatNaira } from "@/lib/eventFormat";
+import Stamp from "@/components/brand/Stamp";
+import { stampLook } from "@/lib/stamps";
 
 const LABEL = "text-[11px] font-extrabold tracking-[0.1em] text-[#5B6272] uppercase";
 
@@ -41,7 +43,7 @@ function status(ticket) {
   return { text: "Payment not confirmed yet · refresh in a minute", tone: "bg-[#FFF4E5] text-[#9A5B00]", dot: "bg-[#E08A00]" };
 }
 
-export default function TicketCard({ ticket }) {
+export default function TicketCard({ ticket, justStamped = false }) {
   const cardRef = useRef(null);
   const [qrSrc, setQrSrc] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -84,6 +86,10 @@ export default function TicketCard({ ticket }) {
   };
 
   const st = status(ticket);
+  // Once checked in, the holder's stamp sits beside the QR (not over it, so a rescan still reads).
+  const look = ticket.checked_in && ticket.stamp_id
+    ? stampLook({ id: ticket.stamp_id, event_name: ticket.event_name, day: ticket.event_date, category: ticket.event_category, location: ticket.event_location })
+    : null;
   const directions = ticket.event_location
     ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(ticket.event_location)}`
     : null;
@@ -159,7 +165,8 @@ export default function TicketCard({ ticket }) {
           </div>
 
           <div className="flex flex-col items-center gap-3 px-[22px] pt-4 pb-6">
-            <div className="rounded-[18px] border border-[#E3E8F0] p-2.5">
+            <div className="flex flex-wrap items-center justify-center gap-3">
+            <div className="shrink-0 rounded-[18px] border border-[#E3E8F0] p-2.5">
               {qrSrc ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
@@ -171,12 +178,35 @@ export default function TicketCard({ ticket }) {
                 <div className="h-[180px] w-[180px] animate-pulse rounded-lg bg-[#F0F3F8] sm:h-[208px] sm:w-[208px]" />
               )}
             </div>
+            {look && (
+              <div role="img" aria-label={`Stamp: ${look.label}`} className={`shrink-0 ${justStamped ? "stamp-land" : ""}`}>
+                <Stamp name={look.name} city={look.city} date={look.date} ink={look.ink} shape={look.shape} tilt={look.tilt} size={96} filled />
+              </div>
+            )}
+            </div>
             <span className={`flex h-7 items-center gap-1.5 rounded-full px-3 text-[13px] font-extrabold ${st.tone}`}>
               <span className={`h-[7px] w-[7px] rounded-full ${st.dot}`} />
               {st.text}
             </span>
           </div>
         </article>
+      </div>
+
+      <div role="status">
+        {look && (
+          <div className={`mt-4 flex flex-col items-center gap-1 rounded-3xl bg-white p-5 text-center ${justStamped ? "stamp-rise" : ""}`}>
+            <p className="text-[22px] font-bold tracking-[-0.01em]" style={{ fontFamily: "var(--font-display), sans-serif" }}>
+              Stamp collected
+            </p>
+            <p className="text-[15px] text-[#3B4252]">{ticket.event_name} is in your passport.</p>
+            <a
+              href={`/home?tab=passport&stamp=${encodeURIComponent(ticket.event_slug || "")}`}
+              className="mt-3 flex h-11 items-center rounded-full bg-[#3669F6] px-[22px] text-[15px] font-bold text-white transition-colors hover:bg-[#2F5EE0]"
+            >
+              See your passport
+            </a>
+          </div>
+        )}
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-2.5">

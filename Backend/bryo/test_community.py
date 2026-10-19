@@ -145,6 +145,20 @@ class PassportTests(CommunityBase):
         self.assertIn('location', body['stamps'][0])
 
 
+class TicketStampTests(CommunityBase):
+
+    def test_the_ticket_carries_its_stamp_once_checked_in(self):
+        t = ticket(self.event, email='fan@example.com')
+        res = self.client.get(f'/api/tickets/{t.ticket_id}/')
+        self.assertIsNone(res.json()['stamp_id'])
+        self.client.force_authenticate(self.owner)
+        self.client.post(f'/api/events/{self.event.slug}/checkin/', {'qr_token': str(t.qr_token)}, format='json')
+        self.client.force_authenticate(None)
+        body = self.client.get(f'/api/tickets/{t.ticket_id}/').json()
+        self.assertEqual(body['stamp_id'], Stamp.objects.get().pk)
+        self.assertEqual(body['event_category'], self.event.category)
+
+
 class CommunityStatsTests(CommunityBase):
 
     def attend(self, event, email):
