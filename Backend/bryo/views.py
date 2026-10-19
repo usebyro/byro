@@ -519,7 +519,10 @@ def _check_and_notify_milestones(event):
         from .mailer import send_email
 
         total_sold = event.tickets.filter(payment_status__in=['paid', 'free']).count()
-        already_notified = set(event.milestones_notified or [])
+        # Read the saved list, not the passed-in object, which may predate an earlier check.
+        already_notified = set(
+            Event.objects.filter(pk=event.pk).values_list('milestones_notified', flat=True).first() or []
+        )
         newly_crossed = [
             m for m in _milestones_up_to(total_sold) if m not in already_notified
         ]
@@ -547,6 +550,12 @@ def _check_and_notify_milestones(event):
                     )
                 except Exception as e:
                     logger.error(f"Failed to send milestone email to {email}: {e}")
+
+        # The first sale already has its own notification; bigger numbers get one bell,
+        # for the highest crossed, so a burst of sales doesn't stack several.
+        from .notifications import milestone as notify_milestone
+        if max(newly_crossed) > 1:
+            notify_milestone(event, max(newly_crossed))
 
         Event.objects.filter(pk=event.pk).update(
             milestones_notified=sorted(already_notified.union(newly_crossed))
@@ -836,7 +845,7 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                 detail=f"{len(tickets)} ticket(s)",
             )
             if tickets:
-                ticket_sale(event, len(tickets))
+                ticket_sale(event, len(tickets), buyer=tickets[0].original_owner_name or '')
 
             if apps.posthog_client is not None:
                 apps.posthog_client.capture(
@@ -2660,7 +2669,7 @@ class EventViewSet(viewsets.ModelViewSet):
             except InsufficientCapacityError as e:
                 return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-            ticket_sale(event, 1)
+            ticket_sale(event, 1, buyer=ticket.original_owner_name or '')
 
             serializer = TicketSerializer(ticket, context={'request': request})
             ticket_url = request.build_absolute_uri(

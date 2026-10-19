@@ -20,6 +20,9 @@ const KINDS = {
   },
   payout_processed: { path: "M3 7h18v10H3zM12 12m-2 0a2 2 0 1 0 4 0a2 2 0 1 0-4 0", bg: "#E9F7EF", fg: "#1F7A52" },
   payout_rejected: { path: "M12 9v4M12 17h.01M10.3 3.9L2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z", bg: "#FFF4D6", fg: "#8A5A00" },
+  milestone: { path: "M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z", bg: "#FFF4CC", fg: "#6B4A08" },
+  event_reminder: { path: "M12 7v5l3 2M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z", bg: "#F3F6FB", fg: "#14161C" },
+  cohost_joined: { path: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21c1-4 4-6 8-6s7 2 8 6", bg: "#F3F6FB", fg: "#14161C" },
   event_status: { path: "M12 9v4M12 17h.01M10.3 3.9L2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z", bg: "#FFF4D6", fg: "#8A5A00" },
 };
 const FALLBACK = { path: "M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15zM10 20a2 2 0 0 0 4 0", bg: "#F3F6FB", fg: "#14161C" };

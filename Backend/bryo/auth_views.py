@@ -140,6 +140,8 @@ def claim_pending_cohost_invites(user):
                 invite.accepted_at = timezone.now()
                 invite.save(update_fields=['user', 'status', 'accepted_at'])
             claimed += 1
+            from .notifications import cohost_joined
+            cohost_joined(invite, user)
         except IntegrityError:
             invite.delete()
 

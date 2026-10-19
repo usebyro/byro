@@ -56,7 +56,7 @@ def _naira(amount):
         return str(amount)
 
 
-def ticket_sale(event, count, *, paid_amount=None, payment=None):
+def ticket_sale(event, count, *, paid_amount=None, payment=None, buyer=''):
     """Tell the organiser tickets were sold or claimed, and the admin team when money came in."""
     noun = 'ticket' if count == 1 else 'tickets'
     if paid_amount:
@@ -67,13 +67,56 @@ def ticket_sale(event, count, *, paid_amount=None, payment=None):
         )
     if not event.owner_id:
         return
-    if paid_amount:
+    buyer = (buyer or (getattr(payment, 'customer_name', '') if payment is not None else '') or '').strip()
+    # The bell shows the title in bold with the body after it: "Tunde Bello bought 2 tickets for …".
+    if buyer:
+        title = buyer
+        if paid_amount:
+            body = f"bought {count} {noun} for {event.name}, {_naira(paid_amount)}."
+        else:
+            body = f"claimed {count} free {noun} for {event.name}."
+    elif paid_amount:
         title = f"{count} {noun} sold"
         body = f"{event.name}, {_naira(paid_amount)}"
     else:
         title = f"{count} free {noun} claimed"
         body = event.name
     notify(event.owner, 'ticket_sale', title, body=body, link=f"/dashboard/events/{event.slug}")
+
+
+def milestone(event, sold):
+    """A sales milestone (10, 25, 50, then every 100), alongside the milestone email."""
+    if not event.owner_id:
+        return
+    notify(
+        event.owner, 'milestone', f"{sold:,} tickets sold.",
+        body=f"{event.name} just hit a new milestone.", link=f"/dashboard/events/{event.slug}",
+    )
+
+
+def cohost_joined(invite, user):
+    """Someone invited by email signed up and took their co-host place."""
+    event = invite.event
+    recipient = invite.added_by or event.owner
+    if recipient is None:
+        return
+    profile = getattr(user, 'profile', None)
+    name = (profile.display_name if profile else '') or user.get_full_name() or user.email
+    notify(
+        recipient, 'cohost_joined', name,
+        body=f"accepted your co-host invite for {event.name}.", link=f"/dashboard/events/{event.slug}",
+    )
+
+
+def event_reminder(user, event, days):
+    """A heads-up a few days before an event, sent once per person per event."""
+    link = f"/dashboard/events/{event.slug}"
+    if Notification.objects.filter(recipient=user, kind='event_reminder', link=link).exists():
+        return
+    notify(
+        user, 'event_reminder', f"{event.name} is in {days} days.",
+        body="Test your check-in scanner before the day.", link=link,
+    )
 
 
 def _payload(n):

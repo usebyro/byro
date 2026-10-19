@@ -127,3 +127,50 @@ class AdminSaleAndPublishTests(CommunityBase):
         # Editing the live event afterwards says nothing new.
         self.client.patch(f'/api/events/{self.event.slug}/', {'description': 'Updated'}, format='json')
         self.assertEqual(self.admin_kinds(), ['event_created'])
+
+
+class NewOrganiserNotificationTests(CommunityBase):
+    """The bell rows the design has: who bought, milestones, co-hosts joining, and a heads-up before the day."""
+
+    def test_a_sale_names_the_buyer(self):
+        from .notifications import ticket_sale
+        ticket_sale(self.event, 2, paid_amount='5000.00', buyer='Tunde Bello')
+        n = Notification.objects.get(recipient=self.owner, kind='ticket_sale')
+        self.assertEqual(n.title, 'Tunde Bello')
+        self.assertEqual(n.body, f'bought 2 tickets for {self.event.name}, ₦5,000.')
+
+    def test_a_sale_without_a_name_still_reads_well(self):
+        from .notifications import ticket_sale
+        ticket_sale(self.event, 1)
+        n = Notification.objects.get(recipient=self.owner, kind='ticket_sale')
+        self.assertEqual(n.title, '1 free ticket claimed')
+
+    def test_only_the_highest_milestone_crossed_rings_the_bell(self):
+        from .views import _check_and_notify_milestones
+        from .models import Ticket
+        for i in range(26):
+            Ticket.objects.create(
+                event=self.event, original_owner_name=f'G{i}', original_owner_email=f'g{i}@example.com',
+                current_owner_name=f'G{i}', current_owner_email=f'g{i}@example.com', payment_status='free',
+            )
+        _check_and_notify_milestones(self.event)
+        titles = list(Notification.objects.filter(recipient=self.owner, kind='milestone').values_list('title', flat=True))
+        self.assertEqual(titles, ['25 tickets sold.'])
+        _check_and_notify_milestones(self.event)  # nothing new crossed
+        self.assertEqual(Notification.objects.filter(recipient=self.owner, kind='milestone').count(), 1)
+
+    def test_the_organiser_hears_when_an_invited_cohost_joins(self):
+        from .notifications import cohost_joined
+        from .models import EventCoHost
+        helper = self.fan('helper@example.com')
+        invite = EventCoHost.objects.create(event=self.event, invited_email=helper.email, added_by=self.owner)
+        cohost_joined(invite, helper)
+        n = Notification.objects.get(recipient=self.owner, kind='cohost_joined')
+        self.assertIn(f'accepted your co-host invite for {self.event.name}', n.body)
+
+    def test_the_heads_up_is_sent_once(self):
+        from .notifications import event_reminder
+        event_reminder(self.owner, self.event, 3)
+        event_reminder(self.owner, self.event, 3)
+        n = Notification.objects.get(recipient=self.owner, kind='event_reminder')
+        self.assertEqual(n.title, f'{self.event.name} is in 3 days.')

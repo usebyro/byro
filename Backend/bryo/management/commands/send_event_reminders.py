@@ -23,6 +23,8 @@ from bryo.models import Event, EventCoHost
 
 logger = logging.getLogger(__name__)
 
+REMIND_TEAM_DAYS = 3
+
 
 class Command(BaseCommand):
     help = "Send 24h-before reminder emails to attendees and organisers for events happening tomorrow."
@@ -127,6 +129,20 @@ class Command(BaseCommand):
             if not dry_run:
                 event.reminder_sent_at = timezone.now()
                 event.save(update_fields=['reminder_sent_at'])
+
+        # In-app heads-up for the team three days out (once each; see notifications.event_reminder).
+        from bryo.notifications import event_reminder
+        soon = (timezone.now() + timedelta(days=REMIND_TEAM_DAYS)).date()
+        upcoming = Event.objects.filter(day=soon, is_active=True, is_draft=False, cancelled_at__isnull=True)
+        for event in upcoming:
+            team = [event.owner] if event.owner_id else []
+            team += [
+                c.user for c in event.cohosts.filter(status=EventCoHost.STATUS_ACCEPTED).select_related('user') if c.user
+            ]
+            if not dry_run:
+                for user in team:
+                    event_reminder(user, event, REMIND_TEAM_DAYS)
+            self.stdout.write(f"{'[dry-run] ' if dry_run else ''}{event.name}: {len(team)} heads-up notification(s)")
 
         self.stdout.write(self.style.SUCCESS(
             f"{'Would process' if dry_run else 'Processed'} {total_events} event(s), "
