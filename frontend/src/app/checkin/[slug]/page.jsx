@@ -21,6 +21,25 @@ const TONES = {
   ok: { bg: "#16A34A", title: "Checked in" },
   again: { bg: "#D97706", title: "Already checked in" },
   bad: { bg: "#DC2626", title: "Do not let in" },
+  unsure: { bg: "#475467", title: "Can't confirm offline" },
+};
+
+// The door keeps working without signal: the guest list is saved on the phone, scans
+// are checked against it, and check-ins wait here until the connection is back.
+const SYNC_EVERY_MS = 15000;
+const queueKey = (slug) => `byro.checkin.queue.${slug}`;
+const guestsKey = (slug) => `byro.checkin.guests.${slug}`;
+const readSaved = (key) => {
+  try {
+    return JSON.parse(localStorage.getItem(key) || "null");
+  } catch {
+    return null;
+  }
+};
+const save = (key, value) => {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {}
 };
 
 function beep(ok) {
@@ -59,6 +78,10 @@ function CheckInScreen() {
   const [cameraError, setCameraError] = useState("");
   const [torchOn, setTorchOn] = useState(false);
   const [torchAvailable, setTorchAvailable] = useState(false);
+  const [cameraStarting, setCameraStarting] = useState(false);
+  const [online, setOnline] = useState(true);
+  const [queue, setQueue] = useState([]); // [{ value, name, at }] check-ins made offline, not yet sent
+  const [syncProblems, setSyncProblems] = useState([]); // offline check-ins the server later refused
 
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -79,11 +102,47 @@ function CheckInScreen() {
   const loadGuests = useCallback(() => {
     API.getEventAttendees(slug)
       .then((res) => {
-        setGuests(res.attendees || []);
-        setCounts((c) => ({ checked_in: res.checked_in_count ?? c.checked_in, total: (res.attendees || []).length }));
+        // Check-ins still waiting to sync stay checked in, so the same ticket can't get in twice.
+        const pending = new Set((readSaved(queueKey(slug)) || []).map((q) => q.value));
+        const list = (res.attendees || []).map((g) => (pending.has(g.qr_token) ? { ...g, checked_in: true } : g));
+        setGuests(list);
+        setCounts((c) => ({ checked_in: res.checked_in_count ?? c.checked_in, total: list.length }));
+        save(guestsKey(slug), list);
       })
-      .catch(() => {});
+      .catch(() => {
+        // Offline on arrival: fall back to the list saved last time this phone was online.
+        const saved = readSaved(guestsKey(slug));
+        if (Array.isArray(saved)) {
+          setGuests(saved);
+          setCounts({ checked_in: saved.filter((g) => g.checked_in).length, total: saved.length });
+        }
+      });
   }, [slug]);
+
+  // Connection state and the saved queue (read after mount so the first render matches the server).
+  useEffect(() => {
+    setOnline(navigator.onLine);
+    const saved = readSaved(queueKey(slug));
+    if (Array.isArray(saved)) setQueue(saved);
+    const up = () => setOnline(true);
+    const down = () => setOnline(false);
+    window.addEventListener("online", up);
+    window.addEventListener("offline", down);
+    return () => {
+      window.removeEventListener("online", up);
+      window.removeEventListener("offline", down);
+    };
+  }, [slug]);
+
+  const updateQueue = useCallback(
+    (fn) =>
+      setQueue((q) => {
+        const next = fn(q);
+        save(queueKey(slug), next);
+        return next;
+      }),
+    [slug],
+  );
 
   useEffect(() => {
     if (!token || !slug) return;
@@ -107,9 +166,48 @@ function CheckInScreen() {
     }, RESULT_MS);
   }, []);
 
+  // Read through a ref so a changing guest list doesn't rebuild the scanner and restart the camera.
+  const guestsRef = useRef(guests);
+  useEffect(() => {
+    guestsRef.current = guests;
+  }, [guests]);
+
+  // Check a ticket against the saved guest list and queue it for later.
+  const checkInOffline = useCallback(
+    (value) => {
+      const byEmail = value.includes("@");
+      const guest = guestsRef.current.find((g) =>
+        byEmail ? (g.current_owner_email || "").toLowerCase() === value.toLowerCase() : g.qr_token === value,
+      );
+      if (!guest) {
+        showResult({
+          kind: "unsure",
+          name: "Not on the saved list",
+          detail: "You're offline, so tickets bought in the last few minutes may be missing. Check their confirmation email.",
+        });
+        return;
+      }
+      if (guest.checked_in) {
+        showResult({ kind: "again", name: guest.current_owner_name, tier: guest.tier_name, detail: "Checked in earlier" });
+        return;
+      }
+      const at = new Date().toISOString();
+      updateQueue((q) => [...q, { value: guest.qr_token || value, name: guest.current_owner_name, at }]);
+      setGuests((g) => g.map((x) => (x.ticket_id === guest.ticket_id ? { ...x, checked_in: true } : x)));
+      setCounts((c) => ({ ...c, checked_in: c.checked_in + 1 }));
+      setRecent((r) => [{ name: guest.current_owner_name, at, tier: guest.tier_name }, ...r].slice(0, 6));
+      showResult({ kind: "ok", name: guest.current_owner_name, tier: guest.tier_name, detail: "Saved on this phone. It syncs when you're back online." });
+    },
+    [showResult, updateQueue],
+  );
+
   const checkIn = useCallback(
     async (value) => {
       busyRef.current = true;
+      if (!navigator.onLine) {
+        checkInOffline(value);
+        return;
+      }
       try {
         const res = await API.checkInAttendee(slug, value);
         const who = res.attendee || {};
@@ -122,11 +220,57 @@ function CheckInScreen() {
           setGuests((g) => g.map((x) => (x.ticket_id === who.ticket_id ? { ...x, checked_in: true } : x)));
         }
       } catch (err) {
-        showResult({ kind: "bad", name: "Not valid", detail: err?.message || "This ticket can't be used." });
+        if (err?.offline) {
+          // No answer from Byro is a signal problem, not a bad ticket.
+          setOnline(false);
+          checkInOffline(value);
+        } else {
+          showResult({ kind: "bad", name: "Not valid", detail: err?.message || "This ticket can't be used." });
+        }
       }
     },
-    [slug, showResult],
+    [slug, showResult, checkInOffline],
   );
+
+  // Send offline check-ins once the connection is back, oldest first.
+  const syncing = useRef(false);
+  const syncQueue = useCallback(async () => {
+    if (syncing.current || !queue.length) return;
+    syncing.current = true;
+    try {
+      for (const item of queue) {
+        try {
+          const res = await API.checkInAttendee(slug, item.value);
+          if (res.counts) setCounts(res.counts);
+        } catch (err) {
+          if (err?.offline) {
+            setOnline(false);
+            break;
+          }
+          setSyncProblems((p) => [...p, { name: item.name, reason: err?.message || "Byro didn't accept this ticket." }]);
+        }
+        updateQueue((q) => q.filter((x) => !(x.at === item.at && x.value === item.value)));
+        setOnline(true);
+      }
+    } finally {
+      syncing.current = false;
+    }
+  }, [queue, slug, updateQueue]);
+
+  useEffect(() => {
+    if (!queue.length) return;
+    if (online) syncQueue();
+    // navigator.onLine can be wrong on venue wifi, so keep trying either way.
+    const t = setInterval(syncQueue, SYNC_EVERY_MS);
+    return () => clearInterval(t);
+  }, [online, queue.length, syncQueue]);
+
+  // Keep the saved guest list fresh while online, so offline checks know about late buyers.
+  useEffect(() => {
+    if (!token || !slug || !online) return;
+    const t = setInterval(loadGuests, 60000);
+    return () => clearInterval(t);
+  }, [token, slug, online, loadGuests]);
 
   // ---- camera ----
   const stopCamera = useCallback(() => {
@@ -163,6 +307,7 @@ function CheckInScreen() {
       return;
     }
     setCameraError("");
+    setCameraStarting(true);
     navigator.mediaDevices
       ?.getUserMedia({ video: { facingMode: "environment" } })
       .then((stream) => {
@@ -171,11 +316,16 @@ function CheckInScreen() {
         setTorchAvailable(Boolean(track?.getCapabilities?.().torch));
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
-          videoRef.current.play().catch(() => {});
+          videoRef.current.play().catch(() => {}).finally(() => setCameraStarting(false));
+        } else {
+          setCameraStarting(false);
         }
         frameRef.current = requestAnimationFrame(tick);
       })
-      .catch(() => setCameraError("Couldn't open the camera. Allow camera access, or use the Guests tab to check people in by name."));
+      .catch(() => {
+        setCameraStarting(false);
+        setCameraError("Couldn't open the camera. Allow camera access, or use the Guests tab to check people in by name.");
+      });
     return stopCamera;
   }, [allowed, cancelled, mode, tick, stopCamera]);
 
@@ -218,6 +368,36 @@ function CheckInScreen() {
         </div>
       </header>
 
+      {(!online || queue.length > 0 || syncProblems.length > 0) && event && allowed && !cancelled && (
+        <div role="status" className="mx-4 mt-3 flex flex-col gap-1 rounded-xl bg-[#FFF6D6] px-4 py-3 text-[#6B4A08]">
+          {!online ? (
+            <>
+              <p className="text-sm font-extrabold">Offline. Keep scanning.</p>
+              <p className="text-[13px]">
+                {queue.length
+                  ? `${queue.length} ${queue.length === 1 ? "check-in" : "check-ins"} saved on this phone. They sync when you're back online.`
+                  : "Tickets are checked against the guest list saved on this phone."}
+              </p>
+            </>
+          ) : queue.length > 0 ? (
+            <p className="text-sm font-extrabold">
+              Syncing {queue.length} {queue.length === 1 ? "check-in" : "check-ins"} saved offline…
+            </p>
+          ) : null}
+          {syncProblems.length > 0 && (
+            <p className="text-[13px]">
+              <b>
+                {syncProblems.length === 1 ? "1 offline check-in wasn't accepted" : `${syncProblems.length} offline check-ins weren't accepted`}:
+              </b>{" "}
+              {syncProblems.map((p) => `${p.name} (${p.reason})`).join("; ")}
+              <button type="button" onClick={() => setSyncProblems([])} className="ml-2 font-bold underline">
+                Dismiss
+              </button>
+            </p>
+          )}
+        </div>
+      )}
+
       {loadError ? (
         <p className="p-6 text-center text-white/80">Couldn&apos;t load this event. Check your connection and refresh.</p>
       ) : !event ? (
@@ -252,6 +432,15 @@ function CheckInScreen() {
                 <canvas ref={canvasRef} className="hidden" />
                 {!cameraError && (
                   <div className="absolute inset-[14%] rounded-3xl border-2 border-white/70 pointer-events-none" aria-hidden="true" />
+                )}
+                {cameraStarting && !cameraError && (
+                  <div role="status" className="absolute inset-x-4 top-4 flex items-center gap-3 rounded-xl bg-[#14161C] px-4 py-3.5">
+                    <svg className="animate-spin motion-reduce:animate-none" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <circle cx="12" cy="12" r="9" stroke="#FFFFFF" strokeOpacity="0.25" strokeWidth="3" />
+                      <path d="M21 12a9 9 0 0 0-9-9" stroke="#FFFFFF" strokeWidth="3" strokeLinecap="round" />
+                    </svg>
+                    <span className="text-sm font-bold">Starting camera</span>
+                  </div>
                 )}
                 {cameraError && (
                   <div className="absolute inset-0 flex items-center justify-center bg-black/90 px-6">

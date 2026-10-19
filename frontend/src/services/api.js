@@ -20,9 +20,10 @@ const handleApiError = (error) => {
       firstFieldMessage ||
       "Something didn't work on our side. Try again in a minute.";
 
-    throw new Error(message);
+    throw Object.assign(new Error(message), { status: error.response.status });
   } else if (error.request) {
-    throw new Error("We couldn't reach Byro. Check your connection and try again.");
+    // No answer at all: callers can tell a dropped connection from a real refusal.
+    throw Object.assign(new Error("We couldn't reach Byro. Check your connection and try again."), { offline: true });
   } else {
     throw new Error("Something didn't work on our side. Try again in a minute.");
   }
