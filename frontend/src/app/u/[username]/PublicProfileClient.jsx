@@ -262,7 +262,7 @@ export default function PublicProfileClient({ username }) {
                 <>
                   {dot}
                   <Link
-                    href="/profile"
+                    href="/home?tab=passport"
                     className="flex items-center gap-2 text-[15px] font-bold text-brand-dark transition-[scale] active:scale-[0.97] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
                   >
                     <svg width="26" height="26" viewBox="0 0 100 100" aria-hidden="true" style={{ transform: "rotate(-10deg)" }}>

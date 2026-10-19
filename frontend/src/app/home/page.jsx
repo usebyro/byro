@@ -7,6 +7,7 @@ import EventImageFallback from "@/components/ui/EventImageFallback";
 import AppLayout from "@/layout/app";
 import API from "@/services/api";
 import SectionError from "@/components/dashboard/v2/SectionError";
+import Passport from "@/components/passport/Passport";
 import "@/app/dashboard/dashboard-v2.css";
 import Delayed from "@/components/dashboard/v2/Delayed";
 
@@ -110,7 +111,7 @@ function ticketsLabel(n) {
 }
 
 // Role line, its ink and the two links for a row.
-function rowDetails(item, isPast) {
+function rowDetails(item, isPast, onSeeStamp) {
   const { event, role, ticketId, ticketCount, checkedIn } = item;
   const eventPage = `/discover/${event.slug}`;
   if (role === "hosting") {
@@ -123,10 +124,10 @@ function rowDetails(item, isPast) {
   }
   if (isPast) {
     return {
-      role: checkedIn ? "Checked in" : `Had ${ticketCount === 1 ? "a ticket" : ticketsLabel(ticketCount)}`,
+      role: checkedIn ? "Checked in · stamp collected" : `Had ${ticketCount === 1 ? "a ticket" : ticketsLabel(ticketCount)}`,
       ink: checkedIn ? "text-[#1F7A52]" : "text-muted",
-      cta: { label: "Event page", href: eventPage },
-      cta2: ticketId ? { label: "Ticket", href: `/ticket/${ticketId}` } : null,
+      cta: checkedIn ? { label: "See stamp", onClick: () => onSeeStamp(event.slug) } : { label: "Event page", href: eventPage },
+      cta2: checkedIn ? { label: "Event page", href: eventPage } : ticketId ? { label: "Ticket", href: `/ticket/${ticketId}` } : null,
     };
   }
   return {
@@ -137,9 +138,9 @@ function rowDetails(item, isPast) {
   };
 }
 
-function EventRow({ item, isPast, index }) {
+function EventRow({ item, isPast, index, onSeeStamp }) {
   const { event } = item;
-  const { role, ink, cta, cta2 } = rowDetails(item, isPast);
+  const { role, ink, cta, cta2 } = rowDetails(item, isPast, onSeeStamp);
 
   return (
     <article className="v-row v-al flex flex-wrap items-center gap-[14px] rounded-[14px] p-2.5" style={{ "--i": index }}>
@@ -151,7 +152,11 @@ function EventRow({ item, isPast, index }) {
       </div>
       <div className="flex items-center gap-1.5">
         {cta2 && <Link href={cta2.href} className="v-btn v-btn-t v-btn-sm">{cta2.label}</Link>}
-        <Link href={cta.href} className="v-btn v-btn-s v-btn-sm">{cta.label}</Link>
+        {cta.onClick ? (
+          <button type="button" onClick={cta.onClick} className="v-btn v-btn-s v-btn-sm">{cta.label}</button>
+        ) : (
+          <Link href={cta.href} className="v-btn v-btn-s v-btn-sm">{cta.label}</Link>
+        )}
       </div>
     </article>
   );
@@ -289,6 +294,31 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("upcoming");
   const [failed, setFailed] = useState(false);
+  const [stamps, setStamps] = useState(null);
+  const [stampsFailed, setStampsFailed] = useState(false);
+  const [openStamp, setOpenStamp] = useState(null);
+
+  const loadStamps = () => {
+    setStampsFailed(false);
+    API.getMyStamps()
+      .then((d) => setStamps(d.stamps || []))
+      .catch(() => setStampsFailed(true));
+  };
+
+  // ?tab=passport&stamp=<event slug> opens the passport (and that stamp) from emails and the ticket page.
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    /* eslint-disable react-hooks/set-state-in-effect */
+    if (q.get("tab") === "passport") setActiveTab("passport");
+    if (q.get("stamp")) setOpenStamp(q.get("stamp"));
+    /* eslint-enable react-hooks/set-state-in-effect */
+    loadStamps();
+  }, []);
+
+  const seeStamp = (slug) => {
+    setActiveTab("passport");
+    setOpenStamp(slug);
+  };
 
   const load = () => {
     setLoading(true);
@@ -318,6 +348,7 @@ export default function HomePage() {
   // Next up: the soonest event you hold a ticket for. The rest of the upcoming list sits under "Later".
   const nextUp = upcomingItems.find((i) => i.role === "attending" && i.ticketId) || null;
   const isUpcoming = activeTab === "upcoming";
+  const isPassport = activeTab === "passport";
   const rows = isUpcoming ? upcomingItems.filter((i) => i !== nextUp) : pastItems;
   const showNext = isUpcoming && !!nextUp;
   const isEmpty = isUpcoming ? upcomingItems.length === 0 : pastItems.length === 0;
@@ -326,6 +357,7 @@ export default function HomePage() {
   const tabs = [
     { id: "upcoming", label: "Upcoming", count: upcomingItems.length },
     { id: "past", label: "Past", count: pastItems.length },
+    { id: "passport", label: "Passport", count: stamps ? stamps.length : "" },
   ];
 
   return (
@@ -353,7 +385,16 @@ export default function HomePage() {
             </div>
           </div>
 
-          {loading ? (
+          {isPassport ? (
+            <Passport
+              stamps={stamps || []}
+              loading={stamps === null && !stampsFailed}
+              failed={stampsFailed}
+              onRetry={loadStamps}
+              openSlug={openStamp}
+              onOpenSlug={setOpenStamp}
+            />
+          ) : loading ? (
             <Delayed onRetry={load}>
               <SkeletonList />
             </Delayed>
@@ -374,7 +415,7 @@ export default function HomePage() {
                   </h2>
                   <div className="v-card flex flex-col p-1.5">
                     {rows.map((item, i) => (
-                      <EventRow key={`${item.event?.slug}-${i}`} item={item} isPast={!isUpcoming} index={i} />
+                      <EventRow key={`${item.event?.slug}-${i}`} item={item} isPast={!isUpcoming} index={i} onSeeStamp={seeStamp} />
                     ))}
                   </div>
                 </section>
@@ -383,7 +424,7 @@ export default function HomePage() {
           )}
         </div>
 
-        {!loading && pinTicket && <PinnedTicket item={nextUp} />}
+        {!loading && pinTicket && !isPassport && <PinnedTicket item={nextUp} />}
       </div>
     </AppLayout>
   );

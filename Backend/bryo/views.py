@@ -37,7 +37,7 @@ from .activity import log_activity
 from .notifications import notify, notify_admins, ticket_sale
 from .community import (
     community_stats, event_host_name, follow_organizer, notify_followers_in_background, record_stamp,
-    stamps_for_user, unfollow_from_token,
+    stamps_for_user, passport_for_user, unfollow_from_token,
 )
 from .pricing import calculate_ticket_fees, DEFAULT_FEE_RATE, FEE_RATE, MAX_FEE_RATE, PAYSTACK_FEE_CAP, default_fee_rate, fee_rate_for
 from .refunds import (
@@ -1380,8 +1380,9 @@ class ProfileViewSet(viewsets.GenericViewSet):
         merch = MerchItem.objects.filter(owner=profile.user, is_active=True, removed_by_admin=False).prefetch_related('photos')
         data['merch_items'] = MerchItemSerializer(merch, many=True, context={'request': request}).data
         data['community'] = community_stats(profile.user)
-        data['stamps'] = _stamp_payload(stamps_for_user(profile.user)[:60])
-        data['stamps_count'] = stamps_for_user(profile.user).count()
+        passport = passport_for_user(profile.user)
+        data['stamps'] = _stamp_payload(passport[:60])
+        data['stamps_count'] = len(passport)
         # Which of this organiser's events the person looking was checked in to ("You were there").
         data['viewer_attended'] = (
             list(
@@ -1434,6 +1435,7 @@ def _stamp_payload(stamps):
             'event_slug': e.slug,
             'day': e.day,
             'category': e.category,
+            'location': e.location or '',
             'organizer_name': (oprofile.display_name if oprofile else '') or event_host_name(e),
             'organizer_handle': oprofile.handle if oprofile else None,
             'earned_at': st.created_at,
@@ -1446,8 +1448,8 @@ class MyStampsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        stamps = stamps_for_user(request.user)
-        return Response({'count': stamps.count(), 'stamps': _stamp_payload(stamps[:200])})
+        passport = passport_for_user(request.user)
+        return Response({'count': len(passport), 'stamps': _stamp_payload(passport[:200])})
 
 
 class CommunityDashboardView(APIView):

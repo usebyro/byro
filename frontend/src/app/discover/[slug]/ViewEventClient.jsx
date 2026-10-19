@@ -16,6 +16,7 @@ import EventPublishedModal from "@/components/events/EventPublishedModal";
 import EventImage from "@/components/brand/EventImage";
 import Stamp from "@/components/brand/Stamp";
 import Delayed from "@/components/dashboard/v2/Delayed";
+import { stampCity as stampCityOf, stampDate as stampDateOf, stampInk, stampShortName } from "@/lib/stamps";
 import { StackTile } from "@/components/brand/EventTile";
 import { categoryTone, dayParts, formatNaira, formatTime, isPast } from "@/lib/eventFormat";
 import { trackViewEvent, trackShareEvent, trackSaveEvent, trackBeginCheckout } from "@/lib/analytics";
@@ -300,8 +301,8 @@ export default function ViewEventClient({ slug, initialEvent = null }) {
   const mapsUrl = event.location
     ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.location)}`
     : null;
-  const stampCity = (event.location || "").split(",").pop().trim().toUpperCase().slice(0, 12) || "BYRO";
-  const stampDate = parts.dd ? `${parts.dd}.${(event.day || "").slice(5, 7)}.${(event.day || "").slice(2, 4)}` : "";
+  const stampCity = stampCityOf(event.location);
+  const stampDate = stampDateOf(event.day);
   const orgInitial = (event.owner_name || event.owner_handle || "B")[0].toUpperCase();
 
   const tiers = realTiers.length > 0
@@ -498,7 +499,7 @@ export default function ViewEventClient({ slug, initialEvent = null }) {
               <ReportButton target="event" slug={event.slug} name={event.name} className="-mt-2 self-start" />
 
               <div className="flex flex-col items-start gap-5 rounded-[28px] bg-butter p-6 md:flex-row md:items-center md:gap-7 md:px-8 md:py-7">
-                <Stamp name={event.name.length > 18 ? event.name.slice(0, 16) + "…" : event.name} city={stampCity} date={stampDate} ink="blue" size={120} tilt={-8} filled className="shrink-0" />
+                <Stamp name={stampShortName(event.name)} city={stampCity} date={stampDate} ink={stampInk(event.category)} size={120} tilt={-8} filled className="shrink-0" />
                 <div className="flex flex-col gap-1.5">
                   <span className="font-display text-2xl font-bold tracking-[-0.01em]">Collect this stamp</span>
                   <span className="max-w-[460px] text-base leading-[1.55] text-muted">

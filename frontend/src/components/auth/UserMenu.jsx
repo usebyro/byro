@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Avatar from "@/components/ui/Avatar";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { UserIcon, Logout01Icon, ArrowDataTransferHorizontalIcon } from "@hugeicons/core-free-icons";
+import { UserIcon, Logout01Icon, ArrowDataTransferHorizontalIcon, Passport01Icon } from "@hugeicons/core-free-icons";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -59,6 +59,14 @@ export default function UserMenu({
             Profile
           </Link>
         </DropdownMenuItem>
+        {!inDashboard && (
+          <DropdownMenuItem asChild>
+            <Link href="/home?tab=passport">
+              <HugeiconsIcon icon={Passport01Icon} size={15} color="currentColor" />
+              Passport
+            </Link>
+          </DropdownMenuItem>
+        )}
         {!inDashboard && (
           <DropdownMenuItem asChild>
             <Link href="/dashboard/overview">

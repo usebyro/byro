@@ -186,7 +186,19 @@ def record_stamp(ticket):
 
 def stamps_for_user(user):
     """Stamps earned by this account, matched by account or by the email on the ticket."""
-    return Stamp.objects.filter(Q(user=user) | Q(email__iexact=user.email)).select_related('event', 'organizer')
+    return Stamp.objects.filter(Q(user=user) | Q(email__iexact=user.email)).select_related('event', 'organizer__profile')
+
+
+def passport_for_user(user):
+    """What a passport shows: one stamp per event (the first earned), newest event first.
+
+    Someone holding several tickets to one event (bought for friends on their own email)
+    has a stamp per ticket; the passport and its count treat that as one visit.
+    """
+    first = {}
+    for st in stamps_for_user(user).order_by('created_at'):
+        first.setdefault(st.event_id, st)
+    return sorted(first.values(), key=lambda st: (st.event.day, st.created_at), reverse=True)
 
 
 # -- community numbers ------------------------------------------------------

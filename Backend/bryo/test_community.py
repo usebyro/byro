@@ -130,6 +130,21 @@ class StampTests(CommunityBase):
         self.assertEqual(body['stamps'][0]['organizer_handle'], 'lagosrun')
 
 
+class PassportTests(CommunityBase):
+
+    def test_several_tickets_to_one_event_are_one_stamp(self):
+        fan = self.fan('fan@example.com')
+        for _ in range(3):  # bought for friends, all on the buyer's email
+            record_stamp(ticket(self.event, email='fan@example.com'))
+        other = make_event(self.owner, name='Second night')
+        record_stamp(ticket(other, email='fan@example.com'))
+        self.client.force_authenticate(fan)
+        body = self.client.get('/api/stamps/').json()
+        self.assertEqual(body['count'], 2)
+        self.assertEqual(len({s['event_slug'] for s in body['stamps']}), 2)
+        self.assertIn('location', body['stamps'][0])
+
+
 class CommunityStatsTests(CommunityBase):
 
     def attend(self, event, email):
