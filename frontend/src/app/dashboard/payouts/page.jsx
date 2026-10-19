@@ -247,7 +247,7 @@ export default function StudioPayouts() {
         account_name: bankDetails.accountName,
       });
       toast.success("Withdrawal requested", {
-        description: `${fmt(amount)} should reach ${bankDetails.bankName} within 24 hours.`,
+        description: `We process withdrawals on weekdays. ${fmt(amount)} should reach ${bankDetails.bankName} within 24 hours of that.`,
       });
       setWithdrawAmount("");
       setConfirming(false);
@@ -419,7 +419,7 @@ export default function StudioPayouts() {
                 {canWithdraw ? `Withdraw ${fmt(availableAmount)}` : "Withdraw"}
               </button>
               <span className="v-hint">
-                {canWithdraw || availableAmount === null ? "Sent to your bank within 24 hours" : "Nothing to withdraw yet"}
+                {canWithdraw || availableAmount === null ? "Processed on weekdays, usually within 24 hours" : "Nothing to withdraw yet"}
               </span>
             </div>
           )}
@@ -475,7 +475,7 @@ export default function StudioPayouts() {
                   <span className="v-dot v-ping bg-brand" />
                   Processing
                 </span>
-                <span className="v-hint">Usually within 24 hours</span>
+                <span className="v-hint">Weekdays, usually within 24 hours</span>
               </li>
               <li className="flex min-w-0 flex-col gap-2">
                 <span className="h-1 rounded-full bg-[#DCE6FD]" />
@@ -493,7 +493,7 @@ export default function StudioPayouts() {
             ) : (
               <span className="v-fig">{fmt(pendingTotal)}</span>
             )}
-            <span className="v-hint">Sent within 24 hours</span>
+            <span className="v-hint">Processed on weekdays</span>
           </div>
           <div className="v-card v-bf flex grow flex-col gap-2 px-[22px] py-5" style={{ "--i": 3 }}>
             <span className="v-eyebrow">Paid out</span>

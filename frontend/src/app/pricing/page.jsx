@@ -161,7 +161,7 @@ export default function PricingPage() {
   const faqs = [
     {
       q: "When do I get paid?",
-      a: "Withdraw from your dashboard any time. It reaches your bank within 24 hours.",
+      a: "Withdraw from your dashboard any time. We process withdrawals on weekdays, usually within 24 hours.",
     },
     {
       q: "Are free events really free?",

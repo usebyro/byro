@@ -122,7 +122,7 @@ class DesignTests(SimpleTestCase):
                                      requested_at="5 Oct 2026, 2:10 PM", reference="PO-7")
         self.assertEqual(m["subject"], "We got your payout request for ₦200")
         for text in ("We&#8217;re reviewing it now.", "AMOUNT", "₦200", "GTBank ••••6789",
-                     "5 Oct 2026, 2:10 PM", "PO-7", "Requested", "Approved", "Usually within 24 hours", "Paid to your bank",
+                     "5 Oct 2026, 2:10 PM", "PO-7", "Requested", "Approved", "On a weekday, usually within 24 hours", "Paid to your bank",
                      "View payouts", "Didn&#8217;t request it? Reply right away."):
             self.assertIn(text, m["html"])
         self.assertNotIn("Tech Meetup", m["html"])  # the design has no event row

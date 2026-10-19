@@ -43,7 +43,7 @@ const TOPICS = [
     icon: UserIcon,
     color: "bg-purple-50 text-purple-600",
     title: "Account",
-    desc: "Signing in, your email",
+    desc: "Signing in",
   },
   {
     key: "organisers",
@@ -91,11 +91,6 @@ const FAQS = [
     a: "Enter your email and we'll send you a code, or continue with Google. There's no password to remember.",
   },
   {
-    topic: "account",
-    q: "How do I change the email on my account?",
-    a: "Write to support@usebyro.com from your current email address and tell us the new one. We'll move your account and tickets over.",
-  },
-  {
     topic: "organisers",
     q: "What does it cost to host on Byro?",
     a: "Free events cost nothing. On paid tickets Byro takes a small service fee per sale, and you choose for each event whether guests pay it at checkout or you cover it. See Pricing for the exact rate and a calculator.",
@@ -103,7 +98,7 @@ const FAQS = [
   {
     topic: "organisers",
     q: "How do I get paid?",
-    a: "Add your bank account in Payouts, then withdraw your available balance whenever you like. Withdrawals usually reach your bank within 24 hours. If one is rejected, the money goes back into your balance.",
+    a: "Add your bank account in Payouts, then withdraw your available balance whenever you like. We process withdrawals on weekdays, usually within 24 hours, so one requested on a Saturday is sent on Monday. If one is rejected, the money goes back into your balance.",
   },
   {
     topic: "organisers",
