@@ -108,29 +108,41 @@ function StampSheet({ stamp, onClose }) {
   const look = stampLook(stamp);
   const closeRef = useRef(null);
   const place = (stamp.location || "").split(",").pop().trim();
-  const [share, setShare] = useState("idle"); // idle | busy | copied | failed
+  const [share, setShare] = useState("idle"); // idle | busy | copied | failed | manual
+  const [link, setLink] = useState("");
+  const [shareError, setShareError] = useState("");
 
-  // Phones open the share menu; elsewhere the link is copied.
+  // Phones open the share menu; elsewhere the link is copied. If the browser refuses both
+  // (it can, once the request has taken a moment), the link is shown to copy by hand.
   const shareStamp = async () => {
     setShare("busy");
+    setShareError("");
+    let url;
     try {
-      const { url } = await API.shareStamp(stamp.id);
-      if (navigator.share) {
-        try {
-          await navigator.share({ title: `I was at ${stamp.event_name}`, url });
+      ({ url } = await API.shareStamp(stamp.id));
+    } catch (err) {
+      setShareError(err?.message || "");
+      setShare("failed");
+      return;
+    }
+    setLink(url);
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: `I was at ${stamp.event_name}`, url });
+        setShare("idle");
+        return;
+      } catch (e) {
+        if (e?.name === "AbortError") {
           setShare("idle");
           return;
-        } catch (e) {
-          if (e?.name === "AbortError") {
-            setShare("idle");
-            return;
-          }
         }
       }
+    }
+    try {
       await navigator.clipboard.writeText(url);
       setShare("copied");
     } catch {
-      setShare("failed");
+      setShare("manual");
     }
   };
 
@@ -196,9 +208,20 @@ function StampSheet({ stamp, onClose }) {
           {share === "copied"
             ? "Link copied. Anyone with it can see this stamp and your first name."
             : share === "failed"
-              ? "Couldn't make the link. Check your connection and try again."
-              : "Sharing shows this stamp and your first name to anyone with the link."}
+              ? shareError || "Couldn't make the link. Try again."
+              : share === "manual"
+                ? "Your browser wouldn't copy it. Copy the link below. Anyone with it can see this stamp and your first name."
+                : "Sharing shows this stamp and your first name to anyone with the link."}
         </p>
+        {share === "manual" && link && (
+          <input
+            readOnly
+            value={link}
+            aria-label="Stamp link"
+            onFocus={(e) => e.target.select()}
+            className="w-full rounded-xl border border-hairline bg-mist px-3 py-2.5 text-sm text-ink"
+          />
+        )}
       </div>
     </div>
   );

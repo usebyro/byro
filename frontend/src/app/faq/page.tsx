@@ -98,7 +98,7 @@ const FAQS = [
   {
     topic: "organisers",
     q: "How do I get paid?",
-    a: "Add your bank account in Payouts, then withdraw your available balance whenever you like. We process withdrawals on weekdays, usually within 24 hours, so one requested on a Saturday is sent on Monday. If one is rejected, the money goes back into your balance.",
+    a: "Add your bank account in Payouts, then withdraw your available balance whenever you like. Payouts are processed on the next business day, which means Monday to Friday, excluding public holidays. A withdrawal requested on Monday is paid on Tuesday, and one requested on Friday, over the weekend or on a public holiday is paid on the next available business day. If one is rejected, the money goes back into your balance.",
   },
   {
     topic: "organisers",

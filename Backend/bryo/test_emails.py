@@ -119,18 +119,18 @@ class DesignTests(SimpleTestCase):
 
     def test_payout_requested_email(self):
         m = e.payout_requested_email("Sam", 200, "GTBank", "0123456789", event_name="Tech Meetup",
-                                     requested_at="5 Oct 2026, 2:10 PM", reference="PO-7")
+                                     requested_at="5 Oct 2026, 2:10 PM", reference="BYR-PO-000007")
         self.assertEqual(m["subject"], "We got your payout request for ₦200")
         for text in ("We&#8217;re reviewing it now.", "AMOUNT", "₦200", "GTBank ••••6789",
-                     "5 Oct 2026, 2:10 PM", "PO-7", "Requested", "Approved", "On a weekday, usually within 24 hours", "Paid to your bank",
+                     "5 Oct 2026, 2:10 PM", "BYR-PO-000007", "Requested", "Approved", "On the next business day", "Paid to your bank",
                      "View payouts", "Didn&#8217;t request it? Reply right away."):
             self.assertIn(text, m["html"])
         self.assertNotIn("Tech Meetup", m["html"])  # the design has no event row
 
     def test_payout_paid_email(self):
-        m = e.payout_completed_email("Sam", 200, "GTBank", "0123456789", paid_on="6 Oct 2026", reference="PO-7")
+        m = e.payout_completed_email("Sam", 200, "GTBank", "0123456789", paid_on="6 Oct 2026", reference="BYR-PO-000007")
         self.assertEqual(m["subject"], "₦200 has been sent to your bank")
-        for text in ("PAID", "₦200", "has been sent to your bank", "GTBank ••••6789", "6 Oct 2026", "PO-7",
+        for text in ("PAID", "₦200", "has been sent to your bank", "GTBank ••••6789", "6 Oct 2026", "BYR-PO-000007",
                      "Depending on your bank", "reply with the reference above", "View payouts"):
             self.assertIn(text, m["html"])
 

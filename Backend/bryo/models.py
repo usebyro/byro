@@ -971,6 +971,11 @@ class PayoutRequest(models.Model):
     class Meta:
         ordering = ['-requested_at']
 
+    @property
+    def reference(self):
+        """Shown to organisers and in emails, e.g. BYR-PO-000007. Derived from the id, so no stored field."""
+        return f"BYR-PO-{self.pk:06d}"
+
     def __str__(self):
         return f"PayoutRequest #{self.pk} — {self.user.email} — {self.status}"
 

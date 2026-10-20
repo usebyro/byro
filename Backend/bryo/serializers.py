@@ -727,11 +727,12 @@ class PaymentVerifySerializer(serializers.Serializer):
 class PayoutRequestSerializer(serializers.ModelSerializer):
     user_email = serializers.EmailField(source='user.email', read_only=True)
     event_name = serializers.CharField(source='event.name', read_only=True, default=None)
+    reference = serializers.CharField(read_only=True)
 
     class Meta:
         model = PayoutRequest
         fields = [
-            'id', 'user_email', 'event', 'event_name', 'amount', 'currency',
+            'id', 'reference', 'user_email', 'event', 'event_name', 'amount', 'currency',
             'method', 'bank_name', 'account_number', 'account_name',
             'wallet_address', 'wallet_type', 'status', 'requested_at', 'processed_at',
         ]

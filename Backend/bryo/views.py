@@ -3619,7 +3619,7 @@ class PayoutRequestView(APIView):
                 account_number=payout.account_number,
                 event_name=payout.event.name if payout.event else None,
                 requested_at=timezone.localtime(payout.requested_at).strftime('%-d %b %Y, %-I:%M %p'),
-                reference=f"PO-{payout.pk}",
+                reference=payout.reference,
                 payouts_url=f"{(settings.FRONTEND_URL or 'https://usebyro.com').rstrip('/')}/dashboard/payouts",
             )
             send_email(
@@ -3850,7 +3850,7 @@ class AdminPayoutView(APIView):
                     account_number=payout.account_number,
                     event_name=payout.event.name if payout.event else None,
                     paid_on=timezone.localtime(payout.processed_at).strftime('%-d %b %Y') if payout.processed_at else None,
-                    reference=f"PO-{payout.pk}",
+                    reference=payout.reference,
                     payouts_url=f"{(settings.FRONTEND_URL or 'https://usebyro.com').rstrip('/')}/dashboard/payouts",
                 )
                 send_email(

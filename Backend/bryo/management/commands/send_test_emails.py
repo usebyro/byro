@@ -33,9 +33,9 @@ def samples():
             "Tech Meetup", "Sam", f"{SITE}/discover/tech-meetup", is_new_user=True,
             invitee_email="friend@example.com", date=when[0], time=when[1], location=where)),
         ("payout-requested", emails.payout_requested_email(
-            "Sam", 200, "GTBank", "0123456789", requested_at="5 Oct 2026, 2:10 PM", reference="PO-1")),
+            "Sam", 200, "GTBank", "0123456789", requested_at="5 Oct 2026, 2:10 PM", reference="BYR-PO-000001")),
         ("payout-paid", emails.payout_completed_email(
-            "Sam", 200, "GTBank", "0123456789", paid_on="6 Oct 2026", reference="PO-1")),
+            "Sam", 200, "GTBank", "0123456789", paid_on="6 Oct 2026", reference="BYR-PO-000001")),
         ("follower-new-event", emails.follower_new_event_email(
             "Tunde", "GDGoC UNILAG", "Tech Meetup", *when, where, f"{SITE}/discover/tech-meetup",
             tickets_label="General admission · Free", unfollow_url=f"{SITE}/unfollow/demo",

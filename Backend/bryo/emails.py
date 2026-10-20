@@ -710,7 +710,7 @@ def payout_requested_email(name, amount, bank_name, account_number, event_name=N
     )
     body_html = (
         _lead("We&#8217;re reviewing it now.") + amount_block + _rows(rows)
-        + _timeline([("Requested", "Just now", True), ("Approved", "On a weekday, usually within 24 hours", False),
+        + _timeline([("Requested", "Just now", True), ("Approved", "On the next business day", False),
                      ("Paid to your bank", "We&#8217;ll email you when it lands", False)])
         + '<div style="height:14px;"></div>'
         + _btn_row(_btn(url, "View payouts", primary=False))
@@ -725,7 +725,7 @@ def payout_requested_email(name, amount, bank_name, account_number, event_name=N
     text = (
         f"We got your payout request\n\nWe're reviewing it now.\n\nAmount: {shown}\n"
         + "".join(f"{label}: {value}\n" for label, value in [("To", f'{bank_name} ••••{(account_number or "")[-4:]}'), ("Requested", requested_at), ("Reference", reference)] if value)
-        + "\nRequested: just now\nApproved: on a weekday, usually within 24 hours\nPaid to your bank: we'll email you when it lands\n\n"
+        + "\nRequested: just now\nApproved: on the next business day\nPaid to your bank: we'll email you when it lands\n\n"
         f"View payouts: {url}\n\nIf you didn't request this, reply right away.\n\nByro Team\nsupport@usebyro.com"
     )
     return {"subject": f"We got your payout request for {shown}", "html": html, "text": text}

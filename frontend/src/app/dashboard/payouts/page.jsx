@@ -256,7 +256,7 @@ export default function StudioPayouts() {
         account_name: bankDetails.accountName,
       });
       toast.success("Withdrawal requested", {
-        description: `We process withdrawals on weekdays. ${fmt(amount)} should reach ${bankDetails.bankName} within 24 hours of that.`,
+        description: `We process payouts on the next business day. ${fmt(amount)} will be sent to ${bankDetails.bankName} then.`,
       });
       setWithdrawAmount("");
       setConfirming(false);
@@ -436,9 +436,9 @@ export default function StudioPayouts() {
               >
                 {canWithdraw ? `Withdraw ${fmt(availableAmount)}` : "Withdraw"}
               </button>
-              <span className="v-hint">
-                {canWithdraw || availableAmount === null ? "Processed on weekdays, usually within 24 hours" : "Nothing to withdraw yet"}
-              </span>
+              {(canWithdraw || availableAmount === null) && (
+                <span className="v-hint">Processed on the next business day</span>
+              )}
             </div>
           )}
 
@@ -493,7 +493,7 @@ export default function StudioPayouts() {
                   <span className="v-dot v-ping bg-brand" />
                   Processing
                 </span>
-                <span className="v-hint">Weekdays, usually within 24 hours</span>
+                <span className="v-hint">Next business day</span>
               </li>
               <li className="flex min-w-0 flex-col gap-2">
                 <span className="h-1 rounded-full bg-[#DCE6FD]" />
@@ -511,7 +511,6 @@ export default function StudioPayouts() {
             ) : (
               <span className="v-fig">{fmt(pendingTotal)}</span>
             )}
-            <span className="v-hint">Processed on weekdays</span>
           </div>
           <div className="v-card v-bf flex grow flex-col gap-2 px-[22px] py-5" style={{ "--i": 3 }}>
             <span className="v-eyebrow">Paid out</span>
@@ -561,13 +560,14 @@ export default function StudioPayouts() {
           <p className="v-hint m-0 border-t border-hairline px-[22px] py-8 text-center">Nothing here for this filter</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="v-stack w-full min-w-[620px] border-collapse">
+            <table className="v-stack w-full min-w-[680px] border-collapse">
               <thead>
                 <tr className="border-y border-hairline">
-                  <th scope="col" className="v-th px-[22px] py-3 text-left">Requested</th>
+                  <th scope="col" className="v-th px-[22px] py-3 text-left">Type</th>
                   <th scope="col" className="v-th p-3 text-left">Amount</th>
-                  <th scope="col" className="v-th p-3 text-left">To</th>
-                  <th scope="col" className="v-th py-3 pl-3 pr-[22px] text-left">Status</th>
+                  <th scope="col" className="v-th p-3 text-left">Status</th>
+                  <th scope="col" className="v-th p-3 text-left">Reference ID</th>
+                  <th scope="col" className="v-th py-3 pl-3 pr-[22px] text-left">Date</th>
                 </tr>
               </thead>
               <tbody>
@@ -575,16 +575,13 @@ export default function StudioPayouts() {
                   const s = STATUS[p.status] || STATUS_FALLBACK;
                   return (
                     <tr key={p.id} className="v-row v-al border-b border-hairline" style={{ "--i": Math.min(i, 12) }}>
-                      <td className="px-[22px] py-3.5 text-[14px] font-bold">{fmtDate(p.requested_at)}</td>
+                      <td className="px-[22px] py-3.5 text-[14px] font-bold">{p.method === "bank" ? "Bank transfer" : "Wallet"}</td>
                       <td data-l="Amount" className="px-3 py-3.5">
                         <span className="v-tab text-[15px] font-extrabold" style={{ color: s.amt }}>
                           {fmt(p.amount)}
                         </span>
                       </td>
-                      <td data-l="To" className="px-3 py-3.5 text-[14px] text-muted">
-                        {p.method === "bank" ? `${p.bank_name} ${maskAccount(p.account_number)}` : "Wallet"}
-                      </td>
-                      <td data-l="Status" className="py-3.5 pl-3 pr-[22px]">
+                      <td data-l="Status" className="px-3 py-3.5">
                         <span className="v-status" style={{ color: s.ink }}>
                           <span className="v-dot" style={{ background: s.dot }} />
                           {s.label || p.status}
@@ -593,6 +590,8 @@ export default function StudioPayouts() {
                           <span className="v-hint mt-1 block text-xs">Back in your balance. Check your bank details or contact support.</span>
                         )}
                       </td>
+                      <td data-l="Reference ID" className="v-tab px-3 py-3.5 text-[14px] text-muted">{p.reference}</td>
+                      <td data-l="Date" className="py-3.5 pl-3 pr-[22px] text-[14px]">{fmtDate(p.requested_at)}</td>
                     </tr>
                   );
                 })}
