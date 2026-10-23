@@ -3996,7 +3996,8 @@ class AdminAnalyticsSummaryView(APIView):
 
 class AdminEventDetailView(APIView):
     """
-    PATCH  /api/admin/events/<pk>/  — { is_active: bool } and/or { visibility: 'public' | 'private' }
+    PATCH  /api/admin/events/<pk>/  — any of { is_active, visibility: 'public' | 'private', sales_closed,
+                                      is_draft: true, name, location, description, remove_image: true, note }
     DELETE /api/admin/events/<pk>/
 
     Not the owner-facing EventViewSet: no ownership check, gated only by the
@@ -4042,6 +4043,32 @@ class AdminEventDetailView(APIView):
                 event.save(update_fields=fields)
                 _log_admin_action(
                     request, AdminAction.ACTION_EVENT_VISIBILITY, 'event', event.pk, event.name, visibility,
+                )
+
+        # Fixing what's shown publicly (a typo, an inappropriate photo) without suspending the event.
+        edits, changed = {}, []
+        for field, limit in (('name', 100), ('location', 255), ('description', None)):
+            if field in request.data:
+                value = str(request.data.get(field) or '').strip()
+                if not value:
+                    return Response({'error': f"The {field} can't be empty."}, status=status.HTTP_400_BAD_REQUEST)
+                if limit and len(value) > limit:
+                    return Response({'error': f"The {field} can be at most {limit} characters."}, status=status.HTTP_400_BAD_REQUEST)
+                if value != getattr(event, field):
+                    edits[field] = value
+                    changed.append(field)
+        if request.data.get('remove_image') is True and event.event_image:
+            edits['event_image'] = None
+            changed.append('image')
+        if edits:
+            for field, value in edits.items():
+                setattr(event, field, value)
+            event.save(update_fields=list(edits))
+            _log_admin_action(request, AdminAction.ACTION_EVENT_EDITED, 'event', event.pk, event.name, ', '.join(changed))
+            if event.owner_id:
+                notify(
+                    event.owner, 'event_edited_by_byro', f"Byro edited the {', '.join(changed)} of {event.name}",
+                    body=(request.data.get('note') or '').strip()[:255], link=f"/dashboard/events/{event.slug}",
                 )
 
         sales_closed = request.data.get('sales_closed')

@@ -1,4 +1,7 @@
 """Admin actions on events: visibility, and the other moderation tools added with it."""
+import tempfile
+
+from django.test import override_settings
 from django.utils import timezone
 
 from .models import AdminAction, CustomUser as User
@@ -167,3 +170,42 @@ class SalesTests(AdminBase):
 
     def test_viewers_cannot_close_sales(self):
         self.assertEqual(self.patch(self.viewer, sales_closed=True).status_code, 403)
+
+
+class EditDetailsTests(AdminBase):
+
+    def patch(self, user, **body):
+        self.as_(user)
+        return self.client.patch(f'/api/admin/events/{self.event.pk}/', body, format='json')
+
+    def test_admin_fixes_a_typo_and_the_organiser_is_told_what_changed(self):
+        from .models import Notification
+        old_slug = self.event.slug
+        r = self.patch(self.boss, name='Lagos Run Club 5k', location='Lekki Phase 1', note='Fixed a typo')
+        self.assertEqual((r.status_code, r.json()['name']), (200, 'Lagos Run Club 5k'))
+        self.event.refresh_from_db()
+        self.assertEqual((self.event.name, self.event.location, self.event.slug), ('Lagos Run Club 5k', 'Lekki Phase 1', old_slug))
+        log = AdminAction.objects.get(action=AdminAction.ACTION_EVENT_EDITED)
+        self.assertEqual(log.detail, 'name, location')
+        n = Notification.objects.get(recipient=self.owner, kind='event_edited_by_byro')
+        self.assertEqual(n.body, 'Fixed a typo')
+
+    def test_nothing_logged_when_nothing_changed(self):
+        self.patch(self.boss, name=self.event.name)
+        self.assertFalse(AdminAction.objects.filter(action=AdminAction.ACTION_EVENT_EDITED).exists())
+
+    def test_empty_or_too_long_values_are_refused(self):
+        self.assertEqual(self.patch(self.boss, name='  ').status_code, 400)
+        self.assertEqual(self.patch(self.boss, name='x' * 101).status_code, 400)
+
+    @override_settings(MEDIA_ROOT=tempfile.mkdtemp())
+    def test_image_can_be_removed(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        self.event.event_image.save('x.png', SimpleUploadedFile('x.png', b'\x89PNG\r\n'), save=True)
+        self.patch(self.boss, remove_image=True)
+        self.event.refresh_from_db()
+        self.assertFalse(self.event.event_image)
+        self.assertIn('image', AdminAction.objects.get(action=AdminAction.ACTION_EVENT_EDITED).detail)
+
+    def test_viewers_cannot_edit(self):
+        self.assertEqual(self.patch(self.viewer, name='Hacked').status_code, 403)

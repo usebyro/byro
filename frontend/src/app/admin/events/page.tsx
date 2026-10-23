@@ -33,6 +33,8 @@ interface Event {
   is_featured?: boolean;
   cancelled_at?: string | null;
   sales_closed?: boolean;
+  description?: string;
+  event_image_url?: string | null;
 }
 
 interface TierRow {
@@ -88,6 +90,84 @@ function formatDateTime(dateStr?: string) {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+/** Fix what the public sees (a typo, an unsuitable photo) without suspending the event. */
+function EditDetails({ event, onSaved }: { event: Event; onSaved: (updated: Event) => void }) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState(event.name);
+  const [location, setLocation] = useState(event.location);
+  const [description, setDescription] = useState(event.description ?? "");
+  const [removeImage, setRemoveImage] = useState(false);
+  const [note, setNote] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const save = async () => {
+    setSaving(true);
+    setError("");
+    try {
+      const body: Record<string, unknown> = { name, location, description, note };
+      if (removeImage) body.remove_image = true;
+      const res = await fetch(`/api/admin/events/${event.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      await throwIfFailed(res);
+      onSaved(await res.json());
+      setRemoveImage(false);
+      setNote("");
+      setOpen(false);
+      toast.success("Event details updated", { description: "The organiser has been told." });
+    } catch (err) {
+      setError(err instanceof Error && err.message ? err.message : "Try again.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const field = "w-full rounded-lg border border-line bg-white px-3 py-2 text-sm text-ink";
+  if (!open) {
+    return (
+      <button type="button" onClick={() => setOpen(true)} className="text-xs font-semibold text-brand-dark bg-brand/10 hover:bg-brand/20 px-3 py-2 rounded-lg transition-colors">
+        Edit details
+      </button>
+    );
+  }
+  return (
+    <div className="space-y-3">
+      <h4 className="text-ink text-sm font-semibold">Edit details</h4>
+      <p className="text-faint text-xs leading-relaxed">For typos and unsuitable content. The organiser is told what you changed.</p>
+      <label className="block text-xs text-muted">Name
+        <input className={`${field} mt-1`} value={name} maxLength={100} onChange={(e) => setName(e.target.value)} />
+      </label>
+      <label className="block text-xs text-muted">Location
+        <input className={`${field} mt-1`} value={location} maxLength={255} onChange={(e) => setLocation(e.target.value)} />
+      </label>
+      <label className="block text-xs text-muted">Description
+        <textarea className={`${field} mt-1`} rows={5} value={description} onChange={(e) => setDescription(e.target.value)} />
+      </label>
+      {event.event_image_url && (
+        <label className="flex items-center gap-2 text-xs text-ink">
+          <input type="checkbox" checked={removeImage} onChange={(e) => setRemoveImage(e.target.checked)} />
+          Remove the event image
+        </label>
+      )}
+      <label className="block text-xs text-muted">Note for the organiser (optional)
+        <input className={`${field} mt-1`} value={note} maxLength={255} onChange={(e) => setNote(e.target.value)} />
+      </label>
+      {error && <p className="text-danger text-xs">{error}</p>}
+      <div className="flex gap-2">
+        <button type="button" onClick={save} disabled={saving} className="text-xs font-semibold text-white bg-brand hover:bg-brand-dark disabled:opacity-50 px-3 py-2 rounded-lg">
+          {saving ? "Saving…" : "Save changes"}
+        </button>
+        <button type="button" onClick={() => setOpen(false)} disabled={saving} className="text-xs font-semibold text-muted bg-mist hover:text-ink px-3 py-2 rounded-lg">
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
 }
 
 function getEventStatus(event: Event): "active" | "inactive" | "ended" {
@@ -693,6 +773,17 @@ export default function AdminEventsPage() {
             >
               View public event page
             </a>
+
+            {can.moderate && !selected.cancelled_at && (
+              <EditDetails
+                key={selected.id}
+                event={selected}
+                onSaved={(updated) => {
+                  setEvents((prev) => prev.map((e) => (e.id === selected.id ? { ...e, ...updated } : e)));
+                  setSelected((prev) => (prev && prev.id === selected.id ? { ...prev, ...updated } : prev));
+                }}
+              />
+            )}
 
             {(can.moderate || can.delete) && <div>
               <h4 className="text-ink text-sm font-semibold mb-2">Moderation</h4>

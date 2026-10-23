@@ -20,6 +20,7 @@ const ACTION_LABEL: Record<string, string> = {
   "event.suspended": "Suspended event",
   "event.visibility_changed": "Changed event visibility",
   "event.cancelled": "Cancelled event",
+  "event.edited": "Edited event details",
   "event.sales_closed": "Closed ticket sales",
   "event.sales_reopened": "Reopened ticket sales",
   "event.moved_to_draft": "Moved event to draft",
