@@ -23,6 +23,9 @@ export function PosterTile({
   return (
     <Link
       href={`/discover/${event.slug}`}
+      // The homepage shows live events for visitors, not as pages to rank: nofollow keeps Google from
+      // treating them as the homepage's own sections (sitelinks under the Byro result).
+      rel="nofollow"
       className={`group relative block overflow-hidden focus:outline-none focus-visible:ring-4 focus-visible:ring-brand/40 ${
         featured ? "rounded-[30px]" : "rounded-[26px]"
       } ${className}`}

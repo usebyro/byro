@@ -57,7 +57,7 @@ export default function TrendingEvents({ events }: { events: EventLike[] }) {
               <PosterTile key={e.slug} event={e} className={`hidden ${tileSpan(events.length, i)} md:block`} />
             ))}
             {small.map((e) => (
-              <Link key={`row-${e.slug}`} href={`/discover/${e.slug}`} className="flex items-center gap-3.5 md:hidden">
+              <Link key={`row-${e.slug}`} href={`/discover/${e.slug}`} rel="nofollow" className="flex items-center gap-3.5 md:hidden">
                 <span className="relative h-[88px] w-[88px] shrink-0 overflow-hidden rounded-[18px]">
                   <EventImage event={e} sizes="88px" />
                 </span>

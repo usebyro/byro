@@ -1,0 +1,20 @@
+# Byro
+
+> Byro is an events platform for Nigeria and Africa. People find events near them, get tickets in seconds, and collect a stamp in their passport every time they show up. Organisers create events, sell tickets and check guests in.
+
+Site: https://www.usebyro.com
+
+## For people going out
+- [Discover events](https://www.usebyro.com/discover): concerts, sports, nightlife, conferences and community events, searchable by city and category.
+- [Communities](https://www.usebyro.com/communities): organisers and groups on Byro, with their upcoming events.
+- [Refund policy](https://www.usebyro.com/refund-policy): when ticket buyers are refunded, and how long it takes.
+
+## For organisers
+- [Pricing](https://www.usebyro.com/pricing): what Byro charges and how payouts work.
+- [FAQ](https://www.usebyro.com/faq): hosting events, selling tickets, check-in, payouts and cancelling.
+
+## About and legal
+- [Blog](https://www.usebyro.com/blog)
+- [Terms](https://www.usebyro.com/terms)
+- [Privacy](https://www.usebyro.com/privacy)
+- Support: support@usebyro.com
