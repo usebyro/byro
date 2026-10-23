@@ -75,9 +75,9 @@ export default function CookieBanner() {
     <section
       role="dialog"
       aria-label="Cookie preferences"
-      className="fixed z-50 left-4 right-4 bottom-4 md:left-8 md:right-auto md:bottom-8 md:w-[440px] rounded-[22px] border border-line bg-white shadow-[0_20px_50px_rgba(20,22,28,0.14)] px-5 py-[18px] flex flex-col gap-3.5 text-ink font-body"
+      className="fixed z-50 left-3 right-3 bottom-3 md:left-8 md:right-auto md:bottom-8 md:w-[440px] rounded-[18px] md:rounded-[22px] border border-line bg-white shadow-[0_20px_50px_rgba(20,22,28,0.14)] px-4 py-3 md:px-5 md:py-[18px] flex flex-col gap-2.5 md:gap-3.5 text-ink font-body"
     >
-      <p className="text-sm leading-[1.55] text-[#3B4252]">
+      <p className="text-[13px] md:text-sm leading-[1.5] md:leading-[1.55] text-[#3B4252]">
         <b className="text-ink">We use cookies</b> to keep you signed in and to see what&apos;s working on Byro.{" "}
         <Link href="/cookies" className="font-bold text-brand hover:text-brand-dark no-underline">
           Cookie policy

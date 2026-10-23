@@ -7,6 +7,7 @@ import { Providers } from "@/redux/Providers";
 import AppToaster from '@/components/ui/AppToaster';
 import { displayFont, bodyFont } from "@/components/brand/fonts";
 import CookieBanner from "@/components/CookieBanner";
+import DeferredScripts from "@/components/DeferredScripts";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -112,10 +113,6 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <Script
-        src="https://www.googletagmanager.com/gtag/js?id=G-PKLCDNL7QC"
-        strategy="afterInteractive"
-      />
       <Script id="gtag-init" strategy="afterInteractive">{`
         window.dataLayer = window.dataLayer || [];
         function gtag(){dataLayer.push(arguments);}
@@ -168,17 +165,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <main className="flex-1">{children}</main>
           </div>
         </Providers>
-        <Script id="tawk-to" strategy="afterInteractive">{`
-          var Tawk_API=Tawk_API||{}, Tawk_LoadStart=new Date();
-          (function(){
-            var s1=document.createElement("script"),s0=document.getElementsByTagName("script")[0];
-            s1.async=true;
-            s1.src='https://embed.tawk.to/6a36e24716fcef1d436fc177/1jrj67qeb';
-            s1.charset='UTF-8';
-            s1.setAttribute('crossorigin','*');
-            s0.parentNode.insertBefore(s1,s0);
-          })();
-        `}</Script>
+        <DeferredScripts />
         <CookieBanner />
       </body>
     </html>
