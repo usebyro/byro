@@ -1219,6 +1219,8 @@ class AdminAction(models.Model):
     ACTION_TEAM_REMOVED = 'team.removed'
     ACTION_MESSAGE_CANCELLED = 'message.cancelled'
     ACTION_TICKET_RESENT = 'ticket.resent'
+    ACTION_TICKET_VOIDED = 'ticket.voided'
+    ACTION_TICKET_EMAIL_CHANGED = 'ticket.email_changed'
     ACTION_TICKET_CHECKED_IN = 'ticket.checked_in'
     ACTION_TICKET_CHECKIN_UNDONE = 'ticket.checkin_undone'
     ACTION_ORDER_REFUNDED = 'order.refunded'
@@ -1267,6 +1269,8 @@ class AdminAction(models.Model):
         (ACTION_TEAM_REMOVED, 'Team member removed'),
         (ACTION_MESSAGE_CANCELLED, 'Scheduled message cancelled'),
         (ACTION_TICKET_RESENT, 'Ticket email resent'),
+        (ACTION_TICKET_VOIDED, 'Ticket voided by support'),
+        (ACTION_TICKET_EMAIL_CHANGED, 'Ticket email changed by support'),
         (ACTION_TICKET_CHECKED_IN, 'Ticket checked in by support'),
         (ACTION_TICKET_CHECKIN_UNDONE, 'Check-in undone by support'),
         (ACTION_ORDER_REFUNDED, 'Order refunded by support'),

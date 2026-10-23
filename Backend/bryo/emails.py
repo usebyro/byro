@@ -767,6 +767,29 @@ def payout_completed_email(name, amount, bank_name, account_number, event_name=N
     return {"subject": f"{shown} has been sent to your bank", "html": html, "text": text}
 
 
+def ticket_voided_email(name, event_name, reason=""):
+    """To the holder of a free ticket Byro support voided."""
+    body_html = (
+        _lead(f"Hi {_h(name or 'there')}, your ticket for {_h(event_name)} has been cancelled.")
+        + (_rows([("Reason", _h(reason))]) if reason else "")
+        + _small("The ticket no longer works at the door. If you think this is a mistake, reply to this email.")
+    )
+    html = _shell(
+        _badge("Ticket", BRAND, BRAND_BG),
+        "Your ticket was cancelled",
+        body_html,
+        "Questions? Reply to this email or write to support@usebyro.com.",
+        preheader=f"Your ticket for {event_name} was cancelled.",
+    )
+    text = (
+        f"Hi {name or 'there'},\n\nYour ticket for {event_name} has been cancelled."
+        + (f"\nReason: {reason}" if reason else "")
+        + "\n\nThe ticket no longer works at the door. If you think this is a mistake, reply to this email.\n\n"
+        "Byro Team\nsupport@usebyro.com"
+    )
+    return {"subject": f"Your ticket for {event_name} was cancelled", "html": html, "text": text}
+
+
 def order_refunded_email(name, event_name, refund_amount, reason=""):
     """To a buyer whose order Byro support refunded. The event itself is still on."""
     amount = _money(refund_amount)

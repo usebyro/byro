@@ -1,5 +1,6 @@
 """Admin actions on events: visibility, and the other moderation tools added with it."""
 import tempfile
+from unittest.mock import patch
 
 from django.test import override_settings
 from django.utils import timezone
@@ -209,3 +210,59 @@ class EditDetailsTests(AdminBase):
 
     def test_viewers_cannot_edit(self):
         self.assertEqual(self.patch(self.viewer, name='Hacked').status_code, 403)
+
+
+class TicketFixTests(AdminBase):
+
+    def setUp(self):
+        super().setUp()
+        from .models import Ticket
+        self.ticket = Ticket.objects.create(
+            event=self.event, original_owner_name='Ada', original_owner_email='ada@exmaple.com',
+            current_owner_name='Ada', current_owner_email='ada@exmaple.com', payment_status='free',
+        )
+        p = patch('bryo.views.send_ticket_confirmation_email')
+        self.sent = p.start()
+        self.addCleanup(p.stop)
+        p = patch('bryo.mailer.send_email')
+        self.mail_out = p.start()
+        self.addCleanup(p.stop)
+
+    def post(self, user, what, **body):
+        self.as_(user)
+        return self.client.post(f'/api/admin/support/tickets/{self.ticket.ticket_id}/{what}/', body, format='json')
+
+    def test_void_a_free_ticket_tells_the_holder(self):
+        r = self.post(self.boss, 'void', reason='Duplicate sign-up')
+        self.assertEqual((r.status_code, r.json()['status']), (200, 'cancelled'))
+        self.assertTrue(AdminAction.objects.filter(action=AdminAction.ACTION_TICKET_VOIDED).exists())
+        self.assertEqual(self.mail_out.call_args.kwargs['to'], 'ada@exmaple.com')
+
+    def test_void_needs_a_reason_and_refuses_paid_and_checked_in_tickets(self):
+        self.assertEqual(self.post(self.boss, 'void').status_code, 400)
+        self.ticket.checked_in = True
+        self.ticket.save()
+        self.assertEqual(self.post(self.boss, 'void', reason='Fake').status_code, 400)
+        self.ticket.checked_in, self.ticket.payment_status = False, 'paid'
+        self.ticket.save()
+        self.assertEqual(self.post(self.boss, 'void', reason='Fake').status_code, 400)
+
+    def test_fixing_a_mistyped_email_moves_the_ticket_and_sends_it_there(self):
+        r = self.post(self.boss, 'email', email='Ada@Example.com')
+        self.assertEqual((r.status_code, r.json()['holder_email']), (200, 'ada@example.com'))
+        self.ticket.refresh_from_db()
+        self.assertEqual((self.ticket.current_owner_email, self.ticket.original_owner_email), ('ada@example.com', 'ada@example.com'))
+        self.assertEqual(self.sent.call_args.args[2], 'ada@example.com')
+        self.assertTrue(AdminAction.objects.filter(action=AdminAction.ACTION_TICKET_EMAIL_CHANGED).exists())
+
+    def test_email_change_moves_the_stamp_too_and_refuses_bad_addresses(self):
+        from .models import Stamp
+        Stamp.objects.create(ticket=self.ticket, event=self.event, email='ada@exmaple.com')
+        self.post(self.boss, 'email', email='ada@example.com')
+        self.assertEqual(Stamp.objects.get(ticket=self.ticket).email, 'ada@example.com')
+        self.assertEqual(self.post(self.boss, 'email', email='not-an-email').status_code, 400)
+        self.assertEqual(self.post(self.boss, 'email', email='ada@example.com').status_code, 400)
+
+    def test_viewers_cannot_use_either(self):
+        self.assertEqual(self.post(self.viewer, 'void', reason='x y z').status_code, 403)
+        self.assertEqual(self.post(self.viewer, 'email', email='a@b.co').status_code, 403)

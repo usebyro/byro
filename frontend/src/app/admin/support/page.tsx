@@ -162,6 +162,43 @@ function SupportPage() {
       }
     });
 
+  const changeEmail = async (t: SupportTicket) => {
+    const email = await confirm({
+      title: `Send this ticket to a different address?`,
+      body: <>It's on <b>{t.holder_email}</b> now. The ticket moves to the new address and is emailed there. The old address stops being able to use it.</>,
+      confirmLabel: "Move ticket",
+      input: { label: "New email address", placeholder: "name@example.com", required: true },
+    });
+    if (typeof email !== "string") return;
+    return act(`email-${t.ticket_id}`, async () => {
+      try {
+        await post(`/api/admin/support/tickets/${t.ticket_id}/email`, { email: email.trim() });
+        toast.success("Ticket moved", { description: email.trim() });
+      } catch (err) {
+        toast.error("Couldn't change the email", { description: (err as Error).message });
+      }
+    });
+  };
+
+  const voidTicket = async (t: SupportTicket) => {
+    const reason = await confirm({
+      title: `Void ${t.holder_name || t.holder_email}'s ticket?`,
+      body: "The ticket stops working and the holder is told by email. Free tickets only, and this can't be undone.",
+      confirmLabel: "Void ticket",
+      tone: "danger",
+      input: { label: "Reason (the holder sees this)", placeholder: "Duplicate sign-up", required: true, multiline: true },
+    });
+    if (typeof reason !== "string") return;
+    return act(`void-${t.ticket_id}`, async () => {
+      try {
+        await post(`/api/admin/support/tickets/${t.ticket_id}/void`, { reason: reason.trim() });
+        toast.success("Ticket voided", { description: t.holder_email });
+      } catch (err) {
+        toast.error("Couldn't void the ticket", { description: (err as Error).message });
+      }
+    });
+  };
+
   const refund = async (o: SupportOrder) => {
     if (!o.payment) return;
     const amount = formatNaira(Number(o.payment.refundable));
@@ -350,6 +387,24 @@ function SupportPage() {
                                     >
                                       {t.checked_in ? "Undo check-in" : "Check in"}
                                     </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => changeEmail(t)}
+                                      disabled={busy !== ""}
+                                      className="ml-3 text-xs font-bold text-muted hover:text-ink hover:underline disabled:opacity-50"
+                                    >
+                                      Change email
+                                    </button>
+                                    {t.status === "free" && !t.checked_in && (
+                                      <button
+                                        type="button"
+                                        onClick={() => voidTicket(t)}
+                                        disabled={busy !== ""}
+                                        className="ml-3 text-xs font-bold text-danger hover:underline disabled:opacity-50"
+                                      >
+                                        Void
+                                      </button>
+                                    )}
                                   </>
                                 )}
                               </td>

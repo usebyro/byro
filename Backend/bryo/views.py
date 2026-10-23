@@ -5244,6 +5244,85 @@ class AdminTicketResendView(APIView):
         return Response({'sent_to': t.current_owner_email})
 
 
+class AdminTicketVoidView(APIView):
+    """
+    POST /api/admin/support/tickets/<uuid>/void/ {reason} — cancel a free ticket (a duplicate, a fake sign-up).
+
+    Free tickets only, and not once someone has been checked in. A paid ticket is a refund,
+    which has its own tool; voiding it here would take the money out of the organiser's balance
+    without paying the buyer.
+    """
+    permission_classes = [IsAdminMember]
+    min_role = AdminMember.ROLE_ADMIN
+
+    def post(self, request, ticket_id):
+        t = Ticket.objects.select_related('event').filter(ticket_id=ticket_id).first()
+        if not t:
+            return Response({'error': 'Ticket not found.'}, status=status.HTTP_404_NOT_FOUND)
+        if t.payment_status != 'free':
+            return Response({'error': 'Only free tickets can be voided here. Refund a paid order instead.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        if t.checked_in:
+            return Response({'error': 'This ticket has been checked in. Undo the check-in first.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        reason = (request.data.get('reason') or '').strip()
+        if len(reason) < 3:
+            return Response({'error': 'Give the holder a reason.'}, status=status.HTTP_400_BAD_REQUEST)
+        t.payment_status = 'cancelled'
+        t.save(update_fields=['payment_status'])
+        _log_admin_action(request, AdminAction.ACTION_TICKET_VOIDED, 'ticket', t.ticket_id,
+                          t.event.name[:255], f'{t.current_owner_email}: {reason}'[:255])
+        try:
+            from .emails import ticket_voided_email
+            from .mailer import send_email
+            mail = ticket_voided_email(t.current_owner_name, t.event.name, reason)
+            send_email(to=t.current_owner_email, subject=mail['subject'], html=mail['html'], text=mail['text'])
+        except Exception:
+            logger.exception('Could not tell the holder their ticket %s was voided', t.ticket_id)
+        return Response(_support_ticket(t))
+
+
+class AdminTicketEmailView(APIView):
+    """
+    POST /api/admin/support/tickets/<uuid>/email/ {email} — put the ticket on the right address
+    (a buyer typed it wrongly) and send it there.
+    """
+    permission_classes = [IsAdminMember]
+    min_role = AdminMember.ROLE_ADMIN
+
+    def post(self, request, ticket_id):
+        from django.contrib.auth import get_user_model
+        from django.core.exceptions import ValidationError as DjangoValidationError
+        from django.core.validators import validate_email
+        from .models import Stamp
+        t = Ticket.objects.select_related('event').filter(ticket_id=ticket_id).first()
+        if not t:
+            return Response({'error': 'Ticket not found.'}, status=status.HTTP_404_NOT_FOUND)
+        if t.payment_status not in ('paid', 'free'):
+            return Response({'error': 'This ticket is not valid.'}, status=status.HTTP_400_BAD_REQUEST)
+        email = (request.data.get('email') or '').strip().lower()
+        try:
+            validate_email(email)
+        except DjangoValidationError:
+            return Response({'error': 'That is not a valid email address.'}, status=status.HTTP_400_BAD_REQUEST)
+        old = t.current_owner_email
+        if email == (old or '').lower():
+            return Response({'error': 'The ticket is already on that address.'}, status=status.HTTP_400_BAD_REQUEST)
+        t.current_owner_email = email
+        if t.original_owner_email.lower() == (old or '').lower():
+            t.original_owner_email = email  # the buyer typed it wrongly, so it was wrong from the start
+        t.user = get_user_model().objects.filter(email__iexact=email).first()  # the account behind the typo isn't theirs
+        t.save(update_fields=['current_owner_email', 'original_owner_email', 'user'])
+        Stamp.objects.filter(ticket=t).update(email=email, user=t.user)
+        _log_admin_action(request, AdminAction.ACTION_TICKET_EMAIL_CHANGED, 'ticket', t.ticket_id,
+                          t.event.name[:255], f'{old} to {email}')
+        try:
+            send_ticket_confirmation_email(t, t.current_owner_name, email, t.event)
+        except Exception:
+            logger.exception('Support could not send ticket %s to its new address', t.ticket_id)
+        return Response(_support_ticket(t))
+
+
 class AdminTicketCheckinView(APIView):
     """POST /api/admin/support/tickets/<uuid>/checkin/ {checked_in: bool} — check someone in, or undo a mistake."""
     permission_classes = [IsAdminMember]
