@@ -2,7 +2,7 @@
 
 import { useAdminMe } from "@/components/admin/AdminMe";
 import UserDetails from "@/components/admin/UserDetails";
-import { SidePanel, useConfirm, throwIfFailed } from "@/components/admin/ui";
+import { SidePanel, useConfirm, throwIfFailed, ActionRow, BTN, BTN_DANGER } from "@/components/admin/ui";
 import { useEffect, useMemo, useState, useCallback } from "react";
 
 interface AdminUser {
@@ -354,51 +354,6 @@ export default function AdminUsersPage() {
               </div>
             </div>
 
-            <div>
-              <h4 className="text-ink text-sm font-semibold mb-2">Role</h4>
-              {!can.manage_roles && (
-                <p className="text-faint text-xs mb-2">Only owners can change a user&apos;s role.</p>
-              )}
-              <div className="flex items-center gap-1 bg-mist rounded-lg p-1 w-fit">
-                {ROLE_OPTIONS.map((opt) => (
-                  <button
-                    key={opt.value}
-                    disabled={savingRole || !can.manage_roles}
-                    onClick={() => changeRole(selected, opt.value)}
-                    className={`text-xs font-semibold px-3 py-1.5 rounded-md transition-colors disabled:opacity-50 ${
-                      selected.role === opt.value
-                        ? "bg-brand/10 text-brand-dark"
-                        : "text-muted hover:text-ink hover:bg-mist"
-                    }`}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-              {roleError && <p className="text-danger text-xs mt-2">{roleError}</p>}
-            </div>
-
-            <div>
-              <h4 className="text-ink text-sm font-semibold mb-2">Account access</h4>
-              <p className="text-faint text-xs leading-relaxed mb-3">
-                {selected.is_active !== false
-                  ? "This account can sign in and use Byro normally."
-                  : "This account is suspended and cannot sign in."}
-              </p>
-              {can.moderate ? <button
-                onClick={() => askStatus(selected, selected.is_active !== false ? "suspend" : "reactivate")}
-                disabled={updatingStatus}
-                className={`text-xs font-semibold px-3 py-2 rounded-lg transition-colors disabled:opacity-50 ${
-                  selected.is_active !== false
-                    ? "text-danger bg-danger-tint hover:bg-danger-hover"
-                    : "text-good bg-good-tint hover:bg-good-hover"
-                }`}
-              >
-                {selected.is_active !== false ? "Suspend account" : "Reactivate account"}
-              </button> : <p className="text-faint text-xs">Your role can&apos;t change account access.</p>}
-              {statusError && <p className="text-danger text-xs mt-2">{statusError}</p>}
-            </div>
-
             <UserDetails
               key={selected.id}
               userId={selected.id}
@@ -406,7 +361,51 @@ export default function AdminUsersPage() {
                 setUsers((prev) => prev.filter((u) => u.id !== selected.id));
                 setSelected(null);
               }}
+              accountRows={
+                <ActionRow
+                  title="Role"
+                  hint={can.manage_roles ? "What they see when they sign in." : "Only owners can change a user's role."}
+                  below={
+                    <div role="group" aria-label="Role" className="flex w-fit items-center gap-1 rounded-lg bg-mist p-1">
+                      {ROLE_OPTIONS.map((opt) => (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          aria-pressed={selected.role === opt.value}
+                          disabled={savingRole || !can.manage_roles}
+                          onClick={() => changeRole(selected, opt.value)}
+                          className={`min-h-8 rounded-md px-3 text-xs font-semibold transition-[background-color,color] duration-150 disabled:opacity-50 ${
+                            selected.role === opt.value ? "bg-white text-brand-dark shadow-sm" : "text-muted hover:text-ink"
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  }
+                />
+              }
+              dangerRows={
+                can.moderate ? (
+                  <ActionRow
+                    title={selected.is_active !== false ? "Suspend account" : "Reactivate account"}
+                    hint={selected.is_active !== false ? "They can sign in and use Byro normally." : "Suspended. They can't sign in."}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => askStatus(selected, selected.is_active !== false ? "suspend" : "reactivate")}
+                      disabled={updatingStatus}
+                      className={selected.is_active !== false ? BTN_DANGER : `${BTN} bg-good-tint text-good hover:bg-good-hover`}
+                    >
+                      {selected.is_active !== false ? "Suspend" : "Reactivate"}
+                    </button>
+                  </ActionRow>
+                ) : (
+                  <ActionRow title="Account access" hint="Your role can't change account access." />
+                )
+              }
             />
+            {(roleError || statusError) && <p role="alert" className="text-danger text-xs">{roleError || statusError}</p>}
           </div>
         </SidePanel>
       )}

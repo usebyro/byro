@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { useAdminMe } from "@/components/admin/AdminMe";
-import { useConfirm, throwIfFailed } from "@/components/admin/ui";
+import { useConfirm, throwIfFailed, ActionRow, BTN, BTN_QUIET, BTN_BRAND, BTN_DANGER } from "@/components/admin/ui";
 import { publicHref } from "@/lib/adminNav";
 import { formatNaira } from "@/lib/eventFormat";
 
@@ -39,7 +39,8 @@ function Stat({ label, value }: { label: string; value: React.ReactNode }) {
 }
 
 /** The fuller picture of one person, shown in the Users side panel, with messaging and delete controls. */
-export default function UserDetails({ userId, onDeleted }: { userId: number; onDeleted: () => void }) {
+/** `accountRows` and `dangerRows` are the page's own rows (role, suspend), shown in the same cards as the rest. */
+export default function UserDetails({ userId, onDeleted, accountRows, dangerRows }: { userId: number; onDeleted: () => void; accountRows?: ReactNode; dangerRows?: ReactNode }) {
   const me = useAdminMe();
   const confirm = useConfirm();
   const [data, setData] = useState<Summary | null>(null);
@@ -197,121 +198,125 @@ export default function UserDetails({ userId, onDeleted }: { userId: number; onD
         </div>
       )}
 
-      {data.profile && me.can.moderate && !deleted && (
-        <div>
-          <h4 className="text-ink text-sm font-semibold mb-2">Community messages</h4>
-          <p className="text-faint text-xs leading-relaxed mb-3">
-            {data.profile.messaging_blocked ? "Blocked: they can't send or schedule messages." : "They can email their followers and ticket holders."}
-          </p>
-          <button
-            type="button"
-            onClick={toggleMessaging}
-            disabled={busy}
-            className="text-xs font-semibold px-3 py-2 rounded-lg bg-mist text-ink hover:bg-line disabled:opacity-50"
-          >
-            {data.profile.messaging_blocked ? "Allow messaging" : "Block messaging"}
-          </button>
-        </div>
-      )}
-
-      {isOwner && !deleted && data.events_total > 0 && (
-        <div>
-          <h4 className="text-ink text-sm font-semibold mb-2">Service fee</h4>
-          <p className="text-faint text-xs leading-relaxed mb-3">
-            {data.fee_percent !== null
-              ? `Special fee: ${data.fee_percent}% on their new orders.`
-              : "They pay Byro's default fee. Give them a special fee for a partnership or a charity."}
-          </p>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="flex items-center rounded-lg border border-line bg-white focus-within:ring-1 focus-within:ring-brand/40">
-              <input
-                type="number"
-                inputMode="decimal"
-                min={0}
-                max={15}
-                step={0.25}
-                value={feeDraft}
-                onChange={(e) => setFeeDraft(e.target.value)}
-                placeholder="e.g. 3"
-                aria-label="Special service fee in percent"
-                className="w-20 bg-transparent px-3 py-2 text-sm text-ink tabular-nums focus:outline-none"
-              />
-              <span className="pr-3 text-sm text-muted">%</span>
-            </span>
-            <button
-              type="button"
-              onClick={() => saveFee(feeDraft.trim())}
-              disabled={busy || feeDraft.trim() === "" || feeDraft.trim() === data.fee_percent}
-              className="text-xs font-semibold px-3 py-2 rounded-lg bg-brand/10 text-brand-dark hover:bg-brand/20 disabled:opacity-50"
-            >
-              Set special fee
-            </button>
-            {data.fee_percent !== null && (
-              <button
-                type="button"
-                onClick={() => saveFee(null)}
-                disabled={busy}
-                className="text-xs font-semibold px-3 py-2 rounded-lg bg-mist text-muted hover:text-ink disabled:opacity-50"
+      <section aria-labelledby="account-actions" className="space-y-6">
+        <div className="space-y-2">
+          <h4 id="account-actions" className="text-ink text-sm font-semibold">Manage account</h4>
+          <div className="divide-y divide-hairline rounded-xl border border-line bg-white">
+            {accountRows}
+            {data.profile && me.can.moderate && !deleted && (
+              <ActionRow
+                title="Community messages"
+                hint={data.profile.messaging_blocked ? "Blocked. They can't send or schedule messages." : "They can email their followers and ticket holders."}
               >
-                Use default
-              </button>
+                <button type="button" onClick={toggleMessaging} disabled={busy} className={BTN_QUIET}>
+                  {data.profile.messaging_blocked ? "Allow messaging" : "Block messaging"}
+                </button>
+              </ActionRow>
+            )}
+            {isOwner && !deleted && data.events_total > 0 && (
+              <ActionRow
+                title="Service fee"
+                hint={
+                  data.fee_percent !== null
+                    ? `Special fee: ${data.fee_percent}% on their new orders.`
+                    : "Default fee. Give them a special fee for a partnership or a charity."
+                }
+                below={
+                  <>
+                    <span className="flex min-h-9 items-center rounded-lg border border-line bg-white focus-within:ring-2 focus-within:ring-brand">
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        min={0}
+                        max={15}
+                        step={0.25}
+                        value={feeDraft}
+                        onChange={(e) => setFeeDraft(e.target.value)}
+                        placeholder="e.g. 3"
+                        aria-label="Special service fee in percent"
+                        className="w-20 bg-transparent px-3 py-1.5 text-sm text-ink tabular-nums focus:outline-none"
+                      />
+                      <span className="pr-3 text-sm text-muted">%</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => saveFee(feeDraft.trim())}
+                      disabled={busy || feeDraft.trim() === "" || feeDraft.trim() === data.fee_percent}
+                      className={BTN_BRAND}
+                    >
+                      Set special fee
+                    </button>
+                    {data.fee_percent !== null && (
+                      <button type="button" onClick={() => saveFee(null)} disabled={busy} className={BTN_QUIET}>
+                        Use default
+                      </button>
+                    )}
+                  </>
+                }
+              />
             )}
           </div>
         </div>
-      )}
 
-      {isOwner && !deleted && (
-        <div className="border-t border-hairline pt-5">
-          <h4 className="text-ink text-sm font-semibold mb-2">Delete account</h4>
-          <p className="text-faint text-xs leading-relaxed mb-3">
-            For when someone asks us to delete their data. Their name, email, photo, page, links and follows are removed and they
-            can&apos;t sign in. Payments and event history are kept for Byro&apos;s records. This can&apos;t be undone.
-          </p>
-          {data.delete_blockers.length > 0 ? (
-            <ul className="space-y-1 text-xs text-waiting bg-waiting-tint border border-waiting-hover rounded-lg p-3">
-              {data.delete_blockers.map((b) => (
-                <li key={b}>• {b}</li>
-              ))}
-            </ul>
-          ) : !showDelete ? (
-            <button
-              type="button"
-              onClick={() => setShowDelete(true)}
-              className="text-xs font-semibold px-3 py-2 rounded-lg text-danger bg-danger-tint hover:bg-danger-hover"
-            >
-              Delete account…
-            </button>
-          ) : (
-            <div className="space-y-2">
-              <label className="block text-xs text-muted" htmlFor="confirm-delete">
-                Type <b className="text-ink">{data.email}</b> to confirm
-              </label>
-              <input
-                id="confirm-delete"
-                type="email"
-                value={confirmEmail}
-                onChange={(e) => setConfirmEmail(e.target.value)}
-                autoComplete="off"
-                spellCheck={false}
-                className="w-full bg-mist border border-line rounded-lg px-3 py-2 text-sm text-ink focus:outline-none focus:ring-1 focus:ring-red-400"
-              />
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={remove}
-                  disabled={busy || confirmEmail.trim().toLowerCase() !== data.email.toLowerCase()}
-                  className="text-xs font-semibold px-3 py-2 rounded-lg bg-danger-strong text-white hover:bg-danger disabled:opacity-40"
-                >
-                  {busy ? "Deleting…" : "Delete for good"}
-                </button>
-                <button type="button" onClick={() => setShowDelete(false)} className="text-xs font-semibold px-3 py-2 text-muted hover:text-ink">
-                  Cancel
-                </button>
-              </div>
+        {(dangerRows || (isOwner && !deleted)) && (
+          <div className="space-y-2">
+            <h4 className="text-danger text-sm font-semibold">Danger zone</h4>
+            <div className="divide-y divide-hairline rounded-xl border border-danger-hover/50 bg-white">
+              {dangerRows}
+              {isOwner && !deleted && (
+                <div>
+                  <ActionRow
+                    title="Delete account"
+                    hint="For when someone asks us to delete their data. Their name, email, photo, page, links and follows are removed and they can't sign in. Payments and event history are kept for Byro's records. This can't be undone."
+                  >
+                    {data.delete_blockers.length === 0 && !showDelete && (
+                      <button type="button" onClick={() => setShowDelete(true)} className={BTN_DANGER}>
+                        Delete account
+                      </button>
+                    )}
+                  </ActionRow>
+                  {data.delete_blockers.length > 0 && (
+                    <ul className="mx-4 mb-4 space-y-1 rounded-lg border border-waiting-hover bg-waiting-tint p-3 text-xs text-waiting">
+                      {data.delete_blockers.map((b) => (
+                        <li key={b}>• {b}</li>
+                      ))}
+                    </ul>
+                  )}
+                  {data.delete_blockers.length === 0 && showDelete && (
+                    <div className="space-y-2 px-4 pb-4">
+                      <label className="block text-xs text-muted" htmlFor="confirm-delete">
+                        Type <b className="text-ink">{data.email}</b> to confirm
+                      </label>
+                      <input
+                        id="confirm-delete"
+                        type="email"
+                        value={confirmEmail}
+                        onChange={(e) => setConfirmEmail(e.target.value)}
+                        autoComplete="off"
+                        spellCheck={false}
+                        className="w-full rounded-lg border border-line bg-mist px-3 py-2 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-danger"
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={remove}
+                          disabled={busy || confirmEmail.trim().toLowerCase() !== data.email.toLowerCase()}
+                          className={`${BTN} bg-danger-strong text-white hover:bg-danger`}
+                        >
+                          {busy ? "Deleting…" : "Delete for good"}
+                        </button>
+                        <button type="button" onClick={() => setShowDelete(false)} className={BTN_QUIET}>
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
-          )}
-        </div>
-      )}
+          </div>
+        )}
+      </section>
     </div>
   );
 }

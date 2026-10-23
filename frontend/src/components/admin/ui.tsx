@@ -438,3 +438,24 @@ export function fmtDateTime(value: string | Date | null | undefined) {
   const d = new Date(value);
   return Number.isNaN(d.getTime()) ? "—" : DATE_TIME.format(d);
 }
+
+export const BTN = "inline-flex min-h-9 items-center justify-center whitespace-nowrap rounded-lg px-3 text-xs font-semibold transition-[background-color,color,scale] duration-150 active:scale-[0.96] disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand";
+export const BTN_QUIET = `${BTN} border border-line bg-white text-ink hover:bg-mist`;
+export const BTN_BRAND = `${BTN} bg-brand/10 text-brand-dark hover:bg-brand/20`;
+export const BTN_DANGER = `${BTN} border border-danger-hover bg-white text-danger hover:bg-danger-tint`;
+
+/** One thing an admin can do: what it is and its state on the left, the control on the right. */
+export function ActionRow({ title, hint, children, below }: { title: string; hint: ReactNode; children?: ReactNode; below?: ReactNode }) {
+  return (
+    <div className="px-4 py-3.5">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2.5">
+        <div className="min-w-0 flex-1 basis-48">
+          <p className="text-ink text-sm font-semibold">{title}</p>
+          <p className="text-muted text-xs leading-relaxed">{hint}</p>
+        </div>
+        {children && <div className="flex shrink-0 flex-wrap items-center gap-2">{children}</div>}
+      </div>
+      {below && <div className="mt-3 flex flex-wrap gap-2">{below}</div>}
+    </div>
+  );
+}

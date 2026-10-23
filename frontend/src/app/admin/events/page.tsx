@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { formatNaira, isPaidEvent, priceLabel } from "@/lib/eventFormat";
 import { useAdminMe } from "@/components/admin/AdminMe";
-import { SidePanel, useConfirm, SkeletonRows, throwIfFailed, SUSPEND_EVENT_BODY } from "@/components/admin/ui";
+import { SidePanel, useConfirm, SkeletonRows, throwIfFailed, SUSPEND_EVENT_BODY, ActionRow, BTN, BTN_QUIET, BTN_BRAND, BTN_DANGER } from "@/components/admin/ui";
 import { publicHref } from "@/lib/adminNav";
 
 interface EventTier {
@@ -130,15 +130,17 @@ function EditDetails({ event, onSaved }: { event: Event; onSaved: (updated: Even
   const field = "w-full rounded-lg border border-line bg-white px-3 py-2 text-sm text-ink";
   if (!open) {
     return (
-      <button type="button" onClick={() => setOpen(true)} className="text-xs font-semibold text-brand-dark bg-brand/10 hover:bg-brand/20 px-3 py-2 rounded-lg transition-colors">
-        Edit details
-      </button>
+      <ActionRow title="Details" hint="Fix a typo or remove an unsuitable image. The organiser is told.">
+        <button type="button" onClick={() => setOpen(true)} className={BTN_BRAND}>Edit details</button>
+      </ActionRow>
     );
   }
   return (
-    <div className="space-y-3">
-      <h4 className="text-ink text-sm font-semibold">Edit details</h4>
-      <p className="text-faint text-xs leading-relaxed">For typos and unsuitable content. The organiser is told what you changed.</p>
+    <div className="space-y-3 px-4 py-4">
+      <div>
+        <h4 className="text-ink text-sm font-semibold">Edit details</h4>
+        <p className="text-muted text-xs leading-relaxed">The organiser is told what you changed.</p>
+      </div>
       <label className="block text-xs text-muted">Name
         <input className={`${field} mt-1`} value={name} maxLength={100} onChange={(e) => setName(e.target.value)} />
       </label>
@@ -159,10 +161,10 @@ function EditDetails({ event, onSaved }: { event: Event; onSaved: (updated: Even
       </label>
       {error && <p className="text-danger text-xs">{error}</p>}
       <div className="flex gap-2">
-        <button type="button" onClick={save} disabled={saving} className="text-xs font-semibold text-white bg-brand hover:bg-brand-dark disabled:opacity-50 px-3 py-2 rounded-lg">
+        <button type="button" onClick={save} disabled={saving} className={`${BTN} bg-brand text-white hover:bg-brand-dark`}>
           {saving ? "Saving…" : "Save changes"}
         </button>
-        <button type="button" onClick={() => setOpen(false)} disabled={saving} className="text-xs font-semibold text-muted bg-mist hover:text-ink px-3 py-2 rounded-lg">
+        <button type="button" onClick={() => setOpen(false)} disabled={saving} className={BTN_QUIET}>
           Cancel
         </button>
       </div>
@@ -517,37 +519,26 @@ export default function AdminEventsPage() {
     }
   };
 
-  const addAccess = async (event: Event, what: "cohost" | "owner") => {
-    const isOwner = what === "owner";
+  const addCohost = async (event: Event) => {
     const email = await confirm({
-      title: isOwner ? `Transfer “${event.name}” to another account?` : `Add a co-host to “${event.name}”?`,
-      body: isOwner ? (
-        <>Ticket revenue and payouts for this event move to the new owner, and the current owner (<b>{event.owner_email}</b>) loses access. Both are told. Refused if the organiser has already withdrawn money from paid sales.</>
-      ) : (
-        "They can edit the event, see the guest list and check people in. If they have no account yet, they get an invite to join. The organiser is told."
-      ),
-      confirmLabel: isOwner ? "Transfer event" : "Add co-host",
-      tone: isOwner ? "danger" : "primary",
-      input: { label: isOwner ? "New owner's email (must have an account)" : "Co-host's email", placeholder: "name@example.com", required: true },
+      title: `Add a co-host to “${event.name}”?`,
+      body: "They can edit the event, see the guest list and check people in. If they have no account yet, they get an invite to join. The organiser is told.",
+      confirmLabel: "Add co-host",
+      input: { label: "Co-host's email", placeholder: "name@example.com", required: true },
     });
     if (typeof email !== "string") return;
     setUpdatingId(event.id);
     setActionError("");
     try {
-      const res = await fetch(`/api/admin/events/${event.id}/${isOwner ? "owner" : "cohosts"}`, {
+      const res = await fetch(`/api/admin/events/${event.id}/cohosts`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: email.trim() }),
       });
       await throwIfFailed(res);
-      if (isOwner) {
-        const patch = { owner_email: email.trim().toLowerCase() };
-        setEvents((prev) => prev.map((e) => (e.id === event.id ? { ...e, ...patch } : e)));
-        setSelected((prev) => (prev && prev.id === event.id ? { ...prev, ...patch } : prev));
-      }
-      toast.success(isOwner ? "Event transferred" : "Co-host added", { description: email.trim() });
+      toast.success("Co-host added", { description: email.trim() });
     } catch (err) {
-      setActionError(`Couldn't ${isOwner ? "transfer this event" : "add the co-host"}. ${err instanceof Error && err.message ? err.message : "Try again."}`);
+      setActionError(`Couldn't add the co-host. ${err instanceof Error && err.message ? err.message : "Try again."}`);
     } finally {
       setUpdatingId(null);
     }
@@ -570,7 +561,7 @@ export default function AdminEventsPage() {
       body: (
         <>
           Ticket sales stop and every ticket is voided. {preview ? `${preview.paid_orders} paid order${preview.paid_orders === 1 ? "" : "s"} (₦${Number(preview.refund_total).toLocaleString()}) will be refunded from the Refunds page; Byro's fee and the payment charge aren't refunded. ` : ""}
-          Buyers and the organiser are told by email. This can't be undone.
+          Buyers and the organiser are told by email. This can&apos;t be undone.
         </>
       ),
       confirmLabel: "Cancel event",
@@ -805,121 +796,121 @@ export default function AdminEventsPage() {
               href={publicHref(`/discover/${selected.slug}`)}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-block text-xs font-semibold text-brand-dark hover:text-brand-dark"
+              className="inline-block text-xs font-semibold text-brand-dark hover:underline"
             >
               View public event page
             </a>
 
-            {can.moderate && !selected.cancelled_at && (
-              <EditDetails
-                key={selected.id}
-                event={selected}
-                onSaved={(updated) => {
-                  setEvents((prev) => prev.map((e) => (e.id === selected.id ? { ...e, ...updated } : e)));
-                  setSelected((prev) => (prev && prev.id === selected.id ? { ...prev, ...updated } : prev));
-                }}
-              />
-            )}
-
-            {(can.moderate || can.delete) && <div>
-              <h4 className="text-ink text-sm font-semibold mb-2">Moderation</h4>
-              {actionError && <p className="text-danger text-xs mb-2">{actionError}</p>}
-              <div className="flex items-center gap-2 flex-wrap">
-                {can.moderate && <button
-                  onClick={() => askAction(selected, selected.is_active ? "suspend" : "reactivate")}
-                  disabled={updatingId === selected.id}
-                  className={`text-xs font-semibold px-3 py-2 rounded-lg transition-colors disabled:opacity-50 ${
-                    selected.is_active
-                      ? "text-waiting bg-waiting-tint hover:bg-waiting-hover"
-                      : "text-good bg-good-tint hover:bg-good-hover"
-                  }`}
-                >
-                  {selected.is_active ? "Suspend event" : "Reactivate event"}
-                </button>}
-                {can.moderate && !selected.is_draft && <button
-                  onClick={() => setVisibility(selected, selected.visibility === "private" ? "public" : "private")}
-                  disabled={updatingId === selected.id}
-                  className="text-xs font-semibold text-brand-dark bg-brand/10 hover:bg-brand/20 disabled:opacity-50 px-3 py-2 rounded-lg transition-colors"
-                >
-                  {selected.visibility === "private" ? "Make public" : "Make private"}
-                </button>}
-                {can.moderate && !selected.cancelled_at && <button
-                  onClick={() => addAccess(selected, "cohost")}
-                  disabled={updatingId === selected.id}
-                  className="text-xs font-semibold text-brand-dark bg-brand/10 hover:bg-brand/20 disabled:opacity-50 px-3 py-2 rounded-lg transition-colors"
-                >
-                  Add co-host
-                </button>}
-                {can.delete && !selected.cancelled_at && <button
-                  onClick={() => addAccess(selected, "owner")}
-                  disabled={updatingId === selected.id}
-                  className="text-xs font-semibold text-waiting bg-waiting-tint hover:bg-waiting-hover disabled:opacity-50 px-3 py-2 rounded-lg transition-colors"
-                >
-                  Transfer ownership
-                </button>}
-                {can.moderate && !selected.is_draft && !selected.cancelled_at && <button
-                  onClick={() => changeSales(selected, selected.sales_closed ? "reopen" : "close")}
-                  disabled={updatingId === selected.id}
-                  className="text-xs font-semibold text-brand-dark bg-brand/10 hover:bg-brand/20 disabled:opacity-50 px-3 py-2 rounded-lg transition-colors"
-                >
-                  {selected.sales_closed ? "Reopen sales" : "Close sales"}
-                </button>}
-                {can.moderate && !selected.is_draft && !selected.cancelled_at && selectedOverview?.tickets_sold === 0 && <button
-                  onClick={() => changeSales(selected, "draft")}
-                  disabled={updatingId === selected.id}
-                  className="text-xs font-semibold text-waiting bg-waiting-tint hover:bg-waiting-hover disabled:opacity-50 px-3 py-2 rounded-lg transition-colors"
-                >
-                  Move to draft
-                </button>}
-                {can.moderate && !selected.is_draft && !selected.cancelled_at && selected.day >= new Date().toLocaleDateString("en-CA") && <button
-                  onClick={() => cancelEvent(selected)}
-                  disabled={updatingId === selected.id}
-                  className="text-xs font-semibold text-danger bg-danger-tint hover:bg-danger-hover disabled:opacity-50 px-3 py-2 rounded-lg transition-colors"
-                >
-                  Cancel event
-                </button>}
-                {can.delete && <button
-                  onClick={() => askAction(selected, "delete")}
-                  disabled={updatingId === selected.id}
-                  className="text-xs font-semibold text-danger bg-danger-tint hover:bg-danger-hover disabled:opacity-50 px-3 py-2 rounded-lg transition-colors"
-                >
-                  Delete event
-                </button>}
-              </div>
-            </div>}
-
-            {can.moderate && selected.is_active && !selected.is_draft && selected.visibility !== "private" && (
-              <div>
-                <h4 className="text-ink text-sm font-semibold mb-1">Featuring</h4>
-                <p className="text-faint text-xs leading-relaxed mb-3">
-                  {isFeatured(selected)
-                    ? `Shown first on the landing page and Discover until ${new Date(selected.featured_until!).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}.`
-                    : "Show this event first on the landing page and Discover, with a Featured label."}
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {[7, 14, 30].map((d) => (
-                    <button
-                      key={d}
-                      type="button"
-                      onClick={() => feature(selected, d)}
-                      disabled={featuring}
-                      className="text-xs font-semibold px-3 py-2 rounded-lg bg-brand/10 text-brand-dark hover:bg-brand/20 disabled:opacity-50"
-                    >
-                      {isFeatured(selected) ? `Extend: ${d} days from now` : `Feature for ${d} days`}
-                    </button>
-                  ))}
-                  {isFeatured(selected) && (
-                    <button
-                      type="button"
-                      onClick={() => feature(selected, 0)}
-                      disabled={featuring}
-                      className="text-xs font-semibold px-3 py-2 rounded-lg text-muted bg-mist hover:text-ink disabled:opacity-50"
-                    >
-                      Stop featuring
-                    </button>
+            {(can.moderate || can.delete) && (
+              <section aria-labelledby="event-actions" className="space-y-6">
+                <div className="space-y-2">
+                  <h4 id="event-actions" className="text-ink text-sm font-semibold">Manage event</h4>
+                  {actionError && <p role="alert" className="text-danger text-xs">{actionError}</p>}
+                  {can.moderate && !selected.cancelled_at && (
+                    <div className="divide-y divide-hairline rounded-xl border border-line bg-white">
+                      {!selected.is_draft && (
+                        <ActionRow
+                          title="Visibility"
+                          hint={selected.visibility === "private" ? "Private. Hidden from Discover and search; anyone with the link can still buy." : "Public. Listed on Discover, search and the organiser's page."}
+                        >
+                          <button type="button" onClick={() => setVisibility(selected, selected.visibility === "private" ? "public" : "private")} disabled={updatingId === selected.id} className={BTN_QUIET}>
+                            {selected.visibility === "private" ? "Make public" : "Make private"}
+                          </button>
+                        </ActionRow>
+                      )}
+                      {!selected.is_draft && (
+                        <ActionRow
+                          title="Ticket sales"
+                          hint={selected.sales_closed ? "Closed. Nobody can buy or register; existing tickets still work." : "Open. People can buy or register."}
+                        >
+                          <button type="button" onClick={() => changeSales(selected, selected.sales_closed ? "reopen" : "close")} disabled={updatingId === selected.id} className={BTN_QUIET}>
+                            {selected.sales_closed ? "Reopen sales" : "Close sales"}
+                          </button>
+                        </ActionRow>
+                      )}
+                      {selected.is_active && !selected.is_draft && selected.visibility !== "private" && (
+                        <ActionRow
+                          title="Featured"
+                          hint={
+                            isFeatured(selected)
+                              ? `Shown first on the landing page and Discover until ${new Date(selected.featured_until!).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}.`
+                              : "Not featured. Feature it to show it first on the landing page and Discover."
+                          }
+                          below={
+                            <>
+                              {[7, 14, 30].map((d) => (
+                                <button key={d} type="button" onClick={() => feature(selected, d)} disabled={featuring} className={BTN_BRAND}>
+                                  {isFeatured(selected) ? `Extend ${d} days` : `Feature ${d} days`}
+                                </button>
+                              ))}
+                              {isFeatured(selected) && (
+                                <button type="button" onClick={() => feature(selected, 0)} disabled={featuring} className={BTN_QUIET}>
+                                  Stop featuring
+                                </button>
+                              )}
+                            </>
+                          }
+                        />
+                      )}
+                      <EditDetails
+                        key={selected.id}
+                        event={selected}
+                        onSaved={(updated) => {
+                          setEvents((prev) => prev.map((e) => (e.id === selected.id ? { ...e, ...updated } : e)));
+                          setSelected((prev) => (prev && prev.id === selected.id ? { ...prev, ...updated } : prev));
+                        }}
+                      />
+                      <ActionRow title="Co-hosts" hint="Give someone access to edit the event and check people in.">
+                        <button type="button" onClick={() => addCohost(selected)} disabled={updatingId === selected.id} className={BTN_BRAND}>
+                          Add co-host
+                        </button>
+                      </ActionRow>
+                      {!selected.is_draft && selectedOverview?.tickets_sold === 0 && (
+                        <ActionRow title="Back to draft" hint="Hide it from everyone but the organiser until they publish again. Only while no tickets are issued.">
+                          <button type="button" onClick={() => changeSales(selected, "draft")} disabled={updatingId === selected.id} className={BTN_QUIET}>
+                            Move to draft
+                          </button>
+                        </ActionRow>
+                      )}
+                    </div>
                   )}
                 </div>
-              </div>
+
+                <div className="space-y-2">
+                  <h4 className="text-danger text-sm font-semibold">Danger zone</h4>
+                  <div className="divide-y divide-hairline rounded-xl border border-danger-hover/50 bg-white">
+                    {can.moderate && (
+                      <ActionRow
+                        title={selected.is_active ? "Suspend event" : "Reactivate event"}
+                        hint={selected.is_active ? "Takes it off Byro and stops sales. The organiser is told." : "Puts it back on Byro and lets it sell again. The organiser is told."}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => askAction(selected, selected.is_active ? "suspend" : "reactivate")}
+                          disabled={updatingId === selected.id}
+                          className={selected.is_active ? BTN_DANGER : `${BTN} bg-good-tint text-good hover:bg-good-hover`}
+                        >
+                          {selected.is_active ? "Suspend" : "Reactivate"}
+                        </button>
+                      </ActionRow>
+                    )}
+                    {can.moderate && !selected.is_draft && !selected.cancelled_at && selected.day >= new Date().toLocaleDateString("en-CA") && (
+                      <ActionRow title="Cancel event" hint="Voids every ticket and refunds buyers from the Refunds page. This can't be undone.">
+                        <button type="button" onClick={() => cancelEvent(selected)} disabled={updatingId === selected.id} className={BTN_DANGER}>
+                          Cancel event
+                        </button>
+                      </ActionRow>
+                    )}
+                    {can.delete && (
+                      <ActionRow title="Delete event" hint="Removes the event and its data for good. Events with paid tickets or unfinished refunds can't be deleted.">
+                        <button type="button" onClick={() => askAction(selected, "delete")} disabled={updatingId === selected.id} className={BTN_DANGER}>
+                          Delete event
+                        </button>
+                      </ActionRow>
+                    )}
+                  </div>
+                </div>
+              </section>
             )}
 
             <div>
