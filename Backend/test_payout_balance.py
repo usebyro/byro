@@ -118,7 +118,7 @@ class PayoutBalanceTest(TestCase):
         _make_ticket(self.event)  # 1000 available
         resp = self._post_payout(Decimal('5000'))
         self.assertEqual(resp.status_code, 400)
-        self.assertIn('exceeds', str(resp.data).lower())
+        self.assertIn('you can withdraw up to', str(resp.data).lower())
 
     def test_post_succeeds_within_balance(self):
         """POST succeeds when balance is positive and amount is within it."""

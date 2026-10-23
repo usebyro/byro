@@ -165,7 +165,7 @@ function SupportPage() {
   const changeEmail = async (t: SupportTicket) => {
     const email = await confirm({
       title: `Send this ticket to a different address?`,
-      body: <>It's on <b>{t.holder_email}</b> now. The ticket moves to the new address and is emailed there. The old address stops being able to use it.</>,
+      body: <>It&apos;s on <b>{t.holder_email}</b> now. The ticket moves to the new address and is emailed there. The old address stops being able to use it.</>,
       confirmLabel: "Move ticket",
       input: { label: "New email address", placeholder: "name@example.com", required: true },
     });
