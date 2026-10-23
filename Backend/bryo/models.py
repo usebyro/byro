@@ -1193,6 +1193,7 @@ class AdminAction(models.Model):
     ACTION_EVENT_SUSPENDED = 'event.suspended'
     ACTION_EVENT_REACTIVATED = 'event.reactivated'
     ACTION_EVENT_DELETED = 'event.deleted'
+    ACTION_EVENT_VISIBILITY = 'event.visibility_changed'
     ACTION_USER_SUSPENDED = 'user.suspended'
     ACTION_USER_REACTIVATED = 'user.reactivated'
     ACTION_USER_ROLE_CHANGED = 'user.role_changed'
@@ -1233,6 +1234,7 @@ class AdminAction(models.Model):
         (ACTION_EVENT_SUSPENDED, 'Event suspended'),
         (ACTION_EVENT_REACTIVATED, 'Event reactivated'),
         (ACTION_EVENT_DELETED, 'Event deleted'),
+        (ACTION_EVENT_VISIBILITY, 'Event made public or private'),
         (ACTION_USER_SUSPENDED, 'User suspended'),
         (ACTION_USER_REACTIVATED, 'User reactivated'),
         (ACTION_USER_ROLE_CHANGED, 'User role changed'),

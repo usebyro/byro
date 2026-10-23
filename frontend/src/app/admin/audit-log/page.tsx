@@ -18,6 +18,7 @@ const TARGET_TYPES = ["", "event", "user", "payout", "member"];
 
 const ACTION_LABEL: Record<string, string> = {
   "event.suspended": "Suspended event",
+  "event.visibility_changed": "Changed event visibility",
   "event.reactivated": "Reactivated event",
   "event.deleted": "Deleted event",
   "user.suspended": "Suspended user",

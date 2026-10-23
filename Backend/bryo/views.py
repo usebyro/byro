@@ -3951,7 +3951,7 @@ class AdminAnalyticsSummaryView(APIView):
 
 class AdminEventDetailView(APIView):
     """
-    PATCH  /api/admin/events/<pk>/  — { is_active: bool }
+    PATCH  /api/admin/events/<pk>/  — { is_active: bool } and/or { visibility: 'public' | 'private' }
     DELETE /api/admin/events/<pk>/
 
     Not the owner-facing EventViewSet: no ownership check, gated only by the
@@ -3983,6 +3983,21 @@ class AdminEventDetailView(APIView):
             if not event.is_draft:
                 from .suspension import notify_in_background
                 notify_in_background(event, suspended=not event.is_active)
+
+        visibility = request.data.get('visibility')
+        if visibility is not None:
+            if visibility not in dict(Event.EVENT_VISIBILITY_CHOICES):
+                return Response({'error': "Visibility must be 'public' or 'private'."}, status=status.HTTP_400_BAD_REQUEST)
+            if visibility != event.visibility:
+                event.visibility = visibility
+                fields = ['visibility']
+                if visibility == 'private' and event.featured_until:
+                    event.featured_until = None  # only public events can be featured
+                    fields.append('featured_until')
+                event.save(update_fields=fields)
+                _log_admin_action(
+                    request, AdminAction.ACTION_EVENT_VISIBILITY, 'event', event.pk, event.name, visibility,
+                )
         return Response(EventSerializer(event, context={'request': request}).data)
 
     def delete(self, request, pk):

@@ -361,6 +361,38 @@ export default function AdminEventsPage() {
     }
   };
 
+  const setVisibility = async (event: Event, visibility: "public" | "private") => {
+    const toPrivate = visibility === "private";
+    const ok = await confirm({
+      title: toPrivate ? `Make “${event.name}” private?` : `Make “${event.name}” public?`,
+      body: toPrivate
+        ? "It disappears from Discover, search and the organiser's page. Anyone with the link can still buy tickets. If it's featured, it stops being featured."
+        : "It shows on Discover, search and the organiser's page again.",
+      confirmLabel: toPrivate ? "Make private" : "Make public",
+      tone: "primary",
+    });
+    if (!ok) return;
+    setUpdatingId(event.id);
+    setActionError("");
+    try {
+      const res = await fetch(`/api/admin/events/${event.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ visibility }),
+      });
+      await throwIfFailed(res);
+      const updated: Event = await res.json();
+      setEvents((prev) => prev.map((e) => (e.id === event.id ? { ...e, ...updated } : e)));
+      setSelected((prev) => (prev && prev.id === event.id ? { ...prev, ...updated } : prev));
+      toast.success(toPrivate ? "Event is now private" : "Event is now public", { description: event.name });
+    } catch (err) {
+      const reason = err instanceof Error && err.message ? err.message : "Try again.";
+      setActionError(`Couldn't change visibility. ${reason}`);
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
   // One proper dialog for each action, saying exactly what will happen.
   const askAction = async (event: Event, action: "suspend" | "reactivate" | "delete") => {
     const copy = {
@@ -588,6 +620,13 @@ export default function AdminEventsPage() {
                   }`}
                 >
                   {selected.is_active ? "Suspend event" : "Reactivate event"}
+                </button>}
+                {can.moderate && !selected.is_draft && <button
+                  onClick={() => setVisibility(selected, selected.visibility === "private" ? "public" : "private")}
+                  disabled={updatingId === selected.id}
+                  className="text-xs font-semibold text-brand-dark bg-brand/10 hover:bg-brand/20 disabled:opacity-50 px-3 py-2 rounded-lg transition-colors"
+                >
+                  {selected.visibility === "private" ? "Make public" : "Make private"}
                 </button>}
                 {can.delete && <button
                   onClick={() => askAction(selected, "delete")}
