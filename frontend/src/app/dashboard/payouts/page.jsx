@@ -10,6 +10,7 @@ import BusyButton, { useButtonResult } from "@/components/dashboard/v2/BusyButto
 // Backend status -> label, status ink, dot, amount ink (design: Paid / Pending / Cancelled-style grey).
 const STATUS = {
   processed: { label: "Paid", ink: "#1F7A52", dot: "#2F9E6E", amt: "#14161C" },
+  on_hold: { label: "On hold", ink: "#14161C", dot: "#8A91A0", amt: "#14161C" },
   pending: { label: "Pending", ink: "#8A4B00", dot: "#F5B83D", amt: "#14161C" },
   rejected: { label: "Rejected", ink: "#B42318", dot: "#D03B3B", amt: "#5B6272" },
 };
@@ -19,6 +20,7 @@ const FILTERS = [
   ["all", "All"],
   ["processed", "Paid"],
   ["pending", "Pending"],
+  ["on_hold", "On hold"],
   ["rejected", "Rejected"],
 ];
 
@@ -283,7 +285,7 @@ export default function StudioPayouts() {
 
   const paid = payouts.filter((p) => p.status === "processed");
   const paidOutTotal = paid.reduce((sum, p) => sum + Number(p.amount), 0);
-  const pendingTotal = payouts.filter((p) => p.status === "pending").reduce((sum, p) => sum + Number(p.amount), 0);
+  const pendingTotal = payouts.filter((p) => p.status === "pending" || p.status === "on_hold").reduce((sum, p) => sum + Number(p.amount), 0);
 
   // The newest request, while it's still waiting, gets the progress steps.
   const inFlight = payouts[0]?.status === "pending" ? payouts[0] : null;
@@ -586,6 +588,9 @@ export default function StudioPayouts() {
                           <span className="v-dot" style={{ background: s.dot }} />
                           {s.label || p.status}
                         </span>
+                        {p.status === "on_hold" && (
+                          <span className="v-hint mt-1 block text-xs">{p.hold_reason ? `${p.hold_reason} ` : ""}Contact support if you need help.</span>
+                        )}
                         {p.status === "rejected" && (
                           <span className="v-hint mt-1 block text-xs">Back in your balance. Check your bank details or contact support.</span>
                         )}

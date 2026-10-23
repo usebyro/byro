@@ -943,7 +943,7 @@ class TicketTransfer(models.Model):
 
 class PayoutRequest(models.Model):
     METHOD_CHOICES = [('bank', 'Bank Transfer'), ('wallet', 'Crypto Wallet')]
-    STATUS_CHOICES = [('pending', 'Pending'), ('processed', 'Processed'), ('rejected', 'Rejected')]
+    STATUS_CHOICES = [('pending', 'Pending'), ('on_hold', 'On hold'), ('processed', 'Processed'), ('rejected', 'Rejected')]
 
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='payout_requests'
@@ -967,6 +967,8 @@ class PayoutRequest(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     requested_at = models.DateTimeField(auto_now_add=True)
     processed_at = models.DateTimeField(null=True, blank=True)
+    # Why Byro is holding this payout (verification, a dispute...). Shown to the organiser.
+    hold_reason = models.CharField(max_length=500, blank=True, default='')
 
     class Meta:
         ordering = ['-requested_at']
@@ -1201,6 +1203,8 @@ class AdminAction(models.Model):
     ACTION_PAYOUT_PROCESSED = 'payout.processed'
     ACTION_PAYOUT_REJECTED = 'payout.rejected'
     ACTION_PAYOUT_DELETED = 'payout.deleted'
+    ACTION_PAYOUT_HELD = 'payout.held'
+    ACTION_PAYOUT_RELEASED = 'payout.released'
     ACTION_REFUNDS_SENT = 'refunds.sent'
     ACTION_REFUNDS_RETRIED = 'refunds.retried'
     ACTION_TEAM_ADDED = 'team.added'
@@ -1242,6 +1246,8 @@ class AdminAction(models.Model):
         (ACTION_PAYOUT_PROCESSED, 'Payout processed'),
         (ACTION_PAYOUT_REJECTED, 'Payout rejected'),
         (ACTION_PAYOUT_DELETED, 'Payout deleted'),
+        (ACTION_PAYOUT_HELD, 'Payout put on hold'),
+        (ACTION_PAYOUT_RELEASED, 'Payout released from hold'),
         (ACTION_REFUNDS_SENT, 'Refunds sent'),
         (ACTION_REFUNDS_RETRIED, 'Refunds retried'),
         (ACTION_TEAM_ADDED, 'Team member added'),

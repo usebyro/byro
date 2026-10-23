@@ -734,9 +734,9 @@ class PayoutRequestSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'reference', 'user_email', 'event', 'event_name', 'amount', 'currency',
             'method', 'bank_name', 'account_number', 'account_name',
-            'wallet_address', 'wallet_type', 'status', 'requested_at', 'processed_at',
+            'wallet_address', 'wallet_type', 'status', 'hold_reason', 'requested_at', 'processed_at',
         ]
-        read_only_fields = ['id', 'user_email', 'event_name', 'status', 'requested_at', 'processed_at']
+        read_only_fields = ['id', 'user_email', 'event_name', 'status', 'hold_reason', 'requested_at', 'processed_at']
 
     def validate(self, attrs):
         method = attrs.get('method')

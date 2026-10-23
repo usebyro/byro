@@ -3511,7 +3511,7 @@ def compute_available_balance(user, event=None):
       (price of every sold/paid ticket — tier price, or the event's flat
       ticket_price for tier-less events, less any promo-code discount;
       free tickets contribute nothing)
-    − sum of payout requests that are still pending or already processed
+    − sum of payout requests that are still pending, on hold or already processed
       (rejected requests don't hold funds).
 
     Revenue is taken from tickets actually sold, not from Payment.amount,
@@ -3538,7 +3538,7 @@ def compute_available_balance(user, event=None):
     )
 
     payouts = PayoutRequest.objects.filter(
-        user=user, status__in=['pending', 'processed']
+        user=user, status__in=['pending', 'on_hold', 'processed']
     )
     if event is not None:
         payouts = payouts.filter(event=event)
@@ -3667,12 +3667,16 @@ class PayoutBalanceView(APIView):
             (p.amount for p in payouts if p.status == 'processed'), Decimal('0')
         )
         pending = sum(
-            (p.amount for p in payouts if p.status == 'pending'), Decimal('0')
+            (p.amount for p in payouts if p.status in ('pending', 'on_hold')), Decimal('0')
+        )
+        on_hold = sum(
+            (p.amount for p in payouts if p.status == 'on_hold'), Decimal('0')
         )
         return Response({
             'available': str(available),
             'paid_out': str(paid_out),
             'pending': str(pending),
+            'on_hold': str(on_hold),
             'currency': 'NGN',
         })
 
@@ -3782,7 +3786,8 @@ class AdminEventRefundsView(APIView):
 class AdminPayoutView(APIView):
     """
     GET    /api/admin/payouts/      — list all payout requests
-    PATCH  /api/admin/payouts/:id/  — update status
+    PATCH  /api/admin/payouts/:id/  — update status; {status: 'on_hold', reason} holds a pending
+                                      payout, {status: 'pending'} releases a held one
     DELETE /api/admin/payouts/:id/  — remove a payout request outright
 
     DELETE exists for bad data (a test/duplicate request), not for undoing a
@@ -3821,10 +3826,43 @@ class AdminPayoutView(APIView):
         if new_status not in dict(PayoutRequest.STATUS_CHOICES):
             return Response({'error': 'Invalid status'}, status=status.HTTP_400_BAD_REQUEST)
 
+        if new_status == 'on_hold':
+            reason = (request.data.get('reason') or '').strip()
+            if payout.status != 'pending':
+                return Response({'error': 'Only a pending payout can be put on hold.'}, status=status.HTTP_400_BAD_REQUEST)
+            if len(reason) < 3:
+                return Response({'error': 'Give the organiser a reason for the hold.'}, status=status.HTTP_400_BAD_REQUEST)
+            payout.status, payout.hold_reason = 'on_hold', reason[:500]
+            payout.save(update_fields=['status', 'hold_reason'])
+            _log_admin_action(request, AdminAction.ACTION_PAYOUT_HELD, 'payout', payout.pk,
+                              payout.user.email if payout.user_id else '', f"{payout.amount}: {payout.hold_reason}")
+            if payout.user_id:
+                notify(
+                    payout.user, 'payout_on_hold',
+                    f"Payout of ₦{float(payout.amount):,.0f} is on hold",
+                    body=payout.hold_reason, link='/dashboard/payouts',
+                )
+            return Response(PayoutRequestSerializer(payout).data)
+        if new_status == 'pending':
+            if payout.status != 'on_hold':
+                return Response({'error': 'Only a payout on hold can be released.'}, status=status.HTTP_400_BAD_REQUEST)
+            payout.status, payout.hold_reason = 'pending', ''
+            payout.save(update_fields=['status', 'hold_reason'])
+            _log_admin_action(request, AdminAction.ACTION_PAYOUT_RELEASED, 'payout', payout.pk,
+                              payout.user.email if payout.user_id else '', str(payout.amount))
+            if payout.user_id:
+                notify(
+                    payout.user, 'payout_released',
+                    f"Payout of ₦{float(payout.amount):,.0f} is back in the queue",
+                    body='The hold was lifted. It will be processed on the next business day.', link='/dashboard/payouts',
+                )
+            return Response(PayoutRequestSerializer(payout).data)
+
         payout.status = new_status
+        payout.hold_reason = ''
         if new_status == 'processed':
             payout.processed_at = timezone.now()
-        payout.save(update_fields=['status', 'processed_at'])
+        payout.save(update_fields=['status', 'processed_at', 'hold_reason'])
         _log_admin_action(
             request, AdminAction.ACTION_PAYOUT_PROCESSED if new_status == 'processed' else AdminAction.ACTION_PAYOUT_REJECTED,
             'payout', payout.pk,

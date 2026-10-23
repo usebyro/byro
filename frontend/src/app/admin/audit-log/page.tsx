@@ -26,6 +26,8 @@ const ACTION_LABEL: Record<string, string> = {
   "user.role_changed": "Changed user role",
   "payout.processed": "Processed payout",
   "payout.rejected": "Rejected payout",
+  "payout.held": "Put payout on hold",
+  "payout.released": "Released payout from hold",
   "payout.deleted": "Deleted payout",
   "team.added": "Added team member",
   "team.role_changed": "Changed team role",

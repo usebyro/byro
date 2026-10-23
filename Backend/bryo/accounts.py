@@ -87,7 +87,7 @@ def delete_blockers(user):
         reasons.append(f'They have upcoming events with tickets sold ({names}). Cancel or finish them first.')
     if Refund.objects.filter(event__owner=user).exclude(status=Refund.STATUS_PROCESSED).exists():
         reasons.append('Refunds for their events are not finished yet.')
-    if PayoutRequest.objects.filter(user=user, status='pending').exists():
+    if PayoutRequest.objects.filter(user=user, status__in=['pending', 'on_hold']).exists():
         reasons.append('They have a payout waiting to be processed.')
     if compute_available_balance(user) > 0:
         reasons.append('Byro still owes them money. Pay it out first.')

@@ -4,7 +4,7 @@ import { useAdminMe } from "@/components/admin/AdminMe";
 import { useConfirm, SkeletonRows, throwIfFailed } from "@/components/admin/ui";
 import { useEffect, useState, useCallback } from "react";
 
-type PayoutStatus = "pending" | "processed" | "rejected";
+type PayoutStatus = "pending" | "on_hold" | "processed" | "rejected";
 
 interface PayoutRequest {
   id: number;
@@ -20,6 +20,7 @@ interface PayoutRequest {
   wallet_address: string;
   wallet_type: string;
   status: PayoutStatus;
+  hold_reason?: string;
   requested_at: string;
   processed_at: string | null;
 }
@@ -78,14 +79,16 @@ function StatusBadge({ status }: { status: PayoutStatus }) {
       ? "bg-good-tint text-good"
       : status === "rejected"
         ? "bg-danger-tint text-danger"
-        : "bg-waiting-tint text-waiting";
+        : status === "on_hold"
+          ? "bg-mist text-ink"
+          : "bg-waiting-tint text-waiting";
   const dot =
-    status === "processed" ? "bg-stamp-green" : status === "rejected" ? "bg-danger-strong" : "bg-marigold";
+    status === "processed" ? "bg-stamp-green" : status === "rejected" ? "bg-danger-strong" : status === "on_hold" ? "bg-muted" : "bg-marigold";
 
   return (
     <span className={`inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded-full font-medium ${style}`}>
       <span className={`w-1.5 h-1.5 rounded-full ${dot}`} />
-      {status[0].toUpperCase() + status.slice(1)}
+      {status === "on_hold" ? "On hold" : status[0].toUpperCase() + status.slice(1)}
     </span>
   );
 }
@@ -117,19 +120,19 @@ export default function AdminPayoutsPage() {
     loadPayouts();
   }, [loadPayouts]);
 
-  const updateStatus = async (id: number, status: "processed" | "rejected") => {
+  const updateStatus = async (id: number, status: "processed" | "rejected" | "on_hold" | "pending", reason?: string) => {
     setUpdatingId(id);
     try {
       const res = await fetch(`/api/admin/payouts/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
+        body: JSON.stringify(reason ? { status, reason } : { status }),
       });
       await throwIfFailed(res);
       const updated = await res.json();
       setPayouts((prev) => prev.map((p) => (p.id === id ? updated : p)));
     } catch (err) {
-      setError(`Couldn't ${status === "processed" ? "process" : "reject"} that payout. ${err instanceof Error && err.message ? err.message : "Try again."}`);
+      setError(`Couldn't ${{ processed: "process", rejected: "reject", on_hold: "hold", pending: "release" }[status]} that payout. ${err instanceof Error && err.message ? err.message : "Try again."}`);
     } finally {
       setUpdatingId(null);
     }
@@ -148,7 +151,8 @@ export default function AdminPayoutsPage() {
     }
   };
 
-  const pending = payouts.filter((p) => p.status === "pending");
+  const pending = payouts.filter((p) => p.status === "pending" || p.status === "on_hold");
+  const heldCount = payouts.filter((p) => p.status === "on_hold").length;
   const processed = payouts.filter((p) => p.status === "processed");
   const rejected = payouts.filter((p) => p.status === "rejected");
 
@@ -159,7 +163,7 @@ export default function AdminPayoutsPage() {
 
 
   // One proper dialog for each payout decision, showing who gets what.
-  const askPayout = async (p: PayoutRequest, action: "processed" | "rejected" | "delete") => {
+  const askPayout = async (p: PayoutRequest, action: "processed" | "rejected" | "hold" | "release" | "delete") => {
     const who = (
       <span className="mt-3 block rounded-xl bg-mist px-3.5 py-2.5">
         <span className="block truncate font-bold text-ink">{p.user_email}</span>
@@ -181,6 +185,19 @@ export default function AdminPayoutsPage() {
         confirmLabel: "Reject request",
         tone: "danger" as const,
       },
+      hold: {
+        title: "Put this payout on hold?",
+        body: <>The money stays reserved against the organiser&apos;s balance, nothing is paid, and the organiser sees your reason. Use it while you verify them or the event.{who}</>,
+        confirmLabel: "Put on hold",
+        tone: "danger" as const,
+        input: { label: "Reason (the organiser sees this)", placeholder: "We need a copy of your ID before we can pay this out", required: true, multiline: true, maxLength: 500 },
+      },
+      release: {
+        title: "Release this payout?",
+        body: <>It goes back to pending and is processed on the next business day. The organiser is told.{who}</>,
+        confirmLabel: "Release",
+        tone: "primary" as const,
+      },
       delete: {
         title: "Delete this payout request for good?",
         body: (
@@ -193,8 +210,11 @@ export default function AdminPayoutsPage() {
         tone: "danger" as const,
       },
     }[action];
-    if (!(await confirm(copy))) return;
+    const answer = await confirm(copy);
+    if (!answer) return;
     if (action === "delete") deletePayout(p.id);
+    else if (action === "hold") updateStatus(p.id, "on_hold", String(answer));
+    else if (action === "release") updateStatus(p.id, "pending");
     else updateStatus(p.id, action);
   };
 
@@ -215,7 +235,7 @@ export default function AdminPayoutsPage() {
         <div className="bg-white border border-line rounded-xl px-5 py-4 border-l-2 border-l-yellow-500/50">
           <p className="text-muted text-xs mb-1.5">Outstanding</p>
           <p className="text-ink text-2xl font-semibold tabular-nums">{fmtNaira(outstandingAmount)}</p>
-          <p className="text-faint text-xs mt-1">{pending.length} pending</p>
+          <p className="text-faint text-xs mt-1">{pending.length} pending{heldCount ? `, ${heldCount} on hold` : ""}</p>
         </div>
         <div className="bg-white border border-line rounded-xl px-5 py-4 border-l-2 border-l-green-500/50">
           <p className="text-muted text-xs mb-1.5">Total paid out</p>
@@ -267,9 +287,30 @@ export default function AdminPayoutsPage() {
                     <td className="py-3 pr-6 text-muted whitespace-nowrap">{fmtDate(p.requested_at)}</td>
                     <td className="py-3 pr-6">
                       <StatusBadge status={p.status} />
+                      {p.status === "on_hold" && p.hold_reason && (
+                        <p className="text-faint text-xs mt-1 max-w-[220px]">{p.hold_reason}</p>
+                      )}
                     </td>
                     <td className="py-3">
                       <div className="flex items-center gap-2">
+                        {p.status === "on_hold" && can.payouts && (
+                          <>
+                            <button
+                              onClick={() => askPayout(p, "release")}
+                              disabled={updatingId === p.id}
+                              className="text-xs font-semibold text-brand-dark bg-sky hover:bg-brand/15 disabled:opacity-50 px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap"
+                            >
+                              Release
+                            </button>
+                            <button
+                              onClick={() => askPayout(p, "rejected")}
+                              disabled={updatingId === p.id}
+                              className="text-xs font-semibold text-danger bg-danger-tint hover:bg-danger-hover disabled:opacity-50 px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap"
+                            >
+                              Reject
+                            </button>
+                          </>
+                        )}
                         {p.status === "pending" && can.payouts && (
                           <>
                             <button
@@ -278,6 +319,13 @@ export default function AdminPayoutsPage() {
                               className="text-xs font-semibold text-brand-dark hover:text-brand-dark bg-sky hover:bg-brand/15 disabled:opacity-50 px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap"
                             >
                               {updatingId === p.id ? "Updating…" : "Mark as processed"}
+                            </button>
+                            <button
+                              onClick={() => askPayout(p, "hold")}
+                              disabled={updatingId === p.id}
+                              className="text-xs font-semibold text-ink bg-mist hover:bg-line disabled:opacity-50 px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap"
+                            >
+                              Hold
                             </button>
                             <button
                               onClick={() => askPayout(p, "rejected")}

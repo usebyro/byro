@@ -143,7 +143,7 @@ def cancel_event(event, reason):
             created_refunds += 1
 
         # Payouts not yet paid for this event are void: the money now belongs to the buyers.
-        locked.payout_requests.filter(status='pending').update(status='rejected')
+        locked.payout_requests.filter(status__in=['pending', 'on_hold']).update(status='rejected', hold_reason='')
 
         locked.tickets.filter(payment_status='paid').update(payment_status='refunded')
         locked.tickets.filter(payment_status__in=['free', 'pending', 'failed']).update(payment_status='cancelled')
