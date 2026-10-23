@@ -10,7 +10,7 @@ const API_BASE = (() => {
 // Static pages that are always indexed
 const staticPages = [
   { url: BASE_URL,                      priority: 1.0, changeFrequency: 'daily'   },
-  { url: `${BASE_URL}/discover`,        priority: 0.8, changeFrequency: 'daily'   },
+  { url: `${BASE_URL}/discover`,        priority: 0.9, changeFrequency: 'daily'   },
   { url: `${BASE_URL}/communities`,     priority: 0.8, changeFrequency: 'daily'   },
   { url: `${BASE_URL}/pricing`,         priority: 0.9, changeFrequency: 'monthly' },
   { url: `${BASE_URL}/faq`,             priority: 0.6, changeFrequency: 'monthly' },
