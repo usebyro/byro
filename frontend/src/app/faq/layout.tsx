@@ -1,4 +1,6 @@
 import type {Metadata} from 'next'
+import {FAQS} from '@/lib/faqs'
+import {faqPageJsonLd, serializeJsonLd} from '@/lib/faqSchema'
 
 export const metadata: Metadata = {
   title: 'FAQ',
@@ -11,5 +13,10 @@ export const metadata: Metadata = {
 }
 
 export default function Layout({children}: {children: React.ReactNode}) {
-  return <>{children}</>
+  return (
+    <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{__html: serializeJsonLd(faqPageJsonLd(FAQS))}} />
+      {children}
+    </>
+  )
 }

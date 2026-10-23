@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import { faqPageJsonLd, serializeJsonLd } from "@/lib/faqSchema";
 
 const freeFeatures = [
   "Unlimited events and guests",
@@ -186,6 +187,7 @@ export default function PricingPage() {
 
   return (
     <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeJsonLd(faqPageJsonLd(faqs)) }} />
       <Navbar />
       <main className="bg-white font-body text-ink">
         <section
