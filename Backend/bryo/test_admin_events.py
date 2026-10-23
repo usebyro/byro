@@ -5,7 +5,7 @@ from unittest.mock import patch
 from django.test import override_settings
 from django.utils import timezone
 
-from .models import AdminAction, CustomUser as User
+from .models import AdminAction, AdminMember, CustomUser as User
 from .test_admin_tools import AdminBase
 
 
@@ -266,3 +266,76 @@ class TicketFixTests(AdminBase):
     def test_viewers_cannot_use_either(self):
         self.assertEqual(self.post(self.viewer, 'void', reason='x y z').status_code, 403)
         self.assertEqual(self.post(self.viewer, 'email', email='a@b.co').status_code, 403)
+
+
+class AccessTests(AdminBase):
+
+    def setUp(self):
+        super().setUp()
+        self.boss_owner = self.fan('top@example.com')
+        AdminMember.objects.create(email='top@example.com', role='owner')
+        p = patch('bryo.views.send_cohost_invite_email')
+        self.invite = p.start()
+        self.addCleanup(p.stop)
+
+    def post(self, user, what, **body):
+        self.as_(user)
+        return self.client.post(f'/api/admin/events/{self.event.pk}/{what}/', body, format='json')
+
+    def test_add_a_cohost_with_an_account_gives_access_straight_away(self):
+        from .models import EventCoHost
+        helper = self.fan('helper@example.com')
+        r = self.post(self.boss, 'cohosts', email='helper@example.com')
+        self.assertEqual((r.status_code, r.json()['pending']), (201, False))
+        grant = EventCoHost.objects.get(event=self.event, user=helper)
+        self.assertEqual((grant.status, grant.role), ('accepted', 'manager'))
+        self.assertTrue(self.invite.called)
+        self.assertTrue(AdminAction.objects.filter(action=AdminAction.ACTION_EVENT_COHOST_ADDED).exists())
+
+    def test_unknown_address_becomes_a_pending_invite_and_duplicates_are_refused(self):
+        from .models import EventCoHost
+        r = self.post(self.boss, 'cohosts', email='new@example.com', role='checkin')
+        self.assertEqual((r.status_code, r.json()['pending']), (201, True))
+        self.assertEqual(EventCoHost.objects.get(invited_email='new@example.com').status, 'pending')
+        self.assertEqual(self.post(self.boss, 'cohosts', email='new@example.com').status_code, 400)
+        self.assertEqual(self.post(self.boss, 'cohosts', email=self.owner.email).status_code, 400)
+        self.assertEqual(self.post(self.boss, 'cohosts', email='nope').status_code, 400)
+
+    def test_transfer_moves_the_event_and_its_stamps_and_tells_both_people(self):
+        from .models import Notification, Stamp, Ticket
+        heir = self.fan('heir@example.com')
+        t = Ticket.objects.create(event=self.event, original_owner_name='A', original_owner_email='a@example.com',
+                                  current_owner_name='A', current_owner_email='a@example.com', payment_status='free')
+        Stamp.objects.create(ticket=t, event=self.event, organizer=self.owner, email='a@example.com')
+        r = self.post(self.boss_owner, 'owner', email='heir@example.com')
+        self.assertEqual(r.status_code, 200)
+        self.event.refresh_from_db()
+        self.assertEqual(self.event.owner, heir)
+        self.assertEqual(Stamp.objects.get(ticket=t).organizer, heir)
+        self.assertTrue(Notification.objects.filter(recipient=heir, kind='event_ownership_received').exists())
+        self.assertTrue(Notification.objects.filter(recipient=self.owner, kind='event_ownership_lost').exists())
+
+    def test_transfer_needs_an_existing_account_and_the_owner_role(self):
+        self.assertEqual(self.post(self.boss_owner, 'owner', email='ghost@example.com').status_code, 400)
+        self.fan('heir@example.com')
+        self.assertEqual(self.post(self.boss, 'owner', email='heir@example.com').status_code, 403)
+
+    def test_transfer_is_refused_when_it_could_pay_the_same_sales_twice(self):
+        from decimal import Decimal
+        from .models import PayoutRequest, Ticket
+        self.fan('heir@example.com')
+        Ticket.objects.create(event=self.event, original_owner_name='A', original_owner_email='a@example.com',
+                              current_owner_name='A', current_owner_email='a@example.com', payment_status='paid')
+        PayoutRequest.objects.create(user=self.owner, amount=Decimal('100'), method='bank', bank_name='X',
+                                     account_number='1', account_name='Y', status='processed')
+        r = self.post(self.boss_owner, 'owner', email='heir@example.com')
+        self.assertEqual(r.status_code, 400)
+        self.event.refresh_from_db()
+        self.assertEqual(self.event.owner, self.owner)
+
+    def test_a_new_owner_who_was_a_cohost_stops_being_one(self):
+        from .models import EventCoHost
+        heir = self.fan('heir@example.com')
+        EventCoHost.objects.create(event=self.event, user=heir, invited_email='heir@example.com', added_by=self.owner)
+        self.post(self.boss_owner, 'owner', email='heir@example.com')
+        self.assertFalse(EventCoHost.objects.filter(event=self.event, user=heir).exists())

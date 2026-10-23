@@ -1203,6 +1203,8 @@ class AdminAction(models.Model):
     ACTION_EVENT_SALES_REOPENED = 'event.sales_reopened'
     ACTION_EVENT_TO_DRAFT = 'event.moved_to_draft'
     ACTION_EVENT_EDITED = 'event.edited'
+    ACTION_EVENT_OWNER_CHANGED = 'event.owner_changed'
+    ACTION_EVENT_COHOST_ADDED = 'event.cohost_added'
     ACTION_USER_SUSPENDED = 'user.suspended'
     ACTION_USER_REACTIVATED = 'user.reactivated'
     ACTION_USER_ROLE_CHANGED = 'user.role_changed'
@@ -1253,6 +1255,8 @@ class AdminAction(models.Model):
         (ACTION_EVENT_SALES_REOPENED, 'Ticket sales reopened by Byro'),
         (ACTION_EVENT_TO_DRAFT, 'Event moved back to draft by Byro'),
         (ACTION_EVENT_EDITED, 'Event details edited by Byro'),
+        (ACTION_EVENT_OWNER_CHANGED, 'Event ownership transferred'),
+        (ACTION_EVENT_COHOST_ADDED, 'Co-host added by Byro'),
         (ACTION_USER_SUSPENDED, 'User suspended'),
         (ACTION_USER_REACTIVATED, 'User reactivated'),
         (ACTION_USER_ROLE_CHANGED, 'User role changed'),

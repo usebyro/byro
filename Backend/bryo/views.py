@@ -4163,6 +4163,95 @@ class AdminEventCancelView(APIView):
         return Response({'cancelled': True, 'summary': summary, 'progress': progress})
 
 
+class AdminEventCohostView(APIView):
+    """
+    POST /api/admin/events/<pk>/cohosts/ {email, role?} — give someone access to run an event
+    when the organiser can't add them (they lost their account, say). Same grant the organiser
+    makes: a manager by default, and an invite if the address has no account yet.
+    """
+    permission_classes = [IsAdminMember]
+    method_roles = {'POST': 'admin'}
+
+    def post(self, request, pk):
+        from django.core.exceptions import ValidationError as DjangoValidationError
+        from django.core.validators import validate_email
+        event = get_object_or_404(Event.objects.select_related('owner'), pk=pk)
+        email = (request.data.get('email') or '').strip().lower()
+        role = (request.data.get('role') or EventCoHost.ROLE_MANAGER).strip().lower()
+        if role not in dict(EventCoHost.ROLE_CHOICES):
+            return Response({'error': "Role must be 'manager' or 'checkin'."}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            validate_email(email)
+        except DjangoValidationError:
+            return Response({'error': 'Enter a valid email address.'}, status=status.HTTP_400_BAD_REQUEST)
+        if event.owner and event.owner.email.lower() == email:
+            return Response({'error': 'That person owns this event already.'}, status=status.HTTP_400_BAD_REQUEST)
+        user = User.objects.filter(email__iexact=email).first()
+        if EventCoHost.objects.filter(event=event).filter(
+            Q(user=user) if user else Q(invited_email__iexact=email, user__isnull=True)
+        ).exists():
+            return Response({'error': 'They are a co-host of this event already.'}, status=status.HTTP_400_BAD_REQUEST)
+        EventCoHost.objects.create(
+            event=event, user=user, invited_email=email, role=role, added_by=request.user,
+            status=EventCoHost.STATUS_ACCEPTED if user else EventCoHost.STATUS_PENDING,
+            accepted_at=timezone.now() if user else None,
+        )
+        send_cohost_invite_email(email, event, request.user, is_new_user=user is None, role=role)
+        _log_admin_action(request, AdminAction.ACTION_EVENT_COHOST_ADDED, 'event', event.pk, event.name,
+                          f'{email} as {role}')
+        if event.owner_id:
+            notify(event.owner, 'cohost_added_by_byro', f"Byro added {email} as a co-host of {event.name}",
+                   link=f"/dashboard/events/{event.slug}")
+        return Response({'added': email, 'pending': user is None}, status=status.HTTP_201_CREATED)
+
+
+class AdminEventOwnerView(APIView):
+    """
+    POST /api/admin/events/<pk>/owner/ {email} — hand an event to another existing account.
+
+    The revenue and payouts follow the owner, so this refuses when it could pay the same sales
+    twice: an event with paid tickets whose current owner has already asked for any payout.
+    """
+    permission_classes = [IsAdminMember]
+    method_roles = {'POST': 'owner'}
+
+    def post(self, request, pk):
+        from .models import Stamp
+        event = get_object_or_404(Event.objects.select_related('owner'), pk=pk)
+        email = (request.data.get('email') or '').strip().lower()
+        new_owner = User.objects.filter(email__iexact=email, is_active=True).first()
+        if new_owner is None:
+            return Response({'error': 'There is no account with that email. They need to sign up first.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        old_owner = event.owner
+        if old_owner and old_owner.pk == new_owner.pk:
+            return Response({'error': 'They own this event already.'}, status=status.HTTP_400_BAD_REQUEST)
+        if event.cancelled_at:
+            return Response({'error': 'A cancelled event can no longer change hands.'}, status=status.HTTP_400_BAD_REQUEST)
+        if (
+            old_owner
+            and event.tickets.filter(payment_status='paid').exists()
+            and PayoutRequest.objects.filter(user=old_owner).exclude(status='rejected').exists()
+        ):
+            return Response({
+                'error': 'This event has paid tickets and its organiser has already asked for payouts. '
+                         'Moving it could pay the same sales twice.',
+            }, status=status.HTTP_400_BAD_REQUEST)
+        with transaction.atomic():
+            event.owner = new_owner
+            event.save(update_fields=['owner', 'updated_at'])
+            EventCoHost.objects.filter(event=event, user=new_owner).delete()  # an owner isn't also a co-host
+            Stamp.objects.filter(event=event).update(organizer=new_owner)
+        _log_admin_action(request, AdminAction.ACTION_EVENT_OWNER_CHANGED, 'event', event.pk, event.name,
+                          f"{old_owner.email if old_owner else 'nobody'} to {new_owner.email}")
+        notify(new_owner, 'event_ownership_received', f"You now own {event.name}",
+               body='Byro moved this event to your account.', link=f"/dashboard/events/{event.slug}")
+        if old_owner:
+            notify(old_owner, 'event_ownership_lost', f"{event.name} was moved to another account",
+                   body='Byro moved this event to a different organiser.', link='/dashboard')
+        return Response({'owner_email': new_owner.email})
+
+
 class AdminEventAttendeesView(APIView):
     """
     GET /api/admin/events/<slug>/attendees/

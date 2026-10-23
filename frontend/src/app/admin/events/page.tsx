@@ -517,6 +517,42 @@ export default function AdminEventsPage() {
     }
   };
 
+  const addAccess = async (event: Event, what: "cohost" | "owner") => {
+    const isOwner = what === "owner";
+    const email = await confirm({
+      title: isOwner ? `Transfer “${event.name}” to another account?` : `Add a co-host to “${event.name}”?`,
+      body: isOwner ? (
+        <>Ticket revenue and payouts for this event move to the new owner, and the current owner (<b>{event.owner_email}</b>) loses access. Both are told. Refused if the organiser has already withdrawn money from paid sales.</>
+      ) : (
+        "They can edit the event, see the guest list and check people in. If they have no account yet, they get an invite to join. The organiser is told."
+      ),
+      confirmLabel: isOwner ? "Transfer event" : "Add co-host",
+      tone: isOwner ? "danger" : "primary",
+      input: { label: isOwner ? "New owner's email (must have an account)" : "Co-host's email", placeholder: "name@example.com", required: true },
+    });
+    if (typeof email !== "string") return;
+    setUpdatingId(event.id);
+    setActionError("");
+    try {
+      const res = await fetch(`/api/admin/events/${event.id}/${isOwner ? "owner" : "cohosts"}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim() }),
+      });
+      await throwIfFailed(res);
+      if (isOwner) {
+        const patch = { owner_email: email.trim().toLowerCase() };
+        setEvents((prev) => prev.map((e) => (e.id === event.id ? { ...e, ...patch } : e)));
+        setSelected((prev) => (prev && prev.id === event.id ? { ...prev, ...patch } : prev));
+      }
+      toast.success(isOwner ? "Event transferred" : "Co-host added", { description: email.trim() });
+    } catch (err) {
+      setActionError(`Couldn't ${isOwner ? "transfer this event" : "add the co-host"}. ${err instanceof Error && err.message ? err.message : "Try again."}`);
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
   const cancelEvent = async (event: Event) => {
     setActionError("");
     let preview: { paid_tickets: number; free_tickets: number; paid_orders: number; refund_total: number | string } | null = null;
@@ -806,6 +842,20 @@ export default function AdminEventsPage() {
                   className="text-xs font-semibold text-brand-dark bg-brand/10 hover:bg-brand/20 disabled:opacity-50 px-3 py-2 rounded-lg transition-colors"
                 >
                   {selected.visibility === "private" ? "Make public" : "Make private"}
+                </button>}
+                {can.moderate && !selected.cancelled_at && <button
+                  onClick={() => addAccess(selected, "cohost")}
+                  disabled={updatingId === selected.id}
+                  className="text-xs font-semibold text-brand-dark bg-brand/10 hover:bg-brand/20 disabled:opacity-50 px-3 py-2 rounded-lg transition-colors"
+                >
+                  Add co-host
+                </button>}
+                {can.delete && !selected.cancelled_at && <button
+                  onClick={() => addAccess(selected, "owner")}
+                  disabled={updatingId === selected.id}
+                  className="text-xs font-semibold text-waiting bg-waiting-tint hover:bg-waiting-hover disabled:opacity-50 px-3 py-2 rounded-lg transition-colors"
+                >
+                  Transfer ownership
                 </button>}
                 {can.moderate && !selected.is_draft && !selected.cancelled_at && <button
                   onClick={() => changeSales(selected, selected.sales_closed ? "reopen" : "close")}
