@@ -4052,6 +4052,52 @@ class AdminEventDetailView(APIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
+class AdminEventCancelView(APIView):
+    """
+    GET  /api/admin/events/<pk>/cancel/   what cancelling would do (nothing changes)
+    POST /api/admin/events/<pk>/cancel/   {"reason": "..."}  cancel it for the organiser
+
+    The same cancellation the organiser gets (tickets voided, refunds recorded, buyers told),
+    for when the organiser can't or won't do it, e.g. a fraudulent event. Money still goes
+    back from the Refunds page, as with any cancellation.
+    """
+    permission_classes = [IsAdminMember]
+    method_roles = {'POST': 'admin'}
+
+    def get(self, request, pk):
+        event = get_object_or_404(Event, pk=pk)
+        if event.cancelled_at:
+            return Response({'cancelled': True, 'progress': refund_progress(event)})
+        return Response({'cancelled': False, 'preview': cancellation_preview(event)})
+
+    def post(self, request, pk):
+        event = get_object_or_404(Event, pk=pk)
+        reason = (request.data.get('reason') or '').strip()
+        if len(reason) < 3:
+            return Response({'error': 'Give the attendees a reason for the cancellation.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            summary = cancel_event(event, reason)
+        except EventCancellationError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        _log_admin_action(
+            request, AdminAction.ACTION_EVENT_CANCELLED, 'event', event.pk, event.name,
+            f"{summary['paid_orders']} refunds, NGN {summary['refund_total']}: {reason}",
+        )
+        if event.owner_id:
+            notify(
+                event.owner, 'event_cancelled_by_byro', f"{event.name} was cancelled by Byro",
+                body=reason, link=f"/dashboard/events/{event.slug}",
+            )
+        if summary['paid_orders']:
+            _alert_byro_of_refunds(event, summary)
+        try:
+            progress = process_event_refunds(event)  # sends the first emails; no money moves
+        except Exception:
+            logger.exception('First notices failed for event %s', event.pk)
+            progress = refund_progress(event)
+        return Response({'cancelled': True, 'summary': summary, 'progress': progress})
+
+
 class AdminEventAttendeesView(APIView):
     """
     GET /api/admin/events/<slug>/attendees/

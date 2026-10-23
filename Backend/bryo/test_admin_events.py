@@ -88,3 +88,36 @@ class PayoutHoldTests(AdminBase):
 
     def test_viewers_cannot_hold(self):
         self.assertEqual(self.patch(self.viewer, status='on_hold', reason='nope').status_code, 403)
+
+
+class AdminCancelTests(AdminBase):
+
+    def setUp(self):
+        super().setUp()
+        self.event.day = timezone.localdate() + timezone.timedelta(days=5)
+        self.event.save()
+        self.url = f'/api/admin/events/{self.event.pk}/cancel/'
+
+    def test_admin_cancels_for_the_organiser_and_it_is_logged_and_the_organiser_told(self):
+        from .models import Notification
+        self.as_(self.boss)
+        self.assertFalse(self.client.get(self.url).json()['cancelled'])
+        r = self.client.post(self.url, {'reason': 'Against our policies'}, format='json')
+        self.assertEqual(r.status_code, 200)
+        self.event.refresh_from_db()
+        self.assertIsNotNone(self.event.cancelled_at)
+        self.assertEqual(self.event.cancel_reason, 'Against our policies')
+        self.assertTrue(AdminAction.objects.filter(action=AdminAction.ACTION_EVENT_CANCELLED).exists())
+        self.assertTrue(Notification.objects.filter(recipient=self.owner, kind='event_cancelled_by_byro').exists())
+
+    def test_a_reason_is_required_and_it_cannot_be_cancelled_twice(self):
+        self.as_(self.boss)
+        self.assertEqual(self.client.post(self.url, {'reason': ''}, format='json').status_code, 400)
+        self.client.post(self.url, {'reason': 'Fraud'}, format='json')
+        self.assertEqual(self.client.post(self.url, {'reason': 'Fraud'}, format='json').status_code, 400)
+
+    def test_viewers_and_organisers_cannot_use_it(self):
+        self.as_(self.viewer)
+        self.assertEqual(self.client.post(self.url, {'reason': 'Fraud'}, format='json').status_code, 403)
+        self.as_(self.owner)
+        self.assertEqual(self.client.post(self.url, {'reason': 'Fraud'}, format='json').status_code, 403)

@@ -31,6 +31,7 @@ interface Event {
   owner_email?: string;
   featured_until?: string | null;
   is_featured?: boolean;
+  cancelled_at?: string | null;
 }
 
 interface TierRow {
@@ -393,6 +394,50 @@ export default function AdminEventsPage() {
     }
   };
 
+  const cancelEvent = async (event: Event) => {
+    setActionError("");
+    let preview: { paid_tickets: number; free_tickets: number; paid_orders: number; refund_total: number | string } | null = null;
+    try {
+      const res = await fetch(`/api/admin/events/${event.id}/cancel`);
+      await throwIfFailed(res);
+      const data = await res.json();
+      preview = data.preview ?? null;
+    } catch (err) {
+      setActionError(`Couldn't check what cancelling would do. ${err instanceof Error && err.message ? err.message : "Try again."}`);
+      return;
+    }
+    const answer = await confirm({
+      title: `Cancel “${event.name}” for the organiser?`,
+      body: (
+        <>
+          Ticket sales stop and every ticket is voided. {preview ? `${preview.paid_orders} paid order${preview.paid_orders === 1 ? "" : "s"} (₦${Number(preview.refund_total).toLocaleString()}) will be refunded from the Refunds page; Byro's fee and the payment charge aren't refunded. ` : ""}
+          Buyers and the organiser are told by email. This can't be undone.
+        </>
+      ),
+      confirmLabel: "Cancel event",
+      tone: "danger",
+      input: { label: "Reason (the attendees see this)", placeholder: "This event didn't meet our policies", required: true, multiline: true, maxLength: 500 },
+    });
+    if (!answer) return;
+    setUpdatingId(event.id);
+    try {
+      const res = await fetch(`/api/admin/events/${event.id}/cancel`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: String(answer) }),
+      });
+      await throwIfFailed(res);
+      const patch = { cancelled_at: new Date().toISOString() };
+      setEvents((prev) => prev.map((e) => (e.id === event.id ? { ...e, ...patch } : e)));
+      setSelected((prev) => (prev && prev.id === event.id ? { ...prev, ...patch } : prev));
+      toast.success("Event cancelled", { description: "Refunds are waiting on the Refunds page." });
+    } catch (err) {
+      setActionError(`Couldn't cancel this event. ${err instanceof Error && err.message ? err.message : "Try again."}`);
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
   // One proper dialog for each action, saying exactly what will happen.
   const askAction = async (event: Event, action: "suspend" | "reactivate" | "delete") => {
     const copy = {
@@ -627,6 +672,13 @@ export default function AdminEventsPage() {
                   className="text-xs font-semibold text-brand-dark bg-brand/10 hover:bg-brand/20 disabled:opacity-50 px-3 py-2 rounded-lg transition-colors"
                 >
                   {selected.visibility === "private" ? "Make public" : "Make private"}
+                </button>}
+                {can.moderate && !selected.is_draft && !selected.cancelled_at && selected.day >= new Date().toLocaleDateString("en-CA") && <button
+                  onClick={() => cancelEvent(selected)}
+                  disabled={updatingId === selected.id}
+                  className="text-xs font-semibold text-danger bg-danger-tint hover:bg-danger-hover disabled:opacity-50 px-3 py-2 rounded-lg transition-colors"
+                >
+                  Cancel event
                 </button>}
                 {can.delete && <button
                   onClick={() => askAction(selected, "delete")}
