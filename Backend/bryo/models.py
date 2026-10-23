@@ -400,6 +400,8 @@ class Event(models.Model):
     # Distinct from visibility='private', which is unlisted but still purchasable
     # by anyone holding the link.
     is_draft = models.BooleanField(default=False)
+    # Set by Byro admins: the event stays up and existing tickets work, but no new tickets can be bought.
+    sales_closed = models.BooleanField(default=False)
     # Set when the organiser cancels the event. Cancelling voids every ticket
     # and refunds paid ones (see bryo/refunds.py). It is the only moment Byro
     # refunds anyone: buyers cannot ask for refunds.
@@ -1197,6 +1199,9 @@ class AdminAction(models.Model):
     ACTION_EVENT_DELETED = 'event.deleted'
     ACTION_EVENT_VISIBILITY = 'event.visibility_changed'
     ACTION_EVENT_CANCELLED = 'event.cancelled'
+    ACTION_EVENT_SALES_CLOSED = 'event.sales_closed'
+    ACTION_EVENT_SALES_REOPENED = 'event.sales_reopened'
+    ACTION_EVENT_TO_DRAFT = 'event.moved_to_draft'
     ACTION_USER_SUSPENDED = 'user.suspended'
     ACTION_USER_REACTIVATED = 'user.reactivated'
     ACTION_USER_ROLE_CHANGED = 'user.role_changed'
@@ -1241,6 +1246,9 @@ class AdminAction(models.Model):
         (ACTION_EVENT_DELETED, 'Event deleted'),
         (ACTION_EVENT_VISIBILITY, 'Event made public or private'),
         (ACTION_EVENT_CANCELLED, 'Event cancelled by Byro'),
+        (ACTION_EVENT_SALES_CLOSED, 'Ticket sales closed by Byro'),
+        (ACTION_EVENT_SALES_REOPENED, 'Ticket sales reopened by Byro'),
+        (ACTION_EVENT_TO_DRAFT, 'Event moved back to draft by Byro'),
         (ACTION_USER_SUSPENDED, 'User suspended'),
         (ACTION_USER_REACTIVATED, 'User reactivated'),
         (ACTION_USER_ROLE_CHANGED, 'User role changed'),

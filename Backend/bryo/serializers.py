@@ -426,11 +426,11 @@ class EventSerializer(serializers.ModelSerializer):
             'virtual_link', 'ticket_price', 'capacity', 'transferable',
             'show_remaining_count', 'pass_fee_to_attendee', 'max_tickets_per_person', 'is_sold_out',
             'event_image', 'event_image_url', 'visibility', 'timezone', 'hosted_by',
-            'is_active', 'is_draft', 'cancelled_at', 'cancel_reason', 'created_at', 'updated_at',
+            'is_active', 'is_draft', 'sales_closed', 'cancelled_at', 'cancel_reason', 'created_at', 'updated_at',
             'cohosts', 'role', 'tiers',
         ]
         # cancelled_at/cancel_reason are set only by the cancel endpoint, never by editing an event.
-        read_only_fields = ['id', 'slug', 'owner', 'is_active', 'is_sold_out', 'cancelled_at', 'cancel_reason', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'slug', 'owner', 'is_active', 'is_sold_out', 'sales_closed', 'cancelled_at', 'cancel_reason', 'created_at', 'updated_at']
 
     def get_is_sold_out(self, obj):
         return obj.is_sold_out()

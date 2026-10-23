@@ -199,13 +199,14 @@ export default function ViewEventClient({ slug, initialEvent = null }) {
   /* Registration closes one full day after the event has ended */
   const registrationClosed = useMemo(() => {
     if (event?.cancelled_at) return true; // cancelled by the organiser: nothing to buy
+    if (event?.sales_closed) return true; // closed by Byro
     if (!event?.day) return false;
     const endTime = event.time_to || event.time_from || "23:59:59";
     const eventEnd = new Date(`${event.day}T${endTime}`);
     if (isNaN(eventEnd.getTime())) return false;
     const closeAt = new Date(eventEnd.getTime() + 24 * 60 * 60 * 1000);
     return new Date() > closeAt;
-  }, [event?.day, event?.time_to, event?.time_from]);
+  }, [event?.day, event?.time_to, event?.time_from, event?.cancelled_at, event?.sales_closed]);
 
   // Shaped like the real page (board 34): the navbar and headings are real, the rest waits.
   if (loading) return (

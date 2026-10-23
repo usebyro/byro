@@ -1,7 +1,7 @@
 """Admin actions on events: visibility, and the other moderation tools added with it."""
 from django.utils import timezone
 
-from .models import AdminAction
+from .models import AdminAction, CustomUser as User
 from .test_admin_tools import AdminBase
 
 
@@ -121,3 +121,49 @@ class AdminCancelTests(AdminBase):
         self.assertEqual(self.client.post(self.url, {'reason': 'Fraud'}, format='json').status_code, 403)
         self.as_(self.owner)
         self.assertEqual(self.client.post(self.url, {'reason': 'Fraud'}, format='json').status_code, 403)
+
+
+class SalesTests(AdminBase):
+
+    def patch(self, user, **body):
+        self.as_(user)
+        return self.client.patch(f'/api/admin/events/{self.event.pk}/', body, format='json')
+
+    def register(self):
+        self.as_(User.objects.filter(email='late@example.com').first() or self.fan('late@example.com'))
+        type(self.event).objects.filter(pk=self.event.pk).update(ticket_price=0)
+        return self.client.post(f'/api/events/{self.event.slug}/register/',
+                                {'name': 'Late', 'email': 'late@example.com'}, format='json')
+
+    def test_closing_sales_blocks_registration_and_reopening_allows_it(self):
+        r = self.patch(self.boss, sales_closed=True)
+        self.assertTrue(r.json()['sales_closed'])
+        self.assertEqual(self.register().status_code, 400)
+        self.patch(self.boss, sales_closed=False)
+        self.assertEqual(self.register().status_code, 201)
+        actions = set(AdminAction.objects.values_list('action', flat=True))
+        self.assertTrue({AdminAction.ACTION_EVENT_SALES_CLOSED, AdminAction.ACTION_EVENT_SALES_REOPENED} <= actions)
+
+    def test_the_organiser_is_told_when_sales_close(self):
+        from .models import Notification
+        self.patch(self.boss, sales_closed=True)
+        self.assertTrue(Notification.objects.filter(recipient=self.owner, kind='event_sales_closed').exists())
+
+    def test_move_to_draft_only_when_nobody_has_a_ticket(self):
+        self.event.is_draft = False
+        self.event.save()
+        r = self.patch(self.boss, is_draft=True)
+        self.assertEqual((r.status_code, r.json()['is_draft']), (200, True))
+        self.assertTrue(AdminAction.objects.filter(action=AdminAction.ACTION_EVENT_TO_DRAFT).exists())
+
+    def test_move_to_draft_is_refused_once_tickets_exist(self):
+        from .models import Ticket
+        Ticket.objects.create(event=self.event, original_owner_name='A', original_owner_email='a@example.com',
+                              current_owner_name='A', current_owner_email='a@example.com', payment_status='paid')
+        r = self.patch(self.boss, is_draft=True)
+        self.assertEqual(r.status_code, 400)
+        self.event.refresh_from_db()
+        self.assertFalse(self.event.is_draft)
+
+    def test_viewers_cannot_close_sales(self):
+        self.assertEqual(self.patch(self.viewer, sales_closed=True).status_code, 403)

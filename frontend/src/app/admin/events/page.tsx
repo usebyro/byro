@@ -32,6 +32,7 @@ interface Event {
   featured_until?: string | null;
   is_featured?: boolean;
   cancelled_at?: string | null;
+  sales_closed?: boolean;
 }
 
 interface TierRow {
@@ -394,6 +395,48 @@ export default function AdminEventsPage() {
     }
   };
 
+  const changeSales = async (event: Event, change: "close" | "reopen" | "draft") => {
+    const copy = {
+      close: {
+        title: `Close ticket sales for “${event.name}”?`,
+        body: "Nobody can buy or register from now on. The event stays up and existing tickets keep working. The organiser is told.",
+        confirmLabel: "Close sales",
+        tone: "danger" as const,
+      },
+      reopen: {
+        title: `Reopen ticket sales for “${event.name}”?`,
+        body: "People can buy or register again. The organiser is told.",
+        confirmLabel: "Reopen sales",
+        tone: "primary" as const,
+      },
+      draft: {
+        title: `Move “${event.name}” back to draft?`,
+        body: "It disappears from Byro and only the organiser can see it until they publish it again. Only possible while no tickets have been issued. It stops being featured.",
+        confirmLabel: "Move to draft",
+        tone: "danger" as const,
+      },
+    }[change];
+    if (!(await confirm(copy))) return;
+    setUpdatingId(event.id);
+    setActionError("");
+    try {
+      const res = await fetch(`/api/admin/events/${event.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(change === "draft" ? { is_draft: true } : { sales_closed: change === "close" }),
+      });
+      await throwIfFailed(res);
+      const updated: Event = await res.json();
+      setEvents((prev) => prev.map((e) => (e.id === event.id ? { ...e, ...updated } : e)));
+      setSelected((prev) => (prev && prev.id === event.id ? { ...prev, ...updated } : prev));
+      toast.success({ close: "Ticket sales closed", reopen: "Ticket sales reopened", draft: "Moved back to draft" }[change], { description: event.name });
+    } catch (err) {
+      setActionError(`Couldn't update this event. ${err instanceof Error && err.message ? err.message : "Try again."}`);
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
   const cancelEvent = async (event: Event) => {
     setActionError("");
     let preview: { paid_tickets: number; free_tickets: number; paid_orders: number; refund_total: number | string } | null = null;
@@ -672,6 +715,20 @@ export default function AdminEventsPage() {
                   className="text-xs font-semibold text-brand-dark bg-brand/10 hover:bg-brand/20 disabled:opacity-50 px-3 py-2 rounded-lg transition-colors"
                 >
                   {selected.visibility === "private" ? "Make public" : "Make private"}
+                </button>}
+                {can.moderate && !selected.is_draft && !selected.cancelled_at && <button
+                  onClick={() => changeSales(selected, selected.sales_closed ? "reopen" : "close")}
+                  disabled={updatingId === selected.id}
+                  className="text-xs font-semibold text-brand-dark bg-brand/10 hover:bg-brand/20 disabled:opacity-50 px-3 py-2 rounded-lg transition-colors"
+                >
+                  {selected.sales_closed ? "Reopen sales" : "Close sales"}
+                </button>}
+                {can.moderate && !selected.is_draft && !selected.cancelled_at && selectedOverview?.tickets_sold === 0 && <button
+                  onClick={() => changeSales(selected, "draft")}
+                  disabled={updatingId === selected.id}
+                  className="text-xs font-semibold text-waiting bg-waiting-tint hover:bg-waiting-hover disabled:opacity-50 px-3 py-2 rounded-lg transition-colors"
+                >
+                  Move to draft
                 </button>}
                 {can.moderate && !selected.is_draft && !selected.cancelled_at && selected.day >= new Date().toLocaleDateString("en-CA") && <button
                   onClick={() => cancelEvent(selected)}

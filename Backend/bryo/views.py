@@ -762,6 +762,8 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
         event = get_object_or_404(Event, slug=event_slug, is_active=True, is_draft=False)
         if event.cancelled_at:
             return Response({'error': 'This event has been cancelled and is no longer selling tickets.'}, status=status.HTTP_400_BAD_REQUEST)
+        if event.sales_closed:
+            return Response({'error': 'Ticket sales for this event are closed.'}, status=status.HTTP_400_BAD_REQUEST)
 
         # The organiser decides how many tickets one order may contain. Each tier
         # sets its own limit (empty = no limit); an event without tiers uses the
@@ -2654,6 +2656,11 @@ class EventViewSet(viewsets.ModelViewSet):
                     {"error": "This event is not open for registration yet."},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
+            if event.sales_closed:
+                return Response(
+                    {"error": "Registration for this event is closed."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
             tier_id = request.data.get('tier_id')
 
             name = request.data.get('name', '').strip()
@@ -4035,6 +4042,37 @@ class AdminEventDetailView(APIView):
                 event.save(update_fields=fields)
                 _log_admin_action(
                     request, AdminAction.ACTION_EVENT_VISIBILITY, 'event', event.pk, event.name, visibility,
+                )
+
+        sales_closed = request.data.get('sales_closed')
+        if sales_closed is not None and bool(sales_closed) != event.sales_closed:
+            event.sales_closed = bool(sales_closed)
+            event.save(update_fields=['sales_closed'])
+            _log_admin_action(
+                request, AdminAction.ACTION_EVENT_SALES_CLOSED if event.sales_closed else AdminAction.ACTION_EVENT_SALES_REOPENED,
+                'event', event.pk, event.name, '',
+            )
+            if event.owner_id:
+                notify(
+                    event.owner, 'event_sales_closed' if event.sales_closed else 'event_sales_reopened',
+                    f"Ticket sales for {event.name} " + ('were closed by Byro' if event.sales_closed else 'are open again'),
+                    link=f"/dashboard/events/{event.slug}",
+                )
+
+        if request.data.get('is_draft') is True and not event.is_draft:
+            # Only for events nobody has bought into: with tickets sold, suspend or close sales instead.
+            if event.tickets.filter(payment_status__in=['paid', 'free']).exists():
+                return Response(
+                    {'error': 'This event already has tickets. Close ticket sales or suspend it instead.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            event.is_draft, event.featured_until = True, None
+            event.save(update_fields=['is_draft', 'featured_until'])
+            _log_admin_action(request, AdminAction.ACTION_EVENT_TO_DRAFT, 'event', event.pk, event.name, '')
+            if event.owner_id:
+                notify(
+                    event.owner, 'event_moved_to_draft', f"{event.name} was moved back to draft by Byro",
+                    body='Only you can see it until you publish it again.', link=f"/dashboard/events/{event.slug}",
                 )
         return Response(EventSerializer(event, context={'request': request}).data)
 
