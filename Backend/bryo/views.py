@@ -4799,6 +4799,7 @@ class AdminReportsView(APIView):
             'resolved_at': r.resolved_at, 'created_at': r.created_at,
             'event': None if not e else {
                 'id': e.pk, 'name': e.name, 'slug': e.slug, 'is_active': e.is_active,
+                'visibility': e.visibility, 'sales_closed': e.sales_closed, 'cancelled': bool(e.cancelled_at),
                 'organizer_email': e.owner.email if e.owner_id else None,
             },
             'community': None if not community else {

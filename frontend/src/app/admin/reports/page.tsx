@@ -19,7 +19,7 @@ interface AdminReport {
   resolved_at: string | null;
   created_at: string;
   reports_on_same: number;
-  event: { id: number; name: string; slug: string; is_active: boolean; organizer_email: string | null } | null;
+  event: { id: number; name: string; slug: string; is_active: boolean; visibility: "public" | "private"; sales_closed: boolean; cancelled: boolean; organizer_email: string | null } | null;
   community: { user_id: number; email: string; name: string; handle: string | null; hidden_from_directory: boolean } | null;
 }
 
@@ -109,6 +109,29 @@ export default function AdminReportsPage() {
     });
   };
 
+  // After an action, one tap closes the report as "action taken" with what was done as the note.
+  const offerClose = (r: AdminReport, note: string) =>
+    ({
+      label: "Close report",
+      onClick: () => run(`close-${r.id}`, async () => {
+        await send(`/api/admin/reports/${r.id}`, "PATCH", { status: "resolved", note });
+        toast.success("Report closed");
+      }),
+    });
+
+  const changeEvent = async (r: AdminReport, change: "private" | "close_sales") => {
+    if (!r.event) return;
+    const copy = change === "private"
+      ? { title: `Make “${r.event.name}” private?`, body: "It disappears from Discover, search and the organiser's page. Anyone with the link can still buy tickets, and it stops being featured.", confirmLabel: "Make private" }
+      : { title: `Close ticket sales for “${r.event.name}”?`, body: "Nobody can buy or register from now on. The event stays up and existing tickets keep working. The organiser is told.", confirmLabel: "Close sales" };
+    if (!(await confirm({ ...copy, tone: "danger" }))) return;
+    return run(`event-${r.id}`, async () => {
+      await send(`/api/admin/events/${r.event!.id}`, "PATCH", change === "private" ? { visibility: "private" } : { sales_closed: true });
+      const note = change === "private" ? "Made the event private" : "Closed ticket sales";
+      toast.success(change === "private" ? "Event is now private" : "Ticket sales closed", { description: r.event!.name, action: offerClose(r, note) });
+    });
+  };
+
   const suspendEvent = async (r: AdminReport) => {
     if (!r.event) return;
     const ok = await confirm({
@@ -120,7 +143,7 @@ export default function AdminReportsPage() {
     if (!ok) return;
     return run(`suspend-${r.id}`, async () => {
       await send(`/api/admin/events/${r.event!.id}`, "PATCH", { is_active: false });
-      toast.success("Event suspended", { description: r.event!.name });
+      toast.success("Event suspended", { description: r.event!.name, action: offerClose(r, "Suspended the event") });
     });
   };
 
@@ -131,6 +154,7 @@ export default function AdminReportsPage() {
       const c = r.community!;
       toast.success("Hidden from directory", {
         description: `${c.name}'s page still works by link`,
+        cancel: { ...offerClose(r, "Hid the community from the directory") },
         action: {
           label: "Undo",
           onClick: () => run(`hide-${r.id}`, async () => {
@@ -221,6 +245,16 @@ export default function AdminReportsPage() {
                       {r.event && r.event.is_active && (
                         <button type="button" onClick={() => suspendEvent(r)} disabled={busy !== ""} className="rounded-lg border border-danger-hover px-3 py-1.5 text-xs font-bold text-danger hover:bg-danger-tint disabled:opacity-50">
                           Suspend event
+                        </button>
+                      )}
+                      {r.event && !r.event.cancelled && r.event.visibility === "public" && (
+                        <button type="button" onClick={() => changeEvent(r, "private")} disabled={busy !== ""} className="rounded-lg border border-line px-3 py-1.5 text-xs font-bold text-ink hover:bg-mist disabled:opacity-50">
+                          Make private
+                        </button>
+                      )}
+                      {r.event && !r.event.cancelled && !r.event.sales_closed && (
+                        <button type="button" onClick={() => changeEvent(r, "close_sales")} disabled={busy !== ""} className="rounded-lg border border-line px-3 py-1.5 text-xs font-bold text-ink hover:bg-mist disabled:opacity-50">
+                          Close sales
                         </button>
                       )}
                       {r.community && !r.community.hidden_from_directory && (

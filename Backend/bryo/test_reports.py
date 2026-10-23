@@ -76,3 +76,12 @@ class ReportTests(AdminBase):
         self.report()
         self.as_(self.viewer)
         self.assertEqual(self.client.get('/api/admin/reports/?count_only=1').json(), {'open': 1})
+
+    def test_event_reports_say_what_state_the_event_is_in_so_admins_can_act_on_it(self):
+        self.report(email='visitor@example.com')
+        self.as_(self.boss)
+        ev = self.client.get('/api/admin/reports/?status=open').json()['reports'][0]['event']
+        self.assertEqual((ev['visibility'], ev['sales_closed'], ev['cancelled']), ('public', False, False))
+        self.client.patch(f'/api/admin/events/{self.event.pk}/', {'visibility': 'private', 'sales_closed': True}, format='json')
+        ev = self.client.get('/api/admin/reports/?status=open').json()['reports'][0]['event']
+        self.assertEqual((ev['visibility'], ev['sales_closed']), ('private', True))
