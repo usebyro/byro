@@ -923,7 +923,6 @@ export default function StudioEventPage() {
                   <span>
                     Showing {filteredAttendees.length > PAGE_SIZE ? `${pageIndex * PAGE_SIZE + 1}–${pageIndex * PAGE_SIZE + shownGuests.length}` : shownGuests.length} of {num(filteredAttendees.length)}
                     {filteredAttendees.length !== sold ? ` (${num(sold)} in all)` : ""}
-                    {isFuture && !isCancelled ? " · Check-in opens on event day" : ""}
                   </span>
                   {pages > 1 && (
                     <span className="flex gap-2">

@@ -91,7 +91,7 @@ export default function EventGuestSheet({ slug, guest, isOwner, canCheckIn, even
             <span className="v-hint">
               {guest.checkedIn
                 ? guest.checkedInAt ? when(guest.checkedInAt) : "At the door"
-                : eventIsFuture ? "Check-in opens on event day. You can do it early here." : "Not checked in yet."}
+                : eventIsFuture ? "Not checked in yet. You can do it early here." : "Not checked in yet."}
             </span>
           </span>
           {!guest.checkedIn && canCheckIn && guest.qrToken && (

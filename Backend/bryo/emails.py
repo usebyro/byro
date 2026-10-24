@@ -816,6 +816,42 @@ def order_refunded_email(name, event_name, refund_amount, reason=""):
     return {"subject": f"Your refund for {event_name}", "html": html, "text": text}
 
 
+def event_changed_email(name, event_name, changes, event_url=None, ticket_url=None):
+    """
+    To everyone holding a ticket when the organiser changes the date, time or place.
+
+    `changes` is a list of (label, old, new) text, e.g. ("Date", "Sat, 24 Oct 2026", "Fri, 14 Nov 2026").
+    """
+    rows = [(label, f"{_h(old)} &#8594; <b>{_h(new)}</b>") for label, old, new in changes]
+    buttons = []
+    if ticket_url:
+        buttons.append(_btn(ticket_url, "View your ticket"))
+    if event_url:
+        buttons.append(_btn(event_url, "Event details", primary=not ticket_url))
+    body_html = (
+        _lead(f"Hi {_h(name or 'there')}, the organiser has changed the details of <b>{_h(event_name)}</b>.")
+        + _rows(rows)
+        + _small("Your ticket is still valid. You don&#8217;t need to do anything.")
+        + (_btn_row(*buttons) if buttons else "")
+    )
+    html = _shell(
+        _badge("Event update", TIME, TIME_BG),
+        f"{_h(event_name)} has changed",
+        body_html,
+        "You&#8217;re getting this because you hold a ticket to this event. Questions? Reply to this email or write to support@usebyro.com.",
+        preheader="The date, time or place was updated. Your ticket is still valid.",
+    )
+    text = (
+        f"Hi {name or 'there'},\n\nThe organiser has changed the details of {event_name}.\n\n"
+        + "".join(f"{label}: {old} -> {new}\n" for label, old, new in changes)
+        + "\nYour ticket is still valid. You don't need to do anything.\n"
+        + (f"\nYour ticket: {ticket_url}" if ticket_url else "")
+        + (f"\nEvent details: {event_url}" if event_url else "")
+        + "\n\nByro Team\nsupport@usebyro.com"
+    )
+    return {"subject": f"{event_name} has changed", "html": html, "text": text}
+
+
 def event_cancelled_email(name, event_name, date, time, location, reason, refund_amount=None,
                           refund_state='arranged', event_url=None):
     """

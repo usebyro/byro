@@ -35,6 +35,7 @@ from .models import (
 from . import messaging
 from .activity import log_activity
 from .changes import EVENT_FIELDS, TIER_FIELDS, describe, snapshot
+from .event_changes import changes_between, notify_in_background as notify_event_changed, watched
 from .notifications import notify, notify_admins, ticket_sale
 from .community import (
     community_stats, event_host_name, follow_organizer, notify_followers_in_background, record_stamp,
@@ -2467,6 +2468,7 @@ class EventViewSet(viewsets.ModelViewSet):
         old_image = instance.event_image.name if instance.event_image else None
         was_draft = instance.is_draft
         before = snapshot(instance, EVENT_FIELDS)
+        watched_before = watched(instance)
 
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
@@ -2481,6 +2483,12 @@ class EventViewSet(viewsets.ModelViewSet):
             'event.updated', request=request, target_type='event',
             target_id=serializer.instance.pk, target_label=serializer.instance.name,
             detail=describe(before, snapshot(serializer.instance, EVENT_FIELDS), EVENT_FIELDS) or 'saved, nothing changed',
+        )
+
+        # Ticket holders hear when the date, time or place moves.
+        notify_event_changed(
+            serializer.instance,
+            changes_between(watched_before, watched(serializer.instance), serializer.instance.timezone),
         )
 
         # A draft that has just been published tells the organiser's followers (once).
@@ -4065,6 +4073,7 @@ class AdminEventDetailView(APIView):
 
         # Fixing what's shown publicly (a typo, an inappropriate photo) without suspending the event.
         edits, changed = {}, []
+        watched_before = watched(event)
         for field, limit in (('name', 100), ('location', 255), ('description', None)):
             if field in request.data:
                 value = str(request.data.get(field) or '').strip()
@@ -4083,6 +4092,7 @@ class AdminEventDetailView(APIView):
                 setattr(event, field, value)
             event.save(update_fields=list(edits))
             _log_admin_action(request, AdminAction.ACTION_EVENT_EDITED, 'event', event.pk, event.name, ', '.join(changed))
+            notify_event_changed(event, changes_between(watched_before, watched(event), event.timezone))
             if event.owner_id:
                 notify(
                     event.owner, 'event_edited_by_byro', f"Byro edited the {', '.join(changed)} of {event.name}",
