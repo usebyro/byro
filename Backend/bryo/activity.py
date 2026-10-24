@@ -35,7 +35,7 @@ def log_activity(action, *, request=None, user=None, email='', target_type='',
             target_type=target_type,
             target_id=str(target_id) if target_id != '' else '',
             target_label=(target_label or '')[:255],
-            detail=(detail or '')[:255],
+            detail=(detail or '')[:1000],
             ip_address=client_ip(request),
         )
     except Exception as e:

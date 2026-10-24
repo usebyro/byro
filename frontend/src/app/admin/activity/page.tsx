@@ -118,7 +118,7 @@ export default function AdminActivityPage() {
                     </span>
                   </td>
                   <td className="py-3 pr-6 text-body truncate max-w-[200px]">{a.target_label || "—"}</td>
-                  <td className="py-3 pr-6 text-faint truncate max-w-[220px]">{a.detail || "—"}</td>
+                  <td className="py-3 pr-6 text-faint min-w-[200px] max-w-[420px] whitespace-normal break-words">{a.detail || "—"}</td>
                   <td className="py-3 text-faint whitespace-nowrap tabular-nums">{a.ip_address ?? "—"}</td>
                 </tr>
               ))}

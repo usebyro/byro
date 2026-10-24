@@ -34,6 +34,7 @@ from .models import (
 )
 from . import messaging
 from .activity import log_activity
+from .changes import EVENT_FIELDS, TIER_FIELDS, describe, snapshot
 from .notifications import notify, notify_admins, ticket_sale
 from .community import (
     community_stats, event_host_name, follow_organizer, notify_followers_in_background, record_stamp,
@@ -2465,6 +2466,7 @@ class EventViewSet(viewsets.ModelViewSet):
         
         old_image = instance.event_image.name if instance.event_image else None
         was_draft = instance.is_draft
+        before = snapshot(instance, EVENT_FIELDS)
 
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
@@ -2478,6 +2480,7 @@ class EventViewSet(viewsets.ModelViewSet):
         log_activity(
             'event.updated', request=request, target_type='event',
             target_id=serializer.instance.pk, target_label=serializer.instance.name,
+            detail=describe(before, snapshot(serializer.instance, EVENT_FIELDS), EVENT_FIELDS) or 'saved, nothing changed',
         )
 
         # A draft that has just been published tells the organiser's followers (once).
@@ -2517,7 +2520,11 @@ class EventViewSet(viewsets.ModelViewSet):
 
         serializer = TicketTierSerializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
-        serializer.save(event=event)
+        tier = serializer.save(event=event)
+        log_activity(
+            'event.updated', request=request, target_type='event', target_id=event.pk, target_label=event.name,
+            detail=f"added ticket type '{tier.name}': price {tier.price:g}, capacity {tier.capacity if tier.capacity is not None else 'unlimited'}",
+        )
         if apps.posthog_client is not None:
             apps.posthog_client.capture('ticket_tier_created')
         return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -2542,6 +2549,10 @@ class EventViewSet(viewsets.ModelViewSet):
         tier = get_object_or_404(TicketTier, pk=tier_id, event=event)
 
         if request.method == 'DELETE':
+            log_activity(
+                'event.updated', request=request, target_type='event', target_id=event.pk, target_label=event.name,
+                detail=f"removed ticket type '{tier.name}' (price {tier.price:g})",
+            )
             tier.delete()
             if apps.posthog_client is not None:
                 apps.posthog_client.capture('ticket_tier_deleted')
@@ -2551,7 +2562,14 @@ class EventViewSet(viewsets.ModelViewSet):
             tier, data=request.data, partial=True, context={'request': request}
         )
         serializer.is_valid(raise_exception=True)
+        tier_before = snapshot(tier, TIER_FIELDS)
         serializer.save()
+        changed = describe(tier_before, snapshot(tier, TIER_FIELDS), TIER_FIELDS)
+        if changed:
+            log_activity(
+                'event.updated', request=request, target_type='event', target_id=event.pk, target_label=event.name,
+                detail=f"ticket type '{tier.name}': {changed}",
+            )
         if apps.posthog_client is not None:
             apps.posthog_client.capture('ticket_tier_updated')
         return Response(serializer.data)

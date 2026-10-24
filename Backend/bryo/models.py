@@ -1342,7 +1342,7 @@ class ActivityLog(models.Model):
     target_type = models.CharField(max_length=16, blank=True)  # event | ticket | payout
     target_id = models.CharField(max_length=64, blank=True)
     target_label = models.CharField(max_length=255, blank=True)
-    detail = models.CharField(max_length=255, blank=True)
+    detail = models.CharField(max_length=1000, blank=True)
     ip_address = models.GenericIPAddressField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
 
