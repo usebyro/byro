@@ -59,3 +59,24 @@ class LoggedEditsTests(CommunityBase):
         self.assertIn("ticket type 'VIP': price: 5000 → 7500", self.last().detail)
         self.client.delete(f'/api/events/{self.event.slug}/tiers/{tier.pk}/')
         self.assertIn("removed ticket type 'VIP'", self.last().detail)
+
+
+class DateAndTimeTests(CommunityBase):
+
+    def last(self):
+        return ActivityLog.objects.filter(action='event.updated').latest('id')
+
+    def test_moving_the_date_and_time_is_logged_in_plain_words(self):
+        self.client.force_authenticate(self.owner)
+        r = self.client.patch(
+            f'/api/events/{self.event.slug}/',
+            {'day': '2031-03-14', 'time_from': '19:30:00', 'time_to': '22:00:00'}, format='json',
+        )
+        self.assertEqual(r.status_code, 200, r.content)
+        detail = self.last().detail
+        self.assertIn('date: ', detail)
+        self.assertIn('→ Fri 14 Mar 2031', detail)
+        self.assertIn('start time: ', detail)
+        self.assertIn('→ 7:30 PM', detail)
+        self.assertIn('end time: ', detail)
+        self.assertIn('→ 10:00 PM', detail)

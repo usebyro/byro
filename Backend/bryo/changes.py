@@ -1,4 +1,5 @@
 """Plain-English summaries of what changed when someone edits something, for the activity log."""
+import datetime
 from decimal import Decimal
 
 # (field, label, kind): kind 'text' shows old to new, 'note' only says it changed (long text, files).
@@ -47,6 +48,12 @@ def _show(value):
         return 'empty'
     if isinstance(value, bool):
         return 'yes' if value else 'no'
+    if isinstance(value, datetime.datetime):
+        return value.strftime('%-d %b %Y, %-I:%M %p')
+    if isinstance(value, datetime.date):
+        return value.strftime('%a %-d %b %Y')
+    if isinstance(value, datetime.time):
+        return value.strftime('%-I:%M %p').lstrip('0')
     if isinstance(value, (Decimal, float)):
         value = f'{value:f}'.rstrip('0').rstrip('.') if '.' in f'{value:f}' else f'{value:f}'
     text = str(value)
