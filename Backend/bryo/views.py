@@ -236,6 +236,7 @@ def send_ticket_confirmation_email(ticket, customer_name, customer_email, event)
         tier_label=f"{tier_name} × 1",
         holder_name=ticket.current_owner_name or customer_name,
         bought_by=gifted_by,
+        shared_order=bool(ticket.payment_id) and Ticket.objects.filter(payment_id=ticket.payment_id).exclude(pk=ticket.pk).exists(),
     )
     ticket_png = generate_ticket_png(
         event_name=event.name,

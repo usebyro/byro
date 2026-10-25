@@ -57,6 +57,14 @@ class DesignTests(SimpleTestCase):
         m = e.ticket_confirmation_email("Tunde", "Tech Meetup", DATE, TIME, "Cafe", "tid")
         self.assertNotIn("bought for you", m["html"])
 
+    def test_ticket_email_mentions_the_rest_of_the_order_only_when_there_is_one(self):
+        solo = e.ticket_confirmation_email("Tunde", "Tech Meetup", DATE, TIME, "Cafe", "tid")
+        self.assertNotIn("same order", solo["html"])
+        self.assertNotIn("same order", solo["text"])
+        shared = e.ticket_confirmation_email("Tunde", "Tech Meetup", DATE, TIME, "Cafe", "tid", shared_order=True)
+        self.assertIn("Everyone in the same order gets their own email.", shared["html"])
+        self.assertIn("Everyone in the same order gets their own email.", shared["text"])
+
     def test_reminder_email(self):
         m = e.event_reminder_email("Tunde", "Tech Meetup", DATE, TIME, "Cafe One, Yaba", tier_label="General admission × 1")
         self.assertEqual(m["subject"], "Tech Meetup is tomorrow")

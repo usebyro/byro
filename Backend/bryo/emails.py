@@ -262,12 +262,14 @@ def _api_public_url():
 # ---------------------------------------------------------------------------
 
 def ticket_confirmation_email(name, event_name, date, time, location, ticket_id, form_answers=None, ticket_url=None,
-                              tier_label=None, holder_name=None, bought_by=None, qr_url=None, calendar_url=None):
+                              tier_label=None, holder_name=None, bought_by=None, qr_url=None, calendar_url=None,
+                              shared_order=False):
     """
     "You're going to {event}": one email per ticket, with the ticket image attached.
 
     `date`/`time` are display strings. `tier_label` is e.g. "General admission x 1".
     `bought_by` is set when someone else bought the ticket for this person.
+    `shared_order` is true when the order holds other tickets, which go to their own holders.
     """
     view_url = ticket_url or "https://usebyro.com"
     cal = calendar_url or (f"{_api_public_url()}/api/tickets/{ticket_id}/calendar/" if ticket_id else "")
@@ -291,10 +293,12 @@ def ticket_confirmation_email(name, event_name, date, time, location, ticket_id,
     buttons = [_btn(view_url, "View ticket")]
     if cal:
         buttons.append(_btn(cal, "Add to calendar", primary=False))
+    note_html = " Everyone in the same order gets their own email." if shared_order else ""
+    note_text = " Everyone in the same order gets their own email." if shared_order else ""
     gifted = _small(f"Ticket bought for you by {_h(bought_by)}.") if bought_by else ""
 
     body_html = (
-        _lead(f"Here&#8217;s your ticket for <b>{_h(event_name)}</b>. It&#8217;s just for you. Everyone in the same order gets their own email.")
+        _lead(f"Here&#8217;s your ticket for <b>{_h(event_name)}</b>. It&#8217;s just for you.{note_html}")
         + _rows(rows) + answers_html
         + _small("Your ticket is attached to this email. Show it at entry.")
         + _btn_row(*buttons)
@@ -309,7 +313,7 @@ def ticket_confirmation_email(name, event_name, date, time, location, ticket_id,
     )
     text = (
         f"You're going, {_first(holder_name or name)}\n\n"
-        f"Here's your ticket for {event_name}. It's just for you. Everyone in the same order gets their own email.\n\n"
+        f"Here's your ticket for {event_name}. It's just for you.{note_text}\n\n"
         f"Event: {event_name}\nDate: {when}\n" + (f"Venue: {location}\n" if location else "")
         + (f"Ticket: {tier_label}\n" if tier_label else "") + f"Name: {holder_name or name}\n\n"
         + answers_text
