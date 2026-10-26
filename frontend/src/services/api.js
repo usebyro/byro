@@ -224,6 +224,16 @@ const API = {
     }
   },
 
+  // Copy an event onto more dates (each date becomes its own event).
+  repeatEvent: async (slug, dates) => {
+    try {
+      const response = await axiosInstance.post(`events/${slug}/repeat/`, { dates });
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
   updateTier: async (slug, tierId, tierData) => {
     try {
       const response = await axiosInstance.patch(`events/${slug}/tiers/${tierId}/`, tierData);

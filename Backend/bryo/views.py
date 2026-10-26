@@ -2073,6 +2073,9 @@ class DashboardAnalyticsView(APIView):
         })
 
 
+MAX_REPEAT_DATES = 52
+
+
 class EventViewSet(viewsets.ModelViewSet):
     """
     EventViewSet with role-based permissions and category filtering
@@ -2102,7 +2105,7 @@ class EventViewSet(viewsets.ModelViewSet):
             permission_classes = [IsAuthenticated]
         elif self.action in ['update', 'partial_update']:
             permission_classes = [IsAuthenticated, IsEventOwnerOrCoHost]
-        elif self.action in ['destroy', 'add_cohost', 'update_cohost', 'remove_cohost', 'cancel', 'refunds']:
+        elif self.action in ['destroy', 'add_cohost', 'update_cohost', 'remove_cohost', 'cancel', 'refunds', 'repeat']:
             permission_classes = [IsAuthenticated, IsEventOwner]
         else:
             permission_classes = [IsAuthenticated]
@@ -3104,6 +3107,88 @@ class EventViewSet(viewsets.ModelViewSet):
         if not event.cancelled_at:
             return Response({'error': 'This event has not been cancelled.'}, status=status.HTTP_400_BAD_REQUEST)
         return Response(refund_progress(event))
+
+    @action(detail=True, methods=['POST'], url_path='repeat', permission_classes=[IsAuthenticated, IsEventOwner])
+    def repeat(self, request, slug=None):
+        """
+        Repeat an event on more dates.
+        POST /api/events/{slug}/repeat/   Body: {"dates": ["2026-11-08", ...]}
+
+        Each date becomes its own event (own link, tickets, check-in and guest
+        list) copied from this one: details, image, ticket types and attendee
+        questions. Nothing sold or booked is copied. Dates in the past, the
+        event's own date and repeats within the list are skipped.
+        """
+        from datetime import date as date_cls
+        from django.core.files.base import ContentFile
+
+        source = self.get_object()
+        raw = request.data.get('dates')
+        if not isinstance(raw, list) or not raw:
+            return Response({'error': 'Send the dates to repeat the event on.'}, status=status.HTTP_400_BAD_REQUEST)
+        if len(raw) > MAX_REPEAT_DATES:
+            return Response({'error': f'You can repeat an event up to {MAX_REPEAT_DATES} times at once.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        days = set()
+        for value in raw:
+            try:
+                days.add(date_cls.fromisoformat(str(value)))
+            except ValueError:
+                return Response({'error': f'{value} is not a date (use YYYY-MM-DD).'}, status=status.HTTP_400_BAD_REQUEST)
+        days.discard(source.day)
+        days = sorted(d for d in days if d >= timezone.localdate())
+        if not days:
+            return Response({'error': 'None of those dates can be used.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        tiers = list(source.tiers.all())
+        questions = list(source.form_questions.all())
+        image_name = source.event_image.name if source.event_image else None
+        image_bytes = None
+        if image_name:
+            try:
+                with source.event_image.open('rb') as f:
+                    image_bytes = f.read()
+            except Exception:
+                logger.warning('Could not read image of %s to repeat it', source.slug)
+
+        created = []
+        for day in days:
+            with transaction.atomic():
+                copy = Event.objects.get(pk=source.pk)
+                copy.pk = None
+                copy.id = None
+                copy._state.adding = True
+                copy.slug = ''
+                copy.day = day
+                copy.featured_until = None
+                copy.sales_closed = False
+                copy.cancelled_at = None
+                copy.cancel_reason = ''
+                copy.is_active = True
+                copy.followers_notified_at = None
+                copy.reminder_sent_at = None
+                copy.thanks_sent_at = None
+                copy.milestones_notified = []
+                copy.event_image = None
+                copy.save()
+                if image_bytes is not None:
+                    copy.event_image.save(os.path.basename(image_name), ContentFile(image_bytes), save=True)
+                for t in tiers:
+                    t.pk = None
+                    t.id = None
+                    t.event = copy
+                    t.save()
+                for q in questions:
+                    q.pk = None
+                    q.id = None
+                    q.event = copy
+                    q.save()
+            log_activity(
+                'event.created', request=request, target_type='event',
+                target_id=copy.pk, target_label=copy.name, detail=f'repeat of {source.slug}',
+            )
+            created.append({'slug': copy.slug, 'day': copy.day.isoformat()})
+        return Response({'events': created}, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['POST'], permission_classes=[IsAuthenticated, IsEventOwner],
             throttle_classes=[ScopedRateThrottle], throttle_scope='cohost_invite')

@@ -19,6 +19,7 @@ import { trackCreateEvent } from "@/lib/analytics";
 import API from "../../services/api";
 import useFeeInfo from "@/lib/useFeeInfo";
 import RichTextEditor from "./RichTextEditor";
+import { REPEAT_COUNTS, repeatDates, repeatLabel, repeatOptions } from "@/lib/repeatDates";
 
 /* ── Category options ── */
 /* Each category keeps its own accent when selected (a chip tints toward its
@@ -220,6 +221,12 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
   const [venue, setVenue] = useState("");
   const [virtualLink, setVirtualLink] = useState("");
   const [where, setWhere] = useState("inperson"); // inperson | online | both
+  // Repeating (new events only): the rule, how many dates, and the dates the organiser skipped.
+  const [repeatRule, setRepeatRule] = useState("none");
+  const [repeatCount, setRepeatCount] = useState(8);
+  const [skipped, setSkipped] = useState([]);
+  const [repeatOpen, setRepeatOpen] = useState(false);
+  const repeatOccurrences = repeatDates(date, repeatRule, repeatCount);
   const inPerson = where !== "online";
   const online = where !== "inperson";
   const [eventVisibility, setEventVisibility] = useState(true);
@@ -576,12 +583,27 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
           }
         }
 
+        // A repeating event: copy it (with its ticket types and questions, now saved) onto the other dates.
+        let repeatedOn = 0;
+        if (!editSlug && repeatRule !== "none") {
+          const more = repeatOccurrences.slice(1).filter((d) => !skipped.includes(d));
+          if (more.length) {
+            try {
+              const copies = await API.repeatEvent(slug, more);
+              repeatedOn = copies?.events?.length || 0;
+            } catch (rErr) {
+              toast.error("The other dates weren't created", { description: `Your first event is saved. ${rErr.message || "Try repeating it again from the event page."}` });
+            }
+          }
+        }
+
         // Count the event as created when it goes live (a new publish, or a draft being published).
         if (!isDraft && (!editSlug || wasDraft)) {
           trackCreateEvent({ eventName, category });
         }
 
-        toast.success(editSlug ? "Event updated" : isDraft ? "Draft saved" : "Event published");
+        const dates = repeatedOn ? ` on ${repeatedOn + 1} dates` : "";
+        toast.success(editSlug ? "Event updated" : isDraft ? `Draft saved${dates}` : `Event published${dates}`);
         if (editSlug) {
           // Publishing a draft is the moment to show the share modal.
           const justPublished = wasDraft && !isDraft;
@@ -759,6 +781,96 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
                   </label>
                 </div>
                 <p className="mt-1.5 text-xs text-gray-500">End time is optional.</p>
+
+                {!editSlug && date && (
+                  <div className="mt-3">
+                    <button
+                      type="button"
+                      aria-expanded={repeatOpen}
+                      aria-controls="repeat-panel"
+                      onClick={() => setRepeatOpen((v) => !v)}
+                      className={`inline-flex min-h-[44px] max-w-full items-center gap-2 rounded-full px-3 text-sm font-bold transition-colors md:min-h-[36px] ${repeatRule === "none" ? "bg-[#F1F3F7] text-gray-700" : "bg-[#EEF3FF] text-[#2451D6]"}`}
+                    >
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M17 2l4 4-4 4M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4M21 13v2a3 3 0 0 1-3 3H3" /></svg>
+                      <span className="truncate">
+                        {repeatRule === "none"
+                          ? "Does not repeat"
+                          : `${repeatOptions(date).find(([v]) => v === repeatRule)?.[1]} · ${repeatOccurrences.length - skipped.length} dates`}
+                      </span>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className={`shrink-0 transition-transform ${repeatOpen ? "rotate-180" : ""}`}><path d="M6 9l6 6 6-6" /></svg>
+                    </button>
+
+                    {repeatOpen && (
+                      <div id="repeat-panel" className="mt-2 max-w-[560px] rounded-2xl bg-[#F7F9FC] p-3">
+                        <div role="radiogroup" aria-label="Repeat" className="flex flex-col">
+                          {repeatOptions(date).map(([v, label]) => (
+                            <button
+                              key={v}
+                              type="button"
+                              role="radio"
+                              aria-checked={repeatRule === v}
+                              onClick={() => { setRepeatRule(v); setSkipped([]); }}
+                              className="flex min-h-[44px] items-center justify-between gap-3 rounded-[10px] px-3 text-left text-[15px] text-gray-900 hover:bg-white aria-checked:font-extrabold"
+                            >
+                              <span>{label}</span>
+                              {repeatRule === v && (
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3669F6" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5" /></svg>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+
+                        {repeatRule !== "none" && (
+                          <>
+                            <div className="flex items-center justify-between gap-3 px-3 pb-1 pt-3">
+                              <span id="repeat-count-l" className="text-sm font-extrabold text-gray-900">How many dates</span>
+                              <div role="radiogroup" aria-labelledby="repeat-count-l" className="inline-flex rounded-full bg-[#EAEEF5] p-[3px]">
+                                {REPEAT_COUNTS.map((n) => (
+                                  <button
+                                    key={n}
+                                    type="button"
+                                    role="radio"
+                                    aria-checked={repeatCount === n}
+                                    onClick={() => { setRepeatCount(n); setSkipped([]); }}
+                                    className={`min-h-[36px] min-w-[40px] rounded-full px-2.5 text-sm font-bold transition-colors ${repeatCount === n ? "bg-white text-gray-900 shadow-[0_1px_2px_rgba(20,22,28,.08)]" : "text-gray-600 hover:text-gray-900"}`}
+                                  >
+                                    {n}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                            <ul className="m-0 mt-2 flex max-h-[220px] list-none flex-col gap-0.5 overflow-y-auto rounded-[14px] bg-[#EEF1F6] p-1.5">
+                              {repeatOccurrences.map((iso, i) => {
+                                const off = skipped.includes(iso);
+                                return (
+                                  <li key={iso} className={`flex min-h-[48px] items-center gap-3 rounded-xl bg-white pl-3 pr-1 transition-opacity ${off ? "opacity-55" : ""}`}>
+                                    <span className={`min-w-0 flex-1 text-[15px] font-bold tabular-nums ${off ? "line-through" : ""}`}>{repeatLabel(iso)}</span>
+                                    {i === 0 ? (
+                                      <span className="px-3 text-xs font-bold text-gray-500">First date</span>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        aria-label={`${off ? "Bring back" : "Skip"} ${repeatLabel(iso)}`}
+                                        onClick={() => setSkipped((list) => (off ? list.filter((x) => x !== iso) : [...list, iso]))}
+                                        className={`min-h-[44px] rounded-lg px-3 text-sm font-extrabold ${off ? "text-[#2451D6]" : "text-gray-600"}`}
+                                      >
+                                        {off ? "Undo" : "Skip"}
+                                      </button>
+                                    )}
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                            <p className="m-0 px-3 pt-2 text-xs text-gray-500">Each date gets its own tickets and check-in. Skip any you can&rsquo;t make.</p>
+                          </>
+                        )}
+                        <div className="flex justify-end px-1 pt-3">
+                          <button type="button" onClick={() => setRepeatOpen(false)} className="min-h-[44px] rounded-xl bg-blue-600 px-5 text-sm font-semibold text-white hover:bg-blue-700">Done</button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div>
