@@ -766,7 +766,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
                       type="time"
                       value={timeFrom}
                       onChange={e => setTimeFrom(e.target.value)}
-                      className={`h-12 w-full min-w-0 rounded-[inherit] border-0 bg-transparent px-3 text-[15px] font-bold tabular-nums outline-none ${timeFrom ? "text-gray-900" : "text-gray-400"}`}
+                      className={`h-12 w-full min-w-0 rounded-[inherit] border-0 bg-transparent px-3 text-[15px] font-bold tabular-nums outline-none max-sm:[&::-webkit-calendar-picker-indicator]:hidden ${timeFrom ? "text-gray-900" : "text-gray-400"}`}
                     />
                   </label>
                   <span aria-hidden="true" className="flex items-center rounded-[4px] bg-white px-0.5 font-bold text-[#8A91A0]">–</span>
@@ -776,20 +776,20 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
                       type="time"
                       value={timeTo}
                       onChange={e => setTimeTo(e.target.value)}
-                      className={`h-12 w-full min-w-0 rounded-[inherit] border-0 bg-transparent px-3 text-[15px] font-bold tabular-nums outline-none ${timeTo ? "text-gray-900" : "text-gray-400"}`}
+                      className={`h-12 w-full min-w-0 rounded-[inherit] border-0 bg-transparent px-3 text-[15px] font-bold tabular-nums outline-none max-sm:[&::-webkit-calendar-picker-indicator]:hidden ${timeTo ? "text-gray-900" : "text-gray-400"}`}
                     />
                   </label>
                 </div>
-                <p className="mt-1.5 text-xs text-gray-500">End time is optional.</p>
 
                 {!editSlug && date && (
-                  <div className="mt-3">
+                  <div className="relative mt-3 self-start">
                     <button
                       type="button"
+                      aria-haspopup="dialog"
                       aria-expanded={repeatOpen}
                       aria-controls="repeat-panel"
                       onClick={() => setRepeatOpen((v) => !v)}
-                      className={`inline-flex min-h-[44px] max-w-full items-center gap-2 rounded-full px-3 text-sm font-bold transition-colors md:min-h-[36px] ${repeatRule === "none" ? "bg-[#F1F3F7] text-gray-700" : "bg-[#EEF3FF] text-[#2451D6]"}`}
+                      className={`inline-flex min-h-[44px] max-w-full items-center gap-2 rounded-full px-3 text-sm font-bold transition-[background-color,transform] active:scale-[0.97] md:min-h-[36px] ${repeatRule === "none" ? "bg-[#F1F3F7] text-gray-700" : "bg-[#EEF3FF] text-[#2451D6]"}`}
                     >
                       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M17 2l4 4-4 4M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4M21 13v2a3 3 0 0 1-3 3H3" /></svg>
                       <span className="truncate">
@@ -801,7 +801,16 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
                     </button>
 
                     {repeatOpen && (
-                      <div id="repeat-panel" className="mt-2 max-w-[560px] rounded-2xl bg-[#F7F9FC] p-3">
+                      <div className="fixed inset-0 z-40 flex items-end sm:absolute sm:inset-auto sm:left-0 sm:top-[calc(100%+6px)] sm:z-[14] sm:block">
+                      <button type="button" aria-label="Close" tabIndex={-1} onClick={() => setRepeatOpen(false)} className="absolute inset-0 border-0 bg-[rgba(20,22,28,.32)] sm:hidden" />
+                      <div
+                        id="repeat-panel"
+                        role="dialog"
+                        aria-label="Repeat"
+                        onKeyDown={(e) => e.key === "Escape" && setRepeatOpen(false)}
+                        className="relative box-border max-h-[85vh] w-full overflow-y-auto rounded-t-3xl bg-white p-2 pb-[calc(16px+env(safe-area-inset-bottom))] shadow-[0_1px_2px_rgba(20,22,28,.06),0_16px_36px_-12px_rgba(20,22,28,.28)] sm:max-h-none sm:w-[380px] sm:max-w-[calc(100vw-32px)] sm:overflow-visible sm:rounded-[18px] sm:p-1.5 sm:pb-1.5"
+                      >
+                        <span aria-hidden="true" className="mx-auto mb-2 mt-0.5 block h-1 w-10 rounded-full bg-[#CBD3DF] sm:hidden" />
                         <div role="radiogroup" aria-label="Repeat" className="flex flex-col">
                           {repeatOptions(date).map(([v, label]) => (
                             <button
@@ -810,7 +819,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
                               role="radio"
                               aria-checked={repeatRule === v}
                               onClick={() => { setRepeatRule(v); setSkipped([]); }}
-                              className="flex min-h-[44px] items-center justify-between gap-3 rounded-[10px] px-3 text-left text-[15px] text-gray-900 hover:bg-white aria-checked:font-extrabold"
+                              className="flex min-h-[44px] items-center justify-between gap-3 rounded-[10px] px-3 text-left text-[15px] text-gray-900 hover:bg-[#F7F9FC] aria-checked:font-extrabold"
                             >
                               <span>{label}</span>
                               {repeatRule === v && (
@@ -839,7 +848,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
                                 ))}
                               </div>
                             </div>
-                            <ul className="m-0 mt-2 flex max-h-[220px] list-none flex-col gap-0.5 overflow-y-auto rounded-[14px] bg-[#EEF1F6] p-1.5">
+                            <ul className="m-0 mx-1.5 mt-2 flex max-h-[220px] list-none flex-col gap-0.5 overflow-y-auto rounded-[14px] bg-[#F7F9FC] p-1.5">
                               {repeatOccurrences.map((iso, i) => {
                                 const off = skipped.includes(iso);
                                 return (
@@ -865,8 +874,9 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
                           </>
                         )}
                         <div className="flex justify-end px-1 pt-3">
-                          <button type="button" onClick={() => setRepeatOpen(false)} className="min-h-[44px] rounded-xl bg-blue-600 px-5 text-sm font-semibold text-white hover:bg-blue-700">Done</button>
+                          <button type="button" onClick={() => setRepeatOpen(false)} className="min-h-[44px] rounded-full bg-[#3669F6] px-[18px] text-sm font-bold text-white transition-colors hover:bg-[#2F5EE0]">Done</button>
                         </div>
+                      </div>
                       </div>
                     )}
                   </div>
@@ -875,7 +885,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
 
               <div>
                 <span id="where-l" className="block text-sm font-medium text-gray-700 mb-1.5">Where</span>
-                <div role="radiogroup" aria-labelledby="where-l" className="inline-flex rounded-full bg-[#EAEEF5] p-[3px]">
+                <div role="radiogroup" aria-labelledby="where-l" className="flex gap-0.5 rounded-xl bg-[#EAEEF5] p-1">
                   {[["inperson", "In person"], ["online", "Online"], ["both", "Both"]].map(([v, label]) => (
                     <button
                       key={v}
@@ -883,7 +893,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
                       role="radio"
                       aria-checked={where === v}
                       onClick={() => setWhere(v)}
-                      className={`min-h-[40px] rounded-full px-4 text-sm font-bold transition-colors ${where === v ? "bg-white text-gray-900 shadow-[0_1px_2px_rgba(20,22,28,.08)]" : "text-gray-600 hover:text-gray-900"}`}
+                      className={`min-h-[44px] flex-1 rounded-[9px] text-[13px] font-bold transition-colors ${where === v ? "bg-white text-gray-900 shadow-[0_1px_2px_rgba(20,22,28,.08)]" : "text-[#5B6272] hover:text-gray-900"}`}
                     >
                       {label}
                     </button>
