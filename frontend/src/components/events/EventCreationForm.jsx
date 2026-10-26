@@ -219,7 +219,9 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
   const [timeTo, setTimeTo] = useState("");
   const [venue, setVenue] = useState("");
   const [virtualLink, setVirtualLink] = useState("");
-  const [showVirtual, setShowVirtual] = useState(false);
+  const [where, setWhere] = useState("inperson"); // inperson | online | both
+  const inPerson = where !== "online";
+  const online = where !== "inperson";
   const [eventVisibility, setEventVisibility] = useState(true);
   const [showRemainingCount, setShowRemainingCount] = useState(false);
   const [ticketsTransferable, setTicketsTransferable] = useState(false);
@@ -269,7 +271,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
   const checklist = [
     { label: "Name your event", done: Boolean(eventName.trim()) },
     { label: "Pick a date and start time", done: Boolean(date && timeFrom) },
-    { label: "Add a venue or link", done: Boolean(venue.trim() || virtualLink.trim()) },
+    { label: where === "online" ? "Add the joining link" : "Add a venue", done: where === "online" ? Boolean(virtualLink.trim()) : where === "both" ? Boolean(virtualLink.trim()) : Boolean(venue.trim()) },
     { label: "Add a ticket type", done: tiers.length > 0 },
     { label: "Upload a cover image", done: Boolean(imagePreview) },
   ];
@@ -286,6 +288,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
     setTimeTo(d.time_to && d.time_to !== d.time_from ? d.time_to.slice(0, 5) : "");
     setVenue(d.location || "");
     setVirtualLink(d.virtual_link || "");
+    setWhere(d.virtual_link ? (d.location ? "both" : "online") : "inperson");
     setDescription(d.description || "");
     setTicketsTransferable(d.transferable || false);
     setShowRemainingCount(d.show_remaining_count || false);
@@ -420,7 +423,8 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
     if (!eventName.trim()) { toast.error("Event name is required"); return; }
     if (!date.trim()) { toast.error("Event date is required"); return; }
     if (!timeFrom) { toast.error("Start time is required"); return; }
-    if (!venue.trim() && !virtualLink.trim()) { toast.error("Add a venue or link"); return; }
+    if (where === "inperson" && !venue.trim()) { toast.error("Add a venue"); return; }
+    if (where !== "inperson" && !virtualLink.trim()) { toast.error("Add the joining link"); return; }
 
     const formattedDate = formatDateForServer(date);
     if (!formattedDate) return;
@@ -464,8 +468,8 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
       category,
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "GMT+01:00",
     };
-    if (venue) fields.location = venue;
-    if (virtualLink) fields.virtual_link = virtualLink;
+    if (inPerson && venue) fields.location = venue;
+    if (online && virtualLink) fields.virtual_link = virtualLink;
     if (description) fields.description = description;
     fields.capacity = capacity.trim(); // empty clears the limit
     fields.max_tickets_per_person = maxPerPerson;
@@ -715,52 +719,73 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
           <Collapsible
             id="sec-date"
             title="Date & location"
-            summary={[formatDisplayDate(date)?.main, formatDisplayTime(timeFrom), venue.trim()].filter(Boolean).join(", ") || "When and where it happens"}
+            summary={[formatDisplayDate(date)?.main, formatDisplayTime(timeFrom), where === "online" ? "Online" : where === "both" ? (venue.trim() ? `${venue.trim()} and online` : "Online") : venue.trim()].filter(Boolean).join(", ") || "When and where it happens"}
             open={open.date}
             onToggle={() => toggleStep("date")}
             step={2}
-            done={Boolean(date && timeFrom && (venue.trim() || virtualLink.trim()))}
+            done={Boolean(date && timeFrom && (where === "inperson" ? venue.trim() : virtualLink.trim()))}
           >
             <div className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Date</label>
-                  <div className="relative">
+              <div>
+                <span id="when-l" className="block text-sm font-medium text-gray-700 mb-1.5">When</span>
+                <div role="group" aria-labelledby="when-l" className="flex max-w-[560px] flex-wrap items-stretch gap-0.5 rounded-[14px] bg-[#EAEEF5] p-0.5 focus-within:[&_label]:shadow-none">
+                  <label className="flex min-w-0 flex-[1_1_100%] rounded-t-xl rounded-b-[4px] bg-white focus-within:shadow-[inset_0_0_0_2px_#3669F6] sm:flex-[1.5_1_0] sm:rounded-l-xl sm:rounded-r-[4px] sm:rounded-b-xl">
+                    <span className="sr-only">Date</span>
                     <input
                       type="date"
                       value={date}
                       onChange={e => setDate(e.target.value)}
-                      className={`w-full border border-gray-200 rounded-xl px-4 py-3 min-h-[46px] text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${date ? "text-gray-900" : "text-gray-400"}`}
+                      className={`h-12 w-full min-w-0 rounded-[inherit] border-0 bg-transparent px-3 text-[15px] font-bold tabular-nums outline-none ${date ? "text-gray-900" : "text-gray-400"}`}
                     />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Starts</label>
-                  <div className="relative">
+                  </label>
+                  <label className="flex min-w-0 flex-1 rounded-bl-xl rounded-[4px] bg-white focus-within:shadow-[inset_0_0_0_2px_#3669F6] sm:rounded-[4px]">
+                    <span className="sr-only">Starts</span>
                     <input
                       type="time"
                       value={timeFrom}
                       onChange={e => setTimeFrom(e.target.value)}
-                      className={`w-full border border-gray-200 rounded-xl px-4 py-3 min-h-[46px] text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${timeFrom ? "text-gray-900" : "text-gray-400"}`}
+                      className={`h-12 w-full min-w-0 rounded-[inherit] border-0 bg-transparent px-3 text-[15px] font-bold tabular-nums outline-none ${timeFrom ? "text-gray-900" : "text-gray-400"}`}
                     />
-                  </div>
+                  </label>
+                  <span aria-hidden="true" className="flex items-center rounded-[4px] bg-white px-0.5 font-bold text-[#8A91A0]">–</span>
+                  <label className="flex min-w-0 flex-1 rounded-br-xl rounded-[4px] bg-white focus-within:shadow-[inset_0_0_0_2px_#3669F6] sm:rounded-r-xl">
+                    <span className="sr-only">Ends (optional)</span>
+                    <input
+                      type="time"
+                      value={timeTo}
+                      onChange={e => setTimeTo(e.target.value)}
+                      className={`h-12 w-full min-w-0 rounded-[inherit] border-0 bg-transparent px-3 text-[15px] font-bold tabular-nums outline-none ${timeTo ? "text-gray-900" : "text-gray-400"}`}
+                    />
+                  </label>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Ends <span className="font-normal text-gray-500">· optional</span></label>
-                  <input
-                    type="time"
-                    value={timeTo}
-                    onChange={e => setTimeTo(e.target.value)}
-                    className={`w-full border border-gray-200 rounded-xl px-4 py-3 min-h-[46px] text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${timeTo ? "text-gray-900" : "text-gray-400"}`}
-                  />
+                <p className="mt-1.5 text-xs text-gray-500">End time is optional.</p>
+              </div>
+
+              <div>
+                <span id="where-l" className="block text-sm font-medium text-gray-700 mb-1.5">Where</span>
+                <div role="radiogroup" aria-labelledby="where-l" className="inline-flex rounded-full bg-[#EAEEF5] p-[3px]">
+                  {[["inperson", "In person"], ["online", "Online"], ["both", "Both"]].map(([v, label]) => (
+                    <button
+                      key={v}
+                      type="button"
+                      role="radio"
+                      aria-checked={where === v}
+                      onClick={() => setWhere(v)}
+                      className={`min-h-[40px] rounded-full px-4 text-sm font-bold transition-colors ${where === v ? "bg-white text-gray-900 shadow-[0_1px_2px_rgba(20,22,28,.08)]" : "text-gray-600 hover:text-gray-900"}`}
+                    >
+                      {label}
+                    </button>
+                  ))}
                 </div>
               </div>
 
+              {inPerson && (
               <div className="relative">
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Venue</label>
+                <label htmlFor="venue" className="sr-only">Venue</label>
                 <div className="relative">
                   <HugeiconsIcon icon={Location01Icon} size={15} color="#9ca3af" className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
+                    id="venue"
                     type="text"
                     value={venue}
                     onChange={e => handleVenueChange(e.target.value)}
@@ -807,31 +832,27 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
                   </div>
                 )}
               </div>
+              )}
 
-              {/* Virtual link: only shown once it is wanted (or already set) */}
-              {showVirtual || virtualLink ? (
+              {online && (
                 <div>
-                  <label htmlFor="virtual-link" className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Virtual link
-                  </label>
-                  <input
-                    id="virtual-link"
-                    type="url"
-                    inputMode="url"
-                    value={virtualLink}
-                    onChange={e => setVirtualLink(e.target.value)}
-                    placeholder="https://meet.example.com/..."
-                    className="w-full border border-gray-200 rounded-xl px-4 py-3 min-h-[46px] text-base md:text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
+                  <label htmlFor="virtual-link" className="sr-only">Joining link</label>
+                  <div className="relative">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8A91A0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2">
+                      <path d="M10 14a4 4 0 0 0 6 0l3-3a4 4 0 0 0-6-6l-1 1M14 10a4 4 0 0 0-6 0l-3 3a4 4 0 0 0 6 6l1-1" />
+                    </svg>
+                    <input
+                      id="virtual-link"
+                      type="url"
+                      inputMode="url"
+                      value={virtualLink}
+                      onChange={e => setVirtualLink(e.target.value)}
+                      placeholder="Paste the joining link"
+                      className="w-full border border-gray-200 rounded-xl pl-9 pr-4 py-3 min-h-[46px] text-base md:text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                  <p className="mt-1.5 text-xs text-gray-500">Guests get it in their reminder email the day before.</p>
                 </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setShowVirtual(true)}
-                  className="text-sm font-semibold text-blue-600 hover:text-blue-700 min-h-[44px] md:min-h-0 text-left"
-                >
-                  Add virtual link
-                </button>
               )}
             </div>
           </Collapsible>
