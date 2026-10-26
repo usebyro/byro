@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from "react";
 import { toPng } from "html-to-image";
 import API from "@/services/api";
 import { formatNaira } from "@/lib/eventFormat";
-import Stamp from "@/components/brand/Stamp";
 import { stampLook } from "@/lib/stamps";
 
 const LABEL = "text-[11px] font-extrabold tracking-[0.1em] text-[#5B6272] uppercase";
@@ -86,7 +85,7 @@ export default function TicketCard({ ticket, justStamped = false }) {
   };
 
   const st = status(ticket);
-  // Once checked in, the holder's stamp sits beside the QR (not over it, so a rescan still reads).
+  // Once checked in, the ticket page says the stamp is in the passport (the stamp itself isn't drawn on the ticket).
   const look = ticket.checked_in && ticket.stamp_id
     ? stampLook({ id: ticket.stamp_id, event_name: ticket.event_name, day: ticket.event_date, category: ticket.event_category, location: ticket.event_location })
     : null;
@@ -178,11 +177,6 @@ export default function TicketCard({ ticket, justStamped = false }) {
                 <div className="h-[180px] w-[180px] animate-pulse rounded-lg bg-[#F0F3F8] sm:h-[208px] sm:w-[208px]" />
               )}
             </div>
-            {look && (
-              <div role="img" aria-label={`Stamp: ${look.label}`} className={`shrink-0 ${justStamped ? "stamp-land" : ""}`}>
-                <Stamp name={look.name} city={look.city} date={look.date} ink={look.ink} shape={look.shape} tilt={look.tilt} size={96} filled />
-              </div>
-            )}
             </div>
             <span className={`flex h-7 items-center gap-1.5 rounded-full px-3 text-[13px] font-extrabold ${st.tone}`}>
               <span className={`h-[7px] w-[7px] rounded-full ${st.dot}`} />
