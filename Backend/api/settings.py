@@ -228,6 +228,8 @@ REST_FRAMEWORK = {
         'auth_verify': '30/hour',
         'auth_refresh': '120/hour',
         'cohost_invite': '60/hour',
+        # The claim page is public and the token is the secret, so keep guessing slow.
+        'claim': '60/hour',
         'newsletter': '10/hour',
         # Follow/unfollow is cheap but easy to script; this stops rapid toggling.
         'follow': '120/hour',

@@ -664,6 +664,48 @@ class EventCoHost(models.Model):
 
 
 
+class EventClaim(models.Model):
+    """
+    A pitched event waiting for its organiser.
+
+    Byro staff build a draft event, then send the organiser a link carrying
+    `token`. Nothing changes on the event until that person signs in and claims
+    it, which makes them the owner. The link is the credential, so the address
+    they sign in with need not match `email`; who claimed it is recorded.
+
+    A claim is live while it is unclaimed, unrevoked and unexpired. Sending a
+    new one for the same event revokes the old one.
+    """
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='claims')
+    email = models.EmailField()
+    token = models.CharField(max_length=64, unique=True, db_index=True)
+    created_by_email = models.EmailField(blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    revoked_at = models.DateTimeField(null=True, blank=True)
+    claimed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='claimed_events',
+    )
+    claimed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Claim of {self.event.name} for {self.email}"
+
+    @property
+    def state(self):
+        if self.claimed_at:
+            return 'claimed'
+        if self.revoked_at:
+            return 'revoked'
+        if self.expires_at <= timezone.now():
+            return 'expired'
+        return 'live'
+
+
 class EventFormQuestion(models.Model):
     """
     Custom registration questions that an organiser adds to their event.
@@ -1204,6 +1246,9 @@ class AdminAction(models.Model):
     ACTION_EVENT_TO_DRAFT = 'event.moved_to_draft'
     ACTION_EVENT_EDITED = 'event.edited'
     ACTION_EVENT_COHOST_ADDED = 'event.cohost_added'
+    ACTION_EVENT_CLAIM_SENT = 'event.claim_sent'
+    ACTION_EVENT_CLAIM_REVOKED = 'event.claim_revoked'
+    ACTION_EVENT_CLAIMED = 'event.claimed'
     ACTION_USER_SUSPENDED = 'user.suspended'
     ACTION_USER_REACTIVATED = 'user.reactivated'
     ACTION_USER_ROLE_CHANGED = 'user.role_changed'
@@ -1255,6 +1300,9 @@ class AdminAction(models.Model):
         (ACTION_EVENT_TO_DRAFT, 'Event moved back to draft by Byro'),
         (ACTION_EVENT_EDITED, 'Event details edited by Byro'),
         (ACTION_EVENT_COHOST_ADDED, 'Co-host added by Byro'),
+        (ACTION_EVENT_CLAIM_SENT, 'Event sent to an organiser to claim'),
+        (ACTION_EVENT_CLAIM_REVOKED, 'Event claim link revoked'),
+        (ACTION_EVENT_CLAIMED, 'Event claimed by an organiser'),
         (ACTION_USER_SUSPENDED, 'User suspended'),
         (ACTION_USER_REACTIVATED, 'User reactivated'),
         (ACTION_USER_ROLE_CHANGED, 'User role changed'),

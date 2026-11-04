@@ -49,6 +49,7 @@ from .dash_events import DashboardEventsView
 from .dash_event import DashEventCohostResendView, DashEventGuestView, DashEventSummaryView
 from .dash_community import CommunityMembersView, CommunitySummaryView
 from .dash_overview import DashboardOverviewView
+from .claims import AdminEventClaimView, EventClaimPreviewView, EventClaimClaimView
 from .auth_views import (
     MagicAuthSendView,
     MagicAuthVerifyView,
@@ -166,6 +167,9 @@ urlpatterns = [
     path('api/admin/users/<int:pk>/fee/', AdminUserFeeView.as_view(), name='admin-user-fee'),
     path('api/admin/export/<str:kind>/', AdminExportView.as_view(), name='admin-export'),
     path('api/admin/events/<int:pk>/cohosts/', AdminEventCohostView.as_view(), name='admin-event-cohosts'),
+    path('api/admin/events/<int:pk>/claim/', AdminEventClaimView.as_view(), name='admin-event-claim'),
+    path('api/event-claims/<str:token>/', EventClaimPreviewView.as_view(), name='event-claim-preview'),
+    path('api/event-claims/<str:token>/claim/', EventClaimClaimView.as_view(), name='event-claim'),
     path('api/admin/events/<int:pk>/cancel/', AdminEventCancelView.as_view(), name='admin-event-cancel'),
     path('api/admin/events/<int:pk>/feature/', AdminEventFeatureView.as_view(), name='admin-event-feature'),
     path('api/admin/reports/<int:pk>/', AdminReportDetailView.as_view(), name='admin-report-detail'),

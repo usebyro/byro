@@ -624,6 +624,46 @@ def cohost_invite_email(event_name, inviter_name, event_url, is_new_user=False, 
     return {"subject": f"{inviter_name} invited you to co-host {event_name}", "html": html, "text": text}
 
 
+def event_claim_email(event_name, sender_name, claim_url, date="", time="", location="", expires_on=""):
+    """Tell an organiser Byro has set up their event, with a link to claim it."""
+    when = " · ".join(x for x in [date, time, location] if x)
+    sender = _h(sender_name)
+    steps = [
+        "Select Claim your event, then sign in or create an account",
+        "Set up your profile with your name and username",
+        "Review the event, change anything you like and publish when you&#8217;re ready",
+    ]
+    steps_text = [
+        "Select Claim your event, then sign in or create an account",
+        "Set up your profile with your name and username",
+        "Review the event, change anything you like and publish when you're ready",
+    ]
+    valid = f" This link works until {expires_on} and can be used once." if expires_on else " This link can be used once."
+    body_html = (
+        (_lead(_h(when)) if when else "")
+        + _callout("To claim it", steps)
+        + _btn_row(_btn(claim_url, "Claim your event"))
+        + _small(f"Nothing goes live until you publish.{valid}")
+        + _small("Questions? Reply to this email. Not expecting this? You can ignore it.")
+    )
+    html = _shell(
+        _badge("Your event", NEUTRAL, NEUTRAL_BG),
+        "",
+        body_html,
+        f"You&#8217;re getting this because {sender} set up an event on Byro for this email address.",
+        preheader="We set up your event. Claim it to make it yours.",
+    )
+    text = (
+        f"{sender_name} set up {event_name} for you on Byro\n\n" + (f"{when}\n\n" if when else "")
+        + "To claim it:\n" + "".join(f"- {c}\n" for c in steps_text)
+        + f"\nClaim your event: {claim_url}\n\n"
+        f"Nothing goes live until you publish.{valid}\n"
+        "Questions? Reply to this email. Not expecting this? You can ignore it.\n"
+        "\nByro Team\nsupport@usebyro.com"
+    )
+    return {"subject": f"We set up {event_name} for you on Byro", "html": html, "text": text}
+
+
 def ticket_transfer_email(sender_name, recipient_name, event_name, date, time, location, accept_url):
     """To someone a ticket holder is giving their ticket to."""
     sender = sender_name or "Someone"

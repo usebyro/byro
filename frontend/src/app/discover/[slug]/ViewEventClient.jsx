@@ -22,6 +22,7 @@ import { categoryTone, dayParts, formatNaira, formatTime, isPast } from "@/lib/e
 import { trackViewEvent, trackShareEvent, trackSaveEvent, trackBeginCheckout } from "@/lib/analytics";
 import { calculateTicketFees } from "@/lib/pricing";
 import { ticketLimits, describeTicketLimits } from "@/lib/ticketLimits";
+import LoadFailed from "@/components/states/LoadFailed";
 
 const fmt = (price) => formatNaira(price);
 
@@ -57,6 +58,8 @@ export default function ViewEventClient({ slug, initialEvent = null }) {
   const [event, setEvent] = useState(initialEvent);
   const [loading, setLoading] = useState(!initialEvent);
   const [error, setError] = useState("");
+  const [missing, setMissing] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   const [suspended, setSuspended] = useState(null);
   const [registered, setRegistered] = useState(false);
   const [ticketId, setTicketId] = useState(null);
@@ -107,7 +110,7 @@ export default function ViewEventClient({ slug, initialEvent = null }) {
 
   /* Fetch event */
   useEffect(() => {
-    if (!slug) { setError("No event found"); setLoading(false); return; }
+    if (!slug) { setMissing(true); setLoading(false); return; }
     const doFetch = async () => {
       try {
         if (!prefetched) setLoading(true);
@@ -133,12 +136,14 @@ export default function ViewEventClient({ slug, initialEvent = null }) {
             setSelectedTier((cur) => (resolvedTiers.some((t) => String(t.id) === cur) ? cur : firstOpenTier(resolvedTiers)));
           }
         } else {
-          throw new Error("We couldn't find this event. The link may be wrong, or the event was removed.");
+          throw Object.assign(new Error("We couldn't find this event. The link may be wrong, or the event was removed."), { status: 404 });
         }
         if (ticketData?.registered) { setRegistered(true); setTicketId(ticketData.ticket_id || null); }
       } catch (err) {
         if (err.suspended) {
           setSuspended(err.event);
+        } else if (err.status === 404) {
+          setMissing(true);
         } else {
           console.error(err);
           setError(err.message || "We couldn't load this event.");
@@ -149,7 +154,7 @@ export default function ViewEventClient({ slug, initialEvent = null }) {
       }
     };
     doFetch();
-  }, [slug, router, prefetched]);
+  }, [slug, router, prefetched, attempt]);
 
   /* Other events you may like: same category first, then whatever is trending */
   useEffect(() => {
@@ -281,7 +286,21 @@ export default function ViewEventClient({ slug, initialEvent = null }) {
     </Providers>
   );
 
-  if (error || (!loading && !event)) return notFound();
+  // Only an event that isn't there is a 404. A dropped connection or a server error isn't.
+  if (missing || (!loading && !event && !error)) return notFound();
+  if (error && !event) {
+    return (
+      <LoadFailed
+        title="Couldn't load this event"
+        message="Check your connection and try again."
+        onRetry={() => {
+          setError("");
+          setMissing(false);
+          setAttempt((n) => n + 1);
+        }}
+      />
+    );
+  }
 
   if (!event) return null;
 

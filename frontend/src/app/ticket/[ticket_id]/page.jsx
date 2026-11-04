@@ -6,6 +6,7 @@ import Image from "next/image";
 import { useParams, notFound } from "next/navigation";
 import TicketCard from "@/components/tickets/TicketCard";
 import API from "@/services/api";
+import LoadFailed from "@/components/states/LoadFailed";
 
 const naira = (n) => `₦${Number(n || 0).toLocaleString("en-NG", { maximumFractionDigits: 2 })}`;
 
@@ -62,16 +63,17 @@ export default function TicketPage() {
   const { ticket_id: ticketId } = useParams();
   const [ticket, setTicket] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState(null);
+  const [attempt, setAttempt] = useState(0);
   const [justStamped, setJustStamped] = useState(false);
 
   useEffect(() => {
     if (!ticketId) return;
     API.getTicket(ticketId)
       .then(setTicket)
-      .catch(() => setError(true))
+      .catch((err) => setError(err || new Error("failed")))
       .finally(() => setLoading(false));
-  }, [ticketId]);
+  }, [ticketId, attempt]);
 
   // On the event day, while the ticket is on screen and not yet scanned, check every few seconds
   // so the stamp lands the moment the door checks this ticket in (board 29).
@@ -105,7 +107,21 @@ export default function TicketPage() {
     );
   }
 
-  if (error || !ticket) return notFound();
+  // Only a ticket that isn't there is a 404. A dropped connection or a server error isn't.
+  if (error?.status === 404 || (!error && !ticket)) return notFound();
+  if (error) {
+    return (
+      <LoadFailed
+        title="Couldn't load your ticket"
+        message="Check your connection and try again."
+        onRetry={() => {
+          setLoading(true);
+          setError(null);
+          setAttempt((n) => n + 1);
+        }}
+      />
+    );
+  }
 
   return (
     <div

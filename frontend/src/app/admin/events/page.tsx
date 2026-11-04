@@ -93,6 +93,95 @@ function formatDateTime(dateStr?: string) {
 }
 
 /** Fix what the public sees (a typo, an unsuitable photo) without suspending the event. */
+type ClaimInfo = { email: string; state: "live" | "claimed" | "revoked" | "expired"; sent_at: string; expires_at: string; claimed_by: string | null };
+
+function HandOver({ event }: { event: Event }) {
+  const confirm = useConfirm();
+  const [claim, setClaim] = useState<ClaimInfo | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/admin/events/${event.id}/claim`)
+      .then((r) => (r.ok ? r.json() : { claim: null }))
+      .then((d) => !cancelled && setClaim(d.claim ?? null))
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [event.id]);
+
+  const send = async () => {
+    const email = await confirm({
+      title: `Send “${event.name}” to an organiser?`,
+      body: "They get an email with a link to sign in or create an account and claim it. Nothing changes until they do, and you can keep editing. Once claimed, you lose all access. Sending again cancels the earlier link.",
+      confirmLabel: "Send link",
+      input: { label: "Organiser's email", placeholder: "name@company.com", required: true },
+    });
+    if (typeof email !== "string") return;
+    setBusy(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/admin/events/${event.id}/claim`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim() }),
+      });
+      await throwIfFailed(res);
+      const d = await res.json();
+      setClaim(d.claim);
+      if (d.email_sent) toast.success("Link sent", { description: email.trim() });
+      else toast.error("Saved, but the email didn't send. Send it again.", { description: email.trim() });
+    } catch (err) {
+      setError(`Couldn't send it. ${err instanceof Error && err.message ? err.message : "Try again."}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const revoke = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/admin/events/${event.id}/claim`, { method: "DELETE" });
+      await throwIfFailed(res);
+      setClaim((c) => (c ? { ...c, state: "revoked" } : c));
+      toast.success("Link cancelled");
+    } catch (err) {
+      setError(`Couldn't cancel it. ${err instanceof Error && err.message ? err.message : "Try again."}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const day = (iso: string) => new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  const status = !claim
+    ? "Send the organiser a link to claim this draft. They become the owner and you lose access."
+    : claim.state === "live"
+      ? `Sent to ${claim.email}, waiting for them to claim it. Link works until ${day(claim.expires_at)}.`
+      : claim.state === "claimed"
+        ? `Claimed by ${claim.claimed_by ?? claim.email}.`
+        : claim.state === "expired"
+          ? `The link to ${claim.email} expired. Send a new one.`
+          : `The link to ${claim.email} was cancelled.`;
+
+  return (
+    <ActionRow title="Hand over to organiser" hint={error ? <span className="text-danger">{error}</span> : status}>
+      {claim?.state !== "claimed" && (
+        <button type="button" onClick={send} disabled={busy} className={BTN_BRAND}>
+          {claim?.state === "live" ? "Send again" : "Send link"}
+        </button>
+      )}
+      {claim?.state === "live" && (
+        <button type="button" onClick={revoke} disabled={busy} className={BTN_QUIET}>
+          Cancel link
+        </button>
+      )}
+    </ActionRow>
+  );
+}
+
 function EditDetails({ event, onSaved }: { event: Event; onSaved: (updated: Event) => void }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState(event.name);
@@ -865,6 +954,7 @@ export default function AdminEventsPage() {
                           Add co-host
                         </button>
                       </ActionRow>
+                      {selected.is_draft && selectedOverview?.tickets_sold === 0 && can.moderate && <HandOver key={selected.id} event={selected} />}
                       {!selected.is_draft && selectedOverview?.tickets_sold === 0 && (
                         <ActionRow title="Back to draft" hint="Hide it from everyone but the organiser until they publish again. Only while no tickets are issued.">
                           <button type="button" onClick={() => changeSales(selected, "draft")} disabled={updatingId === selected.id} className={BTN_QUIET}>

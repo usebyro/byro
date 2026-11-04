@@ -2476,6 +2476,19 @@ class EventViewSet(viewsets.ModelViewSet):
 
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
+
+        # An event Byro handed over can't go live until its new owner has set up their profile
+        # (name and username), since that is what guests see on the event page.
+        if (was_draft and serializer.validated_data.get('is_draft') is False
+                and instance.claims.filter(claimed_at__isnull=False).exists()):
+            from .claims import profile_ready
+            if not profile_ready(request.user):
+                return Response(
+                    {'error': 'Finish setting up your profile (your name and username) before you publish this event.',
+                     'code': 'profile_incomplete'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
         self.perform_update(serializer)
 
         # Delete old image from Supabase if a new one was uploaded
