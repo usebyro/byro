@@ -1440,7 +1440,7 @@ def _stamp_payload(stamps):
             'event_slug': e.slug,
             'day': e.day,
             'category': e.category,
-            'location': e.location or '',
+            'location': '' if e.address_private else (e.location or ''),
             'organizer_name': (oprofile.display_name if oprofile else '') or event_host_name(e),
             'organizer_handle': oprofile.handle if oprofile else None,
             'earned_at': st.created_at,
@@ -1802,7 +1802,7 @@ class CommunityDirectoryView(APIView):
                 'cover_url': request.build_absolute_uri(featured.event_image.url) if featured else None,
                 'next_event': {
                     'name': nxt.name, 'slug': nxt.slug, 'day': nxt.day,
-                    'time_from': nxt.time_from, 'location': nxt.location,
+                    'time_from': nxt.time_from, 'location': '' if nxt.address_private else nxt.location,
                 } if nxt else None,
             })
         return Response({'results': results, 'total': total, 'page': page, 'page_size': page_size})
@@ -2147,7 +2147,7 @@ class EventViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(
                 Q(name__icontains=search) |
                 Q(description__icontains=search) |
-                Q(location__icontains=search) |
+                Q(location__icontains=search, address_private=False) |
                 Q(hosted_by__icontains=search)
             )
 
@@ -2157,7 +2157,7 @@ class EventViewSet(viewsets.ModelViewSet):
             areas = [a.strip() for a in area.split(',') if a.strip()]
             area_q = Q()
             for a in areas:
-                area_q |= Q(location__icontains=a)
+                area_q |= Q(location__icontains=a, address_private=False)
             queryset = queryset.filter(area_q)
 
         # Date filtering: exact date takes precedence over the "when" shortcuts
@@ -2323,7 +2323,8 @@ class EventViewSet(viewsets.ModelViewSet):
             base_qs = Event.objects.filter(
                 is_active=True,
                 visibility='public',
-                is_draft=False
+                is_draft=False,
+                address_private=False,
             ).exclude(location='').exclude(location__isnull=True)
 
             counts = (
@@ -2379,7 +2380,7 @@ class EventViewSet(viewsets.ModelViewSet):
                         'name': event.name,
                         'day': event.day.isoformat() if event.day else None,
                         'time_from': event.time_from.strftime('%H:%M') if event.time_from else None,
-                        'location': event.location or '',
+                        'location': '' if event.address_private else (event.location or ''),
                         'organizer': (profile.display_name if profile else '') or '',
                     },
                     status=status.HTTP_403_FORBIDDEN,

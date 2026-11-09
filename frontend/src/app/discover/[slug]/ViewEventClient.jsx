@@ -452,13 +452,27 @@ export default function ViewEventClient({ slug, initialEvent = null }) {
                   </div>
                   <div className="flex items-center gap-3.5 rounded-[20px] bg-paper p-[18px_20px]">
                     <span className="flex h-14 w-[52px] shrink-0 items-center justify-center rounded-[14px] bg-white">
-                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#3669F6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                        <path d="M12 21s7-6.2 7-11.5A7 7 0 0 0 5 9.5C5 14.8 12 21 12 21z" />
-                        <circle cx="12" cy="9.5" r="2.5" />
-                      </svg>
+                      {event.address_hidden ? (
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#3669F6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <path d="M6 11h12v10H6zM8.5 11V8a3.5 3.5 0 0 1 7 0v3" />
+                        </svg>
+                      ) : (
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#3669F6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <path d="M12 21s7-6.2 7-11.5A7 7 0 0 0 5 9.5C5 14.8 12 21 12 21z" />
+                          <circle cx="12" cy="9.5" r="2.5" />
+                        </svg>
+                      )}
                     </span>
                     <span className="min-w-0 text-[15px]">
+                      {event.address_hidden ? (
+                        <>
+                          <b>Address shared after you get your ticket</b>
+                          <br />
+                          <span className="text-muted">It will be on your ticket and in your confirmation email.</span>
+                        </>
+                      ) : (
                       <b className="break-words">{event.location || "Location to be announced"}</b>
+                      )}
                       {mapsUrl && (
                         <>
                           <br />

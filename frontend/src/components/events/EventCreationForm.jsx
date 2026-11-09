@@ -221,6 +221,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
   const [timeTo, setTimeTo] = useState("");
   const [venue, setVenue] = useState("");
   const [virtualLink, setVirtualLink] = useState("");
+  const [addressPrivate, setAddressPrivate] = useState(false);
   const [where, setWhere] = useState("inperson"); // inperson | online | both
   // Repeating (new events only): the rule, how many dates, and the dates the organiser skipped.
   const [repeatRule, setRepeatRule] = useState("none");
@@ -298,6 +299,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
     setTimeTo(d.time_to && d.time_to !== d.time_from ? d.time_to.slice(0, 5) : "");
     setVenue(d.location || "");
     setVirtualLink(d.virtual_link || "");
+    setAddressPrivate(Boolean(d.address_private));
     setWhere(d.virtual_link ? (d.location ? "both" : "online") : "inperson");
     setDescription(d.description || "");
     setTicketsTransferable(d.transferable || false);
@@ -479,6 +481,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "GMT+01:00",
     };
     if (inPerson && venue) fields.location = venue;
+    fields.address_private = String(inPerson && addressPrivate);
     if (online && virtualLink) fields.virtual_link = virtualLink;
     if (description) fields.description = description;
     fields.capacity = capacity.trim(); // empty clears the limit
@@ -956,6 +959,19 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
                     />
                   </div>
                 )}
+
+                <label className="mt-3 flex cursor-pointer items-start gap-3 rounded-xl border border-gray-200 px-4 py-3">
+                  <input
+                    type="checkbox"
+                    checked={addressPrivate}
+                    onChange={(e) => setAddressPrivate(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 shrink-0 accent-blue-600"
+                  />
+                  <span className="text-sm">
+                    <span className="block font-semibold text-gray-900">Share the address after guests get a ticket</span>
+                    <span className="block text-gray-500">Only ticket holders see the venue, on their ticket and in their email.</span>
+                  </span>
+                </label>
               </div>
               )}
 

@@ -98,7 +98,7 @@ def _event_card(event):
     return {
         'date': format_event_date(event.day),
         'time': format_event_time(event.time_from, event.timezone),
-        'location': event.location or '',
+        'location': '' if event.address_private else (event.location or ''),
         'url': f"{_frontend()}/discover/{event.slug}",
     }
 

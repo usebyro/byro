@@ -123,7 +123,7 @@ def notify_followers(event):
             event_name=event.name,
             date=format_event_date(event.day),
             time=format_event_time(event.time_from, event.timezone),
-            location=event.location or '',
+            location='' if event.address_private else (event.location or ''),
             event_url=f"{_frontend()}/discover/{event.slug}",
             tickets_label=_tickets_label(event),
             community_url=community_url,

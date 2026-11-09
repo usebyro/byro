@@ -422,7 +422,7 @@ class EventSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'slug', 'name', 'owner', 'owner_email', 'owner_handle', 'owner_name', 'owner_events_count',
             'category', 'category_display',
-            'day', 'time_from', 'time_to', 'location', 'description',
+            'day', 'time_from', 'time_to', 'location', 'address_private', 'description',
             'virtual_link', 'ticket_price', 'capacity', 'transferable',
             'show_remaining_count', 'pass_fee_to_attendee', 'max_tickets_per_person', 'is_sold_out',
             'event_image', 'event_image_url', 'visibility', 'timezone', 'hosted_by',
@@ -508,6 +508,14 @@ class EventSerializer(serializers.ModelSerializer):
         if not (role.get('is_owner') or role.get('is_cohost') or is_staff):
             data['owner_email'] = None
             data['cohosts'] = []
+
+        # A private address is for ticket holders and the team only. Everyone else gets a flag
+        # to show "shared after you get your ticket" instead of the venue and any online link.
+        data['address_hidden'] = False
+        if instance.address_private and not instance.can_see_address(user):
+            data['location'] = ''
+            data['virtual_link'] = None
+            data['address_hidden'] = True
         return data
 
     def create(self, validated_data):
@@ -529,6 +537,7 @@ class TicketSerializer(serializers.ModelSerializer):
     event_date = serializers.DateField(source='event.day', read_only=True)
     event_time = serializers.TimeField(source='event.time_from', read_only=True)
     event_location = serializers.CharField(source='event.location', read_only=True)
+    event_address_private = serializers.BooleanField(source='event.address_private', read_only=True)
     event_image_url = serializers.SerializerMethodField()
     transferable = serializers.BooleanField(source='event.transferable', read_only=True)
     form_answers = EventFormAnswerSerializer(many=True, read_only=True)
@@ -546,7 +555,7 @@ class TicketSerializer(serializers.ModelSerializer):
         model = Ticket
         fields = [
             'ticket_id', 'event_cancelled_at', 'event_cancel_reason', 'refund', 'event', 'event_name', 'event_slug', 'event_hosted_by', 'ticket_price',
-            'event_date', 'event_time', 'event_location', 'event_image_url',
+            'event_date', 'event_time', 'event_location', 'event_address_private', 'event_image_url',
             'tier', 'tier_name', 'tier_price',
             'original_owner_name', 'original_owner_email',
             'current_owner_name', 'current_owner_email',
@@ -559,7 +568,7 @@ class TicketSerializer(serializers.ModelSerializer):
             'ticket_id', 'is_transferred', 'created_at',
             'checked_in', 'checked_in_at', 'qr_token',
             'event_name', 'event_slug', 'event_date', 'event_time',
-            'event_location', 'event_image_url', 'tier_name', 'tier_price',
+            'event_location', 'event_address_private', 'event_image_url', 'tier_name', 'tier_price',
             'event_hosted_by', 'ticket_price',
         ]
 

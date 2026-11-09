@@ -360,6 +360,9 @@ class Event(models.Model):
     time_from = models.TimeField()
     time_to = models.TimeField()
     location = models.CharField(max_length=255)
+    # When on, the address (and online link) is shown only to people holding a ticket, the
+    # organiser, accepted co-hosts and staff. Everyone else sees that it is shared after they book.
+    address_private = models.BooleanField(default=False)
     description = models.TextField()
     virtual_link = models.URLField(blank=True, null=True)
     ticket_price = models.DecimalField(
@@ -515,6 +518,18 @@ class Event(models.Model):
         return self.is_cohost(user)
     
     
+    def can_see_address(self, user):
+        """Whether `user` may see where this event is. Always true unless the organiser made it private."""
+        if not self.address_private:
+            return True
+        if user is None or not getattr(user, 'is_authenticated', False):
+            return False
+        if user.is_staff or user.is_superuser or self.owner_id == user.pk or self.is_cohost(user):
+            return True
+        return self.tickets.filter(payment_status__in=['paid', 'free']).filter(
+            models.Q(user=user) | models.Q(current_owner_email__iexact=user.email)
+        ).exists()
+
     def get_user_role(self, user):
         """
         Determine user's role for this event
