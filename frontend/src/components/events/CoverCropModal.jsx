@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
+import { createPortal } from "react-dom";
 import Cropper from "react-easy-crop";
 
 const OUT_W = 1600;
@@ -39,6 +40,13 @@ export default function CoverCropModal({ src, fileName, onDone, onCancel }) {
   const [area, setArea] = useState(null);
   const [busy, setBusy] = useState(false);
 
+  // Lock page scroll while framing.
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, []);
+
   const onComplete = useCallback((_, pixels) => setArea(pixels), []);
 
   const save = async () => {
@@ -52,12 +60,13 @@ export default function CoverCropModal({ src, fileName, onDone, onCancel }) {
     }
   };
 
-  return (
+  // Portal to <body> so the form's sticky header and bottom bar can't show through.
+  return createPortal(
     <div role="dialog" aria-modal="true" aria-label="Crop cover image" className="fixed inset-0 z-[100] flex items-end justify-center bg-black/60 sm:items-center sm:p-4">
       <div className="flex w-full max-w-xl flex-col gap-4 rounded-t-3xl bg-white p-5 sm:rounded-3xl">
         <div>
           <h3 className="text-lg font-bold text-gray-900">Frame your cover</h3>
-          <p className="text-sm text-gray-500">Drag to move, pinch or slide to zoom. This is how guests will see it.</p>
+          <p className="text-sm text-gray-500">Drag to move, pinch or use the slider to zoom. Guests will see exactly this.</p>
         </div>
         <div className="relative w-full overflow-hidden rounded-xl bg-gray-900" style={{ aspectRatio: "16 / 9" }}>
           <Cropper
@@ -90,6 +99,7 @@ export default function CoverCropModal({ src, fileName, onDone, onCancel }) {
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

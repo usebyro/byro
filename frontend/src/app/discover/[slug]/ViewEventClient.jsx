@@ -221,7 +221,7 @@ export default function ViewEventClient({ slug, initialEvent = null }) {
         <Delayed slowAfter={null}>
           <main aria-busy="true" className="pb-28 lg:pb-0">
             <section className="mx-auto max-w-[1440px] px-4 pt-4 md:px-12 md:pt-6 xl:px-24">
-              <div className="h-[260px] rounded-3xl bg-[#EEF1F6] animate-pulse motion-reduce:animate-none md:h-[460px] md:rounded-[36px]" />
+              <div className="aspect-video rounded-3xl bg-[#EEF1F6] animate-pulse motion-reduce:animate-none md:rounded-[36px]" />
             </section>
             <section className="mx-auto flex max-w-[1440px] flex-col gap-10 px-4 pt-8 md:px-12 md:pt-11 lg:flex-row lg:items-start lg:gap-16 xl:px-24">
               <div className="flex min-w-0 flex-1 flex-col gap-9">
@@ -368,7 +368,7 @@ export default function ViewEventClient({ slug, initialEvent = null }) {
 
         <main className="flex-1 pb-28 lg:pb-0">
           <section className="mx-auto max-w-[1440px] px-4 pt-4 md:px-12 md:pt-6 xl:px-24">
-            <div className="relative h-[260px] overflow-hidden rounded-3xl bg-mist md:h-[460px] md:rounded-[36px]">
+            <div className="relative aspect-video overflow-hidden rounded-3xl bg-mist md:rounded-[36px]">
               <EventImage
                 event={{ name: event.name, category: event.category, event_image_url: imageUrl }}
                 sizes="(min-width: 1440px) 1248px, 100vw"
