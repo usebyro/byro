@@ -412,8 +412,8 @@ export default function ViewEventClient({ slug, initialEvent = null }) {
           </section>
 
           <section className="mx-auto flex max-w-[1440px] flex-col gap-10 px-4 pt-8 md:px-12 md:pt-11 lg:flex-row lg:items-start lg:gap-16 xl:px-24">
-            <div className="flex min-w-0 flex-1 flex-col gap-9">
-              <div className="flex flex-col gap-3.5">
+            <div className="flex min-w-0 flex-1 flex-col gap-9 max-lg:contents max-lg:[&>*]:order-3">
+              <div className="flex flex-col gap-3.5 max-lg:!order-1">
                 <span
                   className="flex h-[30px] items-center self-start rounded-full px-3 text-xs font-extrabold uppercase tracking-[0.06em]"
                   style={{ background: tone.bg, color: tone.text }}
@@ -580,7 +580,7 @@ export default function ViewEventClient({ slug, initialEvent = null }) {
             <aside
               id="tickets"
               aria-label="Tickets"
-              className="flex w-full shrink-0 scroll-mt-28 flex-col gap-4 rounded-[30px] border border-hairline bg-white p-6 shadow-[0_24px_60px_rgba(20,22,28,0.08)] md:p-7 lg:sticky lg:top-28 lg:w-[420px]"
+              className="flex w-full shrink-0 max-lg:order-2 scroll-mt-28 flex-col gap-4 rounded-[30px] border border-hairline bg-white p-6 shadow-[0_24px_60px_rgba(20,22,28,0.08)] md:p-7 lg:sticky lg:top-28 lg:w-[420px]"
             >
               <h2 className="font-display text-2xl font-bold">Tickets</h2>
 

@@ -634,7 +634,8 @@ class ThanksForComingTests(CommunityBase):
         # No account yet: the button invites them to make one.
         self.assertIn('Create your passport', by_to['new@example.com']['text'])
 
-    def test_the_daily_job_sends_once(self):
+    def test_the_daily_job_does_not_send_it(self):
+        # The morning-after email is switched off; send_thanks_for_coming() is kept for re-enabling.
         from datetime import timedelta
         from unittest import mock
         from django.core.management import call_command
@@ -646,7 +647,7 @@ class ThanksForComingTests(CommunityBase):
             call_command('send_event_reminders')
             call_command('send_event_reminders')
         thanks = [c for c in sent.call_args_list if c.kwargs.get('subject', '').startswith('Thanks for coming')]
-        self.assertEqual(len(thanks), 1)
+        self.assertEqual(len(thanks), 0)
 
 
 class SharedStampTests(CommunityBase):

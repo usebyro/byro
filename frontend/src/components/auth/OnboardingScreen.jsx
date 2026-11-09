@@ -407,13 +407,13 @@ export default function OnboardingScreen() {
                   </svg>
                 </div>
                 <h2 className="font-serif text-3xl text-gray-900 mb-2">Your community is live</h2>
-                <p className="text-gray-500 text-sm mb-6">
-                  {hostForm.isPublic
-                    ? "People can find it on the communities page, follow it, and hear about every event you publish."
-                    : "It's private for now, so only people with the link can see it. You can list it publicly any time in settings."}
-                </p>
+                {!hostForm.isPublic && (
+                  <p className="text-gray-500 text-sm mb-2">
+                    It&apos;s private for now, so only people with the link can see it. You can list it publicly any time in settings.
+                  </p>
+                )}
 
-                <div className="flex items-center border border-gray-200 rounded-xl overflow-hidden mb-4">
+                <div className="flex items-center border border-gray-200 rounded-xl overflow-hidden mt-4 mb-6">
                   <span className="flex-1 px-4 py-2.5 text-sm text-gray-600 truncate">{pageUrl.replace(/^https?:\/\//, "")}</span>
                   <button
                     type="button"
@@ -423,14 +423,6 @@ export default function OnboardingScreen() {
                     {copied ? "Copied" : "Copy"}
                   </button>
                 </div>
-                <a
-                  href={`https://wa.me/?text=${encodeURIComponent(`Follow ${hostForm.displayName || "us"} on Byro: ${pageUrl}`)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center justify-center w-full border border-gray-200 rounded-full py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors mb-3"
-                >
-                  Share on WhatsApp
-                </a>
                 <button
                   type="button"
                   onClick={() => router.push(returnPath("/dashboard/events/create"))}

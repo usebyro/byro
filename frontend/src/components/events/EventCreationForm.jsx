@@ -19,6 +19,7 @@ import { trackCreateEvent } from "@/lib/analytics";
 import API from "../../services/api";
 import useFeeInfo from "@/lib/useFeeInfo";
 import RichTextEditor from "./RichTextEditor";
+import CoverCropModal from "./CoverCropModal";
 import { REPEAT_COUNTS, repeatDates, repeatLabel, repeatOptions } from "@/lib/repeatDates";
 
 /* ── Category options ── */
@@ -245,6 +246,8 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
   const [eventImage, setEventImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [isImageLoading, setIsImageLoading] = useState(false);
+  const [cropSrc, setCropSrc] = useState(null); // picked image waiting to be framed
+  const [cropName, setCropName] = useState("");
 
   /* ticket tiers (UI only — we submit the first tier's price to the API) */
   const [questions, setQuestions] = useState([]);
@@ -357,10 +360,10 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
     if (!file.type.startsWith("image/")) { toast.error("Upload an image file"); return; }
     if (file.size > 5 * 1024 * 1024) { toast.error("Image must be under 5MB"); return; }
     setIsImageLoading(true);
-    setEventImage(file);
     const reader = new FileReader();
-    reader.onloadend = () => { setImagePreview(reader.result); setIsImageLoading(false); };
+    reader.onloadend = () => { setCropName(file.name); setCropSrc(reader.result); setIsImageLoading(false); };
     reader.readAsDataURL(file);
+    e.target.value = ""; // so picking the same file again still fires
   }, []);
 
   /* Tier editing helpers */
@@ -1353,7 +1356,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
             <div
               onClick={() => fileInputRef.current?.click()}
               className="rounded-xl overflow-hidden cursor-pointer relative"
-              style={{ height: "160px" }}
+              style={{ aspectRatio: "16 / 9", maxWidth: "520px" }}
             >
               {imagePreview ? (
                 <img src={imagePreview} alt="Cover" className="w-full h-full object-cover" />
@@ -1365,7 +1368,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
                     <>
                       <HugeiconsIcon icon={Camera01Icon} size={24} color="#6b7280" />
                       <span className="text-sm text-gray-500">Add cover image</span>
-                      <span className="text-xs text-gray-400">1600×900px, 5MB max</span>
+                      <span className="text-xs text-gray-400">5MB max</span>
                     </>
                   )}
                 </div>
@@ -1379,6 +1382,14 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
                 </div>
               )}
             </div>
+            {cropSrc && (
+              <CoverCropModal
+                src={cropSrc}
+                fileName={cropName}
+                onCancel={() => setCropSrc(null)}
+                onDone={(file, url) => { setEventImage(file); setImagePreview(url); setCropSrc(null); }}
+              />
+            )}
           </Collapsible>
 
           <Collapsible
