@@ -18,7 +18,7 @@ export default function TermsPage() {
 
       <main className="flex-1 max-w-3xl mx-auto w-full px-4 sm:px-6 py-14">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Terms of Service</h1>
-        <p className="text-sm text-gray-400 mb-10">Last updated: 10 October 2026</p>
+        <p className="text-sm text-gray-400 mb-10">Last updated: 9 November 2026</p>
 
         <div className="prose prose-sm max-w-none text-gray-600 space-y-8">
           <section>
@@ -65,6 +65,7 @@ export default function TermsPage() {
             <ul className="list-disc pl-5 space-y-1.5 mt-2">
               <li>You can sign in with your email address and a one-time code, or with Google. We do not use passwords.</li>
               <li>Give us accurate, current information and keep it up to date. We may check it with independent sources.</li>
+              <li>To change the email address on your account, email us from your current address. We check it is you, then send a confirmation link to the new address. Nothing changes until you confirm it, and we tell your old address once it is done. Your tickets and events stay with your account.</li>
               <li>You are responsible for everything that happens under your account and for keeping access to your email and Google account secure. Tell us at once if you think someone else has accessed it.</li>
               <li>We may ask for more information about you or how you use Byro. If you do not provide it in time, we may limit or close your account.</li>
               <li>We may decline or end an account at any time where the law allows, including where we suspect misuse.</li>

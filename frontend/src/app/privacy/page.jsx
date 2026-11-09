@@ -19,7 +19,7 @@ export default function PrivacyPage() {
 
       <main className="flex-1 max-w-3xl mx-auto w-full px-4 sm:px-6 py-14">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Privacy Policy</h1>
-        <p className="text-sm text-gray-400 mb-10">Last updated: 10 October 2026</p>
+        <p className="text-sm text-gray-400 mb-10">Last updated: 9 November 2026</p>
 
         <div className="prose prose-sm max-w-none text-gray-600 space-y-8">
           <section>
@@ -200,7 +200,7 @@ export default function PrivacyPage() {
           <section>
             <h2 className={H2}>14. Account, communications and retention</h2>
             <ul className="list-disc pl-5 space-y-1.5">
-              <li><strong>Your account.</strong> You can review or change your account information in your settings. To close your account and have your data deleted, email <a href="mailto:support@usebyro.com" className={MAIL}>support@usebyro.com</a> from your account email. We will delete or anonymise your data, except records we must keep to prevent fraud, investigate problems, enforce our Terms of Service and meet legal requirements (such as order and payout records).</li>
+              <li><strong>Your account.</strong> You can review or change your account information in your settings. To change the email address on your account, email <a href="mailto:support@usebyro.com" className={MAIL}>support@usebyro.com</a> from your current address. We check it is you and send a confirmation link to the new address. When you confirm, we update your email with our sign-in provider and on your tickets, stamps and other records, and we tell your old address. To close your account and have your data deleted, email <a href="mailto:support@usebyro.com" className={MAIL}>support@usebyro.com</a> from your account email. We will delete or anonymise your data, except records we must keep to prevent fraud, investigate problems, enforce our Terms of Service and meet legal requirements (such as order and payout records).</li>
               <li><strong>Emails.</strong> You can opt out of marketing emails using the unsubscribe link, in your account settings, or by emailing us. We will still send service messages about your account and tickets.</li>
               <li><strong>Retention.</strong> We keep your data only as long as needed to provide Byro and meet our legal, tax and accounting duties. Order, ticket and payout records are kept for as long as those rules require.</li>
             </ul>
