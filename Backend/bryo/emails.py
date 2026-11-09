@@ -664,6 +664,57 @@ def event_claim_email(event_name, sender_name, claim_url, date="", time="", loca
     return {"subject": f"We set up {event_name} for you on Byro", "html": html, "text": text}
 
 
+def email_change_confirm_email(new_email, confirm_url, expires_on=""):
+    """To the NEW address: confirm it is yours so Byro can move your account here."""
+    valid = f" This link works until {expires_on} and can be used once." if expires_on else " This link can be used once."
+    body_html = (
+        _lead("The Byro team is changing the email on your account to this address. "
+              "Confirm it&#8217;s yours and everything stays as it is: your tickets, stamps, events and community.")
+        + _btn_row(_btn(confirm_url, "Confirm this email"))
+        + _small(f"Nothing changes until you confirm.{valid}")
+        + _small("Not expecting this? You can ignore it and nothing will change.")
+    )
+    html = _shell(
+        _badge("Your account", NEUTRAL, NEUTRAL_BG),
+        "",
+        body_html,
+        f"You&#8217;re getting this because Byro was asked to use {_h(new_email)} on an account.",
+        preheader="Confirm this email to keep your Byro account and everything in it.",
+    )
+    text = (
+        "The Byro team is changing the email on your account to this address. "
+        "Confirm it's yours and everything stays as it is: your tickets, stamps, events and community.\n\n"
+        f"Confirm this email: {confirm_url}\n\n"
+        f"Nothing changes until you confirm.{valid}\n"
+        "Not expecting this? You can ignore it and nothing will change.\n"
+        "\nByro Team\nsupport@usebyro.com"
+    )
+    return {"subject": "Confirm your new email on Byro", "html": html, "text": text}
+
+
+def email_changed_notice_email(old_email, new_email):
+    """To the OLD address once the change is done, so a change nobody asked for gets noticed."""
+    body_html = (
+        _lead(f"The email on your Byro account was changed from {_h(old_email)} to {_h(new_email)}. "
+              "You&#8217;ll sign in with the new address from now on. Your tickets, stamps and events came with you.")
+        + _small("Didn&#8217;t ask for this? Reply to this email right away and we&#8217;ll look into it.")
+    )
+    html = _shell(
+        _badge("Your account", NEUTRAL, NEUTRAL_BG),
+        "",
+        body_html,
+        "You&#8217;re getting this because this address was on a Byro account.",
+        preheader="The email on your Byro account was changed.",
+    )
+    text = (
+        f"The email on your Byro account was changed from {old_email} to {new_email}. "
+        "You'll sign in with the new address from now on. Your tickets, stamps and events came with you.\n\n"
+        "Didn't ask for this? Reply to this email right away and we'll look into it.\n"
+        "\nByro Team\nsupport@usebyro.com"
+    )
+    return {"subject": "Your Byro email was changed", "html": html, "text": text}
+
+
 def ticket_transfer_email(sender_name, recipient_name, event_name, date, time, location, accept_url):
     """To someone a ticket holder is giving their ticket to."""
     sender = sender_name or "Someone"

@@ -50,6 +50,7 @@ from .dash_event import DashEventCohostResendView, DashEventGuestView, DashEvent
 from .dash_community import CommunityMembersView, CommunitySummaryView
 from .dash_overview import DashboardOverviewView
 from .claims import AdminEventClaimView, EventClaimPreviewView, EventClaimClaimView
+from .email_change import AdminUserEmailChangeView, EmailChangePreviewView, EmailChangeConfirmView
 from .auth_views import (
     MagicAuthSendView,
     MagicAuthVerifyView,
@@ -152,6 +153,9 @@ urlpatterns = [
     # Admin — users
     path('api/admin/users/', AdminUsersListView.as_view(), name='admin-users-list'),
     path('api/admin/users/<int:pk>/', AdminUserDetailView.as_view(), name='admin-users-detail'),
+    path('api/admin/users/<int:pk>/email-change/', AdminUserEmailChangeView.as_view(), name='admin-user-email-change'),
+    path('api/email-changes/<str:token>/', EmailChangePreviewView.as_view(), name='email-change-preview'),
+    path('api/email-changes/<str:token>/confirm/', EmailChangeConfirmView.as_view(), name='email-change-confirm'),
 
     # Admin — events overview, payments, promos, audit log
     path('api/admin/events/overview/', AdminEventsOverviewView.as_view(), name='admin-events-overview'),

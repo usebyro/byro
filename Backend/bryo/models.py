@@ -664,6 +664,42 @@ class EventCoHost(models.Model):
 
 
 
+class EmailChange(models.Model):
+    """
+    A staff-requested change of the email on someone's account, waiting for the new address to confirm.
+
+    The link goes to the NEW address, so opening it proves the person owns it. Nothing changes
+    until then. Live while unconfirmed, unrevoked and unexpired; a newer request for the same
+    account revokes the older one.
+    """
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='email_changes')
+    old_email = models.EmailField()
+    new_email = models.EmailField()
+    token = models.CharField(max_length=64, unique=True, db_index=True)
+    reason = models.CharField(max_length=255, blank=True, default='')
+    requested_by_email = models.EmailField(blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    revoked_at = models.DateTimeField(null=True, blank=True)
+    confirmed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Email change {self.old_email} -> {self.new_email}"
+
+    @property
+    def state(self):
+        if self.confirmed_at:
+            return 'confirmed'
+        if self.revoked_at:
+            return 'revoked'
+        if self.expires_at <= timezone.now():
+            return 'expired'
+        return 'live'
+
+
 class EventClaim(models.Model):
     """
     A pitched event waiting for its organiser.
@@ -1253,6 +1289,8 @@ class AdminAction(models.Model):
     ACTION_USER_REACTIVATED = 'user.reactivated'
     ACTION_USER_ROLE_CHANGED = 'user.role_changed'
     ACTION_USER_DELETED = 'user.deleted'
+    ACTION_USER_EMAIL_CHANGE_SENT = 'user.email_change_sent'
+    ACTION_USER_EMAIL_CHANGED = 'user.email_changed'
     ACTION_PAYOUT_PROCESSED = 'payout.processed'
     ACTION_PAYOUT_REJECTED = 'payout.rejected'
     ACTION_PAYOUT_DELETED = 'payout.deleted'
@@ -1307,6 +1345,8 @@ class AdminAction(models.Model):
         (ACTION_USER_REACTIVATED, 'User reactivated'),
         (ACTION_USER_ROLE_CHANGED, 'User role changed'),
         (ACTION_USER_DELETED, 'Account deleted (anonymised)'),
+        (ACTION_USER_EMAIL_CHANGE_SENT, 'Account email change requested'),
+        (ACTION_USER_EMAIL_CHANGED, 'Account email changed'),
         (ACTION_PAYOUT_PROCESSED, 'Payout processed'),
         (ACTION_PAYOUT_REJECTED, 'Payout rejected'),
         (ACTION_PAYOUT_DELETED, 'Payout deleted'),

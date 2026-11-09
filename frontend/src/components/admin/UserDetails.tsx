@@ -49,6 +49,10 @@ export default function UserDetails({ userId, onDeleted, accountRows, dangerRows
   const [confirmEmail, setConfirmEmail] = useState("");
   const [showDelete, setShowDelete] = useState(false);
   const [feeDraft, setFeeDraft] = useState("");
+  const [showEmail, setShowEmail] = useState(false);
+  const [newEmail, setNewEmail] = useState("");
+  const [emailReason, setEmailReason] = useState("");
+  const [change, setChange] = useState<{ new_email: string; state: string; expires_at: string } | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -108,6 +112,51 @@ export default function UserDetails({ userId, onDeleted, accountRows, dangerRows
       await load();
     } catch (err) {
       toast.error("Couldn't update the fee", { description: (err as Error).message });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const isOwnerRole = me.role === "owner";
+  useEffect(() => {
+    if (!isOwnerRole) return;
+    fetch(`/api/admin/users/${userId}/email-change`)
+      .then((r) => r.json())
+      .then((b) => setChange(b?.change ?? null))
+      .catch(() => {});
+  }, [userId, isOwnerRole]);
+
+  const sendEmailChange = async () => {
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/admin/users/${userId}/email-change`, {
+        method: "POST",
+        body: JSON.stringify({ new_email: newEmail, reason: emailReason }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body?.error || "Try again.");
+      setChange(body.change);
+      setShowEmail(false);
+      setNewEmail("");
+      setEmailReason("");
+      toast.success("Confirmation sent", { description: `Waiting for ${body.change.new_email} to confirm` });
+    } catch (err) {
+      toast.error("Couldn't send it", { description: (err as Error).message });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const cancelEmailChange = async () => {
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/admin/users/${userId}/email-change`, { method: "DELETE" });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body?.error || "Try again.");
+      setChange((c) => (c ? { ...c, state: "revoked" } : c));
+      toast.success("Request cancelled");
+    } catch (err) {
+      toast.error("Couldn't cancel", { description: (err as Error).message });
     } finally {
       setBusy(false);
     }
@@ -263,6 +312,64 @@ export default function UserDetails({ userId, onDeleted, accountRows, dangerRows
             <h4 className="text-danger text-sm font-semibold">Danger zone</h4>
             <div className="divide-y divide-hairline rounded-xl border border-danger-hover/50 bg-white">
               {dangerRows}
+              {isOwner && !deleted && (
+                <div>
+                  <ActionRow
+                    title="Change email"
+                    hint="Sends a confirmation link to the new address. Once they confirm, their account, tickets, stamps and events move over and they sign in with the new email. We email the old address too."
+                  >
+                    {!showEmail && (
+                      <button type="button" onClick={() => setShowEmail(true)} className={BTN}>
+                        Change email
+                      </button>
+                    )}
+                  </ActionRow>
+                  {change?.state === "live" && (
+                    <p className="mx-4 mb-4 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-waiting-hover bg-waiting-tint p-3 text-xs text-waiting">
+                      <span>
+                        Waiting for <b>{change.new_email}</b> to confirm. The link works until {day(change.expires_at)}.
+                      </span>
+                      <button type="button" onClick={cancelEmailChange} disabled={busy} className="font-semibold underline">
+                        Cancel request
+                      </button>
+                    </p>
+                  )}
+                  {change?.state === "confirmed" && (
+                    <p className="mx-4 mb-4 text-xs text-muted">Last change confirmed by {change.new_email}.</p>
+                  )}
+                  {showEmail && (
+                    <div className="space-y-2 px-4 pb-4">
+                      <label className="block text-xs text-muted" htmlFor="new-email">New email address</label>
+                      <input
+                        id="new-email"
+                        type="email"
+                        value={newEmail}
+                        onChange={(e) => setNewEmail(e.target.value)}
+                        autoComplete="off"
+                        spellCheck={false}
+                        className="w-full rounded-lg border border-line bg-mist px-3 py-2 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-brand"
+                      />
+                      <label className="block text-xs text-muted" htmlFor="email-reason">Why (kept in the audit log)</label>
+                      <input
+                        id="email-reason"
+                        type="text"
+                        value={emailReason}
+                        onChange={(e) => setEmailReason(e.target.value)}
+                        maxLength={200}
+                        className="w-full rounded-lg border border-line bg-mist px-3 py-2 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-brand"
+                      />
+                      <div className="flex gap-2">
+                        <button type="button" onClick={sendEmailChange} disabled={busy || !newEmail.includes("@")} className={BTN_BRAND}>
+                          {busy ? "Sending…" : "Send confirmation"}
+                        </button>
+                        <button type="button" onClick={() => setShowEmail(false)} className={BTN_QUIET}>
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
               {isOwner && !deleted && (
                 <div>
                   <ActionRow

@@ -105,6 +105,18 @@ def send_invitation(email: str, expires_in_days: int = 7, inviter_user_id: str =
         return None
 
 
+def update_user_email(workos_user_id: str, email: str):
+    """
+    Change the email on a WorkOS user (verified: the new address confirmed it). Raises
+    WorkOSAPIError on failure so the caller can stop before touching Byro's own rows.
+    """
+    try:
+        return client().user_management.update_user(workos_user_id, email=email, email_verified=True)
+    except WorkOSError as e:
+        logger.error("WorkOS update_user(%s) failed: %s", workos_user_id, e)
+        raise WorkOSAPIError(str(e))
+
+
 # ---------------------------------------------------------------------------
 # Magic Auth — the email field on our sign-in screen
 # ---------------------------------------------------------------------------
