@@ -209,9 +209,19 @@ export default function DiscoverClient({ search, initialEvents }: { search: stri
   const hasMore = visibleCount < filteredEvents.length;
 
   // Group what is visible by day, keeping the chosen sort order inside each day.
+  // What is coming up leads, soonest first. Events that already happened go last, most recent first,
+  // so old events never push new ones down the page.
+  const todayIso = new Date().toLocaleDateString("en-CA");
   const groups: { day: string; events: Event[] }[] = [];
   [...visibleEvents]
-    .sort((a, b) => (a.day || "").localeCompare(b.day || ""))
+    .sort((a, b) => {
+      const da = a.day || "";
+      const db = b.day || "";
+      const pastA = da < todayIso;
+      const pastB = db < todayIso;
+      if (pastA !== pastB) return pastA ? 1 : -1;
+      return pastA ? db.localeCompare(da) : da.localeCompare(db);
+    })
     .forEach((e) => {
       const g = groups.find((x) => x.day === e.day);
       if (g) g.events.push(e);

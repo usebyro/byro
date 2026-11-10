@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { toPng } from "html-to-image";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { SquareLock01Icon } from "@hugeicons/core-free-icons";
 import API from "@/services/api";
 import { formatNaira } from "@/lib/eventFormat";
 import { stampLook } from "@/lib/stamps";
@@ -139,9 +141,7 @@ export default function TicketCard({ ticket, justStamped = false }) {
                   <p className="text-[15px] font-extrabold text-[#14161C]">{ticket.event_location}</p>
                   {ticket.event_address_private && (
                     <p className="mt-0.5 inline-flex items-center gap-1.5 text-[13px] font-bold text-[#1F7A52]">
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                        <path d="M6 11h12v10H6zM8.5 11V8a3.5 3.5 0 0 1 7 0v3" />
-                      </svg>
+                      <HugeiconsIcon icon={SquareLock01Icon} size={14} color="currentColor" strokeWidth={2} />
                       Only ticket holders can see this address
                     </p>
                   )}
