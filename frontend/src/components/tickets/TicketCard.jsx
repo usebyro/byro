@@ -142,7 +142,7 @@ export default function TicketCard({ ticket, justStamped = false }) {
                   {ticket.event_address_private && (
                     <p className="mt-0.5 inline-flex items-center gap-1.5 text-[13px] font-bold text-[#1F7A52]">
                       <HugeiconsIcon icon={SquareLock01Icon} size={14} color="currentColor" strokeWidth={2} />
-                      Only ticket holders can see this address
+                      Only ticket holders see this
                     </p>
                   )}
                   {directions && (

@@ -466,8 +466,8 @@ export default function ViewEventClient({ slug, initialEvent = null }) {
                     <span className="min-w-0 flex-1 text-[15px]">
                       {event.address_hidden ? (
                         <>
-                          <b className="block text-balance break-words leading-snug">Address shared after you get your ticket</b>
-                          <span className="mt-1 block break-words text-sm leading-snug text-muted">It will be on your ticket and in your confirmation email.</span>
+                          <b className="block text-balance break-words leading-snug">Shared after you get a ticket</b>
+                          <span className="mt-1 block break-words text-sm leading-snug text-muted">You&apos;ll find it on your ticket.</span>
                         </>
                       ) : (
                       <b className="break-words">{event.location || "Location to be announced"}</b>

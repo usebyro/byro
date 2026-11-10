@@ -5,6 +5,8 @@ import Script from "next/script";
 import { ticketLimits, stepUp, stepDown, describeTicketLimits } from "@/lib/ticketLimits";
 import EventImageFallback from "@/components/ui/EventImageFallback";
 import Image from "next/image";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { SquareLock01Icon } from "@hugeicons/core-free-icons";
 import { useRouter } from "next/navigation";
 import API from "@/services/api";
 import { toast } from "sonner";
@@ -21,6 +23,8 @@ interface Event {
   time_from: string;
   time_to: string;
   location: string;
+  /** The organiser keeps the address for ticket holders, so `location` is blank. */
+  address_hidden?: boolean;
   ticket_price: number | string;
   event_image_url?: string;
   is_active: boolean;
@@ -420,7 +424,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
           eventName: event.name,
           eventDate: event.day,
           timeFrom: event.time_from,
-          eventLocation: event.location,
+          eventLocation: ticket?.event_location || event.location,
           ticketId: ticket?.id || ticket?.ticket_id,
         };
         localStorage.setItem("ticketData", JSON.stringify(ticketData));
@@ -1073,18 +1077,27 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                     {dateStr} · {timeStr}
                   </div>
                   <div className="flex items-center gap-1.5 text-xs text-muted">
-                    <svg
-                      width="11"
-                      height="11"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                    >
-                      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-                      <circle cx="12" cy="10" r="3" />
-                    </svg>
-                    {event.location}
+                    {event.address_hidden ? (
+                      <>
+                        <HugeiconsIcon icon={SquareLock01Icon} size={12} color="currentColor" strokeWidth={2} className="shrink-0" />
+                        Shared after you get a ticket
+                      </>
+                    ) : (
+                      <>
+                        <svg
+                          width="11"
+                          height="11"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                        >
+                          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                          <circle cx="12" cy="10" r="3" />
+                        </svg>
+                        {event.location}
+                      </>
+                    )}
                   </div>
 
                   {subtotal > 0 && (
