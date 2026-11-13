@@ -11,7 +11,7 @@ from django.test import TestCase, override_settings
 from django.utils import timezone
 from rest_framework.test import APIClient
 
-from .models import NewsletterSignup, UserProfile
+from .models import Event, NewsletterSignup, UserProfile
 from .services import zoho
 
 User = get_user_model()
@@ -398,3 +398,63 @@ class NewsletterEndpointTests(ZohoBase):
 
     def test_me_newsletter_needs_a_sign_in(self):
         self.assertIn(self.client.get('/api/me/newsletter/').status_code, (401, 403))
+
+
+@override_settings(SITE_URL='https://usebyro.com', **ZOHO_ON)
+class FirstEventTests(ZohoBase):
+    """An organiser's first live event tells Zoho its public link; later ones never overwrite it."""
+
+    def setUp(self):
+        super().setUp()
+        self.owner = User.objects.create_user(email='host@example.com')
+        UserProfile.objects.update_or_create(user=self.owner, defaults={'role': 'organizer'})
+
+    def event(self, slug, **kw):
+        base = dict(name=slug, slug=slug, owner=self.owner, day=timezone.now().date(),
+                    time_from='18:00', time_to='20:00', location='Lagos', is_active=True)
+        base.update(kw)
+        return Event.objects.create(**base)
+
+    def contacts(self, post):
+        import json
+        return [json.loads(c.kwargs['data']['contactinfo']) for c in post.call_args_list if 'oauth' not in c.args[0]]
+
+    def test_first_publish_sends_both_fields_with_the_public_url(self):
+        e = self.event('abc123')
+        with patch('bryo.services.zoho.requests.post', side_effect=zoho_api(OK)) as post:
+            self.assertTrue(zoho.sync_first_event(e).ok)
+        (info,) = self.contacts(post)
+        self.assertEqual(info['Has Published Event'], 'Yes')
+        self.assertEqual(info['Event URL'], 'https://usebyro.com/discover/abc123')
+
+    def test_second_publish_sends_nothing(self):
+        self.event('first1')
+        second = self.event('second2')
+        with patch('bryo.services.zoho.requests.post', side_effect=zoho_api(OK)) as post:
+            self.assertEqual(zoho.sync_first_event(second).error, 'not first')
+        self.assertEqual(self.contacts(post), [])
+
+    def test_drafts_do_not_count_and_do_not_send(self):
+        draft = self.event('draft1', is_draft=True)
+        with patch('bryo.services.zoho.requests.post', side_effect=zoho_api(OK)) as post:
+            self.assertFalse(zoho.sync_first_event(draft).ok)
+        self.assertEqual(self.contacts(post), [])
+        live = self.event('live1')  # the draft isn't a published event, so this one is the first
+        self.assertTrue(zoho.is_first_published_event(live))
+
+    def test_zoho_down_never_raises(self):
+        e = self.event('down1')
+        with patch('bryo.services.zoho.requests.post', side_effect=requests.ConnectionError()):
+            self.assertFalse(zoho.sync_first_event(e).ok)
+
+    def test_backfill_dry_run_prints_the_first_events_url(self):
+        from io import StringIO
+        from django.core.management import call_command
+        self.event('older1')
+        self.event('newer2')
+        out = StringIO()
+        with patch('bryo.services.zoho.requests.post') as post:
+            call_command('backfill_zoho', '--dry-run', stdout=out)
+        post.assert_not_called()
+        self.assertIn('Event URL: https://usebyro.com/discover/older1', out.getvalue())
+        self.assertNotIn('newer2', out.getvalue())

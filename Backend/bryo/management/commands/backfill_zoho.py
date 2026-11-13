@@ -10,7 +10,7 @@ import time
 from django.core.management.base import BaseCommand
 from django.db.models import Q
 
-from bryo.models import UserProfile
+from bryo.models import Event, UserProfile
 from bryo.services import zoho
 
 
@@ -39,7 +39,15 @@ class Command(BaseCommand):
                 continue
             steps = []
             if zoho.list_for_role(p.role):
-                steps.append((f"{zoho.list_for_role(p.role)} list", lambda u=user, r=p.role: zoho.add_user_by_role(u, r)))
+                extra, note = None, ''
+                if p.role == 'organizer':
+                    first = (Event.objects.filter(owner=user, is_active=True, is_draft=False)
+                             .order_by('created_at', 'pk').first())
+                    if first:
+                        extra = zoho.first_event_fields(first)
+                        note = f" (Has Published Event: Yes, Event URL: {extra['Event URL']})"
+                steps.append((f"{zoho.list_for_role(p.role)} list{note}",
+                              lambda u=user, r=p.role, x=extra: zoho.add_user_by_role(u, r, extra=x)))
             if p.newsletter_subscribed:
                 steps.append(("newsletter list", lambda u=user: zoho.set_newsletter(u, True)))
             for label, call in steps:

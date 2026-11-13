@@ -7,7 +7,7 @@ from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.throttling import ScopedRateThrottle
 from django.core.validators import validate_email
 from django.core.exceptions import ValidationError as DjangoValidationError
-from .services import workos_api
+from .services import workos_api, zoho
 from .services.turnstile import check_and_remember_verification
 from . import apps
 from .serializers import (
@@ -2434,6 +2434,8 @@ class EventViewSet(viewsets.ModelViewSet):
 
         _send_event_published_email(serializer.instance)
         notify_followers_in_background(serializer.instance)
+        if not serializer.instance.is_draft:
+            zoho.sync_first_event_after_commit(serializer.instance)
 
         response_data = serializer.data
         response_data['event_url'] = event_url
@@ -2517,6 +2519,7 @@ class EventViewSet(viewsets.ModelViewSet):
                 'event_created', f"New event: {serializer.instance.name}",
                 body=serializer.instance.owner.email if serializer.instance.owner_id else '', link='/events',
             )
+            zoho.sync_first_event_after_commit(serializer.instance)
 
         if apps.posthog_client is not None:
             apps.posthog_client.capture('event_updated')

@@ -186,8 +186,10 @@ def _post(action, list_name, contact):
     return Result(False, last_error)
 
 
-def _contact(email, first_name='', last_name=''):
+def _contact(email, first_name='', last_name='', extra=None):
     info = {'Contact Email': (email or '').strip().lower()}
+    if extra:
+        info.update(extra)
     if first_name:
         info['First Name'] = first_name
     if last_name:
@@ -195,11 +197,11 @@ def _contact(email, first_name='', last_name=''):
     return info
 
 
-def _run(action, list_name, email, first_name='', last_name=''):
+def _run(action, list_name, email, first_name='', last_name='', extra=None):
     if not is_enabled():
         return Result(False, 'disabled')
     try:
-        result = _post(action, list_name, _contact(email, first_name, last_name))
+        result = _post(action, list_name, _contact(email, first_name, last_name, extra))
     except Exception as exc:  # never let Zoho reach a caller
         result = Result(False, exc.__class__.__name__)
     if not result.ok:
@@ -207,8 +209,8 @@ def _run(action, list_name, email, first_name='', last_name=''):
     return result
 
 
-def subscribe(list_name, email, first_name='', last_name=''):
-    return _run('listsubscribe', list_name, email, first_name, last_name)
+def subscribe(list_name, email, first_name='', last_name='', extra=None):
+    return _run('listsubscribe', list_name, email, first_name, last_name, extra)
 
 
 def unsubscribe(list_name, email):
@@ -238,7 +240,7 @@ def syncable(user):
     )
 
 
-def add_user_by_role(user, role=None):
+def add_user_by_role(user, role=None, extra=None):
     """Put a person on the list for their role. No role yet means nothing to do."""
     if not syncable(user):
         return Result(False, 'not syncable')
@@ -248,7 +250,7 @@ def add_user_by_role(user, role=None):
     if not list_name:
         return Result(False, 'no role')
     first, last = _names(user)
-    return subscribe(list_name, user.email, first, last)
+    return subscribe(list_name, user.email, first, last, extra)
 
 
 def move_role(user, old_role, new_role):
@@ -268,6 +270,45 @@ def set_newsletter(user, subscribed):
         first, last = _names(user)
         return subscribe(LIST_NEWSLETTER, user.email, first, last)
     return unsubscribe(LIST_NEWSLETTER, user.email)
+
+
+def event_public_url(event):
+    """The link an attendee opens: the app's own public event page."""
+    from ..views import _event_page_url
+    return _event_page_url(event)
+
+
+def first_event_fields(event):
+    """What Zoho learns when an organiser's first event goes live."""
+    return {'Has Published Event': 'Yes', 'Event URL': event_public_url(event)}
+
+
+def is_first_published_event(event):
+    """True when this is the owner's only live (published, not draft) event."""
+    from ..models import Event
+    if not event.owner_id or event.is_draft or not event.is_active:
+        return False
+    return not Event.objects.filter(owner_id=event.owner_id, is_active=True, is_draft=False).exclude(pk=event.pk).exists()
+
+
+def sync_first_event(event):
+    """
+    Called after an event goes live. Only the owner's first one sends anything, in a single
+    Organisers-list call, so later events never overwrite Event URL. Never raises.
+    """
+    try:
+        if not is_first_published_event(event):
+            return Result(False, 'not first')
+        fields = first_event_fields(event)
+        return add_user_by_role(event.owner, 'organizer', extra=fields)
+    except Exception as exc:
+        logger.error("Zoho first-event sync failed: %s", exc.__class__.__name__)
+        return Result(False, exc.__class__.__name__)
+
+
+def sync_first_event_after_commit(event):
+    from django.db import transaction
+    transaction.on_commit(lambda: run_in_background(sync_first_event, event))
 
 
 def run_in_background(fn, *args):
