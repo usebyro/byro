@@ -110,6 +110,8 @@ class UserProfile(models.Model):
         ('organizer', 'Organizer'),
     ]
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, blank=True, db_index=True)
+    # Opted in to the Byro newsletter (the Zoho Campaigns Newsletter list). Changing it syncs to Zoho.
+    newsletter_subscribed = models.BooleanField(default=False)
 
     # Public identity
     display_name = models.CharField(max_length=100, blank=True)

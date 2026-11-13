@@ -48,13 +48,14 @@ const Footer = () => {
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [message, setMessage] = useState("");
+  const [website, setWebsite] = useState(""); // honeypot: people never see it, bots fill it in
 
   const handleSubscribe = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim() || status === "loading") return;
     setStatus("loading");
     try {
-      const data = await API.subscribeNewsletter(email.trim());
+      const data = await API.subscribeNewsletter(email.trim(), { website });
       setStatus("done");
       setMessage(data?.message || "You're on the list.");
       setEmail("");
@@ -74,6 +75,16 @@ const Footer = () => {
             </Link>
             <p className="text-base">Go out. Keep the memory.</p>
             <form onSubmit={handleSubscribe} className="mt-2 flex max-w-md gap-2">
+              <input
+                type="text"
+                name="website"
+                value={website}
+                onChange={(e) => setWebsite(e.target.value)}
+                tabIndex={-1}
+                autoComplete="off"
+                aria-hidden="true"
+                className="absolute -left-[9999px] h-0 w-0 opacity-0"
+              />
               <label htmlFor="footer-email" className="sr-only">Email for the week&apos;s best events</label>
               <input
                 id="footer-email"

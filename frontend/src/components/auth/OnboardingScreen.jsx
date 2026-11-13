@@ -93,6 +93,7 @@ export default function OnboardingScreen() {
   const [isSaving, setIsSaving] = useState(false);
   const [stepError, setStepError] = useState("");
   const [copied, setCopied] = useState(false);
+  const [newsletter, setNewsletter] = useState(false);
 
   useEffect(() => {
     document.title = "Welcome | Byro";
@@ -141,7 +142,7 @@ export default function OnboardingScreen() {
   const handleSelectRole = (id) => {
     // Best-effort — the choice still drives the local wizard even if this
     // fails, but the admin-side role filter needs it saved.
-    API.updateProfile({ role: id }).catch((err) => {
+    API.updateProfile({ role: id, newsletter_subscribed: newsletter }).catch((err) => {
       console.error("Could not save onboarding role:", err);
     });
     if (id === "organizer") {
@@ -272,6 +273,16 @@ export default function OnboardingScreen() {
                     </button>
                   ))}
                 </div>
+
+                <label className="mt-6 flex cursor-pointer items-center gap-2.5 text-sm text-gray-600">
+                  <input
+                    type="checkbox"
+                    checked={newsletter}
+                    onChange={(e) => setNewsletter(e.target.checked)}
+                    className="h-4 w-4 shrink-0 accent-blue-600"
+                  />
+                  Send me the Byro newsletter
+                </label>
               </>
             )}
 

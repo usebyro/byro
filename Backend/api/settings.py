@@ -36,7 +36,7 @@ SECRET_KEY = config('SECRET_KEY')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config('DEBUG', default=False, cast=bool)
 
-# Comma-separated list, e.g. "usebyro.com,www.usebyro.com,byro.onrender.com".
+# Comma-separated list, e.g. "usebyro.com,www.usebyro.com,byro-production.up.railway.app".
 # Falls back to localhost only when DEBUG is on, so a misconfigured production
 # deploy fails loudly instead of silently accepting any Host header.
 ALLOWED_HOSTS = [
@@ -74,6 +74,18 @@ REFUND_ALERT_EMAIL = os.environ.get('REFUND_ALERT_EMAIL', 'support@usebyro.com')
 BREVO_API_KEY = os.environ.get('BREVO_API_KEY', '')
 BREVO_LIST_ID = os.environ.get('BREVO_LIST_ID', '')
 BREVO_SMTP_KEY = os.environ.get('BREVO_SMTP_KEY', '')
+
+# Zoho Campaigns: role lists (Organisers, Attendees) and the newsletter. Off unless ZOHO_ENABLED
+# is true and every value below is set, so local dev and tests never reach Zoho.
+ZOHO_ENABLED = config('ZOHO_ENABLED', default=False, cast=bool)
+ZOHO_CLIENT_ID = config('ZOHO_CLIENT_ID', default='')
+ZOHO_CLIENT_SECRET = config('ZOHO_CLIENT_SECRET', default='')
+ZOHO_REFRESH_TOKEN = config('ZOHO_REFRESH_TOKEN', default='')
+ZOHO_ACCOUNTS_URL = config('ZOHO_ACCOUNTS_URL', default='https://accounts.zoho.com')
+ZOHO_CAMPAIGNS_URL = config('ZOHO_CAMPAIGNS_URL', default='https://campaigns.zoho.com')
+ZOHO_LISTKEY_ORGANISERS = config('ZOHO_LISTKEY_ORGANISERS', default='')
+ZOHO_LISTKEY_ATTENDEES = config('ZOHO_LISTKEY_ATTENDEES', default='')
+ZOHO_LISTKEY_NEWSLETTER = config('ZOHO_LISTKEY_NEWSLETTER', default='')
 
 # Cloudflare Turnstile
 TURNSTILE_SECRET_KEY = os.environ.get('TURNSTILE_SECRET_KEY', '')

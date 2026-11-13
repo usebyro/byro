@@ -577,9 +577,10 @@ const API = {
     }
   },
 
-  subscribeNewsletter: async (email) => {
+  subscribeNewsletter: async (email, extra = {}) => {
     try {
-      const response = await axiosInstance.post("newsletter/subscribe/", { email });
+      // `extra` can carry first_name, last_name and the hidden `website` honeypot field.
+      const response = await axiosInstance.post("newsletter/subscribe/", { email, ...extra });
       return response.data;
     } catch (error) {
       const message = error.response?.data?.error;

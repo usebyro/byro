@@ -44,7 +44,7 @@ from .notifications import (
     MyNotificationsView, MyNotificationsReadView, AdminNotificationsView, AdminNotificationsReadView,
     NotificationSettingsView,
 )
-from .newsletter_views import NewsletterSubscribeView
+from .newsletter_views import MeNewsletterView, NewsletterSubscribeView, NewsletterUnsubscribeView
 from .dash_events import DashboardEventsView
 from .dash_event import DashEventCohostResendView, DashEventGuestView, DashEventSummaryView
 from .dash_community import CommunityMembersView, CommunitySummaryView
@@ -85,8 +85,10 @@ urlpatterns = [
     path('api/auth/refresh/', RefreshView.as_view(), name='auth_refresh'),
     path('api/auth/me/', MeView.as_view(), name='auth_me'),
 
-    # Newsletter (Brevo)
+    # Newsletter (Zoho Campaigns)
     path('api/newsletter/subscribe/', NewsletterSubscribeView.as_view(), name='newsletter_subscribe'),
+    path('api/newsletter/unsubscribe/', NewsletterUnsubscribeView.as_view(), name='newsletter_unsubscribe'),
+    path('api/me/newsletter/', MeNewsletterView.as_view(), name='me_newsletter'),
 
     # Dashboard
     path('api/dashboard/', DashboardView.as_view(), name='dashboard'),
