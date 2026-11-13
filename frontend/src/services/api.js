@@ -577,6 +577,11 @@ const API = {
     }
   },
 
+  // The page behind the link in the confirmation email. The token is the credential.
+  getNewsletterLink: async (token) => (await axiosInstance.get(`newsletter/confirm/${token}/`)).data,
+  confirmNewsletter: async (token) => (await axiosInstance.post(`newsletter/confirm/${token}/`)).data,
+  resendNewsletter: async (token) => (await axiosInstance.post(`newsletter/resend/${token}/`)).data,
+
   subscribeNewsletter: async (email, extra = {}) => {
     try {
       // `extra` can carry first_name, last_name and the hidden `website` honeypot field.

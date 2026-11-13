@@ -5,10 +5,13 @@ from unittest.mock import MagicMock, patch
 import requests
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
+from datetime import timedelta
+
 from django.test import TestCase, override_settings
+from django.utils import timezone
 from rest_framework.test import APIClient
 
-from .models import UserProfile
+from .models import NewsletterSignup, UserProfile
 from .services import zoho
 
 User = get_user_model()
@@ -270,30 +273,105 @@ class NewsletterEndpointTests(ZohoBase):
     def subscribe(self, **body):
         return self.client.post('/api/newsletter/subscribe/', body, format='json')
 
-    def test_subscribe_adds_to_the_newsletter_list(self):
-        with patch('bryo.newsletter_views.zoho.subscribe', return_value=zoho.Result(True)) as sub:
+    def test_subscribe_sends_a_confirmation_email_and_joins_nobody_yet(self):
+        with patch('bryo.mailer.send_email') as sent, patch('bryo.newsletter_views.zoho.subscribe') as sub:
             r = self.subscribe(email='Ada@Example.com', first_name='Ada', last_name='Lovelace')
-        self.assertEqual((r.status_code, r.json()), (200, {'success': True, 'message': 'Subscribed'}))
-        sub.assert_called_once_with('newsletter', 'ada@example.com', 'Ada', 'Lovelace')
+        self.assertEqual((r.status_code, r.json()), (200, {'success': True, 'message': 'Check your inbox to confirm'}))
+        sub.assert_not_called()  # not on the list until they confirm
+        kw = sent.call_args.kwargs
+        self.assertEqual((kw['to'], kw['subject']), ('ada@example.com', 'Confirm your Byro subscription'))
+        signup = NewsletterSignup.objects.get()
+        self.assertIn(f'/newsletter/confirm/{signup.token}', kw['html'])
+        self.assertIn('expires in 48 hours', kw['text'])
+        self.assertNotIn('\u2014', kw['html'] + kw['text'])
 
     def test_bad_emails_and_long_fields_are_refused_or_trimmed(self):
         for bad in ('', 'nope', 'a@b', 'x' * 250 + '@example.com', None, 12):
             self.assertEqual(self.subscribe(email=bad).status_code, 400, bad)
-        with patch('bryo.newsletter_views.zoho.subscribe', return_value=zoho.Result(True)) as sub:
+        with patch('bryo.mailer.send_email'):
             self.subscribe(email='a@example.com', first_name='n' * 500)
-        self.assertEqual(len(sub.call_args.args[2]), 100)
+        self.assertEqual(len(NewsletterSignup.objects.get().first_name), 100)
 
     def test_the_honeypot_gets_a_200_and_nothing_happens(self):
-        with patch('bryo.newsletter_views.zoho.subscribe') as sub:
+        with patch('bryo.mailer.send_email') as sent:
             r = self.subscribe(email='bot@example.com', website='http://spam.example')
         self.assertEqual(r.status_code, 200)
-        sub.assert_not_called()
+        sent.assert_not_called()
+        self.assertFalse(NewsletterSignup.objects.exists())
 
-    def test_a_zoho_failure_is_a_502(self):
-        with patch('bryo.newsletter_views.zoho.subscribe', return_value=zoho.Result(False, 'down')):
+    def test_if_the_email_cannot_be_sent_it_is_a_502_and_nothing_is_kept(self):
+        with patch('bryo.mailer.send_email', side_effect=RuntimeError('mail down')):
             r = self.subscribe(email='a@example.com')
         self.assertEqual(r.status_code, 502)
         self.assertEqual(r.json(), {'success': False, 'error': 'Could not subscribe right now'})
+        self.assertFalse(NewsletterSignup.objects.exists())
+
+    def test_one_confirmation_email_per_address_per_minute(self):
+        with patch('bryo.mailer.send_email') as sent:
+            self.subscribe(email='a@example.com')
+            self.subscribe(email='a@example.com')
+        self.assertEqual(sent.call_count, 1)
+
+    def token(self, email='ada@example.com'):
+        with patch('bryo.mailer.send_email'):
+            self.subscribe(email=email, first_name='Ada', last_name='Lovelace')
+        return NewsletterSignup.objects.filter(email=email).first().token
+
+    def test_confirming_joins_the_newsletter_list(self):
+        token = self.token()
+        self.assertEqual(self.client.get(f'/api/newsletter/confirm/{token}/').json(), {'state': 'live', 'email': 'ada@example.com'})
+        with patch('bryo.newsletter_views.zoho.subscribe', return_value=zoho.Result(True)) as sub:
+            r = self.client.post(f'/api/newsletter/confirm/{token}/')
+        self.assertEqual(r.json(), {'state': 'confirmed', 'email': 'ada@example.com'})
+        sub.assert_called_once_with('newsletter', 'ada@example.com', 'Ada', 'Lovelace')
+        self.assertEqual(self.client.get(f'/api/newsletter/confirm/{token}/').json()['state'], 'confirmed')
+
+    def test_confirming_twice_says_already_subscribed_and_calls_zoho_once(self):
+        token = self.token()
+        with patch('bryo.newsletter_views.zoho.subscribe', return_value=zoho.Result(True)) as sub:
+            self.client.post(f'/api/newsletter/confirm/{token}/')
+            again = self.client.post(f'/api/newsletter/confirm/{token}/')
+        self.assertEqual(again.json(), {'state': 'already', 'email': 'ada@example.com'})
+        self.assertEqual(sub.call_count, 1)
+
+    def test_a_second_link_for_a_confirmed_address_says_already_subscribed(self):
+        first = self.token()
+        with patch('bryo.newsletter_views.zoho.subscribe', return_value=zoho.Result(True)):
+            self.client.post(f'/api/newsletter/confirm/{first}/')
+        NewsletterSignup.objects.update(created_at=timezone.now() - timedelta(hours=1))
+        second = self.token()
+        with patch('bryo.newsletter_views.zoho.subscribe') as sub:
+            r = self.client.post(f'/api/newsletter/confirm/{second}/')
+        self.assertEqual(r.json()['state'], 'already')
+        sub.assert_not_called()
+
+    def test_an_expired_link_is_refused_and_can_ask_for_a_new_one(self):
+        token = self.token()
+        NewsletterSignup.objects.update(expires_at=timezone.now() - timedelta(minutes=1),
+                                        created_at=timezone.now() - timedelta(hours=49))
+        with patch('bryo.newsletter_views.zoho.subscribe') as sub:
+            r = self.client.post(f'/api/newsletter/confirm/{token}/')
+        self.assertEqual((r.status_code, r.json()['state']), (410, 'expired'))
+        sub.assert_not_called()
+        with patch('bryo.mailer.send_email') as sent:
+            r = self.client.post(f'/api/newsletter/resend/{token}/')
+        self.assertEqual(r.json(), {'sent': True, 'email': 'ada@example.com'})
+        self.assertEqual(sent.call_args.kwargs['to'], 'ada@example.com')
+        self.assertEqual(NewsletterSignup.objects.count(), 2)
+
+    def test_if_zoho_fails_at_confirm_the_same_link_still_works_later(self):
+        token = self.token()
+        with patch('bryo.newsletter_views.zoho.subscribe', return_value=zoho.Result(False, 'down')):
+            r = self.client.post(f'/api/newsletter/confirm/{token}/')
+        self.assertEqual(r.status_code, 502)
+        self.assertEqual(self.client.get(f'/api/newsletter/confirm/{token}/').json()['state'], 'live')
+        with patch('bryo.newsletter_views.zoho.subscribe', return_value=zoho.Result(True)):
+            self.assertEqual(self.client.post(f'/api/newsletter/confirm/{token}/').json()['state'], 'confirmed')
+
+    def test_unknown_tokens_are_404(self):
+        for call in (self.client.get, self.client.post):
+            self.assertEqual(call('/api/newsletter/confirm/nope/').status_code, 404)
+        self.assertEqual(self.client.post('/api/newsletter/resend/nope/').status_code, 404)
 
     def test_unsubscribe_always_says_success_for_a_valid_email(self):
         for result in (zoho.Result(True), zoho.Result(False, 'not on the list')):

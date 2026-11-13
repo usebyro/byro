@@ -681,6 +681,36 @@ class EventCoHost(models.Model):
 
 
 
+class NewsletterSignup(models.Model):
+    """
+    Someone who asked for the Byro newsletter and has not confirmed yet.
+
+    The link goes to the address they typed, so opening it proves it is theirs. Only then are they
+    added to the Zoho Campaigns Newsletter list. A row exists per confirmation email sent.
+    """
+    email = models.EmailField(db_index=True)
+    first_name = models.CharField(max_length=100, blank=True, default='')
+    last_name = models.CharField(max_length=100, blank=True, default='')
+    token = models.CharField(max_length=64, unique=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    confirmed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Newsletter signup {self.email}"
+
+    @property
+    def state(self):
+        if self.confirmed_at:
+            return 'confirmed'
+        if self.expires_at <= timezone.now():
+            return 'expired'
+        return 'live'
+
+
 class EmailChange(models.Model):
     """
     A staff-requested change of the email on someone's account, waiting for the new address to confirm.

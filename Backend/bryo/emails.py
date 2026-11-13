@@ -664,6 +664,29 @@ def event_claim_email(event_name, sender_name, claim_url, date="", time="", loca
     return {"subject": f"We set up {event_name} for you on Byro", "html": html, "text": text}
 
 
+def newsletter_confirm_email(confirm_url, expires_hours=48):
+    """Right after someone presses Subscribe: confirm the address before they join the list."""
+    body_html = (
+        _lead("Tap the button to start getting the week&#8217;s best events near you, once a week.")
+        + _btn_row(_btn(confirm_url, "Confirm my subscription"))
+        + _small(f"This link expires in {expires_hours} hours. Didn&#8217;t sign up? Ignore this email and you won&#8217;t hear from us.")
+    )
+    html = _shell(
+        "",
+        "Confirm your email",
+        body_html,
+        "You&#8217;re getting this because someone entered this address on usebyro.com.",
+        preheader="One tap and you&#8217;ll get the week&#8217;s best events by email.",
+    )
+    text = (
+        "Tap the link to start getting the week's best events near you, once a week.\n\n"
+        f"Confirm my subscription: {confirm_url}\n\n"
+        f"This link expires in {expires_hours} hours. Didn't sign up? Ignore this email and you won't hear from us.\n"
+        "\nByro Team\nsupport@usebyro.com"
+    )
+    return {"subject": "Confirm your Byro subscription", "html": html, "text": text}
+
+
 def email_change_confirm_email(new_email, confirm_url, expires_on=""):
     """To the NEW address: confirm it is yours so Byro can move your account here."""
     valid = f" This link works until {expires_on} and can be used once." if expires_on else " This link can be used once."

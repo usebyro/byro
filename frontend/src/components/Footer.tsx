@@ -3,6 +3,8 @@
 import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { Mail01Icon } from "@hugeicons/core-free-icons";
 import { FaInstagram, FaTiktok, FaXTwitter } from "react-icons/fa6";
 import API from "@/services/api";
 
@@ -46,23 +48,38 @@ const socials = [
 
 const Footer = () => {
   const [email, setEmail] = useState("");
-  const [status, setStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
-  const [message, setMessage] = useState("");
+  const [phase, setPhase] = useState<"form" | "sending" | "sent">("form");
+  const [error, setError] = useState("");
+  const [resent, setResent] = useState(false);
   const [website, setWebsite] = useState(""); // honeypot: people never see it, bots fill it in
 
-  const handleSubscribe = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email.trim() || status === "loading") return;
-    setStatus("loading");
+  const ask = async () => {
+    const value = email.trim();
+    if (!value) return setError("Enter your email address.");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return setError("That email doesn\u2019t look right. Check it and try again.");
+    setPhase("sending");
     try {
-      const data = await API.subscribeNewsletter(email.trim(), { website });
-      setStatus("done");
-      setMessage(data?.message || "You're on the list.");
-      setEmail("");
+      await API.subscribeNewsletter(value, { website });
+      setPhase("sent");
+      setResent(false);
     } catch (err) {
-      setStatus("error");
-      setMessage(err instanceof Error ? err.message : "Something went wrong. Try again.");
+      setPhase("form");
+      setError(err instanceof Error ? err.message : "Something went wrong. Try again.");
     }
+  };
+
+  const resend = async () => {
+    try {
+      await API.subscribeNewsletter(email.trim(), { website });
+    } catch {
+      /* the first email already went out; the address is the same */
+    }
+    setResent(true);
+  };
+
+  const handleSubscribe = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (phase !== "sending") ask();
   };
 
   return (
@@ -74,41 +91,68 @@ const Footer = () => {
               <Image src="/assets/images/logo.svg" alt="byro" width={88} height={50} className="h-10 w-auto md:h-12" />
             </Link>
             <p className="text-base">Go out. Keep the memory.</p>
-            <form onSubmit={handleSubscribe} className="mt-2 flex max-w-md gap-2">
-              <input
-                type="text"
-                name="website"
-                value={website}
-                onChange={(e) => setWebsite(e.target.value)}
-                tabIndex={-1}
-                autoComplete="off"
-                aria-hidden="true"
-                className="absolute -left-[9999px] h-0 w-0 opacity-0"
-              />
-              <label htmlFor="footer-email" className="sr-only">Email for the week&apos;s best events</label>
-              <input
-                id="footer-email"
-                type="email"
-                required
-                value={email}
-                onChange={(e) => {
-                  setEmail(e.target.value);
-                  if (status !== "loading") setStatus("idle");
-                }}
-                placeholder="Your email for the week's best events"
-                className="h-12 min-w-0 flex-1 rounded-full border border-line bg-white px-[18px] text-sm text-ink placeholder:text-faint focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
-              />
-              <button
-                type="submit"
-                disabled={status === "loading"}
-                className="h-12 shrink-0 rounded-full bg-ink px-5 text-sm font-bold text-white transition-[filter,scale] hover:brightness-125 active:scale-[0.96] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 disabled:opacity-60"
-              >
-                {status === "loading" ? "Subscribing" : "Subscribe"}
-              </button>
-            </form>
-            <p role="status" className={`min-h-5 text-sm ${status === "error" ? "text-red-600" : "text-muted"}`}>
-              {status === "done" || status === "error" ? message : ""}
-            </p>
+            <div aria-live="polite" className="mt-2 max-w-md">
+              {phase !== "sent" ? (
+                <form onSubmit={handleSubscribe} noValidate className="flex flex-col gap-2">
+                  <input
+                    type="text"
+                    name="website"
+                    value={website}
+                    onChange={(e) => setWebsite(e.target.value)}
+                    tabIndex={-1}
+                    autoComplete="off"
+                    aria-hidden="true"
+                    className="absolute -left-[9999px] h-0 w-0 opacity-0"
+                  />
+                  <div className="flex gap-2">
+                    <label htmlFor="footer-email" className="sr-only">Email address</label>
+                    <input
+                      id="footer-email"
+                      type="email"
+                      autoComplete="email"
+                      spellCheck={false}
+                      value={email}
+                      onChange={(e) => {
+                        setEmail(e.target.value);
+                        setError("");
+                      }}
+                      aria-invalid={error ? "true" : "false"}
+                      aria-describedby="footer-email-error"
+                      placeholder="Get the week's best events by email"
+                      className={`h-12 min-w-0 flex-1 rounded-full border bg-white px-[18px] text-base text-ink placeholder:text-faint focus:outline-none focus-visible:ring-2 focus-visible:ring-brand ${error ? "border-[#B42318]" : "border-line"}`}
+                    />
+                    <button
+                      type="submit"
+                      disabled={phase === "sending"}
+                      className="h-12 shrink-0 rounded-full bg-ink px-5 text-sm font-bold text-white transition-[filter,scale] hover:brightness-125 active:scale-[0.96] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 disabled:opacity-60"
+                    >
+                      {phase === "sending" ? "Sending" : "Subscribe"}
+                    </button>
+                  </div>
+                  <span id="footer-email-error" className="min-h-0 pl-[18px] text-[13px] font-bold text-[#B42318]">{error}</span>
+                </form>
+              ) : (
+                <div className="flex items-start gap-3.5 rounded-[20px] bg-white px-[18px] py-4">
+                  <span aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#EEF3FF] text-[#2451D6]">
+                    <HugeiconsIcon icon={Mail01Icon} size={20} color="currentColor" strokeWidth={2} />
+                  </span>
+                  <span className="flex min-w-0 flex-col gap-1">
+                    <span className="text-[15px] font-extrabold text-ink">Check your inbox to confirm</span>
+                    <span className="text-sm leading-normal text-[#3B4252]">
+                      We sent a link to <b className="break-all text-ink">{email.trim()}</b>. Tap it and you&apos;re subscribed. Can&apos;t see it? Look in spam or promotions.
+                    </span>
+                    <span className="mt-1 flex flex-wrap gap-4">
+                      <button type="button" onClick={resend} disabled={resent} className="min-h-8 text-sm font-extrabold text-[#2451D6] disabled:opacity-70">
+                        {resent ? "Sent again" : "Resend the link"}
+                      </button>
+                      <button type="button" onClick={() => { setPhase("form"); setResent(false); }} className="min-h-8 text-sm font-bold text-muted">
+                        Use a different email
+                      </button>
+                    </span>
+                  </span>
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-10 md:contents">

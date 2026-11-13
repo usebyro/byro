@@ -44,7 +44,10 @@ from .notifications import (
     MyNotificationsView, MyNotificationsReadView, AdminNotificationsView, AdminNotificationsReadView,
     NotificationSettingsView,
 )
-from .newsletter_views import MeNewsletterView, NewsletterSubscribeView, NewsletterUnsubscribeView
+from .newsletter_views import (
+    MeNewsletterView, NewsletterConfirmView, NewsletterResendView, NewsletterSubscribeView,
+    NewsletterUnsubscribeView,
+)
 from .dash_events import DashboardEventsView
 from .dash_event import DashEventCohostResendView, DashEventGuestView, DashEventSummaryView
 from .dash_community import CommunityMembersView, CommunitySummaryView
@@ -88,6 +91,8 @@ urlpatterns = [
     # Newsletter (Zoho Campaigns)
     path('api/newsletter/subscribe/', NewsletterSubscribeView.as_view(), name='newsletter_subscribe'),
     path('api/newsletter/unsubscribe/', NewsletterUnsubscribeView.as_view(), name='newsletter_unsubscribe'),
+    path('api/newsletter/confirm/<str:token>/', NewsletterConfirmView.as_view(), name='newsletter_confirm'),
+    path('api/newsletter/resend/<str:token>/', NewsletterResendView.as_view(), name='newsletter_resend'),
     path('api/me/newsletter/', MeNewsletterView.as_view(), name='me_newsletter'),
 
     # Dashboard

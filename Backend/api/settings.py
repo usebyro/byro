@@ -243,6 +243,8 @@ REST_FRAMEWORK = {
         # The claim page is public and the token is the secret, so keep guessing slow.
         'claim': '60/hour',
         'newsletter': '10/hour',
+        # Opening, confirming or re-sending a newsletter link. The token is the secret, so keep guessing slow.
+        'newsletter_confirm': '60/hour',
         # Follow/unfollow is cheap but easy to script; this stops rapid toggling.
         'follow': '120/hour',
         # Each send emails real people; this is generous for tests and drafts, tight for abuse.
