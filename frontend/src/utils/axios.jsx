@@ -1,7 +1,7 @@
 import axios from "axios";
 
 // Normalize the base URL: strip trailing slashes then append /api/
-// NEXT_PUBLIC_API_URL should be the server root (e.g. https://byro.onrender.com)
+// NEXT_PUBLIC_API_URL should be the server root (e.g. https://byro-production.up.railway.app)
 const _rawBase = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/+$/, "");
 const API_BASE_URL = _rawBase.endsWith("/api") ? _rawBase + "/" : _rawBase + "/api/";
 

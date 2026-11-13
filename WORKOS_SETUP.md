@@ -24,7 +24,7 @@ deploy together. The contract the frontend needs to implement is in §8.
 | `WORKOS_API_KEY` | **yes** | Server-side secret. Used only at sign-in and for co-host invitations. |
 | `SECRET_KEY` | **yes** | No default any more — Django will not boot without it. **Rotate it**: the old value was a `django-insecure-…` literal committed to git history. It no longer signs API tokens, but still covers sessions, admin and CSRF. |
 | `DEBUG` | no | Now defaults to `False`. It used to be hardcoded `True`, silently overriding the env read. |
-| `ALLOWED_HOSTS` | **yes in prod** | Comma-separated, e.g. `usebyro.com,www.usebyro.com,byro.onrender.com`. Was `["*"]`. Empty with `DEBUG=False` rejects everything — deliberate, so a misconfigured deploy fails loudly rather than accepting any Host header. |
+| `ALLOWED_HOSTS` | **yes in prod** | Comma-separated, e.g. `usebyro.com,www.usebyro.com,byro-production.up.railway.app`. Was `["*"]`. Empty with `DEBUG=False` rejects everything — deliberate, so a misconfigured deploy fails loudly rather than accepting any Host header. |
 | `WORKOS_ISSUER` | no | Pins the `iss` claim tokens must carry — your hosted AuthKit domain, **not** a name you choose. Run `check_workos` to discover it. Per-environment. See §4. |
 | `WORKOS_OAUTH_REDIRECT_URI` | for Google/Apple | Where WorkOS returns the browser after social sign-in. Must match a Redirect URI registered in the dashboard. Defaults to `{FRONTEND_URL}/auth/callback`. Never taken from the request — a client-supplied redirect would be an open redirect. |
 | `WORKOS_API_BASE_URL` | no | Defaults to `https://api.workos.com`. Override only for tests. |

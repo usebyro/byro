@@ -26,7 +26,7 @@ const EventCard = ({ event }) => {
       return event.event_image;
     }
 
-    const apiBase = process.env.NEXT_PUBLIC_API_URL || "https://byro.onrender.com";
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || "https://byro-production.up.railway.app";
     const base = apiBase.replace(/\/api\/?$/, "");
     return `${base}${event.event_image}`;
   };

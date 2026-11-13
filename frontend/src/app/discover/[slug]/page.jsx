@@ -26,7 +26,7 @@ function resolveImageUrl(event) {
   const raw = event?.event_image_url || event?.event_image;
   if (!raw) return null;
   if (raw.startsWith("http")) return raw;
-  const base = (process.env.NEXT_PUBLIC_API_URL || "https://byro.onrender.com").replace(/\/api\/?$/, "");
+  const base = (process.env.NEXT_PUBLIC_API_URL || "https://byro-production.up.railway.app").replace(/\/api\/?$/, "");
   return `${base}${raw}`;
 }
 

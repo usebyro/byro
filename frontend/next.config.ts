@@ -24,6 +24,11 @@ const nextConfig: NextConfig = {
     
       {
         protocol: 'https',
+        hostname: 'byro-production.up.railway.app',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
         hostname: 'byro.onrender.com',
         pathname: '/**',
       },

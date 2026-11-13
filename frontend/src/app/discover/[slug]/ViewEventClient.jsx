@@ -83,7 +83,7 @@ export default function ViewEventClient({ slug, initialEvent = null }) {
     if (event.event_image_url) return event.event_image_url;
     if (!event.event_image) return null;
     if (event.event_image.startsWith("http")) return event.event_image;
-    const base = (process.env.NEXT_PUBLIC_API_URL || "https://byro.onrender.com").replace(/\/api\/?$/, "");
+    const base = (process.env.NEXT_PUBLIC_API_URL || "https://byro-production.up.railway.app").replace(/\/api\/?$/, "");
     return `${base}${event.event_image}`;
   }, [event]);
 

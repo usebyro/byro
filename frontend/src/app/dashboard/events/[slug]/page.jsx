@@ -18,7 +18,7 @@ import EventGuestSheet from "@/components/dashboard/v2/EventGuestSheet";
 import EventTeamPanel from "@/components/dashboard/v2/EventTeamPanel";
 import SectionError from "@/components/dashboard/v2/SectionError";
 
-const BASE_URL = (process.env.NEXT_PUBLIC_API_URL || "https://byro.onrender.com").replace(/\/api\/?$/, "");
+const BASE_URL = (process.env.NEXT_PUBLIC_API_URL || "https://byro-production.up.railway.app").replace(/\/api\/?$/, "");
 const PAGE_SIZE = 25;
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 

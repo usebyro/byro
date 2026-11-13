@@ -254,7 +254,7 @@ def _maps_link(location):
 
 def _api_public_url():
     from django.conf import settings
-    return getattr(settings, "API_PUBLIC_URL", "https://byro.onrender.com").rstrip("/")
+    return getattr(settings, "API_PUBLIC_URL", "https://byro-production.up.railway.app").rstrip("/")
 
 
 # ---------------------------------------------------------------------------

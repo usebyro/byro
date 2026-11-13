@@ -11,7 +11,7 @@ import Passport from "@/components/passport/Passport";
 import "@/app/dashboard/dashboard-v2.css";
 import Delayed from "@/components/dashboard/v2/Delayed";
 
-const BASE_URL = (process.env.NEXT_PUBLIC_API_URL || "https://byro.onrender.com").replace(/\/api\/?$/, "");
+const BASE_URL = (process.env.NEXT_PUBLIC_API_URL || "https://byro-production.up.railway.app").replace(/\/api\/?$/, "");
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];

@@ -34,7 +34,7 @@ export function shareImageUrl(event) {
   let raw = event?.event_image_url || event?.event_image;
   if (!raw) return null;
   if (!raw.startsWith("http")) {
-    const base = (process.env.NEXT_PUBLIC_API_URL || "https://byro.onrender.com").replace(/\/api\/?$/, "");
+    const base = (process.env.NEXT_PUBLIC_API_URL || "https://byro-production.up.railway.app").replace(/\/api\/?$/, "");
     raw = `${base}${raw}`;
   }
   // Some apps refuse plain-http images. Keep http only for local development.

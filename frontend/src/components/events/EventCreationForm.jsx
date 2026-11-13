@@ -310,7 +310,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
     setCapacity(d.capacity != null ? String(d.capacity) : "");
     setMaxPerPerson(String(d.max_tickets_per_person ?? 5));
     if (d.event_image_url || d.event_image) {
-      const base = (process.env.NEXT_PUBLIC_API_URL || "https://byro.onrender.com").replace(/\/api\/?$/, "");
+      const base = (process.env.NEXT_PUBLIC_API_URL || "https://byro-production.up.railway.app").replace(/\/api\/?$/, "");
       const imgUrl = d.event_image_url || (d.event_image?.startsWith("http") ? d.event_image : `${base}${d.event_image}`);
       setImagePreview(imgUrl);
     }
