@@ -19,14 +19,19 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument('--dry-run', action='store_true', help="Print what would be done; call nothing.")
+        parser.add_argument('--topic-only', action='store_true',
+                            help="Re-send everyone already in Zoho with the Marketing topic (no other fields).")
         parser.add_argument('--delay', type=float, default=0.3, help="Seconds between Zoho calls (default 0.3).")
 
     def handle(self, *args, **opts):
-        dry, delay = opts['dry_run'], opts['delay']
+        dry, delay, topic_only = opts['dry_run'], opts['delay'], opts['topic_only']
         if not dry and not zoho.is_enabled():
             self.stderr.write("Zoho is off or not fully configured (see ZOHO_* settings). Nothing was sent.")
             return
 
+        if topic_only and not zoho._setting('ZOHO_MARKETING_TOPIC_ID'):
+            self.stderr.write("ZOHO_MARKETING_TOPIC_ID is not set. Run zoho_list_topics to find it.")
+            return
         profiles = (
             UserProfile.objects.filter(Q(role__in=['organizer', 'attendee']) | Q(newsletter_subscribed=True))
             .select_related('user').order_by('pk')
@@ -40,7 +45,7 @@ class Command(BaseCommand):
             steps = []
             if zoho.list_for_role(p.role):
                 extra, note = None, ''
-                if p.role == 'organizer':
+                if p.role == 'organizer' and not topic_only:
                     first = (Event.objects.filter(owner=user, is_active=True, is_draft=False)
                              .order_by('created_at', 'pk').first())
                     if first:
@@ -63,6 +68,25 @@ class Command(BaseCommand):
                 else:
                     failed += 1
                     self.stderr.write(f"{masked} -> {label} FAILED: {result.error}")
+                time.sleep(delay)
+        if topic_only:
+            # Confirmed newsletter readers who never made an account are on the list too.
+            from bryo.models import NewsletterSignup
+            emails = (NewsletterSignup.objects.filter(confirmed_at__isnull=False)
+                      .values_list('email', flat=True).distinct())
+            known = set(UserProfile.objects.filter(newsletter_subscribed=True).values_list('user__email', flat=True))
+            for email in emails:
+                if email in known:
+                    continue
+                masked = zoho.mask_email(email)
+                if dry:
+                    self.stdout.write(f"[dry-run] {masked} -> newsletter list (topic)")
+                    done += 1
+                    continue
+                result = zoho.subscribe(zoho.LIST_NEWSLETTER, email)
+                done, failed = (done + 1, failed) if result.ok else (done, failed + 1)
+                self.stdout.write(f"{masked} -> newsletter list (topic)" if result.ok
+                                  else f"{masked} -> newsletter list FAILED: {result.error}")
                 time.sleep(delay)
         self.stdout.write(self.style.SUCCESS(
             f"{'Would add' if dry else 'Added'} {done}, failed {failed}, skipped {skipped} (deleted, guest or inactive)."

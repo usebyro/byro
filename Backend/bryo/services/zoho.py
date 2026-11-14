@@ -152,15 +152,20 @@ def _post(action, list_name, contact):
     last_error = 'unknown error'
     for attempt in range(MAX_RETRIES + 1):
         try:
+            payload = {
+                'resfmt': 'JSON',
+                'listkey': _list_key(list_name),
+                'contactinfo': json.dumps(contact),
+                'source': 'byro-app',
+            }
+            topic_id = _setting('ZOHO_MARKETING_TOPIC_ID')
+            if action == 'listsubscribe' and topic_id:
+                # Required when topic management is on; without it Zoho skips the contact in workflows.
+                payload['topic_id'] = topic_id
             resp = requests.post(
                 f"{_setting('ZOHO_CAMPAIGNS_URL', 'https://campaigns.zoho.com').rstrip('/')}/api/v1.1/json/{action}",
                 headers={'Authorization': f"Zoho-oauthtoken {get_access_token()}"},
-                data={
-                    'resfmt': 'JSON',
-                    'listkey': _list_key(list_name),
-                    'contactinfo': json.dumps(contact),
-                    'source': 'byro-app',
-                },
+                data=payload,
                 timeout=TIMEOUT_SECONDS,
             )
         except (requests.RequestException, RuntimeError) as exc:
@@ -180,6 +185,9 @@ def _post(action, list_name, contact):
                 # Adding someone who is already on the list is a success.
                 if error and action == 'listsubscribe' and 'already' in error.lower():
                     error = None
+                if error:
+                    # The body has no tokens or contact details, only Zoho's code and message.
+                    logger.error("Zoho %s answered HTTP %s: %s", action, resp.status_code, json.dumps(body)[:500])
                 return Result(False, error) if error else Result(True)
         if attempt < MAX_RETRIES:
             time.sleep(BACKOFF_SECONDS * (2 ** attempt))
@@ -309,6 +317,20 @@ def sync_first_event(event):
 def sync_first_event_after_commit(event):
     from django.db import transaction
     transaction.on_commit(lambda: run_in_background(sync_first_event, event))
+
+
+def list_topics():
+    """[(id, name)] of the account's topics, for finding ZOHO_MARKETING_TOPIC_ID. Raises on failure."""
+    resp = requests.get(
+        f"{_setting('ZOHO_CAMPAIGNS_URL', 'https://campaigns.zoho.com').rstrip('/')}/api/v1.1/topics",
+        headers={'Authorization': f"Zoho-oauthtoken {get_access_token()}"},
+        params={'details': json.dumps({'from_index': 0, 'range': 100})},
+        timeout=TIMEOUT_SECONDS,
+    )
+    body = _json(resp)
+    if resp.status_code != 200 or 'topicDetails' not in body:
+        raise RuntimeError(f"Zoho topics call failed (HTTP {resp.status_code}): {json.dumps(body)[:300]}")
+    return [(str(t.get('topicId')), t.get('topicName')) for t in body['topicDetails']]
 
 
 def run_in_background(fn, *args):

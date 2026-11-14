@@ -86,6 +86,8 @@ ZOHO_CAMPAIGNS_URL = config('ZOHO_CAMPAIGNS_URL', default='https://campaigns.zoh
 ZOHO_LISTKEY_ORGANISERS = config('ZOHO_LISTKEY_ORGANISERS', default='')
 ZOHO_LISTKEY_ATTENDEES = config('ZOHO_LISTKEY_ATTENDEES', default='')
 ZOHO_LISTKEY_NEWSLETTER = config('ZOHO_LISTKEY_NEWSLETTER', default='')
+# Topic management is on in our Zoho account: contacts with no topic are skipped by every workflow.
+ZOHO_MARKETING_TOPIC_ID = config('ZOHO_MARKETING_TOPIC_ID', default='')
 
 # Cloudflare Turnstile
 TURNSTILE_SECRET_KEY = os.environ.get('TURNSTILE_SECRET_KEY', '')

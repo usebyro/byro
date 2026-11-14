@@ -463,3 +463,47 @@ class FirstEventTests(ZohoBase):
         post.assert_not_called()
         self.assertIn('Event URL: https://usebyro.com/discover/older1', out.getvalue())
         self.assertNotIn('newer2', out.getvalue())
+
+
+@override_settings(ZOHO_MARKETING_TOPIC_ID='TOPIC-1', **ZOHO_ON)
+class TopicTests(ZohoBase):
+    def sent(self, post):
+        return [c.kwargs['data'] for c in post.call_args_list if 'oauth' not in c.args[0]]
+
+    def test_every_subscribe_carries_the_topic_but_unsubscribe_does_not(self):
+        with patch('bryo.services.zoho.requests.post', side_effect=zoho_api(OK)) as post:
+            for name in (zoho.LIST_ORGANISERS, zoho.LIST_ATTENDEES, zoho.LIST_NEWSLETTER):
+                zoho.subscribe(name, 'a@example.com')
+            zoho.unsubscribe(zoho.LIST_NEWSLETTER, 'a@example.com')
+        data = self.sent(post)
+        self.assertEqual([d.get('topic_id') for d in data], ['TOPIC-1'] * 3 + [None])
+
+    @override_settings(ZOHO_MARKETING_TOPIC_ID='')
+    def test_no_topic_setting_sends_no_topic(self):
+        with patch('bryo.services.zoho.requests.post', side_effect=zoho_api(OK)) as post:
+            zoho.subscribe(zoho.LIST_NEWSLETTER, 'a@example.com')
+        self.assertNotIn('topic_id', self.sent(post)[0])
+
+    def test_failure_logs_zohos_body(self):
+        bad = reply(status='error', code='2001', message='No topic associated')
+        with patch('bryo.services.zoho.requests.post', side_effect=zoho_api(bad)):
+            with self.assertLogs('bryo.services.zoho', 'ERROR') as logs:
+                self.assertFalse(zoho.subscribe(zoho.LIST_NEWSLETTER, 'a@example.com').ok)
+        self.assertIn('No topic associated', '\n'.join(logs.output))
+
+    def test_list_topics_reads_names_and_ids(self):
+        topics = reply(topicDetails=[{'topicId': '123', 'topicName': 'Marketing'}], code='200')
+        with patch('bryo.services.zoho.requests.post', return_value=TOKEN), \
+                patch('bryo.services.zoho.requests.get', return_value=topics):
+            self.assertEqual(zoho.list_topics(), [('123', 'Marketing')])
+
+    def test_topic_only_backfill_dry_run(self):
+        from io import StringIO
+        from django.core.management import call_command
+        u = User.objects.create_user(email='host@example.com')
+        UserProfile.objects.update_or_create(user=u, defaults={'role': 'attendee'})
+        out = StringIO()
+        with patch('bryo.services.zoho.requests.post') as post:
+            call_command('backfill_zoho', '--dry-run', '--topic-only', stdout=out)
+        post.assert_not_called()
+        self.assertIn('attendees list', out.getvalue())
