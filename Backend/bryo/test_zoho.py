@@ -215,17 +215,22 @@ class SignalTests(ZohoBase):
                 profile.save()
         post.assert_not_called()
 
-    def test_the_newsletter_switch_syncs_the_newsletter_list(self):
-        user = User.objects.create_user(email='ada@example.com')
-        profile, _ = UserProfile.objects.get_or_create(user=user)
+    def test_new_accounts_join_the_newsletter_and_can_opt_out(self):
         with patch('bryo.services.zoho.requests.post', side_effect=zoho_api(OK)) as post:
             with self.captureOnCommitCallbacks(execute=True):
-                profile.newsletter_subscribed = True
-                profile.save()
+                user = User.objects.create_user(email='ada@example.com')
+            profile = UserProfile.objects.get(user=user)
+            self.assertTrue(profile.newsletter_subscribed)
             with self.captureOnCommitCallbacks(execute=True):
                 profile.newsletter_subscribed = False
                 profile.save()
-        self.assertEqual(self.calls(post), [('listsubscribe', 'LK-NEWS'), ('listunsubscribe', 'LK-NEWS')])
+            with self.captureOnCommitCallbacks(execute=True):
+                profile.newsletter_subscribed = True
+                profile.save()
+        self.assertEqual(
+            self.calls(post),
+            [('listsubscribe', 'LK-NEWS'), ('listunsubscribe', 'LK-NEWS'), ('listsubscribe', 'LK-NEWS')],
+        )
 
     def test_onboarding_still_succeeds_when_zoho_is_down(self):
         user = User.objects.create_user(email='ada@example.com')
@@ -390,10 +395,10 @@ class NewsletterEndpointTests(ZohoBase):
     def test_the_signed_in_user_can_read_and_toggle_their_subscription(self):
         user = User.objects.create_user(email='ada@example.com')
         self.client.force_authenticate(user)
-        self.assertEqual(self.client.get('/api/me/newsletter/').json(), {'subscribed': False})
-        self.assertEqual(self.client.put('/api/me/newsletter/', {'subscribed': True}, format='json').json(),
-                         {'subscribed': True})
-        self.assertTrue(UserProfile.objects.get(user=user).newsletter_subscribed)
+        self.assertEqual(self.client.get('/api/me/newsletter/').json(), {'subscribed': True})
+        self.assertEqual(self.client.put('/api/me/newsletter/', {'subscribed': False}, format='json').json(),
+                         {'subscribed': False})
+        self.assertFalse(UserProfile.objects.get(user=user).newsletter_subscribed)
         self.assertEqual(self.client.put('/api/me/newsletter/', {'subscribed': 'yes'}, format='json').status_code, 400)
 
     def test_me_newsletter_needs_a_sign_in(self):
