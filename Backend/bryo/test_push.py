@@ -100,3 +100,18 @@ class PushTests(AdminBase):
         self.assertEqual(self.client.post('/api/admin/push/', subscription(), format='json').status_code, 503)
         notify_admins('report', 'New report')
         self.webpush.assert_not_called()
+
+
+class NewUserNotificationTests(AdminBase):
+    def test_admins_hear_about_a_new_signup_but_not_a_guest_checkout(self):
+        before = Notification.objects.filter(kind='new_user', recipient=self.boss).count()
+        with self.captureOnCommitCallbacks(execute=True):
+            self.fan('ada@example.com')
+        mine = Notification.objects.filter(kind='new_user', recipient=self.boss)
+        self.assertEqual(mine.count(), before + 1)
+        self.assertEqual((mine.first().title, mine.first().body, mine.first().link), ('New user', 'ada@example.com', '/users'))
+
+        from django.contrib.auth import get_user_model
+        with self.captureOnCommitCallbacks(execute=True):
+            get_user_model().objects.create_user(email='guest@example.com', auth_provider='guest')
+        self.assertEqual(mine.count(), before + 1)

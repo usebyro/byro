@@ -1501,6 +1501,17 @@ def create_user_profile(sender, instance, created, **kwargs):
         UserProfile.objects.get_or_create(user=instance)
 
 
+@receiver(post_save, sender=settings.AUTH_USER_MODEL)
+def tell_admins_about_new_user(sender, instance, created, **kwargs):
+    """A pop-up in the admin panel when a real person signs up (not a guest checkout)."""
+    if not created or getattr(instance, 'auth_provider', '') == 'guest' or not instance.email:
+        return
+    from django.db import transaction
+    from .notifications import notify_admins
+    email = instance.email
+    transaction.on_commit(lambda: notify_admins('new_user', 'New user', body=email, link='/users'))
+
+
 class Notification(models.Model):
     """One item in a person's in-app notification bell.
 

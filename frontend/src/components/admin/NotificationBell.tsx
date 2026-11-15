@@ -23,6 +23,8 @@ const KIND_DOT: Record<string, string> = {
   payout_request: "bg-marigold",
   refunds_pending: "bg-marigold",
   event_created: "bg-brand",
+  payment: "bg-brand",
+  new_user: "bg-brand",
 };
 
 const POLL_MS = 30_000;
@@ -177,7 +179,7 @@ export default function NotificationBell() {
           <div className="max-h-96 overflow-y-auto">
             {items.length === 0 ? (
               <p className="text-muted text-sm text-center py-8 px-4">
-                Nothing yet. Payout requests, refunds to review and new events show up here.
+                Nothing yet. Payments, new users, payout requests, refunds to review and new events show up here.
               </p>
             ) : (
               items.map((n) => (
