@@ -49,6 +49,7 @@ from .newsletter_views import (
     NewsletterUnsubscribeView,
 )
 from .dash_events import DashboardEventsView
+from .reports_api import SalesReportView
 from .dash_event import DashEventCohostResendView, DashEventGuestView, DashEventSummaryView
 from .dash_community import CommunityMembersView, CommunitySummaryView
 from .dash_overview import DashboardOverviewView
@@ -185,6 +186,7 @@ urlpatterns = [
     path('api/admin/events/<int:pk>/feature/', AdminEventFeatureView.as_view(), name='admin-event-feature'),
     path('api/admin/reports/<int:pk>/', AdminReportDetailView.as_view(), name='admin-report-detail'),
     path('api/reports/', ReportView.as_view(), name='reports'),
+    path('api/reports/sales/', SalesReportView.as_view(), name='reports-sales'),
     path('api/admin/messages/', AdminMessagesView.as_view(), name='admin-messages'),
     path('api/admin/support/', AdminSupportLookupView.as_view(), name='admin-support'),
     path('api/admin/push/', AdminPushView.as_view(), name='admin-push'),

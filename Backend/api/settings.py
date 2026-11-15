@@ -89,6 +89,9 @@ ZOHO_LISTKEY_NEWSLETTER = config('ZOHO_LISTKEY_NEWSLETTER', default='')
 # Topic management is on in our Zoho account: contacts with no topic are skipped by every workflow.
 ZOHO_MARKETING_TOPIC_ID = config('ZOHO_MARKETING_TOPIC_ID', default='')
 
+# Static key for the read-only finance report (/api/reports/sales/). Unset means the route always answers 401.
+REPORTS_API_KEY = config('REPORTS_API_KEY', default='')
+
 # Cloudflare Turnstile
 TURNSTILE_SECRET_KEY = os.environ.get('TURNSTILE_SECRET_KEY', '')
 
@@ -253,6 +256,8 @@ REST_FRAMEWORK = {
         'message': '30/hour',
         # Reporting is open to signed-out visitors; this keeps it from being used to flood the queue.
         'report': '10/hour',
+        # The finance sheet's key-protected sales report.
+        'reports': '120/hour',
     },
 }
 
