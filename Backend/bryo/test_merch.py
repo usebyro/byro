@@ -965,3 +965,27 @@ class AdminOverviewTests(MerchBase):
         self.assertEqual(Decimal(str(s['total_revenue'])), Decimal(str(s['ticket_revenue'])) + Decimal('14000'))
         trend = self.client.get('/api/admin/analytics/revenue-trend/?days=7').json()
         self.assertEqual(sum(Decimal(str(p['revenue'])) for p in trend), Decimal('14000'))
+
+
+class OrderCodeTests(MerchBase):
+    def test_codes_are_short_unguessable_and_unique(self):
+        import re
+        a, b = self.paid('pickup'), self.paid('pickup')
+        for o in (a, b):
+            self.assertRegex(o.ref, r'^BY-[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{6}$')
+        self.assertNotEqual(a.ref, b.ref)
+        self.assertNotIn(str(a.pk).zfill(4), a.ref)
+
+    def test_an_order_opens_by_its_code_in_any_case_and_old_numbered_links_still_work(self):
+        order = merch.advance(self.paid('pickup'), 'ready')
+        url = lambda ref: f'/api/merch-orders/{ref}/'
+        self.assertEqual(self.client.get(url(order.ref.lower()), {'token': order.access_token}).status_code, 200)
+        self.assertEqual(self.client.get(url(f'BY-{order.pk:04d}'), {'token': order.access_token}).status_code, 200)
+        self.assertEqual(self.client.get(url('BY-ZZZZZZ'), {'token': order.access_token}).status_code, 404)
+
+    def test_the_organiser_can_search_by_code_with_or_without_spaces(self):
+        self.client.force_authenticate(self.seller)
+        order, other = self.paid('pickup'), self.paid('pickup')
+        for q in (order.ref, order.ref.lower(), order.ref[3:]):
+            refs = [o['ref'] for o in self.client.get('/api/dashboard/merch-orders/', {'q': q}).json()['results']]
+            self.assertEqual(refs, [order.ref])

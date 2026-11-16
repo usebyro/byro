@@ -21,6 +21,7 @@ Byro admins
   POST /api/admin/merch-orders/<ref>/resolve/      release the earnings, or refund the buyer
 """
 import logging
+import re
 from datetime import timedelta
 
 import requests
@@ -55,13 +56,14 @@ def _fail(error):
 
 
 def _order_by_ref(ref, **filters):
-    """BY-0007 -> the order, or None."""
-    try:
-        pk = int(str(ref).upper().replace('BY-', '', 1))
-    except ValueError:
-        return None
+    """BY-K7M4QX -> the order, or None. Links in emails sent before refs changed (BY-0007) still open."""
+    text = str(ref or '').strip().upper()
+    if re.fullmatch(r'BY-\d{1,9}', text):
+        match = Q(pk=int(text[3:]))
+    else:
+        match = Q(ref_code=text)
     return (MerchOrder.objects.select_related('seller', 'seller__profile').prefetch_related('lines')
-            .filter(pk=pk, **filters).first())
+            .filter(match, **filters).first())
 
 
 def _site():
@@ -347,7 +349,7 @@ class MerchOrdersView(APIView):
         q = (request.query_params.get('q') or '').strip()
         rows = base
         if q:
-            rows = rows.filter(Q(buyer_name__icontains=q) | Q(pk__in=_pk_from_ref(q)))
+            rows = rows.filter(Q(buyer_name__icontains=q) | Q(ref_code__icontains=q.replace(' ', '')) | Q(pk__in=_pk_from_ref(q)))
         else:
             rows = FILTERS.get(which, FILTERS['need'])(rows)
         counts = {k: fn(base).count() for k, fn in FILTERS.items()}
