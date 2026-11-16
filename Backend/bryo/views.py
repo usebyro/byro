@@ -1,4 +1,4 @@
-from rest_framework import mixins, viewsets, status
+from rest_framework import mixins, serializers, viewsets, status
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -48,6 +48,7 @@ from .refunds import (
 )
 from django.urls import reverse
 from .serializers import EventSerializer, TicketSerializer, PaymentSerializer, TicketTierSerializer, PromoCodeSerializer, MerchItemSerializer
+from .serializers import clean_image_upload
 from .permissions import IsEventOwnerOrCoHost, IsEventOwner, IsAdminMember, get_admin_member
 from django.db import transaction, IntegrityError
 from django.db import models
@@ -1392,7 +1393,10 @@ class ProfileViewSet(viewsets.GenericViewSet):
             return Response({'avatar_url': None})
         if 'avatar' not in request.FILES:
             return Response({'error': 'No avatar file provided'}, status=status.HTTP_400_BAD_REQUEST)
-        profile.avatar = request.FILES['avatar']
+        try:
+            profile.avatar = clean_image_upload(request.FILES['avatar'])
+        except serializers.ValidationError as e:
+            return Response({'error': ' '.join(str(m) for m in e.detail)}, status=status.HTTP_400_BAD_REQUEST)
         profile.save(update_fields=['avatar'])
         serializer = self.get_serializer(profile, context={'request': request})
         return Response({'avatar_url': serializer.data['avatar_url']})
@@ -1403,7 +1407,10 @@ class ProfileViewSet(viewsets.GenericViewSet):
         profile = self._get_or_create_profile(request.user)
         if 'cover_image' not in request.FILES:
             return Response({'error': 'No cover image file provided'}, status=status.HTTP_400_BAD_REQUEST)
-        profile.cover_image = request.FILES['cover_image']
+        try:
+            profile.cover_image = clean_image_upload(request.FILES['cover_image'])
+        except serializers.ValidationError as e:
+            return Response({'error': ' '.join(str(m) for m in e.detail)}, status=status.HTTP_400_BAD_REQUEST)
         profile.save(update_fields=['cover_image'])
         serializer = self.get_serializer(profile, context={'request': request})
         return Response({'cover_image_url': serializer.data['cover_image_url']})
