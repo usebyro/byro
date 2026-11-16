@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { FaXTwitter, FaInstagram, FaLinkedinIn, FaTelegram, FaWhatsapp } from "react-icons/fa6";
 import API from "@/services/api";
 import Navbar from "@/components/Navbar";
@@ -13,6 +14,7 @@ import ReportButton from "@/components/ReportButton";
 import EventImage from "@/components/brand/EventImage";
 import MerchSlideshow from "@/components/merch/MerchSlideshow";
 import Delayed from "@/components/dashboard/v2/Delayed";
+import { addToCart, MAX_QUANTITY } from "@/lib/merchCart";
 import { categoryTone, dayParts, eventInitials, formatTime, priceLabel } from "@/lib/eventFormat";
 
 const PAST_PAGE = 6;
@@ -422,7 +424,7 @@ export default function PublicProfileClient({ username }) {
               )}
             </section>
           )}
-          {openMerch && <MerchDialog item={openMerch} storeName={name} onClose={() => setOpenMerch(null)} />}
+          {openMerch && <MerchDialog item={openMerch} storeName={name} handle={profile.handle || username} checkout={profile.merch_checkout} onClose={() => setOpenMerch(null)} />}
         </div>
         <div className="flex justify-center pt-2">
           <ReportButton target="community" handle={profile.handle || username} name={name} />
@@ -512,10 +514,27 @@ function MerchTile({ item, onOpen }) {
   );
 }
 
-function MerchDialog({ item, storeName, onClose }) {
+function MerchDialog({ item, storeName, handle, checkout, onClose }) {
+  const router = useRouter();
   const stock = merchStock(item);
   const soldOut = stock === "Sold out";
   const closeRef = useRef(null);
+  const options = (item.options || []).map(String);
+  const [option, setOption] = useState("");
+  const [qty, setQty] = useState(1);
+  const [pickError, setPickError] = useState("");
+  // When the organiser takes payment on Byro, Buy goes to checkout; otherwise it opens their own store.
+  const onByro = !!checkout?.enabled && !!item.price && !soldOut;
+  const maxQty = item.stock !== null && item.stock !== undefined ? Math.max(1, Math.min(MAX_QUANTITY, item.stock)) : MAX_QUANTITY;
+
+  const buy = () => {
+    if (options.length && !option) {
+      setPickError("Choose an option first.");
+      return;
+    }
+    addToCart(handle, { item_id: item.id, option, quantity: qty });
+    router.push(`/merch-checkout/${handle}`);
+  };
 
   useEffect(() => {
     const opener = document.activeElement;
@@ -557,7 +576,38 @@ function MerchDialog({ item, storeName, onClose }) {
         </div>
         {item.description?.trim() && <p className="text-[15px] leading-[1.55] text-[#3B4252]">{item.description}</p>}
         {stock && <p className={`text-sm font-bold ${soldOut ? "text-[#B42318]" : "text-[#8A5A00]"}`}>{stock}</p>}
-        {item.purchase_link && !soldOut ? (
+        {onByro ? (
+          <>
+            {options.length > 0 && (
+              <fieldset className="m-0 flex flex-col gap-2 border-0 p-0">
+                <legend className="mb-1 text-sm font-bold">Option</legend>
+                <div className="flex flex-wrap gap-2">
+                  {options.map((o) => (
+                    <label key={o} className={`flex h-11 min-w-11 cursor-pointer items-center justify-center rounded-full px-4 text-sm font-bold has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-brand ${option === o ? "bg-ink text-white" : "border border-line"}`}>
+                      <input type="radio" name="merch-option" value={o} checked={option === o} onChange={() => { setOption(o); setPickError(""); }} className="sr-only" />
+                      {o}
+                    </label>
+                  ))}
+                </div>
+                {pickError && <p role="alert" className="m-0 text-[13px] font-bold text-[#B42318]">{pickError}</p>}
+              </fieldset>
+            )}
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-sm font-bold">Quantity</span>
+              <div className="flex items-center rounded-full border border-line" role="group" aria-label="Quantity">
+                <button type="button" onClick={() => setQty((q) => Math.max(1, q - 1))} disabled={qty <= 1} aria-label="One fewer" className="flex h-11 w-11 items-center justify-center text-lg disabled:opacity-40">−</button>
+                <span className="w-8 text-center text-[15px] font-bold [font-variant-numeric:tabular-nums]" aria-live="polite">{qty}</span>
+                <button type="button" onClick={() => setQty((q) => Math.min(maxQty, q + 1))} disabled={qty >= maxQty} aria-label="One more" className="flex h-11 w-11 items-center justify-center text-lg disabled:opacity-40">+</button>
+              </div>
+            </div>
+            <button type="button" onClick={buy} className="flex h-[52px] items-center justify-center rounded-full bg-brand text-base font-bold text-white transition-[filter,scale] hover:brightness-90 active:scale-[0.97]">
+              Buy
+            </button>
+            <p className="text-center text-[13px] text-muted">
+              Pay on Byro. Pickup is free{checkout?.delivery?.enabled ? `, or have it delivered (${checkout.delivery.area || "see checkout"})` : ""}.
+            </p>
+          </>
+        ) : item.purchase_link && !soldOut ? (
           <>
             <a
               href={item.purchase_link}
