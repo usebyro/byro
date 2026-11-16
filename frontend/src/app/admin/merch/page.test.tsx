@@ -8,7 +8,7 @@ import AdminMerchPage from "./page";
 const held = (over = {}) => ({
   ref: "BY-0007", status: "shipped", fulfilment: "delivery",
   buyer: { name: "Ngozi Umeh", first: "Ngozi", email: "ngozi@example.com", phone: "0803 412 5185", note: "" },
-  seller: { name: "Lagos Run Club", handle: "lagosrun" },
+  seller: { name: "Lagos Run Club", handle: "lagosrun", email: "tunde@lagosrun.example" },
   items: [{ name: "Community tee", option: "M", quantity: 1 }],
   subtotal: "12000.00", delivery_fee: "2000.00", earnings: "14000.00", amount: "14000.00",
   courier: "GIG Logistics", tracking: "GIG-1", delivery_address: "12B Adebayo Street, Surulere",
@@ -45,6 +45,19 @@ describe("admin merch problems", () => {
     expect(order).toHaveTextContent("Lagos Run Club");
     expect(order).toHaveTextContent("₦14,000");
     expect(order).toHaveTextContent("GIG Logistics, GIG-1");
+  });
+
+  it("gives a way to reach the buyer and the organiser", async () => {
+    await show();
+    const buyer = within(await screen.findByRole("group", { name: "Contact Ngozi Umeh" }));
+    expect(buyer.getByRole("link", { name: "Email" })).toHaveAttribute("href", "mailto:ngozi@example.com");
+    expect(buyer.getByRole("link", { name: "Call" })).toHaveAttribute("href", "tel:08034125185");
+    const wa = buyer.getByRole("link", { name: /WhatsApp/ });
+    expect(wa).toHaveAttribute("href", "https://wa.me/2348034125185");
+    expect(wa).toHaveAttribute("target", "_blank");
+    const seller = within(screen.getByRole("group", { name: "Contact Lagos Run Club" }));
+    expect(seller.getByRole("link", { name: "Email" })).toHaveAttribute("href", "mailto:tunde@lagosrun.example");
+    expect(seller.queryByRole("link", { name: "Call" })).not.toBeInTheDocument();
   });
 
   it("says so when nothing is held", async () => {

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useAdminMe } from "@/components/admin/AdminMe";
+import { whatsappLink } from "@/lib/merchOrders";
 import { BTN_BRAND, BTN_DANGER, BTN_QUIET, SkeletonRows, fmtDateTime, useConfirm } from "@/components/admin/ui";
 
 interface HeldOrder {
@@ -9,7 +10,7 @@ interface HeldOrder {
   status: string;
   fulfilment: "pickup" | "delivery";
   buyer: { name: string; first: string; email: string; phone: string; note: string };
-  seller: { name: string; handle: string | null };
+  seller: { name: string; handle: string | null; email?: string };
   items: { name: string; option: string; quantity: number }[];
   subtotal: string;
   delivery_fee: string;
@@ -19,6 +20,20 @@ interface HeldOrder {
   tracking: string;
   delivery_address: string;
   problem: { reason: string; note: string; at: string } | null;
+}
+
+const CONTACT = "inline-flex h-8 items-center rounded-lg border border-line px-2.5 text-xs font-semibold text-ink no-underline hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand";
+
+function Contact({ who, email, phone }: { who: string; email?: string; phone?: string }) {
+  const wa = whatsappLink(phone);
+  if (!email && !phone) return null;
+  return (
+    <div role="group" aria-label={`Contact ${who}`} className="mt-1.5 flex flex-wrap gap-1.5">
+      {email && <a href={`mailto:${email}`} className={CONTACT}>Email</a>}
+      {phone && <a href={`tel:${phone.replace(/[^\d+]/g, "")}`} className={CONTACT}>Call</a>}
+      {wa && <a href={wa} target="_blank" rel="noopener noreferrer" className={CONTACT}>WhatsApp<span className="sr-only"> (opens in a new tab)</span></a>}
+    </div>
+  );
 }
 
 const naira = (n: string | number) => `₦${Number(n).toLocaleString("en-NG", { maximumFractionDigits: 2 })}`;
@@ -173,8 +188,22 @@ export default function AdminMerchPage() {
               )}
 
               <dl className="mt-4 grid gap-x-8 gap-y-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
-                <div><dt className="text-faint text-xs">Buyer</dt><dd className="text-ink">{o.buyer.name}<br /><span className="text-muted text-xs">{o.buyer.email}{o.buyer.phone ? `, ${o.buyer.phone}` : ""}</span></dd></div>
-                <div><dt className="text-faint text-xs">Organiser</dt><dd className="text-ink">{o.seller.name}</dd></div>
+                <div>
+                  <dt className="text-faint text-xs">Buyer</dt>
+                  <dd className="text-ink">
+                    {o.buyer.name}
+                    <span className="block text-muted text-xs">{o.buyer.email}{o.buyer.phone ? `, ${o.buyer.phone}` : ""}</span>
+                    <Contact who={o.buyer.name} email={o.buyer.email} phone={o.buyer.phone} />
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-faint text-xs">Organiser</dt>
+                  <dd className="text-ink">
+                    {o.seller.name}
+                    {o.seller.email && <span className="block text-muted text-xs">{o.seller.email}</span>}
+                    <Contact who={o.seller.name} email={o.seller.email} />
+                  </dd>
+                </div>
                 <div><dt className="text-faint text-xs">On hold</dt><dd className="text-ink tabular-nums">{naira(o.earnings)}</dd></div>
                 <div><dt className="text-faint text-xs">Buyer paid</dt><dd className="text-ink tabular-nums">{naira(o.amount)}</dd></div>
                 {o.fulfilment === "delivery" && (
