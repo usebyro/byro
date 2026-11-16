@@ -3466,6 +3466,21 @@ class TicketViewSet(
     permission_classes = [AllowAny] 
 
     
+    @staticmethod
+    def _holder_may_act(request, ticket):
+        """
+        A ticket held by someone with a signed-in Byro account can only be moved or cancelled by that person
+        signed in. A guest's ticket has no account behind it, so for them the ticket id is the only credential.
+        """
+        email = (ticket.current_owner_email or '').strip().lower()
+        if not email:
+            return True
+        owner = (get_user_model().objects.filter(email__iexact=email, workos_id__isnull=False)
+                 .exclude(workos_id='').first())
+        if owner is None:
+            return True
+        return request.user.is_authenticated and request.user.pk == owner.pk
+
     def get_object(self):
         # Ticket ids are the only credential here, so a lookup must never write other ids anywhere.
         return get_object_or_404(Ticket, ticket_id=self.kwargs['ticket_id'])
@@ -3483,12 +3498,16 @@ class TicketViewSet(
                 {'error': "Paid tickets can't be cancelled here."},
                 status=status.HTTP_403_FORBIDDEN,
             )
+        if not self._holder_may_act(request, ticket):
+            return Response({'error': 'Sign in as the ticket holder to cancel this ticket.'}, status=status.HTTP_403_FORBIDDEN)
         return super().destroy(request, *args, **kwargs)
 
     @action(detail=True, methods=['post'])
     def transfer(self, request, pk=None,  *args, **kwargs):  
         ticket = self.get_object()
-        
+        if not self._holder_may_act(request, ticket):
+            return Response({'error': 'Sign in as the ticket holder to transfer this ticket.'}, status=status.HTTP_403_FORBIDDEN)
+
         if not ticket.event.transferable:
             return Response(
                 {"error": "This ticket is not transferable"},

@@ -13,7 +13,7 @@ from .test_payments import make_event
 User = get_user_model()
 
 
-class TransferTests(TestCase):
+class TransferBase(TestCase):
     def setUp(self):
         patch('bryo.mailer.send_email').start()
         self.addCleanup(patch.stopall)
@@ -36,6 +36,8 @@ class TransferTests(TestCase):
     def last(self):
         return TicketTransfer.objects.order_by('-pk').first()
 
+
+class TransferTests(TransferBase):
     def test_a_normal_transfer_still_works(self):
         self.assertEqual(self.start().status_code, 201)
         self.assertEqual(self.accept(self.last()).status_code, 200)
@@ -92,3 +94,49 @@ class TransferTests(TestCase):
         self.event.transferable = False
         self.event.save(update_fields=['transferable'])
         self.assertEqual(self.start().status_code, 400)
+
+
+class HolderWithAnAccountTests(TransferBase):
+    """A ticket held by someone with a signed-in account can only be moved by them, signed in."""
+
+    def setUp(self):
+        super().setUp()
+        self.ada = User.objects.create_user(email='ada@example.com', workos_id='user_ADA')
+        self.stranger = User.objects.create_user(email='stranger@example.com', workos_id='user_STRANGER')
+
+    def as_user(self, user):
+        self.client.force_authenticate(user)
+
+    def test_a_stranger_with_the_ticket_id_cannot_start_a_transfer(self):
+        self.client.force_authenticate(None)
+        self.assertEqual(self.start('thief@example.com').status_code, 403)
+        self.as_user(self.stranger)
+        self.assertEqual(self.start('thief@example.com').status_code, 403)
+        self.assertFalse(TicketTransfer.objects.exists())
+
+    def test_the_holder_signed_in_can_transfer(self):
+        self.as_user(self.ada)
+        self.assertEqual(self.start().status_code, 201)
+
+    def test_a_stranger_cannot_cancel_a_free_registration_but_the_holder_can(self):
+        Ticket.objects.filter(pk=self.ticket.pk).update(payment_status='free')
+        self.client.force_authenticate(None)
+        self.assertEqual(self.client.delete(f'/api/tickets/{self.ticket.ticket_id}/').status_code, 403)
+        self.as_user(self.stranger)
+        self.assertEqual(self.client.delete(f'/api/tickets/{self.ticket.ticket_id}/').status_code, 403)
+        self.assertTrue(Ticket.objects.filter(pk=self.ticket.pk).exists())
+        self.as_user(self.ada)
+        self.assertEqual(self.client.delete(f'/api/tickets/{self.ticket.ticket_id}/').status_code, 204)
+
+    def test_a_guests_ticket_still_works_with_just_the_id(self):
+        Ticket.objects.filter(pk=self.ticket.pk).update(current_owner_email='guest@example.com')
+        self.client.force_authenticate(None)
+        self.assertEqual(self.start('friend@example.com').status_code, 201)
+
+    def test_after_a_transfer_the_new_holder_is_the_one_who_is_checked(self):
+        self.as_user(self.ada)
+        self.start('bola@example.com')
+        self.client.force_authenticate(None)
+        self.assertEqual(self.accept(self.last()).status_code, 200)
+        # Bola is a guest, so the id alone is enough for them; Ada, no longer the holder, is not needed.
+        self.assertEqual(self.start('chidi@example.com').status_code, 201)
