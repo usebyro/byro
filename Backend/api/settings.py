@@ -237,6 +237,11 @@ REST_FRAMEWORK = {
     'DEFAULT_THROTTLE_CLASSES': [
         'rest_framework.throttling.ScopedRateThrottle',
     ],
+    # How many proxies sit in front of the app (Render/Railway = 1). Throttles take the client's address
+    # from the right end of X-Forwarded-For, which those proxies write. Left unset, DRF would trust the
+    # whole header, which the caller can fill with anything to dodge every rate limit. If the app is
+    # reached through a CDN as well, set NUM_PROXIES=2 in the environment.
+    'NUM_PROXIES': int(os.getenv('NUM_PROXIES', '1')),
     # Only scoped endpoints are throttled. The auth routes are unauthenticated
     # and each makes an outbound WorkOS call, so they are what need a ceiling.
     'DEFAULT_THROTTLE_RATES': {
@@ -264,6 +269,8 @@ REST_FRAMEWORK = {
         # Starting merch payments, and looking up or acting on an order with its token.
         'merch_checkout': '60/hour',
         'merch_order': '240/hour',
+        # Checking a promo code. It tells a stranger whether a guess is real, so keep guessing slow.
+        'promo': '60/hour',
     },
 }
 
@@ -348,6 +355,10 @@ PAYSTACK_API_BASE = (
 ADMIN_BOOTSTRAP_EMAILS = {
     e.strip().lower() for e in os.getenv('ADMIN_BOOTSTRAP_EMAILS', '').split(',') if e.strip()
 }
+# While the admin team is empty and no bootstrap email is set, the first person to open the admin panel
+# becomes its owner. Fine on a laptop; in production it means whoever finds the URL first owns the money
+# tools, so there it only works for the emails above.
+ADMIN_BOOTSTRAP_OPEN = os.getenv('ENVIRONMENT') != 'production'
 
 # Cloudinary — primary media backend. django-cloudinary-storage reads these.
 CLOUDINARY_CLOUD_NAME = os.getenv('CLOUDINARY_CLOUD_NAME', '')

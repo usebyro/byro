@@ -37,6 +37,8 @@ MAX_QUANTITY = 20
 HOLD_DAYS = 2                # after the organiser marks it delivered or picked up on their own, the buyer can still report
 REMIND_AFTER_DAYS = 10        # tell the organiser an unstarted order is waiting
 AUTO_CANCEL_DAYS = 14         # then cancel it and refund the buyer
+MAX_CODE_ATTEMPTS = 5         # wrong pickup codes an organiser can type before the code stops being accepted
+MAX_OPEN_PER_EMAIL = 3        # unpaid orders one email can hold stock for at once
 
 REPORT_REASONS = ('not_received', 'wrong_item', 'damaged', 'other')
 LIVE = [MerchOrder.PAID, MerchOrder.PACKED, MerchOrder.SHIPPED, MerchOrder.DELIVERED,
@@ -178,6 +180,12 @@ def create_order(seller, lines, fulfilment, *, buyer=None, name='', email='', ph
         raise MerchError("That email doesn't look right. Check it and try again.")
     if fulfilment not in (MerchOrder.FULFIL_PICKUP, MerchOrder.FULFIL_DELIVERY):
         raise MerchError('Choose pickup or delivery.')
+    # Buying your own merch turns a card payment into withdrawable money with nobody else involved.
+    if (getattr(buyer, 'is_authenticated', False) and buyer.pk == seller.pk) or email == (seller.email or '').strip().lower():
+        raise MerchError("You can't buy your own merch.", status=403)
+    # Unpaid orders hold stock, so one buyer can't tie up a seller's whole shelf.
+    if MerchOrder.objects.filter(status=MerchOrder.PENDING, buyer_email=email).count() >= MAX_OPEN_PER_EMAIL:
+        raise MerchError('You have payments waiting to be completed. Finish or wait a few minutes, then try again.', status=429)
     if not isinstance(lines, list) or not lines or len(lines) > MAX_LINES:
         raise MerchError('Add at least one item to your order.')
 
@@ -238,7 +246,7 @@ def create_order(seller, lines, fulfilment, *, buyer=None, name='', email='', ph
             subtotal=subtotal, delivery_fee=delivery_fee, fee_rate=rate,
             service_fee=_money(subtotal * rate), amount=subtotal + delivery_fee,
             paystack_reference=f'MRC-{uuid.uuid4().hex[:24]}',
-            access_token=secrets.token_urlsafe(24), pickup_code=f'{secrets.randbelow(9000) + 1000}',
+            access_token=secrets.token_urlsafe(24), pickup_code=f'{secrets.randbelow(900000) + 100000}',
         )
         for item_id, qty, option in wanted:
             item = items[item_id]
@@ -300,43 +308,62 @@ STEPS = {
 }
 
 
+class _WrongCode(Exception):
+    """Internal: leaves the order's transaction so the wrong-code count can be saved outside it."""
+
+
 def advance(order, action, *, courier='', tracking='', code='', by_buyer=False):
     """One step along the order's way. Raises MerchError when it isn't allowed from where the order is."""
     if action not in STEPS:
         raise MerchError('That is not a step an order can take.')
     kind, allowed, target = STEPS[action]
-    with transaction.atomic():
-        locked = MerchOrder.objects.select_for_update().get(pk=order.pk)
-        if locked.fulfilment != kind:
-            raise MerchError('That step does not apply to this kind of order.')
-        if locked.status not in allowed:
-            raise MerchError('This order is not at the step before that one.', status=409)
-        now = timezone.now()
-        locked.status = target
-        if action == 'pack':
-            locked.packed_at = now
-        elif action == 'ship':
-            locked.packed_at = locked.packed_at or now
-            locked.shipped_at, locked.courier, locked.tracking = now, (courier or '').strip()[:120], (tracking or '').strip()[:120]
-        elif action == 'ready':
-            locked.ready_at = now
-        elif action == 'delivered':
-            locked.delivered_at = now
-            # The buyer saying it arrived releases the money now; the organiser saying so alone leaves a short window.
-            locked.release_at = now if by_buyer else now + timedelta(days=HOLD_DAYS)
-        elif action == 'picked_up':
-            locked.picked_up_at = now
-            code = (code or '').strip()
-            if code and not by_buyer:
-                if code != locked.pickup_code:
-                    raise MerchError("That code doesn't match this order.")
-                locked.code_verified = True
-            # Handed over against the buyer's own code, or confirmed by the buyer: nothing to wait for.
-            locked.release_at = now if (by_buyer or locked.code_verified) else now + timedelta(days=HOLD_DAYS)
-        locked.save()
-        transaction.on_commit(lambda: _email(locked, {'ready': 'ready', 'ship': 'shipped'}.get(action, '')))
-        if action in ('delivered', 'picked_up'):
-            transaction.on_commit(lambda: announce_release(locked.pk))   # only says anything if it is available already
+    wrong_code = False
+    try:
+        with transaction.atomic():
+            locked = MerchOrder.objects.select_for_update().get(pk=order.pk)
+            if locked.fulfilment != kind:
+                raise MerchError('That step does not apply to this kind of order.')
+            if locked.status not in allowed:
+                raise MerchError('This order is not at the step before that one.', status=409)
+            now = timezone.now()
+            locked.status = target
+            if action == 'pack':
+                locked.packed_at = now
+            elif action == 'ship':
+                locked.packed_at = locked.packed_at or now
+                locked.shipped_at, locked.courier, locked.tracking = now, (courier or '').strip()[:120], (tracking or '').strip()[:120]
+            elif action == 'ready':
+                locked.ready_at = now
+            elif action == 'delivered':
+                locked.delivered_at = now
+                # The buyer saying it arrived releases the money now; the organiser saying so alone leaves a short window.
+                locked.release_at = now if by_buyer else now + timedelta(days=HOLD_DAYS)
+            elif action == 'picked_up':
+                locked.picked_up_at = now
+                code = (code or '').strip()
+                if code and not by_buyer:
+                    if locked.code_attempts >= MAX_CODE_ATTEMPTS:
+                        raise MerchError('Too many wrong codes. Hand the order over without a code instead; the payment is then released after the safety window.', status=429)
+                    if not secrets.compare_digest(code.encode(), locked.pickup_code.encode()):
+                        wrong_code = True   # counted below: raising here would roll the count back with everything else
+                        raise _WrongCode()
+                    locked.code_verified = True
+                # Handed over against the buyer's own code, or confirmed by the buyer: nothing to wait for.
+                locked.release_at = now if (by_buyer or locked.code_verified) else now + timedelta(days=HOLD_DAYS)
+            locked.save()
+            # The buyer hears about every step the organiser takes on their own. A "delivered" or "picked up"
+            # they never agreed to starts the clock on releasing the money, so they must be able to object.
+            kind_of_mail = {'ready': 'ready', 'ship': 'shipped'}.get(action, '')
+            if not by_buyer and not locked.code_verified:
+                kind_of_mail = kind_of_mail or {'delivered': 'delivered', 'picked_up': 'collected'}.get(action, '')
+            transaction.on_commit(lambda: _email(locked, kind_of_mail))
+            if action in ('delivered', 'picked_up'):
+                transaction.on_commit(lambda: announce_release(locked.pk))   # only says anything if it is available already
+    except _WrongCode:
+        pass
+    if wrong_code:
+        MerchOrder.objects.filter(pk=order.pk).update(code_attempts=F('code_attempts') + 1)
+        raise MerchError("That code doesn't match this order.")
     return locked
 
 

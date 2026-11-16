@@ -1112,8 +1112,11 @@ class ProfileExtrasTests(WorkOSAuthTestCase):
 
     def test_photo_can_be_removed(self):
         from django.core.files.uploadedfile import SimpleUploadedFile
-        png = (b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89'
-               b'\x00\x00\x00\rIDATx\x9cc\xf8\xff\xff?\x00\x05\xfe\x02\xfe\xa7\x9a\xa0\xa0\x00\x00\x00\x00IEND\xaeB`\x82')
+        import io
+        from PIL import Image
+        buf = io.BytesIO()
+        Image.new('RGB', (1, 1), 'red').save(buf, 'PNG')   # a real picture: uploads are now checked
+        png = buf.getvalue()
         up = self.client.post('/api/profile/me/avatar/', {'avatar': SimpleUploadedFile('a.png', png, content_type='image/png')}, format='multipart')
         self.assertEqual(up.status_code, 200)
         self.assertTrue(UserProfile.objects.get(user=self.host).avatar)

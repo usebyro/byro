@@ -1038,9 +1038,10 @@ class MerchOrder(models.Model):
 
     # How the buyer looks the order up without an account, and the short code they show at pickup.
     access_token = models.CharField(max_length=64, unique=True)
-    pickup_code = models.CharField(max_length=4)
+    pickup_code = models.CharField(max_length=6)  # 6 digits for new orders; older ones have 4
     ref_code = models.CharField(max_length=12, unique=True, null=True, blank=True, editable=False)   # BY-K7M4QX, what people see and quote
     code_verified = models.BooleanField(default=False)  # the organiser confirmed the buyer's code at pickup
+    code_attempts = models.PositiveSmallIntegerField(default=0)  # wrong codes entered; the code stops being accepted after a few
 
     courier = models.CharField(max_length=120, blank=True)
     tracking = models.CharField(max_length=120, blank=True)
@@ -1263,6 +1264,10 @@ class PayoutRequest(models.Model):
 
     class Meta:
         ordering = ['-requested_at']
+        constraints = [
+            # A zero or negative payout would raise the balance instead of lowering it.
+            models.CheckConstraint(condition=models.Q(amount__gt=0), name='payout_amount_positive'),
+        ]
 
     @property
     def reference(self):

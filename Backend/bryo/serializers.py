@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.utils import timezone
 from django.utils.text import slugify
 from django.db.models import Max
@@ -12,6 +13,7 @@ from django.urls import reverse
 from django.conf import settings
 import logging
 import re
+import uuid
 from .community import event_host_name, host_name_for_new_event
 
 User = get_user_model()
@@ -392,6 +394,32 @@ class EventCoHostSerializer(serializers.ModelSerializer):
         return display_name or obj.user.get_full_name() or obj.user.email
 
 
+MAX_IMAGE_BYTES = 5 * 1024 * 1024
+ALLOWED_IMAGE_FORMATS = {'JPEG', 'PNG', 'WEBP', 'GIF'}
+
+
+def clean_image_upload(upload):
+    """
+    Accept an uploaded picture only if it really is one: a JPEG, PNG, WebP or GIF of at most 5MB.
+    Assigning an upload straight to a model field skips Django's image check, so anything (a web page, a
+    script, a huge file) would be stored and served under the picture's name. Raises ValidationError.
+    """
+    if upload.size > MAX_IMAGE_BYTES:
+        raise serializers.ValidationError('Pictures must be 5MB or smaller.')
+    try:
+        checked = serializers.ImageField().run_validation(upload)   # opens it with Pillow; refuses non-images
+    except DjangoValidationError as e:
+        raise serializers.ValidationError(list(e.messages))
+    image = getattr(checked, 'image', None)
+    if image is None or (image.format or '').upper() not in ALLOWED_IMAGE_FORMATS:
+        raise serializers.ValidationError('Use a JPEG, PNG, WebP or GIF picture.')
+    checked.seek(0)
+    # Store it under a name we choose, with the extension of what it really is, so a picture can't be
+    # saved as "x.html" and served as a web page.
+    checked.name = f"{uuid.uuid4().hex}.{ {'JPEG': 'jpg', 'PNG': 'png', 'WEBP': 'webp', 'GIF': 'gif'}[image.format.upper()] }"
+    return checked
+
+
 class EventSerializer(serializers.ModelSerializer):
     owner_email = serializers.EmailField(source='owner.email', read_only=True)
     owner_handle = serializers.SerializerMethodField()
@@ -416,6 +444,9 @@ class EventSerializer(serializers.ModelSerializer):
     capacity = serializers.IntegerField(required=False, allow_null=True, min_value=1)
     location = serializers.CharField(required=False, allow_blank=True, max_length=255)
     description = serializers.CharField(required=False, allow_blank=True)
+
+    def validate_event_image(self, value):
+        return clean_image_upload(value) if value else value
 
     class Meta:
         model = Event
@@ -746,6 +777,24 @@ class PayoutRequestSerializer(serializers.ModelSerializer):
             'wallet_address', 'wallet_type', 'status', 'hold_reason', 'requested_at', 'processed_at',
         ]
         read_only_fields = ['id', 'user_email', 'event_name', 'status', 'hold_reason', 'requested_at', 'processed_at']
+
+    def validate_account_number(self, value):
+        value = (value or '').strip()
+        if value and not re.fullmatch(r'\d{10}', value):
+            raise serializers.ValidationError('A bank account number is 10 digits.')
+        return value
+
+    def validate_wallet_address(self, value):
+        value = (value or '').strip()
+        if value and not re.fullmatch(r'[A-Za-z0-9]{26,100}', value):
+            raise serializers.ValidationError('That does not look like a wallet address. Copy it again and check it.')
+        return value
+
+    def validate_amount(self, value):
+        # A zero or negative amount would be added to the balance instead of taken from it.
+        if value is None or value <= 0:
+            raise serializers.ValidationError('Enter an amount greater than zero.')
+        return value
 
     def validate(self, attrs):
         method = attrs.get('method')

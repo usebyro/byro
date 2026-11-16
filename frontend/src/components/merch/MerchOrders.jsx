@@ -523,7 +523,7 @@ function OrderDetail({ order: o, onChange }) {
           {next[3] === "picked_up" && (
             <label className="flex flex-col gap-1.5">
               <span className="v-lbl">Code from {first} <span className="font-medium text-muted">(optional)</span></span>
-              <input className="v-input v-tab max-w-[160px] tracking-[.2em]" inputMode="numeric" value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 4))} placeholder="4 digits" aria-describedby="code-hint" />
+              <input className="v-input v-tab max-w-[160px] tracking-[.2em]" inputMode="numeric" value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="Code" aria-describedby="code-hint" />
               <span id="code-hint" className="v-hint">With the code, the money is available straight away. Without it, 2 days later.</span>
             </label>
           )}

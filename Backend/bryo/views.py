@@ -1,4 +1,4 @@
-from rest_framework import mixins, viewsets, status
+from rest_framework import mixins, serializers, viewsets, status
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -48,6 +48,7 @@ from .refunds import (
 )
 from django.urls import reverse
 from .serializers import EventSerializer, TicketSerializer, PaymentSerializer, TicketTierSerializer, PromoCodeSerializer, MerchItemSerializer
+from .serializers import clean_image_upload
 from .permissions import IsEventOwnerOrCoHost, IsEventOwner, IsAdminMember, get_admin_member
 from django.db import transaction, IntegrityError
 from django.db import models
@@ -90,6 +91,19 @@ class InsufficientCapacityError(Exception):
 RESERVATION_MINUTES = 10
 
 
+def _kobo(value):
+    """Paystack's amount as a whole number, or 0 when it is missing or not a number."""
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _is_ngn(data):
+    """Merch is priced in naira. A payment in any other currency is never accepted as paid."""
+    return str((data or {}).get('currency') or 'NGN').upper() == 'NGN'
+
+
 def _paid_amount_ok(paid_kobo, expected_kobo):
     """True if Paystack's reported amount covers what we asked it to charge.
 
@@ -112,6 +126,23 @@ def _pending_reservation_count(payments_qs):
     cutoff = timezone.now() - timedelta(minutes=RESERVATION_MINUTES)
     pending = payments_qs.filter(status='pending', created_at__gte=cutoff)
     return sum(p.metadata.get('seats', p.metadata.get('quantity', 1)) for p in pending)
+
+
+def _promo_available(promo):
+    """
+    Lock the promo code's row and say whether one more order may use it. Orders still being paid for count
+    against its limit, so buyers checking out together can't all take the last uses. Call inside the same
+    transaction that creates the order, so the check and the reservation happen one buyer at a time.
+    """
+    locked = PromoCode.objects.select_for_update().get(pk=promo.pk)
+    if not locked.is_valid():
+        return False
+    if locked.max_redemptions is not None:
+        cutoff = timezone.now() - timedelta(minutes=RESERVATION_MINUTES)
+        waiting = Payment.objects.filter(promo_code=locked, status='pending', created_at__gte=cutoff).count()
+        if locked.redeemed_count + waiting >= locked.max_redemptions:
+            return False
+    return True
 
 
 def _release_reservation(payment):
@@ -832,6 +863,8 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                 # in case another request consumed the remaining slots since
                 # the check above.
                 lock_and_check_capacity(event, tier_id, quantity)
+                if promo is not None and not _promo_available(promo):
+                    return Response({'error': 'Invalid or expired promo code'}, status=status.HTTP_400_BAD_REQUEST)
                 tickets = _create_tickets(
                     event, tier, attendees,
                     payment_status='free', user=linked_user,
@@ -881,6 +914,8 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
         try:
             with transaction.atomic():
                 lock_and_check_capacity(event, tier_id, quantity)
+                if promo is not None and not _promo_available(promo):
+                    return Response({'error': 'Invalid or expired promo code'}, status=status.HTTP_400_BAD_REQUEST)
                 payment = Payment.objects.create(
                     event=event,
                     tier=tier,
@@ -1160,7 +1195,7 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
             hashlib.sha512
         ).hexdigest()
         
-        if hash_value != signature:
+        if not hmac.compare_digest(hash_value, signature):
             return Response({
                 'error': 'Invalid signature'
             }, status=status.HTTP_400_BAD_REQUEST)
@@ -1235,7 +1270,7 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                 from . import merch
                 order = MerchOrder.objects.filter(paystack_reference=reference).first()
                 if order is not None:
-                    if _paid_amount_ok(data.get('amount', 0), int(order.amount * 100)):
+                    if _is_ngn(data) and _paid_amount_ok(_kobo(data.get('amount')), int(order.amount * 100)):
                         merch.mark_paid(order, data.get('channel') or '')
                     else:
                         logger.error("Webhook amount mismatch for merch order %s: Paystack=%s kobo, expected=%s",
@@ -1358,7 +1393,10 @@ class ProfileViewSet(viewsets.GenericViewSet):
             return Response({'avatar_url': None})
         if 'avatar' not in request.FILES:
             return Response({'error': 'No avatar file provided'}, status=status.HTTP_400_BAD_REQUEST)
-        profile.avatar = request.FILES['avatar']
+        try:
+            profile.avatar = clean_image_upload(request.FILES['avatar'])
+        except serializers.ValidationError as e:
+            return Response({'error': ' '.join(str(m) for m in e.detail)}, status=status.HTTP_400_BAD_REQUEST)
         profile.save(update_fields=['avatar'])
         serializer = self.get_serializer(profile, context={'request': request})
         return Response({'avatar_url': serializer.data['avatar_url']})
@@ -1369,7 +1407,10 @@ class ProfileViewSet(viewsets.GenericViewSet):
         profile = self._get_or_create_profile(request.user)
         if 'cover_image' not in request.FILES:
             return Response({'error': 'No cover image file provided'}, status=status.HTTP_400_BAD_REQUEST)
-        profile.cover_image = request.FILES['cover_image']
+        try:
+            profile.cover_image = clean_image_upload(request.FILES['cover_image'])
+        except serializers.ValidationError as e:
+            return Response({'error': ' '.join(str(m) for m in e.detail)}, status=status.HTTP_400_BAD_REQUEST)
         profile.save(update_fields=['cover_image'])
         serializer = self.get_serializer(profile, context={'request': request})
         return Response({'cover_image_url': serializer.data['cover_image_url']})
@@ -2795,7 +2836,8 @@ class EventViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-    @action(detail=True, methods=['POST'], url_path='validate-promo', permission_classes=[AllowAny])
+    @action(detail=True, methods=['POST'], url_path='validate-promo', permission_classes=[AllowAny],
+            throttle_classes=[ScopedRateThrottle], throttle_scope='promo')
     def validate_promo(self, request, slug=None):
         """
         POST /api/events/<slug>/validate-promo/   {code}
@@ -3424,17 +3466,24 @@ class TicketViewSet(
     permission_classes = [AllowAny] 
 
     
+    @staticmethod
+    def _holder_may_act(request, ticket):
+        """
+        A ticket held by someone with a signed-in Byro account can only be moved or cancelled by that person
+        signed in. A guest's ticket has no account behind it, so for them the ticket id is the only credential.
+        """
+        email = (ticket.current_owner_email or '').strip().lower()
+        if not email:
+            return True
+        owner = (get_user_model().objects.filter(email__iexact=email, workos_id__isnull=False)
+                 .exclude(workos_id='').first())
+        if owner is None:
+            return True
+        return request.user.is_authenticated and request.user.pk == owner.pk
+
     def get_object(self):
-        """
-        Explicit override for debugging
-        """
-        ticket_id = self.kwargs['ticket_id']
-        print(f"Attempting to find ticket: {ticket_id}")
-        try:
-            return Ticket.objects.get(ticket_id=ticket_id)
-        except Ticket.DoesNotExist:
-            print(f"Current tickets in DB: {list(Ticket.objects.values_list('ticket_id', flat=True))}")
-            raise
+        # Ticket ids are the only credential here, so a lookup must never write other ids anywhere.
+        return get_object_or_404(Ticket, ticket_id=self.kwargs['ticket_id'])
     
     def destroy(self, request, *args, **kwargs):
         """Cancel a registration. Free tickets only.
@@ -3449,15 +3498,29 @@ class TicketViewSet(
                 {'error': "Paid tickets can't be cancelled here."},
                 status=status.HTTP_403_FORBIDDEN,
             )
+        if not self._holder_may_act(request, ticket):
+            return Response({'error': 'Sign in as the ticket holder to cancel this ticket.'}, status=status.HTTP_403_FORBIDDEN)
         return super().destroy(request, *args, **kwargs)
 
     @action(detail=True, methods=['post'])
     def transfer(self, request, pk=None,  *args, **kwargs):  
         ticket = self.get_object()
-        
+        if not self._holder_may_act(request, ticket):
+            return Response({'error': 'Sign in as the ticket holder to transfer this ticket.'}, status=status.HTTP_403_FORBIDDEN)
+
         if not ticket.event.transferable:
             return Response(
                 {"error": "This ticket is not transferable"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        if ticket.checked_in:
+            return Response(
+                {"error": "This ticket has already been used to get in, so it can't be transferred."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        if ticket.payment_status not in ('paid', 'free'):
+            return Response(
+                {"error": "This ticket isn't paid for yet, so it can't be transferred."},
                 status=status.HTTP_400_BAD_REQUEST
             )
         
@@ -3547,21 +3610,39 @@ class TicketTransferViewSet(mixins.RetrieveModelMixin, viewsets.GenericViewSet):
     @action(detail=True, methods=['post'], permission_classes=[AllowAny])
     def accept(self, request, transfer_key=None):
         transfer = self.get_object()
-        
-        if transfer.is_accepted:
-            return Response(
-                {"error": "Transfer already completed"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        ticket = transfer.ticket
-        ticket.current_owner_name = transfer.to_user_name
-        ticket.current_owner_email = transfer.to_user_email
-        ticket.is_transferred = True
-        ticket.save()
-        
-        transfer.is_accepted = True
-        transfer.save()
+
+        # One at a time per ticket, so two people accepting together can't both get it.
+        with transaction.atomic():
+            ticket = Ticket.objects.select_for_update().get(pk=transfer.ticket_id)
+            transfer = TicketTransfer.objects.select_for_update().get(pk=transfer.pk)
+
+            if transfer.is_accepted:
+                return Response(
+                    {"error": "Transfer already completed"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            if ticket.checked_in:
+                return Response(
+                    {"error": "This ticket has already been used to get in, so it can't be transferred."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            # Only the newest link for a ticket works, and only while the person who sent it still holds
+            # the ticket. Otherwise an old link, or one for a ticket that has since moved on, could take it back.
+            newest = ticket.transfers.filter(is_accepted=False).order_by('-transferred_at', '-pk').first()
+            still_theirs = (transfer.from_user_email or '').strip().lower() == (ticket.current_owner_email or '').strip().lower()
+            if newest is None or newest.pk != transfer.pk or not still_theirs:
+                return Response(
+                    {"error": "This transfer link is no longer valid. Ask the sender for a new one."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            ticket.current_owner_name = transfer.to_user_name
+            ticket.current_owner_email = transfer.to_user_email
+            ticket.is_transferred = True
+            ticket.save()
+
+            transfer.is_accepted = True
+            transfer.save()
 
         log_activity(
             'ticket.transfer_completed', request=request, email=transfer.to_user_email,
@@ -3730,36 +3811,41 @@ class PayoutRequestView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        available = compute_available_balance(request.user, event=event)
-        if available <= 0:
-            return Response(
-                {'error': 'You have no funds available to withdraw.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        # Two requests sent at the same moment must not both see the same balance: lock this user's
+        # row so the check and the save happen one request at a time.
+        with transaction.atomic():
+            from django.contrib.auth import get_user_model
+            get_user_model().objects.select_for_update().get(pk=request.user.pk)
+            available = compute_available_balance(request.user, event=event)
+            if available <= 0:
+                return Response(
+                    {'error': 'You have no funds available to withdraw.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
-        amount = serializer.validated_data.get('amount')
-        if amount is not None and amount > available:
-            return Response(
-                {'error': f'You can withdraw up to ₦{available:,.2f}. Enter that amount or less.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            amount = serializer.validated_data.get('amount')
+            if amount is not None and amount > available:
+                return Response(
+                    {'error': f'You can withdraw up to ₦{available:,.2f}. Enter that amount or less.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
-        # If a cancelled event's money was already paid out to this organiser, Byro
-        # refunded its buyers anyway, so that event sits in the red. Their balance
-        # across ALL events has to cover the request, which holds back withdrawals
-        # until later ticket sales have made up the difference.
-        overall = compute_available_balance(request.user)
-        if overall < available and (amount is None or amount > overall):
-            return Response(
-                {'error': (
-                    'You cannot withdraw this yet. Money already paid out for an event that was '
-                    'cancelled has been refunded to its buyers, and it is being taken out of your '
-                    f'ticket sales first. Your balance across all events is ₦{overall:,.2f}.'
-                )},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            # If a cancelled event's money was already paid out to this organiser, Byro
+            # refunded its buyers anyway, so that event sits in the red. Their balance
+            # across ALL events has to cover the request, which holds back withdrawals
+            # until later ticket sales have made up the difference.
+            overall = compute_available_balance(request.user)
+            if overall < available and (amount is None or amount > overall):
+                return Response(
+                    {'error': (
+                        'You cannot withdraw this yet. Money already paid out for an event that was '
+                        'cancelled has been refunded to its buyers, and it is being taken out of your '
+                        f'ticket sales first. Your balance across all events is ₦{overall:,.2f}.'
+                    )},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
-        payout = serializer.save(user=request.user)
+            payout = serializer.save(user=request.user)
 
         # Persist bank details to user profile for pre-fill next time
         if payout.method == 'bank':
@@ -4029,6 +4115,13 @@ class AdminPayoutView(APIView):
                 )
             return Response(PayoutRequestSerializer(payout).data)
 
+        # Only a payout still waiting can be paid or rejected. Reversing a finished one would either
+        # hand the money back to the balance after it was sent, or pay a rejected request.
+        if payout.status not in ('pending', 'on_hold'):
+            return Response(
+                {'error': f'This payout is already {payout.status} and cannot be changed.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         payout.status = new_status
         payout.hold_reason = ''
         if new_status == 'processed':

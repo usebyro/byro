@@ -135,6 +135,33 @@ def shipped_email(order):
                  f"{seller} sent your order.", f"Your order {order.ref} is on the way", text)
 
 
+def _marked_email(order, headline, subject, lead_text, plain):
+    """Sent when the organiser marks an order delivered or collected on their own, so the buyer can object in time."""
+    seller = _seller_name(order)
+    body = (
+        _lead(lead_text.format(seller=_h(seller)))
+        + _btn_row(_btn(order_url(order), 'View your order'))
+        + _small('If this isn&#8217;t right, open your order and tap Report a problem within a few days, before the money is released to the seller.')
+    )
+    text = (
+        f"{plain.format(seller=seller)}\n\nIf this isn't right, open your order and use Report a problem "
+        f"within a few days, before the money is released to the seller.\n\nView your order: {order_url(order)}\n\nByro Team\nsupport@usebyro.com"
+    )
+    return _wrap('', headline, body, _buyer_footer(order), headline, f"{subject} {order.ref}", text)
+
+
+def delivered_email(order):
+    return _marked_email(order, 'Your order is marked delivered', 'Your order is marked delivered:',
+                         '{seller} marked your order as delivered. If it has arrived, there is nothing to do.',
+                         '{seller} marked your order as delivered. If it has arrived, there is nothing to do.')
+
+
+def collected_email(order):
+    return _marked_email(order, 'Your order is marked collected', 'Your order is marked collected:',
+                         '{seller} marked your order as collected. If you have it, there is nothing to do.',
+                         '{seller} marked your order as collected. If you have it, there is nothing to do.')
+
+
 def refunded_email(order):
     seller = _seller_name(order)
     reason = (
@@ -230,7 +257,8 @@ def waiting_email(order):
 # ---------------------------------------------------------------------------
 
 BUYER_KINDS = {'receipt': receipt_email, 'ready': ready_email, 'shipped': shipped_email,
-               'refunded': refunded_email, 'moved': pickup_moved_email}
+               'refunded': refunded_email, 'moved': pickup_moved_email,
+               'delivered': delivered_email, 'collected': collected_email}
 SELLER_KINDS = {'problem': problem_email, 'waiting': waiting_email}
 
 
