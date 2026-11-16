@@ -6,6 +6,8 @@ import API from "@/services/api";
 import BankLogo from "@/components/dashboard/BankLogo";
 import SectionError from "@/components/dashboard/v2/SectionError";
 import BusyButton, { useButtonResult } from "@/components/dashboard/v2/BusyButton";
+import { BalanceBreakdown, MerchFigures, ShortfallNotice } from "@/components/merch/MerchBalance";
+import { withdrawBlockedLine } from "@/lib/merchOrders";
 
 // Backend status -> label, status ink, dot, amount ink (design: Paid / Pending / Cancelled-style grey).
 const STATUS = {
@@ -79,6 +81,7 @@ export default function StudioPayouts() {
   const [submitting, setSubmitting] = useState(false);
 
   const [balance, setBalance] = useState(null);
+  const [breakdownOpen, setBreakdownOpen] = useState(false);
   const [loadingBalance, setLoadingBalance] = useState(true);
 
   useEffect(() => {
@@ -276,6 +279,7 @@ export default function StudioPayouts() {
 
   const availableAmount = balance ? Number(balance.available) : null;
   const canWithdraw = availableAmount !== null && availableAmount > 0;
+  const blockedLine = withdrawBlockedLine(balance);
 
   const askWithdraw = () => {
     // Defaults to the whole balance; the organiser can lower it before confirming.
@@ -299,7 +303,7 @@ export default function StudioPayouts() {
     <div className="mx-auto flex w-full max-w-[1240px] flex-col gap-5 px-4 pb-12 pt-2 md:gap-6 sm:px-[clamp(16px,3vw,40px)]">
       <div className="v-bf flex flex-col gap-1.5" style={{ "--i": 0 }}>
         <h1 className="v-h1">Payouts</h1>
-        <p className="v-sub">Your ticket earnings and where they go.</p>
+        <p className="v-sub">Your ticket and merch earnings, and where they go.</p>
       </div>
 
       <div className="flex flex-wrap items-stretch gap-5">
@@ -315,6 +319,12 @@ export default function StudioPayouts() {
             ) : (
               <span className="v-hero break-words">{balance ? fmt(balance.available) : "—"}</span>
             )}
+            {!loadingBalance && balance && <MerchFigures merch={balance.merch} />}
+            {!loadingBalance && balance && (
+              <button type="button" onClick={() => setBreakdownOpen(true)} className="self-start p-0 text-sm font-bold text-brand-dark hover:underline">
+                See what&apos;s in your balance
+              </button>
+            )}
             {balanceFailed && !loadingBalance && (
               <p role="alert" className="v-hint m-0">
                 We couldn&apos;t load your balance.{" "}
@@ -324,6 +334,8 @@ export default function StudioPayouts() {
               </p>
             )}
           </div>
+
+          {!loadingBalance && balance && <ShortfallNotice shortfall={balance.shortfall} />}
 
           {loadingPayouts ? (
             <div className="v-skel h-[68px] rounded-2xl" />
@@ -441,6 +453,7 @@ export default function StudioPayouts() {
               {(canWithdraw || availableAmount === null) && (
                 <span className="v-hint">Processed on the next business day</span>
               )}
+              {!canWithdraw && blockedLine && <span className="v-hint" role="status">{blockedLine}</span>}
             </div>
           )}
 
@@ -507,12 +520,13 @@ export default function StudioPayouts() {
 
         <div className="flex min-w-0 flex-[2_1_260px] flex-col gap-5">
           <div className="v-card v-bf flex grow flex-col gap-2 px-[22px] py-5" style={{ "--i": 2 }}>
-            <span className="v-eyebrow">Pending</span>
+            <span className="v-eyebrow">On its way to your bank</span>
             {loadingPayouts ? (
               <span className="v-skel block h-7 w-32" />
             ) : (
               <span className="v-fig">{fmt(pendingTotal)}</span>
             )}
+            <span className="v-hint">Payouts you&apos;ve asked for. Sent on the next business day.</span>
           </div>
           <div className="v-card v-bf flex grow flex-col gap-2 px-[22px] py-5" style={{ "--i": 3 }}>
             <span className="v-eyebrow">Paid out</span>
@@ -611,6 +625,8 @@ export default function StudioPayouts() {
           </a>
         </p>
       </section>
+
+      {breakdownOpen && <BalanceBreakdown balance={balance} onClose={() => setBreakdownOpen(false)} />}
     </div>
   );
 }
