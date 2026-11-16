@@ -194,7 +194,14 @@ def find_paystack_refund(reference):
     Checked before creating one, so a retry after a timeout adopts the refund
     that did go through instead of sending the money back twice.
     """
-    status, body = _paystack('GET', '/refund', params={'reference': reference})
+    # Paystack's refund list ignores a transaction *reference*; it filters by the transaction's numeric id.
+    # Without that id the lookup finds nothing, and a retry would never adopt a refund that already exists.
+    params = {'reference': reference}
+    status, body = _paystack('GET', f'/transaction/verify/{reference}')
+    data = body.get('data') if status == 200 and isinstance(body, dict) else None
+    if isinstance(data, dict) and data.get('id'):
+        params = {'transaction': data['id']}
+    status, body = _paystack('GET', '/refund', params=params)
     if status != 200 or not body.get('status'):
         return None
     for item in body.get('data') or []:
