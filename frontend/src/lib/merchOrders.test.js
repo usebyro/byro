@@ -74,6 +74,18 @@ describe("releaseLine", () => {
   });
 });
 
+describe("dates", () => {
+  it("show day and short month, from Intl, and tolerate blanks", async () => {
+    const { dayMonth, shortDate, dateTime } = await import("./merchOrders");
+    expect(dayMonth("2026-11-24T09:00:00Z")).toBe("24 Nov");
+    expect(dayMonth("2026-03-03T09:00:00Z")).toBe("3 Mar");
+    expect(dayMonth("")).toBe("");
+    expect(shortDate("nonsense")).toBe("");
+    expect(shortDate(new Date().toISOString())).toBe("Today");
+    expect(dateTime("2026-11-24T09:15:00Z")).toMatch(/^24 Nov, \d{1,2}:15/);
+  });
+});
+
 describe("text helpers", () => {
   it("lists items with options and quantities", () => {
     expect(itemsText(order())).toBe("Community tee (M) ×2, Dev cap");

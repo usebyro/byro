@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import axiosInstance from "@/utils/axios";
 import SectionError from "@/components/dashboard/v2/SectionError";
 import BusyButton from "@/components/dashboard/v2/BusyButton";
+import Sheet from "@/components/merch/Sheet";
 import {
   BULK_HINT, BULK_LABEL, REPORT_REASON, bulkKey, dateTime, itemsText, naira, nextStep, packingSlip,
   releaseLine, shortDate, dayMonth, statusOf,
@@ -51,9 +52,24 @@ function Status({ order }) {
   );
 }
 
+// The list's filter, search and open order live in the address bar, so a refresh, a shared link or a
+// notification lands where you were, and an order can be opened in a new tab.
+const urlParam = (key) => (typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get(key) || "");
+function syncUrl(changes) {
+  const url = new URL(window.location.href);
+  Object.entries(changes).forEach(([key, value]) => (value ? url.searchParams.set(key, value) : url.searchParams.delete(key)));
+  window.history.replaceState(null, "", url);
+}
+const orderHref = (ref) => {
+  const url = new URL(window.location.href);
+  url.searchParams.set("tab", "orders");
+  url.searchParams.set("order", ref);
+  return `${url.pathname}${url.search}`;
+};
+
 export default function MerchOrders({ onChanged }) {
-  const [filter, setFilter] = useState("need");
-  const [q, setQ] = useState("");
+  const [filter, setFilter] = useState(() => (FILTERS.some(([value]) => value === urlParam("filter")) ? urlParam("filter") : "need"));
+  const [q, setQ] = useState(() => urlParam("q"));
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
@@ -65,8 +81,6 @@ export default function MerchOrders({ onChanged }) {
   const [openRef, setOpenRef] = useState(null);
   const [detail, setDetail] = useState(null);
   const [detailFailed, setDetailFailed] = useState(false);
-  const [sheetUp, setSheetUp] = useState(false);
-  const closeRef = useRef(null);
   const req = useRef(0);
 
   // ---- the list ---------------------------------------------------------
@@ -136,7 +150,7 @@ export default function MerchOrders({ onChanged }) {
 
   // ---- one order --------------------------------------------------------
   const openOrder = (ref) => {
-    setSheetUp(window.matchMedia("(max-width: 767px)").matches);
+    syncUrl({ order: ref });
     setOpenRef(ref);
     setDetail(null);
     setDetailFailed(false);
@@ -146,17 +160,21 @@ export default function MerchOrders({ onChanged }) {
       .catch(() => setDetailFailed(true));
   };
   const closeOrder = () => {
+    syncUrl({ order: "" });
     setOpenRef(null);
     setDetail(null);
   };
 
+  // A link with ?order=BY-0003 opens that order.
   useEffect(() => {
-    if (!openRef) return;
-    const onKey = (e) => e.key === "Escape" && closeOrder();
-    document.addEventListener("keydown", onKey);
-    closeRef.current?.focus({ preventScroll: true });
-    return () => document.removeEventListener("keydown", onKey);
-  }, [openRef]);
+    const ref = urlParam("order");
+    if (ref) openOrder(ref);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    syncUrl({ filter: filter === "need" ? "" : filter, q: q.trim() });
+  }, [filter, q]);
 
   const summary = data?.counts;
   const money = data?.money;
@@ -166,15 +184,25 @@ export default function MerchOrders({ onChanged }) {
   return (
     <div className="flex flex-col gap-5">
       {hasAny && (
-        <section aria-label="Summary" className="v-card v-bf grid gap-x-6 gap-y-4 p-5 sm:grid-cols-2 lg:grid-cols-4" style={{ "--i": 1 }}>
-          <Figure label="Needs action" value={String(summary.need)} />
-          <Figure label="Ready or shipped" value={String(summary.shipped)} />
-          <Figure label="Available from merch" value={naira(money?.available)} note={<Link href="/dashboard/payouts" className="font-bold text-brand-dark">Go to Payouts</Link>} />
-          <Figure
-            label="Releasing soon"
-            value={naira(money?.releasing)}
-            note={Number(money?.on_hold) > 0 ? `${naira(money.on_hold)} on hold` : "After each order's safety window"}
-          />
+        <section aria-label="Summary" className="v-card v-bf flex flex-col gap-5 p-5" style={{ "--i": 1 }}>
+          <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
+            <Figure label="Needs action" value={String(summary.need)} />
+            <Figure label="Ready or shipped" value={String(summary.shipped)} />
+          </div>
+          <div className="flex flex-col gap-3 border-t border-hairline pt-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-col">
+                <h2 className="m-0 text-[15px] font-extrabold">Merch earnings</h2>
+                {Number(data?.fee_rate) > 0 && <span className="v-hint">After Byro&apos;s fee</span>}
+              </div>
+              <Link href="/dashboard/payouts" className="v-btn v-btn-s v-btn-sm max-md:!h-11">Withdraw</Link>
+            </div>
+            <div className="grid gap-1 rounded-2xl bg-[#F6F8FB] p-1 min-[900px]:grid-cols-3">
+              <MoneyRow href="/dashboard/payouts" label="Ready to withdraw" value={naira(money?.available)} />
+              <MoneyRow href="/dashboard/payouts" label="Releasing soon" value={naira(money?.releasing)} note={money?.next_release_at ? `Next release ${dayMonth(money.next_release_at)}` : "After each order's safety window"} />
+              <MoneyRow onClick={() => { setFilter("need"); setQ(""); setSel([]); }} label="Orders still to hand over" value={naira(money?.not_released)} note="Pack, get ready or ship them" />
+            </div>
+          </div>
         </section>
       )}
 
@@ -197,8 +225,8 @@ export default function MerchOrders({ onChanged }) {
         {sel.length > 0 && (
           <div role="region" aria-label="Selected orders" className="flex flex-wrap items-center gap-3 border-b border-hairline bg-[#F5F8FF] px-4 py-3">
             <span className="text-sm font-extrabold">{sel.length} selected</span>
-            <button type="button" className="v-btn v-btn-s v-btn-sm" onClick={() => setSel([])}>Clear</button>
-            <button type="button" className="v-btn v-btn-p v-btn-sm ml-auto" onClick={() => setBulkOpen(true)}>{BULK_LABEL[selKey](sel.length)}</button>
+            <button type="button" className="v-btn v-btn-s v-btn-sm max-md:!h-11" onClick={() => setSel([])}>Clear</button>
+            <button type="button" className="v-btn v-btn-p v-btn-sm max-md:!h-11 ml-auto" onClick={() => setBulkOpen(true)}>{BULK_LABEL[selKey](sel.length)}</button>
           </div>
         )}
 
@@ -239,19 +267,21 @@ export default function MerchOrders({ onChanged }) {
                       <tr key={o.ref} className="v-row v-al border-b border-hairline last:border-b-0" style={{ "--i": Math.min(i, 10) }}>
                         <td className="px-5 py-3 max-md:hidden">
                           {bulkKey(o) ? (
-                            <input
-                              type="checkbox"
-                              checked={sel.includes(o.ref)}
-                              disabled={!selectable}
-                              onChange={() => toggle(o.ref)}
-                              aria-label={`Select order ${o.ref}`}
-                              title={selectable ? undefined : "Orders move together only when they are at the same step"}
-                              className="h-[18px] w-[18px] rounded border-[#CBD3DF] text-brand focus:ring-brand/30 disabled:opacity-40"
-                            />
+                            <label className="-m-3 flex h-11 w-11 cursor-pointer items-center justify-center has-[:disabled]:cursor-not-allowed">
+                              <input
+                                type="checkbox"
+                                checked={sel.includes(o.ref)}
+                                disabled={!selectable}
+                                onChange={() => toggle(o.ref)}
+                                aria-label={`Select order ${o.ref}`}
+                                title={selectable ? undefined : "Orders move together only when they are at the same step"}
+                                className="h-[18px] w-[18px] rounded border-[#CBD3DF] text-brand focus:ring-brand/30 disabled:opacity-40"
+                              />
+                            </label>
                           ) : null}
                         </td>
                         <td className="px-3 py-3">
-                          <button type="button" onClick={() => openOrder(o.ref)} aria-label={`Open order ${o.ref} from ${o.buyer.first}, ${statusOf(o)[0]}`} className="flex min-w-0 flex-col items-start gap-1 rounded-lg text-left">
+                          <a href={orderHref(o.ref)} onClick={(e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return; e.preventDefault(); openOrder(o.ref); }} aria-label={`Open order ${o.ref} from ${o.buyer.first}, ${statusOf(o)[0]}`} className="flex min-w-0 flex-col items-start gap-1 rounded-lg text-left">
                             <span className="flex flex-wrap items-center gap-2">
                               <span className="text-[15px] font-extrabold">{o.buyer.first || o.buyer.name}</span>
                               <span className="v-tab text-xs text-muted">{o.ref}</span>
@@ -261,7 +291,7 @@ export default function MerchOrders({ onChanged }) {
                             {o.auto_cancel_on && o.days_waiting >= 10 && (
                               <span className="text-xs font-bold text-[#B42318]">Byro cancels on {dayMonth(o.auto_cancel_on)}</span>
                             )}
-                          </button>
+                          </a>
                         </td>
                         <td data-l="Items" className="max-w-[300px] px-3 py-3 text-sm text-body">
                           <span className="line-clamp-2 break-words">{itemsText(o)}</span>
@@ -284,7 +314,7 @@ export default function MerchOrders({ onChanged }) {
       </section>
 
       {bulkOpen && (
-        <Sheet title={BULK_LABEL[selKey](sel.length)} onClose={() => setBulkOpen(false)} sheetUp={sheetUp || (typeof window !== "undefined" && window.matchMedia("(max-width: 767px)").matches)} closeRef={closeRef}>
+        <Sheet title={BULK_LABEL[selKey](sel.length)} onClose={() => setBulkOpen(false)}>
           <ul className="m-0 flex list-none flex-col gap-2 p-0">
             {sel.map((ref) => byRef[ref] && (
               <li key={ref} className="flex flex-col gap-0.5 rounded-xl bg-[#F7F9FC] px-3.5 py-2.5">
@@ -308,7 +338,7 @@ export default function MerchOrders({ onChanged }) {
       )}
 
       {openRef && (
-        <Sheet title={`Order ${openRef}`} subtitle={detail ? `Paid ${dateTime(detail.paid_at)}` : ""} onClose={closeOrder} sheetUp={sheetUp} closeRef={closeRef} wide>
+        <Sheet title={`Order ${openRef}`} subtitle={detail ? `Paid ${dateTime(detail.paid_at)}` : ""} onClose={closeOrder} wide>
           {detailFailed ? (
             <SectionError what="this order" onRetry={() => openOrder(openRef)} />
           ) : !detail ? (
@@ -330,6 +360,22 @@ export default function MerchOrders({ onChanged }) {
       )}
     </div>
   );
+}
+
+// One line of the merch money: a link to Payouts, or a button that filters the list.
+function MoneyRow({ href, onClick, label, value, note }) {
+  const body = (
+    <>
+      <span className="flex min-w-0 grow flex-col gap-px">
+        <span className="text-sm font-extrabold">{label}</span>
+        {note && <span className="v-hint">{note}</span>}
+      </span>
+      <span className="whitespace-nowrap text-lg font-extrabold [font-variant-numeric:tabular-nums]">{value}</span>
+      <svg className="shrink-0 text-[#646B7A]" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
+    </>
+  );
+  const cls = "flex min-h-16 w-full items-center gap-2.5 rounded-xl border-0 bg-transparent py-2.5 pl-3.5 pr-3 text-left text-ink no-underline transition-colors hover:bg-white focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-1 focus-visible:outline-brand";
+  return href ? <Link href={href} className={cls}>{body}</Link> : <button type="button" onClick={onClick} className={cls}>{body}</button>;
 }
 
 function Figure({ label, value, note }) {
@@ -363,37 +409,6 @@ function Empty({ hasAny, searching, q, filter, onAll, onClear }) {
       <p className="v-h2 !text-[17px]">{title}</p>
       <p className="v-hint max-w-sm">{body}</p>
       {action}
-    </div>
-  );
-}
-
-// A side sheet on desktop, a bottom sheet on phones.
-function Sheet({ title, subtitle, onClose, sheetUp, closeRef, children, wide = false }) {
-  return (
-    <div className={`fixed inset-0 z-50 flex ${sheetUp ? "flex-col justify-end" : "justify-end"}`}>
-      <button type="button" aria-label="Close" onClick={onClose} className="v-scrim absolute inset-0 cursor-pointer border-0 bg-[rgba(20,22,28,.28)]" tabIndex={-1} />
-      <aside
-        role="dialog"
-        aria-modal="true"
-        aria-label={title}
-        className={
-          sheetUp
-            ? "v-sheet-up relative box-border flex max-h-[92dvh] w-full flex-col gap-[18px] overflow-y-auto rounded-t-3xl bg-white px-5 pb-[calc(20px+env(safe-area-inset-bottom))] pt-2.5 shadow-[0_-20px_50px_-20px_rgba(20,22,28,.35)]"
-            : `v-sheet relative box-border flex h-full ${wide ? "w-[min(520px,100%)]" : "w-[min(460px,100%)]"} flex-col gap-[18px] overflow-y-auto bg-white p-6`
-        }
-      >
-        {sheetUp && <span aria-hidden="true" className="mx-auto mb-0.5 mt-0.5 block h-1 w-10 shrink-0 rounded-full bg-[#CBD3DF]" />}
-        <div className="flex items-start gap-3">
-          <div className="flex min-w-0 flex-grow flex-col">
-            <h2 className="v-h2 !text-[22px]">{title}</h2>
-            {subtitle && <span className="v-hint">{subtitle}</span>}
-          </div>
-          <button ref={closeRef} type="button" className="v-icon-btn ghost max-md:!h-11 max-md:!w-11" aria-label="Close" onClick={onClose}>
-            <Icon path="M6 6l12 12M18 6L6 18" size={18} />
-          </button>
-        </div>
-        {children}
-      </aside>
     </div>
   );
 }
@@ -483,7 +498,7 @@ function OrderDetail({ order: o, onChange }) {
         <div role="status" className="flex flex-col gap-1.5 rounded-2xl bg-[#FDF1F0] p-4 text-[#8F1D14]">
           <b className="text-[15px]">{first} reported a problem: {REPORT_REASON[o.problem.reason] || o.problem.reason}</b>
           {o.problem.note && <span className="text-sm">“{o.problem.note}”</span>}
-          <span className="text-[13px]">Byro is reviewing this. We&apos;ll email you and {first} within 2 working days. This order&apos;s earnings are on hold until then. If you have proof of delivery, reply to that email with it.</span>
+          <span className="text-[13px]">Byro is reviewing this. We&apos;ll email you and {first} when Byro has decided. This order&apos;s earnings stay on hold until then. If you have proof of delivery, reply to that email with it.</span>
         </div>
       )}
 
@@ -518,7 +533,7 @@ function OrderDetail({ order: o, onChange }) {
             <BusyButton type="button" className="v-btn v-btn-p v-btn-lg" busy={!!busy && busy === next[3]} busyLabel="Saving" onClick={onNext}>
               {shipping ? "Confirm shipped" : next[2]}
             </BusyButton>
-            {shipping && <button type="button" className="v-btn v-btn-s v-btn-lg" onClick={() => setShipping(false)}>Not yet</button>}
+            {shipping && <button type="button" className="v-btn v-btn-s v-btn-lg" onClick={() => setShipping(false)}>Back</button>}
           </div>
         </section>
       )}
@@ -576,11 +591,14 @@ function OrderDetail({ order: o, onChange }) {
         {o.buyer.phone ? (
           <div className="flex flex-wrap items-center gap-2">
             <span className="v-tab text-sm">{o.buyer.phone}</span>
-            <a className="v-btn v-btn-s v-btn-sm" href={`tel:${o.buyer.phone.replace(/\s+/g, "")}`}>Call</a>
-            {whatsapp && <a className="v-btn v-btn-s v-btn-sm" href={whatsapp} target="_blank" rel="noopener noreferrer">WhatsApp</a>}
+            <a className="v-btn v-btn-s v-btn-sm max-md:!h-11" href={`tel:${o.buyer.phone.replace(/\s+/g, "")}`}>Call</a>
+            {whatsapp && <a className="v-btn v-btn-s v-btn-sm max-md:!h-11" href={whatsapp} target="_blank" rel="noopener noreferrer">WhatsApp</a>}
           </div>
         ) : (
-          <p className="v-hint m-0">No phone number given. Reach {first} at <a className="font-bold text-brand-dark" href={`mailto:${o.buyer.email}`}>{o.buyer.email}</a>.</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="v-hint">No phone number given.</span>
+            <a className="v-btn v-btn-s v-btn-sm max-md:!h-11" href={`mailto:${o.buyer.email}`}>Email {first}</a>
+          </div>
         )}
         {o.buyer.note && (
           <div className="rounded-xl bg-[#FFFAEB] p-3 text-sm"><span className="mb-0.5 block text-[13px] font-bold text-[#8A4B00]">Note from {first}</span>{o.buyer.note}</div>
@@ -597,7 +615,7 @@ function OrderDetail({ order: o, onChange }) {
         ) : (
           <div className="flex items-start gap-3">
             <p className="m-0 min-w-0 flex-grow whitespace-pre-line break-words text-sm">{o.delivery_address}</p>
-            <button type="button" className="v-btn v-btn-s v-btn-sm shrink-0" onClick={() => copy("address", o.delivery_address)}>{copied === "address" ? "Copied" : "Copy"}</button>
+            <button type="button" className="v-btn v-btn-s v-btn-sm max-md:!h-11 shrink-0" onClick={() => copy("address", o.delivery_address)}>{copied === "address" ? "Copied" : "Copy"}</button>
           </div>
         )}
       </section>

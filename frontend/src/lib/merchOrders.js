@@ -2,7 +2,8 @@
 
 export const naira = (n) => `₦${Math.round(Number(n || 0)).toLocaleString("en-NG")}`;
 
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const DAY_MONTH = new Intl.DateTimeFormat("en-NG", { day: "numeric", month: "short" });
+const TIME = new Intl.DateTimeFormat("en-NG", { hour: "numeric", minute: "2-digit" });
 
 export function shortDate(iso) {
   if (!iso) return "";
@@ -12,21 +13,20 @@ export function shortDate(iso) {
   const days = Math.round((new Date(today.getFullYear(), today.getMonth(), today.getDate()) - new Date(d.getFullYear(), d.getMonth(), d.getDate())) / 86400000);
   if (days === 0) return "Today";
   if (days === 1) return "Yesterday";
-  return `${d.getDate()} ${MONTHS[d.getMonth()]}`;
+  return DAY_MONTH.format(d);
 }
 
 export function dayMonth(iso) {
   if (!iso) return "";
   const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? "" : `${d.getDate()} ${MONTHS[d.getMonth()]}`;
+  return Number.isNaN(d.getTime()) ? "" : DAY_MONTH.format(d);
 }
 
 export function dateTime(iso) {
   if (!iso) return "";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
-  const time = d.toLocaleTimeString("en-NG", { hour: "numeric", minute: "2-digit" });
-  return `${shortDate(iso)}, ${time}`;
+  return `${shortDate(iso)}, ${TIME.format(d)}`;
 }
 
 // status -> [text, ink class, dot class]. Pickup orders that are only paid say what comes next for pickup.

@@ -75,6 +75,15 @@ describe("how buyers get their order", () => {
     expect(axios.put).toHaveBeenCalledWith("dashboard/merch-orders/fulfilment/", expect.objectContaining({ delivery_enabled: true, delivery_fee: "15000", delivery_area: "Lagos only" }));
   });
 
+  it("asks before leaving with changes that were not saved, and not otherwise", async () => {
+    const user = userEvent.setup();
+    render(<FulfilmentSettings settings={saved()} />);
+    const leave = () => { const e = new Event("beforeunload", { cancelable: true }); window.dispatchEvent(e); return e.defaultPrevented; };
+    expect(leave()).toBe(false);
+    await user.type(screen.getByLabelText("Pickup address"), " B");
+    expect(leave()).toBe(true);
+  });
+
   it("only takes digits in the fee", async () => {
     const user = userEvent.setup();
     render(<FulfilmentSettings settings={saved({ delivery_enabled: true })} />);

@@ -23,8 +23,8 @@ const detail = (ref, over = {}) => ({
   problem: null, can_cancel: true, can_cant_deliver: false, ...over,
 });
 
-const list = (results, counts, money = {}) => ({
-  data: { results, counts: counts || { need: results.length, shipped: 0, done: 0, all: results.length }, money: { available: "0.00", releasing: "0.00", on_hold: "0.00", not_released: "0.00", ...money } },
+const list = (results, counts, money = {}, extra = {}) => ({
+  data: { results, counts: counts || { need: results.length, shipped: 0, done: 0, all: results.length }, fee_rate: "0", money: { available: "0.00", releasing: "0.00", on_hold: "0.00", not_released: "0.00", next_release_at: null, ...money }, ...extra },
 });
 
 const orders = [
@@ -56,17 +56,46 @@ const show = async (payload = list(orders)) => {
 
 describe("organiser orders list", () => {
   it("shows the orders with their type, status and the counts", async () => {
-    await show(list(orders, { need: 3, shipped: 2, done: 5, all: 10 }, { available: "12000.00", releasing: "8000.00", on_hold: "3000.00" }));
+    await show(list(orders, { need: 3, shipped: 2, done: 5, all: 10 }));
     expect(screen.getByRole("button", { name: /Needs action\s*3/ })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", { name: /Completed\s*5/ })).toBeInTheDocument();
     expect(screen.getAllByText("Pickup").length).toBeGreaterThan(0);
     expect(screen.getAllByText("To get ready")).toHaveLength(2);
     expect(screen.getByText("To ship")).toBeInTheDocument();
+  });
+
+  it("keeps the merch money in its own block, with a way to withdraw", async () => {
+    await show(list(orders, { need: 3, shipped: 2, done: 5, all: 10 }, { available: "12000.00", releasing: "8000.00", not_released: "14000.00", next_release_at: "2026-11-24T09:00:00Z" }));
     const summary = screen.getByRole("region", { name: "Summary" });
-    expect(within(summary).getByText("₦12,000")).toBeInTheDocument();
-    expect(within(summary).getByText("₦8,000")).toBeInTheDocument();
-    expect(within(summary).getByText("₦3,000 on hold")).toBeInTheDocument();
-    expect(within(summary).getByRole("link", { name: "Go to Payouts" })).toHaveAttribute("href", "/dashboard/payouts");
+    expect(within(summary).getByRole("heading", { name: "Merch earnings" })).toBeInTheDocument();
+    expect(within(summary).getByRole("link", { name: "Withdraw" })).toHaveAttribute("href", "/dashboard/payouts");
+    const ready = within(summary).getByRole("link", { name: /Ready to withdraw/ });
+    expect(ready).toHaveTextContent("₦12,000");
+    expect(ready).toHaveAttribute("href", "/dashboard/payouts");
+    const soon = within(summary).getByRole("link", { name: /Releasing soon/ });
+    expect(soon).toHaveTextContent("₦8,000");
+    expect(soon).toHaveTextContent("Next release 24 Nov");
+    expect(within(summary).getByRole("button", { name: /Orders still to hand over/ })).toHaveTextContent("₦14,000");
+    expect(within(summary).queryByText(/on hold/i)).not.toBeInTheDocument();
+  });
+
+  it("says nothing about Byro's fee while no fee is taken", async () => {
+    await show(list(orders, undefined, {}, { fee_rate: "0" }));
+    expect(screen.getByRole("heading", { name: "Merch earnings" })).toBeInTheDocument();
+    expect(screen.queryByText("After Byro's fee")).not.toBeInTheDocument();
+  });
+
+  it("says the earnings are after Byro's fee when one is taken", async () => {
+    await show(list(orders, undefined, {}, { fee_rate: "0.05" }));
+    expect(screen.getByText("After Byro's fee")).toBeInTheDocument();
+  });
+
+  it("'Orders still to hand over' filters the list to what needs action", async () => {
+    const user = await show(list(orders, { need: 3, shipped: 2, done: 5, all: 10 }, { not_released: "14000.00" }));
+    await user.click(screen.getByRole("button", { name: /Ready or shipped/ }));
+    await waitFor(() => expect(axios.get).toHaveBeenLastCalledWith("dashboard/merch-orders/", { params: { filter: "shipped", q: undefined } }));
+    await user.click(screen.getByRole("button", { name: /Orders still to hand over/ }));
+    await waitFor(() => expect(axios.get).toHaveBeenLastCalledWith("dashboard/merch-orders/", { params: { filter: "need", q: undefined } }));
   });
 
   it("asks the server for the chosen filter and for searches", async () => {
@@ -116,6 +145,58 @@ describe("organiser orders list", () => {
   });
 });
 
+describe("links", () => {
+  it("each order is a real link that carries the order number", async () => {
+    await show();
+    const link = screen.getByRole("link", { name: /Open order BY-0004/ });
+    expect(link).toHaveAttribute("href", expect.stringContaining("order=BY-0004"));
+    expect(link).toHaveAttribute("href", expect.stringContaining("tab=orders"));
+  });
+
+  it("a modified click is left to the browser, so it can open in a new tab", async () => {
+    const user = await show();
+    await user.keyboard("{Meta>}");
+    await user.click(screen.getByRole("link", { name: /Open order BY-0004/ }));
+    await user.keyboard("{/Meta}");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("opening an order puts it in the address, and closing takes it out", async () => {
+    const user = await show();
+    await user.click(screen.getByRole("link", { name: /Open order BY-0004/ }));
+    await screen.findByRole("dialog");
+    expect(window.location.search).toContain("order=BY-0004");
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(window.location.search).not.toContain("order="));
+  });
+
+  it("a link with an order number opens that order, and a filter in the address is used", async () => {
+    window.history.replaceState(null, "", "/dashboard/merch?tab=orders&filter=shipped&order=BY-0004");
+    axios.get.mockImplementation((url) => Promise.resolve(url === "dashboard/merch-orders/" ? list(orders) : { data: detail("BY-0004") }));
+    render(<MerchOrders />);
+    const dialog = await screen.findByRole("dialog", { name: "Order BY-0004" });
+    expect(within(dialog).getByText("Next: pack the order")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Ready or shipped/ })).toHaveAttribute("aria-pressed", "true");
+    expect(axios.get).toHaveBeenCalledWith("dashboard/merch-orders/", { params: { filter: "shipped", q: undefined } });
+  });
+
+  it("the filter and search are kept in the address", async () => {
+    const user = await show();
+    await user.click(screen.getByRole("button", { name: /Completed/ }));
+    await waitFor(() => expect(window.location.search).toContain("filter=done"));
+    await user.type(screen.getByRole("searchbox"), "tunde");
+    await waitFor(() => expect(window.location.search).toContain("q=tunde"));
+    await user.click(screen.getByRole("button", { name: /Needs action/ }));
+    await waitFor(() => expect(window.location.search).not.toContain("filter="));
+  });
+
+  it("order checkboxes have a 44px area to tap", async () => {
+    await show();
+    const box = screen.getByRole("checkbox", { name: "Select order BY-0003" });
+    expect(box.closest("label")).toHaveClass("h-11", "w-11");
+  });
+});
+
 describe("bulk", () => {
   it("moves selected orders at the same step together", async () => {
     axios.post.mockResolvedValue({ data: { done: ["BY-0003", "BY-0002"], failed: [] } });
@@ -157,7 +238,7 @@ describe("bulk", () => {
 
 describe("one order", () => {
   const open = async (user, ref = "BY-0003") => {
-    await user.click(screen.getByRole("button", { name: new RegExp(`Open order ${ref}`) }));
+    await user.click(screen.getByRole("link", { name: new RegExp(`Open order ${ref}`) }));
     return screen.findByRole("dialog");
   };
 
@@ -172,6 +253,17 @@ describe("one order", () => {
     expect(within(dialog).getByText("You get").nextSibling).toHaveTextContent("₦14,000");
     expect(within(dialog).queryByText(/Byro fee/)).not.toBeInTheDocument(); // no fee, no line
     expect(within(dialog).getByText("Joins your balance once the order is complete.")).toBeInTheDocument();
+  });
+
+  it("with no phone number it offers an email button instead", async () => {
+    axios.get.mockImplementation((url) => Promise.resolve(url === "dashboard/merch-orders/" ? list([row("BY-0008")]) : { data: detail("BY-0008", { buyer: { name: "Kelechi Obi", first: "Kelechi", email: "k@example.com", phone: "", note: "" } }) }));
+    const user = userEvent.setup();
+    render(<MerchOrders />);
+    await screen.findByRole("table");
+    const dialog = await open(user, "BY-0008");
+    expect(within(dialog).getByText("No phone number given.")).toBeInTheDocument();
+    expect(within(dialog).getByRole("link", { name: "Email Kelechi" })).toHaveAttribute("href", "mailto:k@example.com");
+    expect(within(dialog).queryByRole("link", { name: "WhatsApp" })).not.toBeInTheDocument();
   });
 
   it("marks the next step and updates the list", async () => {
