@@ -188,7 +188,7 @@ export default function MerchCheckoutClient({ handle }) {
           <section className={card}>
             <h1 className="font-display text-2xl font-bold">Your order is empty</h1>
             <p className="m-0 text-[15px] text-[#3B4252]">Pick something from {name}&apos;s merch to get started.</p>
-            <Link href={`/u/${handle}`} className="flex h-12 items-center justify-center rounded-full bg-brand px-6 text-base font-bold text-white">Back to merch</Link>
+            <Link href={`/u/${handle}`} className="flex h-12 items-center justify-center rounded-full bg-brand px-6 text-base font-bold text-white">See {name}&apos;s merch</Link>
           </section>
         </main>
       </Shell>
@@ -200,7 +200,10 @@ export default function MerchCheckoutClient({ handle }) {
       <main id="main" className="mx-auto flex max-w-[1040px] flex-wrap items-start gap-6 px-4 pb-16 max-sm:pb-44 sm:px-8">
         <form onSubmit={pay} noValidate className="flex min-w-0 flex-[3_1_460px] flex-col gap-4" aria-label="Checkout">
           <div className="flex flex-col gap-1.5">
-            <Link href={`/u/${handle}`} className="text-sm font-bold text-[#2451D6]">← Back to merch</Link>
+            <Link href={`/u/${handle}`} className="inline-flex min-h-11 items-center gap-1 self-start text-sm font-bold text-[#2451D6] hover:underline">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6" /></svg>
+              <span className="sr-only">Back to</span>{" "}{name}
+            </Link>
             <h1 className="font-display text-[clamp(26px,3vw,34px)] font-bold leading-tight tracking-tight">Checkout</h1>
           </div>
 

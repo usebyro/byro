@@ -169,6 +169,14 @@ describe("merch checkout", () => {
     expect(screen.getByText("Payment charge (estimate)")).toBeInTheDocument();
   });
 
+  it("the way back names the seller, with no typed arrow", async () => {
+    await setup();
+    const back = screen.getByRole("link", { name: "Back to Lagos Run Club" });
+    expect(back).toHaveAttribute("href", "/u/lagosrun");
+    expect(document.body).not.toHaveTextContent("←");
+    expect(document.body).not.toHaveTextContent("Back to merch");
+  });
+
   it("has a way to skip to the content", async () => {
     await setup();
     expect(screen.getByRole("link", { name: "Skip to content" })).toHaveAttribute("href", "#main");
@@ -237,7 +245,7 @@ describe("merch checkout", () => {
   it("an empty cart sends them back to the merch", async () => {
     await setup(profile(), []);
     expect(await screen.findByRole("heading", { name: "Your order is empty" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Back to merch" })).toHaveAttribute("href", "/u/lagosrun");
+    expect(screen.getByRole("link", { name: "See Lagos Run Club's merch" })).toHaveAttribute("href", "/u/lagosrun");
   });
 
   it("an unknown seller says so", async () => {
