@@ -1243,6 +1243,10 @@ class PayoutRequest(models.Model):
 
     class Meta:
         ordering = ['-requested_at']
+        constraints = [
+            # A zero or negative payout would raise the balance instead of lowering it.
+            models.CheckConstraint(condition=models.Q(amount__gt=0), name='payout_amount_positive'),
+        ]
 
     @property
     def reference(self):

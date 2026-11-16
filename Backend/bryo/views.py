@@ -3720,36 +3720,41 @@ class PayoutRequestView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        available = compute_available_balance(request.user, event=event)
-        if available <= 0:
-            return Response(
-                {'error': 'You have no funds available to withdraw.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        # Two requests sent at the same moment must not both see the same balance: lock this user's
+        # row so the check and the save happen one request at a time.
+        with transaction.atomic():
+            from django.contrib.auth import get_user_model
+            get_user_model().objects.select_for_update().get(pk=request.user.pk)
+            available = compute_available_balance(request.user, event=event)
+            if available <= 0:
+                return Response(
+                    {'error': 'You have no funds available to withdraw.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
-        amount = serializer.validated_data.get('amount')
-        if amount is not None and amount > available:
-            return Response(
-                {'error': f'You can withdraw up to ₦{available:,.2f}. Enter that amount or less.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            amount = serializer.validated_data.get('amount')
+            if amount is not None and amount > available:
+                return Response(
+                    {'error': f'You can withdraw up to ₦{available:,.2f}. Enter that amount or less.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
-        # If a cancelled event's money was already paid out to this organiser, Byro
-        # refunded its buyers anyway, so that event sits in the red. Their balance
-        # across ALL events has to cover the request, which holds back withdrawals
-        # until later ticket sales have made up the difference.
-        overall = compute_available_balance(request.user)
-        if overall < available and (amount is None or amount > overall):
-            return Response(
-                {'error': (
-                    'You cannot withdraw this yet. Money already paid out for an event that was '
-                    'cancelled has been refunded to its buyers, and it is being taken out of your '
-                    f'ticket sales first. Your balance across all events is ₦{overall:,.2f}.'
-                )},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            # If a cancelled event's money was already paid out to this organiser, Byro
+            # refunded its buyers anyway, so that event sits in the red. Their balance
+            # across ALL events has to cover the request, which holds back withdrawals
+            # until later ticket sales have made up the difference.
+            overall = compute_available_balance(request.user)
+            if overall < available and (amount is None or amount > overall):
+                return Response(
+                    {'error': (
+                        'You cannot withdraw this yet. Money already paid out for an event that was '
+                        'cancelled has been refunded to its buyers, and it is being taken out of your '
+                        f'ticket sales first. Your balance across all events is ₦{overall:,.2f}.'
+                    )},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
-        payout = serializer.save(user=request.user)
+            payout = serializer.save(user=request.user)
 
         # Persist bank details to user profile for pre-fill next time
         if payout.method == 'bank':
@@ -4016,6 +4021,13 @@ class AdminPayoutView(APIView):
                 )
             return Response(PayoutRequestSerializer(payout).data)
 
+        # Only a payout still waiting can be paid or rejected. Reversing a finished one would either
+        # hand the money back to the balance after it was sent, or pay a rejected request.
+        if payout.status not in ('pending', 'on_hold'):
+            return Response(
+                {'error': f'This payout is already {payout.status} and cannot be changed.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         payout.status = new_status
         payout.hold_reason = ''
         if new_status == 'processed':

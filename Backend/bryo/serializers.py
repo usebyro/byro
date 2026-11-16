@@ -747,6 +747,12 @@ class PayoutRequestSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'user_email', 'event_name', 'status', 'hold_reason', 'requested_at', 'processed_at']
 
+    def validate_amount(self, value):
+        # A zero or negative amount would be added to the balance instead of taken from it.
+        if value is None or value <= 0:
+            raise serializers.ValidationError('Enter an amount greater than zero.')
+        return value
+
     def validate(self, attrs):
         method = attrs.get('method')
         if method == 'bank':
