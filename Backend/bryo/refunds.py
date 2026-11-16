@@ -433,7 +433,8 @@ def apply_refund_webhook(event_type, data):
         return False
     refund = Refund.objects.filter(payment__paystack_reference=reference).select_related('payment', 'event').first()
     if refund is None:
-        return False
+        from . import merch  # not a ticket refund: it may be a merch order's
+        return merch.apply_refund_webhook(event_type, data)
 
     new_status = PAYSTACK_STATUS.get(data.get('status') or event_type.split('.', 1)[-1])
     if not new_status or refund.status == Refund.STATUS_PROCESSED:

@@ -280,7 +280,7 @@ class MerchItemSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'name', 'description', 'price', 'image', 'image_url', 'photos',
             'new_photos', 'remove_photos', 'photo_order',
-            'purchase_link', 'stock', 'is_active', 'removed_by_admin', 'created_at', 'updated_at',
+            'purchase_link', 'stock', 'options', 'is_active', 'removed_by_admin', 'created_at', 'updated_at',
         ]
         read_only_fields = ['id', 'removed_by_admin', 'created_at', 'updated_at']
         extra_kwargs = {'image': {'write_only': True}}

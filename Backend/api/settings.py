@@ -92,6 +92,9 @@ ZOHO_MARKETING_TOPIC_ID = config('ZOHO_MARKETING_TOPIC_ID', default='')
 # Static key for the read-only finance report (/api/reports/sales/). Unset means the route always answers 401.
 REPORTS_API_KEY = config('REPORTS_API_KEY', default='')
 
+# Byro's fee on merch items, as a fraction (0.05 = 5%). Zero: no platform fee on merch for now.
+MERCH_FEE_RATE = config('MERCH_FEE_RATE', default='0')
+
 # Cloudflare Turnstile
 TURNSTILE_SECRET_KEY = os.environ.get('TURNSTILE_SECRET_KEY', '')
 
@@ -258,6 +261,9 @@ REST_FRAMEWORK = {
         'report': '10/hour',
         # The finance sheet's key-protected sales report.
         'reports': '120/hour',
+        # Starting merch payments, and looking up or acting on an order with its token.
+        'merch_checkout': '60/hour',
+        'merch_order': '240/hour',
     },
 }
 

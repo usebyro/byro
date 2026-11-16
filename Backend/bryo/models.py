@@ -114,6 +114,14 @@ class UserProfile(models.Model):
     # they can opt out in settings or from any email. Changing it syncs to Zoho.
     newsletter_subscribed = models.BooleanField(default=True)
 
+    # How merch buyers receive their order. Pickup is always on, and merch cannot take payment until the
+    # organiser says where to collect. Delivery is optional, with an area and a fee that goes to the organiser.
+    pickup_address = models.CharField(max_length=255, blank=True)
+    pickup_instructions = models.CharField(max_length=300, blank=True)
+    delivery_enabled = models.BooleanField(default=False)
+    delivery_area = models.CharField(max_length=120, blank=True)
+    delivery_fee = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+
     # Public identity
     display_name = models.CharField(max_length=100, blank=True)
     # Unique handle used in public URLs: /u/<handle>
@@ -935,6 +943,8 @@ class MerchItem(models.Model):
     image = models.ImageField(upload_to='merch/', null=True, blank=True)
     purchase_link = models.URLField(blank=True, help_text="Where buyers go to purchase this item")
     stock = models.PositiveIntegerField(null=True, blank=True, help_text="Blank = unlimited")
+    # What a buyer picks between, for example sizes ["S", "M", "L"] or colours. Empty = nothing to pick.
+    options = models.JSONField(default=list, blank=True)
     is_active = models.BooleanField(default=True, help_text="Shown on the public profile when on")
     # Set by Byro admins. A removed item never shows publicly, whatever the organiser sets.
     removed_by_admin = models.BooleanField(default=False)
@@ -964,6 +974,139 @@ class MerchPhoto(models.Model):
 
     def __str__(self):
         return f"Photo {self.position} of merch {self.item_id}"
+
+
+class MerchOrder(models.Model):
+    """
+    One merch purchase, paid through Paystack and fulfilled by the organiser by pickup or delivery.
+
+    Money: the buyer pays items + delivery fee (+ Paystack's own charge). Byro's fee comes off the items,
+    so the organiser earns `earnings` = items - Byro fee + delivery fee. Those earnings reach the
+    organiser's withdrawable balance only once the order is complete and its safety window has passed
+    (see bryo/merch.py): `release_at` is that moment, and stays empty until the order is far enough along.
+    """
+    FULFIL_PICKUP = 'pickup'
+    FULFIL_DELIVERY = 'delivery'
+    FULFIL_CHOICES = [(FULFIL_PICKUP, 'Pickup'), (FULFIL_DELIVERY, 'Delivery')]
+
+    PENDING = 'pending'          # created, waiting for the buyer to pay (stock is held for a few minutes)
+    FAILED = 'failed'            # the payment did not go through
+    PAID = 'paid'                # paid; the organiser has not started
+    PACKED = 'packed'            # delivery: packed
+    SHIPPED = 'shipped'          # delivery: on its way
+    DELIVERED = 'delivered'      # delivery: done
+    READY = 'ready'              # pickup: waiting to be collected
+    PICKED_UP = 'picked_up'      # pickup: done
+    CANCELLED = 'cancelled'      # cancelled; refund not needed or not started
+    REFUND_PROCESSING = 'refund_processing'  # cancelled, and the money is on its way back to the buyer
+    REFUNDED = 'refunded'        # the money went back
+    STATUS_CHOICES = [
+        (PENDING, 'Awaiting payment'), (FAILED, 'Payment failed'), (PAID, 'Paid'), (PACKED, 'Packed'),
+        (SHIPPED, 'Shipped'), (DELIVERED, 'Delivered'), (READY, 'Ready for pickup'), (PICKED_UP, 'Picked up'),
+        (CANCELLED, 'Cancelled'), (REFUND_PROCESSING, 'Refund on its way'), (REFUNDED, 'Refunded'),
+    ]
+
+    seller = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='merch_orders_received')
+    buyer = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='merch_orders',
+    )
+    buyer_name = models.CharField(max_length=255)
+    buyer_email = models.EmailField()
+    buyer_phone = models.CharField(max_length=40, blank=True)
+    buyer_note = models.CharField(max_length=300, blank=True)
+
+    fulfilment = models.CharField(max_length=10, choices=FULFIL_CHOICES)
+    delivery_address = models.TextField(blank=True)
+    delivery_area = models.CharField(max_length=120, blank=True)  # the area the seller covered when this was ordered
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=PENDING, db_index=True)
+
+    # Money, all in naira. `amount` is what we ask Paystack for (items + delivery); Paystack adds its charge on top.
+    subtotal = models.DecimalField(max_digits=10, decimal_places=2)
+    delivery_fee = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    fee_rate = models.DecimalField(max_digits=5, decimal_places=4)
+    service_fee = models.DecimalField(max_digits=10, decimal_places=2)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    currency = models.CharField(max_length=3, default='NGN')
+
+    paystack_reference = models.CharField(max_length=255, unique=True)
+    paystack_access_code = models.CharField(max_length=255, blank=True)
+    channel = models.CharField(max_length=20, blank=True)
+    paid_at = models.DateTimeField(null=True, blank=True)
+
+    # How the buyer looks the order up without an account, and the short code they show at pickup.
+    access_token = models.CharField(max_length=64, unique=True)
+    pickup_code = models.CharField(max_length=4)
+    code_verified = models.BooleanField(default=False)  # the organiser confirmed the buyer's code at pickup
+
+    courier = models.CharField(max_length=120, blank=True)
+    tracking = models.CharField(max_length=120, blank=True)
+    packed_at = models.DateTimeField(null=True, blank=True)
+    ready_at = models.DateTimeField(null=True, blank=True)
+    shipped_at = models.DateTimeField(null=True, blank=True)
+    delivered_at = models.DateTimeField(null=True, blank=True)
+    picked_up_at = models.DateTimeField(null=True, blank=True)
+
+    # When the earnings can be withdrawn. Empty until the order is ready or shipped.
+    release_at = models.DateTimeField(null=True, blank=True)
+    reminded_at = models.DateTimeField(null=True, blank=True)  # told the organiser an unstarted order is waiting
+    released_notified_at = models.DateTimeField(null=True, blank=True)  # told the organiser the money is now available
+
+    # A buyer's reported problem puts the earnings on hold until Byro decides.
+    report_reason = models.CharField(max_length=20, blank=True)
+    report_note = models.CharField(max_length=500, blank=True)
+    reported_at = models.DateTimeField(null=True, blank=True)
+    report_resolved_at = models.DateTimeField(null=True, blank=True)
+    report_outcome = models.CharField(max_length=20, blank=True)  # 'release' or 'refund'
+
+    cancel_reason = models.CharField(max_length=300, blank=True)
+    cancelled_at = models.DateTimeField(null=True, blank=True)
+    refund_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    paystack_refund_id = models.CharField(max_length=64, blank=True)
+    refund_failure = models.CharField(max_length=500, blank=True)
+    refunded_at = models.DateTimeField(null=True, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [models.Index(fields=['seller', 'status'])]
+
+    @property
+    def ref(self):
+        return f"BY-{self.pk:04d}"
+
+    @property
+    def is_pickup(self):
+        return self.fulfilment == self.FULFIL_PICKUP
+
+    @property
+    def on_hold(self):
+        return self.reported_at is not None and self.report_resolved_at is None
+
+    @property
+    def earnings(self):
+        """What the organiser earns from this order: items less Byro's fee, plus the delivery fee."""
+        return self.subtotal - self.service_fee + self.delivery_fee
+
+    def __str__(self):
+        return f"{self.ref} ({self.status})"
+
+
+class MerchOrderItem(models.Model):
+    order = models.ForeignKey(MerchOrder, on_delete=models.CASCADE, related_name='lines')
+    item = models.ForeignKey('MerchItem', on_delete=models.SET_NULL, null=True, blank=True, related_name='order_lines')
+    name = models.CharField(max_length=120)       # kept as bought, so edits or deletes never rewrite history
+    option = models.CharField(max_length=60, blank=True)
+    quantity = models.PositiveIntegerField()
+    unit_price = models.DecimalField(max_digits=10, decimal_places=2)
+
+    @property
+    def total(self):
+        return self.unit_price * self.quantity
+
+    def __str__(self):
+        return f"{self.name} x{self.quantity}"
 
 
 class Ticket(models.Model):

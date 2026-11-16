@@ -29,7 +29,7 @@ from django.contrib.auth import get_user_model
 from .models import (
     WaitList, Event, Ticket, TicketTransfer,
     EventCoHost, Payment, Refund, UserProfile, EventFormQuestion, EventFormAnswer,
-    TicketTier, PayoutRequest, PromoCode, MerchItem, Follow, AdminAction, AdminMember, ActivityLog, Message,
+    TicketTier, PayoutRequest, PromoCode, MerchItem, MerchOrder, Follow, AdminAction, AdminMember, ActivityLog, Message,
     Notification,
 )
 from . import messaging
@@ -1231,7 +1231,15 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                 transaction.on_commit(_post_commit)
 
             except Payment.DoesNotExist:
-                pass  # Ignore if payment doesn't exist
+                # Not a ticket payment. It may be a merch order.
+                from . import merch
+                order = MerchOrder.objects.filter(paystack_reference=reference).first()
+                if order is not None:
+                    if _paid_amount_ok(data.get('amount', 0), int(order.amount * 100)):
+                        merch.mark_paid(order, data.get('channel') or '')
+                    else:
+                        logger.error("Webhook amount mismatch for merch order %s: Paystack=%s kobo, expected=%s",
+                                     order.ref, data.get('amount'), int(order.amount * 100))
         
         return Response({'status': 'success'}, status=status.HTTP_200_OK)
     
@@ -1384,6 +1392,8 @@ class ProfileViewSet(viewsets.GenericViewSet):
 
         merch = MerchItem.objects.filter(owner=profile.user, is_active=True, removed_by_admin=False).prefetch_related('photos')
         data['merch_items'] = MerchItemSerializer(merch, many=True, context={'request': request}).data
+        from . import merch as merch_orders
+        data['merch_checkout'] = merch_orders.public_checkout_info(profile.user)
         data['community'] = community_stats(profile.user)
         passport = passport_for_user(profile.user)
         data['stamps'] = _stamp_payload(passport[:60])
@@ -3672,6 +3682,10 @@ def compute_available_balance(user, event=None):
         Ticket.objects.filter(event_id__in=event_ids, payment_status='paid')
         .aggregate(total=Coalesce(Sum(net_price), Decimal('0')))['total']
     )
+    if event is None:
+        # Merch earnings count once an order is complete and its safety window has passed (see bryo/merch.py).
+        from . import merch
+        earned += merch.available_earnings(user)
 
     payouts = PayoutRequest.objects.filter(
         user=user, status__in=['pending', 'on_hold', 'processed']
@@ -3797,7 +3811,9 @@ class PayoutBalanceView(APIView):
     def get(self, request):
         # Never negative: a past co-host who withdrew before only the owner could
         # earn now has payouts but no earnings.
-        available = max(compute_available_balance(request.user), Decimal('0'))
+        raw = compute_available_balance(request.user)
+        available = max(raw, Decimal('0'))
+        from . import merch
         payouts = PayoutRequest.objects.filter(user=request.user)
         paid_out = sum(
             (p.amount for p in payouts if p.status == 'processed'), Decimal('0')
@@ -3813,6 +3829,12 @@ class PayoutBalanceView(APIView):
             'paid_out': str(paid_out),
             'pending': str(pending),
             'on_hold': str(on_hold),
+            # Money from merch that is not withdrawable yet (`available` already includes what has been released),
+            # and what a refund after a payout has taken below zero. Note this `on_hold` is merch orders with an
+            # open problem; the `on_hold` above is payout requests Byro is holding.
+            'merch': {k: str(v) for k, v in merch.balances(request.user).items() if k != 'available'}
+            | {'next_release_at': merch.next_release_at(request.user)},
+            'shortfall': str(max(-raw, Decimal('0'))),
             'currency': 'NGN',
         })
 

@@ -50,6 +50,11 @@ from .newsletter_views import (
 )
 from .dash_events import DashboardEventsView
 from .reports_api import SalesReportView
+from .merch_views import (
+    MerchCheckoutView, MerchVerifyView, MerchBuyerOrderView, MerchBuyerConfirmView, MerchBuyerReportView,
+    MerchFulfilmentView, MerchOrdersView, MerchOrderDetailView, MerchOrderActionView, MerchOrderBulkView,
+    MerchBalanceView, AdminMerchHeldView, AdminMerchResolveView, AdminMerchRefundView,
+)
 from .dash_event import DashEventCohostResendView, DashEventGuestView, DashEventSummaryView
 from .dash_community import CommunityMembersView, CommunitySummaryView
 from .dash_overview import DashboardOverviewView
@@ -187,6 +192,21 @@ urlpatterns = [
     path('api/admin/reports/<int:pk>/', AdminReportDetailView.as_view(), name='admin-report-detail'),
     path('api/reports/', ReportView.as_view(), name='reports'),
     path('api/reports/sales/', SalesReportView.as_view(), name='reports-sales'),
+    # Merch orders. Not under api/merch/, which is the organiser's item list.
+    path('api/merch-orders/checkout/', MerchCheckoutView.as_view(), name='merch-checkout'),
+    path('api/merch-orders/verify/<str:reference>/', MerchVerifyView.as_view(), name='merch-verify'),
+    path('api/merch-orders/<str:ref>/confirm/', MerchBuyerConfirmView.as_view(), name='merch-buyer-confirm'),
+    path('api/merch-orders/<str:ref>/report/', MerchBuyerReportView.as_view(), name='merch-buyer-report'),
+    path('api/merch-orders/<str:ref>/', MerchBuyerOrderView.as_view(), name='merch-buyer-order'),
+    path('api/dashboard/merch-orders/fulfilment/', MerchFulfilmentView.as_view(), name='merch-fulfilment'),
+    path('api/dashboard/merch-orders/balance/', MerchBalanceView.as_view(), name='merch-balance'),
+    path('api/dashboard/merch-orders/bulk/', MerchOrderBulkView.as_view(), name='merch-orders-bulk'),
+    path('api/dashboard/merch-orders/<str:ref>/action/', MerchOrderActionView.as_view(), name='merch-order-action'),
+    path('api/dashboard/merch-orders/<str:ref>/', MerchOrderDetailView.as_view(), name='merch-order-detail'),
+    path('api/dashboard/merch-orders/', MerchOrdersView.as_view(), name='merch-orders'),
+    path('api/admin/merch-orders/held/', AdminMerchHeldView.as_view(), name='admin-merch-held'),
+    path('api/admin/merch-orders/<str:ref>/resolve/', AdminMerchResolveView.as_view(), name='admin-merch-resolve'),
+    path('api/admin/merch-orders/<str:ref>/refund/', AdminMerchRefundView.as_view(), name='admin-merch-refund'),
     path('api/admin/messages/', AdminMessagesView.as_view(), name='admin-messages'),
     path('api/admin/support/', AdminSupportLookupView.as_view(), name='admin-support'),
     path('api/admin/push/', AdminPushView.as_view(), name='admin-push'),

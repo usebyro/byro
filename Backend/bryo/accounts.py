@@ -91,6 +91,13 @@ def delete_blockers(user):
         reasons.append('They have a payout waiting to be processed.')
     if compute_available_balance(user) > 0:
         reasons.append('Byro still owes them money. Pay it out first.')
+    from .models import MerchOrder
+    open_merch = MerchOrder.objects.filter(seller=user).filter(
+        Q(status__in=[MerchOrder.PAID, MerchOrder.PACKED, MerchOrder.SHIPPED, MerchOrder.READY, MerchOrder.REFUND_PROCESSING])
+        | Q(reported_at__isnull=False, report_resolved_at__isnull=True)
+    )
+    if open_merch.exists():
+        reasons.append('They have merch orders still to fulfil or refund.')
     if AdminMember.objects.filter(email__iexact=user.email).exists():
         reasons.append('They are on the Byro admin team. Remove them from Team first.')
     return reasons
