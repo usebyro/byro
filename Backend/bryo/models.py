@@ -1035,8 +1035,9 @@ class MerchOrder(models.Model):
 
     # How the buyer looks the order up without an account, and the short code they show at pickup.
     access_token = models.CharField(max_length=64, unique=True)
-    pickup_code = models.CharField(max_length=4)
+    pickup_code = models.CharField(max_length=6)  # 6 digits for new orders; older ones have 4
     code_verified = models.BooleanField(default=False)  # the organiser confirmed the buyer's code at pickup
+    code_attempts = models.PositiveSmallIntegerField(default=0)  # wrong codes entered; the code stops being accepted after a few
 
     courier = models.CharField(max_length=120, blank=True)
     tracking = models.CharField(max_length=120, blank=True)

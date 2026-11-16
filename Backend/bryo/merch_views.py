@@ -148,7 +148,8 @@ def seller_payload(order, detail=False):
             'delivery_address': order.delivery_address, 'courier': order.courier, 'tracking': order.tracking,
             'pickup': {'address': profile.pickup_address if profile else '', 'instructions': profile.pickup_instructions if profile else ''}
             if order.is_pickup else None,
-            'pickup_code': order.pickup_code if order.is_pickup else None,
+            # The pickup code is the buyer's proof they collected the order, so the organiser never sees it:
+            # they are told it in person and type it in. Showing it here would let them confirm their own handover.
             'delivery_fee': str(order.delivery_fee), 'fee_rate': str(order.fee_rate), 'fee': str(order.service_fee),
             'earnings': str(order.earnings), 'refund_amount': str(order.refund_amount), 'cancel_reason': order.cancel_reason,
             'steps': _steps(order),

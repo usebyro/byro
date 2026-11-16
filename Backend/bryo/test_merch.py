@@ -91,7 +91,7 @@ class CheckoutTests(MerchBase):
         self.assertEqual(order.earnings, Decimal('34000'))
         self.tee.refresh_from_db()
         self.assertEqual(self.tee.stock, 3)
-        self.assertRegex(order.pickup_code, r'^\d{4}$')
+        self.assertRegex(order.pickup_code, r'^\d{6}$')
         self.assertTrue(order.ref.startswith('BY-'))
 
     @override_settings(MERCH_FEE_RATE='0.05')
