@@ -269,6 +269,8 @@ REST_FRAMEWORK = {
         # Starting merch payments, and looking up or acting on an order with its token.
         'merch_checkout': '60/hour',
         'merch_order': '240/hour',
+        # Checking a promo code. It tells a stranger whether a guess is real, so keep guessing slow.
+        'promo': '60/hour',
     },
 }
 

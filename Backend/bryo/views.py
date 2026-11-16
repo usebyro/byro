@@ -127,6 +127,23 @@ def _pending_reservation_count(payments_qs):
     return sum(p.metadata.get('seats', p.metadata.get('quantity', 1)) for p in pending)
 
 
+def _promo_available(promo):
+    """
+    Lock the promo code's row and say whether one more order may use it. Orders still being paid for count
+    against its limit, so buyers checking out together can't all take the last uses. Call inside the same
+    transaction that creates the order, so the check and the reservation happen one buyer at a time.
+    """
+    locked = PromoCode.objects.select_for_update().get(pk=promo.pk)
+    if not locked.is_valid():
+        return False
+    if locked.max_redemptions is not None:
+        cutoff = timezone.now() - timedelta(minutes=RESERVATION_MINUTES)
+        waiting = Payment.objects.filter(promo_code=locked, status='pending', created_at__gte=cutoff).count()
+        if locked.redeemed_count + waiting >= locked.max_redemptions:
+            return False
+    return True
+
+
 def _release_reservation(payment):
     """Give a reserved payment's seats back (Paystack never took the order).
 
@@ -845,6 +862,8 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                 # in case another request consumed the remaining slots since
                 # the check above.
                 lock_and_check_capacity(event, tier_id, quantity)
+                if promo is not None and not _promo_available(promo):
+                    return Response({'error': 'Invalid or expired promo code'}, status=status.HTTP_400_BAD_REQUEST)
                 tickets = _create_tickets(
                     event, tier, attendees,
                     payment_status='free', user=linked_user,
@@ -894,6 +913,8 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
         try:
             with transaction.atomic():
                 lock_and_check_capacity(event, tier_id, quantity)
+                if promo is not None and not _promo_available(promo):
+                    return Response({'error': 'Invalid or expired promo code'}, status=status.HTTP_400_BAD_REQUEST)
                 payment = Payment.objects.create(
                     event=event,
                     tier=tier,
@@ -2808,7 +2829,8 @@ class EventViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-    @action(detail=True, methods=['POST'], url_path='validate-promo', permission_classes=[AllowAny])
+    @action(detail=True, methods=['POST'], url_path='validate-promo', permission_classes=[AllowAny],
+            throttle_classes=[ScopedRateThrottle], throttle_scope='promo')
     def validate_promo(self, request, slug=None):
         """
         POST /api/events/<slug>/validate-promo/   {code}
@@ -3438,16 +3460,8 @@ class TicketViewSet(
 
     
     def get_object(self):
-        """
-        Explicit override for debugging
-        """
-        ticket_id = self.kwargs['ticket_id']
-        print(f"Attempting to find ticket: {ticket_id}")
-        try:
-            return Ticket.objects.get(ticket_id=ticket_id)
-        except Ticket.DoesNotExist:
-            print(f"Current tickets in DB: {list(Ticket.objects.values_list('ticket_id', flat=True))}")
-            raise
+        # Ticket ids are the only credential here, so a lookup must never write other ids anywhere.
+        return get_object_or_404(Ticket, ticket_id=self.kwargs['ticket_id'])
     
     def destroy(self, request, *args, **kwargs):
         """Cancel a registration. Free tickets only.
