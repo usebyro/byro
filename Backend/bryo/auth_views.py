@@ -177,6 +177,12 @@ def upsert_user(workos_user):
         if user is None and email:
             user = User.objects.filter(email__iexact=email).first()
             if user is not None:
+                # An email is only proof of who someone is once WorkOS has verified it. Linking on an
+                # unverified one would let anyone who signs up with a victim's address into the victim's
+                # account, with its events, payout details and balance.
+                if not verified:
+                    logger.warning("Refused to link %s to WorkOS id %s: the email is not verified", email, workos_id)
+                    raise ValueError("WorkOS has not verified this email address")
                 logger.info("Linking existing Byro account %s to WorkOS id %s", email, workos_id)
 
         if user is None and not email:
@@ -186,7 +192,7 @@ def upsert_user(workos_user):
             updates = {}
             if user.workos_id != workos_id:
                 updates['workos_id'] = workos_id
-            if email and user.email.lower() != email:
+            if email and verified and user.email.lower() != email:
                 updates['email'] = email
             if verified and not user.email_verified:
                 updates['email_verified'] = True
