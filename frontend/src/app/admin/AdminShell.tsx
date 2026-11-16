@@ -23,6 +23,7 @@ import {
   Download04Icon,
   Settings01Icon,
   Menu01Icon,
+  ShoppingBag01Icon,
   Cancel01Icon,
 } from "@hugeicons/core-free-icons";
 import { resolveAdminHref } from "@/lib/adminNav";
@@ -37,6 +38,7 @@ const navItems = [
   { label: "Payments", href: "/payments", icon: CreditCardIcon },
   { label: "Payouts", href: "/payouts", icon: Wallet01Icon },
   { label: "Refunds", href: "/refunds", icon: Money01Icon },
+  { label: "Merch orders", href: "/merch", icon: ShoppingBag01Icon },
   { label: "Promo codes", href: "/promos", icon: Coupon01Icon },
   { label: "Exports", href: "/exports", icon: Download04Icon },
   { label: "Reports", href: "/reports", icon: Flag01Icon },
@@ -54,7 +56,7 @@ const pick = (...hrefs: string[]) => hrefs.map((h) => navItems.find((i) => i.hre
 const navGroups = [
   { title: null, items: pick("/", "/events") },
   { title: "People", items: pick("/users", "/communities", "/support", "/messages", "/reports") },
-  { title: "Money", items: pick("/payments", "/payouts", "/refunds", "/promos", "/settings", "/exports") },
+  { title: "Money", items: pick("/payments", "/payouts", "/refunds", "/merch", "/promos", "/settings", "/exports") },
   { title: "Records", items: pick("/activity", "/audit-log") },
   { title: "Admin", items: pick("/team") },
 ];
