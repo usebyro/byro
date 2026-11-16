@@ -27,6 +27,7 @@ import UserMenu from "@/components/auth/UserMenu";
 import NotificationBell from "@/components/dashboard/NotificationBell";
 import DashSearch from "@/components/dashboard/DashSearch";
 import API from "@/services/api";
+import axiosInstance from "@/utils/axios";
 import { ConfirmProvider } from "@/components/admin/ui";
 import "./dashboard-v2.css";
 
@@ -111,6 +112,27 @@ function StudioShell({ children }) {
     API.getCommunityStats().then((c) => setFollowers(c?.followers ?? null)).catch(() => {});
   }, [token]);
 
+  // Merch orders waiting for the organiser, shown as a badge on Merch. The Orders tab keeps it fresh while it is open.
+  const [merchNeed, setMerchNeed] = useState(0);
+  useEffect(() => {
+    if (!token) return;
+    const refresh = () =>
+      document.visibilityState !== "hidden" &&
+      axiosInstance.get("dashboard/merch-orders/", { params: { filter: "need" } })
+        .then((res) => setMerchNeed(res.data?.counts?.need ?? 0))
+        .catch(() => {});
+    const onCount = (e) => setMerchNeed(Number(e.detail) || 0);
+    refresh();
+    window.addEventListener("focus", refresh);
+    window.addEventListener("byro:merch-need", onCount);
+    const timer = setInterval(refresh, 120_000);
+    return () => {
+      window.removeEventListener("focus", refresh);
+      window.removeEventListener("byro:merch-need", onCount);
+      clearInterval(timer);
+    };
+  }, [token]);
+
   const handleLogout = () => {
     dispatch(signOut());
     router.push("/");
@@ -191,6 +213,18 @@ function StudioShell({ children }) {
                 <NavIcon icon={item.icon} />
               </span>
               <RailLabel label={item.label} collapsed={collapsed} />
+              {item.label === "Merch" && merchNeed > 0 && (
+                <span
+                  aria-label={`${merchNeed} ${merchNeed === 1 ? "order needs" : "orders need"} action`}
+                  className={
+                    collapsed
+                      ? "absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full bg-brand shadow-[0_0_0_2px_#F6F8FB]"
+                      : "ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-brand px-1.5 text-xs font-extrabold text-white"
+                  }
+                >
+                  {collapsed ? null : merchNeed > 99 ? "99+" : merchNeed}
+                </span>
+              )}
             </Link>
           );
         })}

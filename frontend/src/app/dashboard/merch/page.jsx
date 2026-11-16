@@ -7,6 +7,8 @@ import axiosInstance from "@/utils/axios";
 import { useAuth } from "@/redux/useAuth";
 import { useConfirm } from "@/components/admin/ui";
 import MerchSlideshow from "@/components/merch/MerchSlideshow";
+import MerchOrders from "@/components/merch/MerchOrders";
+import FulfilmentSettings from "@/components/merch/FulfilmentSettings";
 import SectionError from "@/components/dashboard/v2/SectionError";
 import BusyButton, { useButtonResult } from "@/components/dashboard/v2/BusyButton";
 
@@ -15,6 +17,7 @@ const EMPTY_FORM = {
   description: "",
   price: "",
   stock: "",
+  options: "",
   purchase_link: "",
   is_active: true,
 };
@@ -28,6 +31,9 @@ function fmtPrice(price) {
   if (price === null || price === undefined || price === "") return "Price on request";
   return `₦${Number(price).toLocaleString("en-NG")}`;
 }
+
+// "S, M, L" -> ["S","M","L"]; keeps the order, drops blanks and repeats.
+const parseOptions = (text) => [...new Set(String(text || "").split(",").map((o) => o.trim()).filter(Boolean))].slice(0, 20);
 
 const hasStock = (item) => item.stock !== null && item.stock !== undefined && item.stock !== "";
 
@@ -107,6 +113,9 @@ export default function MerchPage() {
   const stockRef = useRef(null);
 
   const [loadFailed, setLoadFailed] = useState(false);
+  const [tab, setTab] = useState("items");
+  const [fulfil, setFulfil] = useState(null); // how buyers get orders; null until loaded
+  const [needCount, setNeedCount] = useState(null);
 
   const loadItems = () => {
     setLoading(true);
@@ -120,7 +129,18 @@ export default function MerchPage() {
 
   useEffect(() => {
     loadItems();
+    if (new URLSearchParams(window.location.search).get("tab") === "orders") setTab("orders");
+    axiosInstance.get("dashboard/merch-orders/fulfilment/").then((res) => setFulfil(res.data)).catch(() => {});
+    axiosInstance.get("dashboard/merch-orders/", { params: { filter: "need" } }).then((res) => setNeedCount(res.data?.counts?.need ?? 0)).catch(() => {});
   }, []);
+
+  const chooseTab = (next) => {
+    setTab(next);
+    const url = new URL(window.location.href);
+    if (next === "orders") url.searchParams.set("tab", "orders");
+    else url.searchParams.delete("tab");
+    window.history.replaceState(null, "", url);
+  };
 
   const openCreate = () => {
     setEditing(null);
@@ -139,6 +159,7 @@ export default function MerchPage() {
       description: item.description || "",
       price: item.price ?? "",
       stock: item.stock ?? "",
+      options: (item.options || []).join(", "),
       purchase_link: item.purchase_link || "",
       is_active: item.is_active,
     });
@@ -205,6 +226,7 @@ export default function MerchPage() {
     payload.append("description", form.description.trim());
     payload.append("price", form.price === "" ? "" : form.price);
     payload.append("stock", form.stock === "" ? "" : form.stock);
+    payload.append("options", JSON.stringify(parseOptions(form.options)));
     payload.append("purchase_link", form.purchase_link.trim());
     payload.append("is_active", String(form.is_active));
     photos.filter((p) => p.file).forEach((p) => payload.append("new_photos", p.file));
@@ -281,7 +303,7 @@ export default function MerchPage() {
       <div className="v-bf flex flex-wrap items-end gap-4" style={{ "--i": 0 }}>
         <div className="flex min-w-0 flex-[1_1_320px] flex-col gap-1.5">
           <h1 className="v-h1">Merch</h1>
-          <p className="v-sub">Sell to your community from your public profile. Buyers pay through your own link.</p>
+          <p className="v-sub">Sell to your community from your public profile.</p>
         </div>
         <Link href={profileHref} className="v-btn v-btn-s v-btn-lg">
           View on profile
@@ -294,7 +316,27 @@ export default function MerchPage() {
         </button>
       </div>
 
-      {!loading && alerts.length > 0 && (
+      <div role="group" aria-label="Merch" className="v-seg v-bf self-start" style={{ "--i": 1 }}>
+        <button type="button" aria-pressed={tab === "items"} onClick={() => chooseTab("items")}>Items</button>
+        <button type="button" aria-pressed={tab === "orders"} onClick={() => chooseTab("orders")}>
+          Orders
+          {needCount ? <span className="n">{needCount}</span> : null}
+        </button>
+      </div>
+
+      {tab === "orders" && <MerchOrders onChanged={setNeedCount} />}
+
+      {tab === "items" && fulfil && !fulfil.can_take_payment && (
+        <section role="status" className="v-card v-bf flex flex-wrap items-center gap-3 !bg-[#FFF6E5] p-5" style={{ "--i": 1 }}>
+          <span className="flex min-w-0 flex-[1_1_260px] flex-col gap-0.5">
+            <b className="text-[15px] text-[#8A4B00]">Add a pickup address to start taking payments</b>
+            <span className="text-sm text-[#6B4A08]">Buyers can see your merch, but Buy is switched off until you add where they can collect it.</span>
+          </span>
+          <a href="#fulfilment" className="v-btn v-btn-p">Add pickup address</a>
+        </section>
+      )}
+
+      {tab === "items" && !loading && alerts.length > 0 && (
         <section aria-label="Needs attention" className="v-card v-bf flex flex-col gap-4 p-5 sm:p-6" style={{ "--i": 1 }}>
           <h2 className="v-h2 !text-[17px]">Needs attention</h2>
           <div className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(min(100%,320px),1fr))]">
@@ -319,6 +361,7 @@ export default function MerchPage() {
         </section>
       )}
 
+      {tab === "items" && (
       <section aria-label="Items" className="v-card v-bf overflow-hidden" style={{ "--i": 2 }}>
         {loading ? (
           <div className="flex flex-col gap-4 p-5" aria-busy="true" aria-label="Loading merch">
@@ -419,10 +462,17 @@ export default function MerchPage() {
                 </tbody>
               </table>
             </div>
-            <p className="v-hint m-0 px-5 py-3.5">Byro doesn&apos;t take merch payments yet, so sales happen on your link.</p>
+            <p className="v-hint m-0 px-5 py-3.5">
+              {fulfil?.can_take_payment
+                ? "Buyers pay on Byro. The money joins your balance once an order is complete."
+                : "Add a pickup address below to take payments on Byro."}
+            </p>
           </>
         )}
       </section>
+      )}
+
+      {tab === "items" && fulfil && <FulfilmentSettings key={JSON.stringify(fulfil)} settings={fulfil} onSaved={setFulfil} />}
 
       {modalOpen && (
         <div className={`fixed inset-0 z-50 flex ${sheetUp ? "flex-col justify-end" : "justify-end"}`}>
@@ -553,7 +603,20 @@ export default function MerchPage() {
               </div>
 
               <label className="flex flex-col gap-2">
-                <span className="v-lbl">Buy link</span>
+                <span className="v-lbl">Sizes or options <span className="font-medium text-muted">(optional)</span></span>
+                <input
+                  className="v-input"
+                  type="text"
+                  value={form.options}
+                  onChange={(e) => setForm((f) => ({ ...f, options: e.target.value }))}
+                  placeholder="S, M, L, XL"
+                  maxLength={200}
+                />
+                <span className="v-hint">Separate with commas. Buyers pick one when they order. Stock is counted for the whole item.</span>
+              </label>
+
+              <label className="flex flex-col gap-2">
+                <span className="v-lbl">Buy link <span className="font-medium text-muted">(optional)</span></span>
                 <input
                   className="v-input"
                   type="url"
@@ -562,7 +625,7 @@ export default function MerchPage() {
                   onChange={(e) => setForm((f) => ({ ...f, purchase_link: e.target.value }))}
                   placeholder="https://paystack.shop/your-store/item"
                 />
-                <span className="v-hint">Buyers go here to pay. Byro doesn&apos;t take merch payments yet.</span>
+                <span className="v-hint">Only used if you haven&apos;t added a pickup address, so buyers can&apos;t pay on Byro yet.</span>
               </label>
 
               <label className="flex cursor-pointer items-center gap-2.5 text-sm font-bold">
