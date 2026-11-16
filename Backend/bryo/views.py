@@ -3487,6 +3487,16 @@ class TicketViewSet(
                 {"error": "This ticket is not transferable"},
                 status=status.HTTP_400_BAD_REQUEST
             )
+        if ticket.checked_in:
+            return Response(
+                {"error": "This ticket has already been used to get in, so it can't be transferred."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        if ticket.payment_status not in ('paid', 'free'):
+            return Response(
+                {"error": "This ticket isn't paid for yet, so it can't be transferred."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
         
         serializer = TicketTransferSerializer(
             data=request.data,
@@ -3574,21 +3584,39 @@ class TicketTransferViewSet(mixins.RetrieveModelMixin, viewsets.GenericViewSet):
     @action(detail=True, methods=['post'], permission_classes=[AllowAny])
     def accept(self, request, transfer_key=None):
         transfer = self.get_object()
-        
-        if transfer.is_accepted:
-            return Response(
-                {"error": "Transfer already completed"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        ticket = transfer.ticket
-        ticket.current_owner_name = transfer.to_user_name
-        ticket.current_owner_email = transfer.to_user_email
-        ticket.is_transferred = True
-        ticket.save()
-        
-        transfer.is_accepted = True
-        transfer.save()
+
+        # One at a time per ticket, so two people accepting together can't both get it.
+        with transaction.atomic():
+            ticket = Ticket.objects.select_for_update().get(pk=transfer.ticket_id)
+            transfer = TicketTransfer.objects.select_for_update().get(pk=transfer.pk)
+
+            if transfer.is_accepted:
+                return Response(
+                    {"error": "Transfer already completed"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            if ticket.checked_in:
+                return Response(
+                    {"error": "This ticket has already been used to get in, so it can't be transferred."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            # Only the newest link for a ticket works, and only while the person who sent it still holds
+            # the ticket. Otherwise an old link, or one for a ticket that has since moved on, could take it back.
+            newest = ticket.transfers.filter(is_accepted=False).order_by('-transferred_at', '-pk').first()
+            still_theirs = (transfer.from_user_email or '').strip().lower() == (ticket.current_owner_email or '').strip().lower()
+            if newest is None or newest.pk != transfer.pk or not still_theirs:
+                return Response(
+                    {"error": "This transfer link is no longer valid. Ask the sender for a new one."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            ticket.current_owner_name = transfer.to_user_name
+            ticket.current_owner_email = transfer.to_user_email
+            ticket.is_transferred = True
+            ticket.save()
+
+            transfer.is_accepted = True
+            transfer.save()
 
         log_activity(
             'ticket.transfer_completed', request=request, email=transfer.to_user_email,
