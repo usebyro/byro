@@ -103,6 +103,16 @@ def _seller_info(order):
     }
 
 
+def _pickup_for_buyer(order, profile):
+    """Where to collect it, and, if the organiser moved it after this order was paid, when and from where."""
+    info = {'address': profile.pickup_address if profile else '', 'instructions': profile.pickup_instructions if profile else '',
+            'changed_at': None, 'previous_address': ''}
+    if profile and profile.pickup_changed_at and order.paid_at and profile.pickup_changed_at > order.paid_at:
+        info['changed_at'] = profile.pickup_changed_at
+        info['previous_address'] = profile.pickup_previous_address
+    return info
+
+
 def buyer_payload(order, include_code=True):
     profile = getattr(order.seller, 'profile', None)
     can_report = (
@@ -115,8 +125,7 @@ def buyer_payload(order, include_code=True):
         'subtotal': str(order.subtotal), 'delivery_fee': str(order.delivery_fee), 'amount': str(order.amount),
         'refund_amount': str(order.refund_amount), 'cancel_reason': order.cancel_reason,
         'paid_at': order.paid_at, 'steps': _steps(order),
-        'pickup': {'address': profile.pickup_address if profile else '', 'instructions': profile.pickup_instructions if profile else ''}
-        if order.is_pickup else None,
+        'pickup': _pickup_for_buyer(order, profile) if order.is_pickup else None,
         'pickup_code': order.pickup_code if include_code and order.is_pickup and order.status in (MerchOrder.READY, MerchOrder.PICKED_UP) else None,
         'delivery': {'name': order.buyer_name, 'phone': order.buyer_phone, 'address': order.delivery_address}
         if not order.is_pickup else None,
@@ -346,7 +355,10 @@ class MerchOrdersView(APIView):
         return Response({
             'results': [seller_payload(o) for o in rows.order_by('-paid_at', '-pk')[:200]],
             'counts': counts,
-            'money': {k: str(v) for k, v in merch.balances(request.user).items()},
+            'money': {k: str(v) for k, v in merch.balances(request.user).items()}
+            | {'next_release_at': merch.next_release_at(request.user)},
+            # So the page only talks about Byro's fee when one is being taken.
+            'fee_rate': str(merch.fee_rate()),
         })
 
 

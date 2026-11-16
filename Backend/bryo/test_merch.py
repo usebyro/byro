@@ -82,6 +82,30 @@ class FulfilmentSettingsTests(MerchBase):
         self.assertEqual(send.call_args.args[1], 'moved')
 
 
+class PickupMovedNoteTests(MerchBase):
+    def put(self, **body):
+        self.client.force_authenticate(self.seller)
+        return self.client.put('/api/dashboard/merch-orders/fulfilment/', body, format='json')
+
+    def test_a_buyer_who_ordered_before_the_move_is_told_what_changed(self):
+        before = self.paid('pickup')
+        self.put(pickup_address='Hub 2, Akoka Road')
+        after = self.paid('pickup')
+        from .merch_views import buyer_payload
+        old = buyer_payload(MerchOrder.objects.get(pk=before.pk))['pickup']
+        self.assertEqual((old['address'], old['previous_address']), ('Hub 2, Akoka Road', 'Cafe One, Yaba'))
+        self.assertIsNotNone(old['changed_at'])
+        new = buyer_payload(MerchOrder.objects.get(pk=after.pk))['pickup']
+        self.assertIsNone(new['changed_at'])         # they ordered after the move, so nothing changed for them
+        self.assertEqual(new['previous_address'], '')
+
+    def test_changing_only_the_instructions_is_not_a_move(self):
+        order = self.paid('pickup')
+        self.put(pickup_address='Cafe One, Yaba', pickup_instructions='Weekdays 10 to 5')
+        from .merch_views import buyer_payload
+        self.assertIsNone(buyer_payload(MerchOrder.objects.get(pk=order.pk))['pickup']['changed_at'])
+
+
 class CheckoutTests(MerchBase):
     def test_totals_and_stock_are_held(self):
         order = self.order('delivery', lines=[
@@ -165,6 +189,18 @@ class CheckoutTests(MerchBase):
             late, _ = merch.mark_paid(second, 'card')
         self.assertEqual(late.status, 'refund_processing')
         refund.assert_called_once_with(second.pk)
+
+    def test_new_order_and_problem_notifications_open_that_order(self):
+        order = self.order()
+        with self.captureOnCommitCallbacks(execute=True):
+            merch.mark_paid(order, 'card')
+        note = Notification.objects.get(recipient=self.seller, kind='merch_order')
+        self.assertEqual(note.link, f'/dashboard/merch?tab=orders&order={order.ref}')
+        merch.advance(MerchOrder.objects.get(pk=order.pk), 'ready')
+        with self.captureOnCommitCallbacks(execute=True):
+            merch.report_problem(MerchOrder.objects.get(pk=order.pk), 'damaged')
+        problem = Notification.objects.get(recipient=self.seller, kind='merch_problem')
+        self.assertEqual(problem.link, f'/dashboard/merch?tab=orders&order={order.ref}')
 
     def test_marking_paid_twice_does_nothing_the_second_time(self):
         order = self.order()
@@ -404,6 +440,81 @@ class AccountTests(MerchBase):
         self.assertFalse([r for r in delete_blockers(self.seller) if 'merch orders' in r])
 
 
+class BalancePartsAndActivityTests(MerchBase):
+    def setUp(self):
+        super().setUp()
+        from .models import Payment, Refund, Ticket
+        from .test_payments import make_event
+        self.event = make_event(self.seller, ticket_price=Decimal('5000.00'), capacity=100, name='Run Day')
+        self.payment = Payment.objects.create(
+            event=self.event, customer_email='b@example.com', customer_name='B', amount=Decimal('10500'), fee_rate=Decimal('0.05'),
+            paystack_reference='ref-activity', status='successful', paid_at=timezone.now() - timedelta(days=3), metadata={})
+        for i in range(2):
+            Ticket.objects.create(event=self.event, payment=self.payment, payment_status='paid', original_owner_name='B',
+                                  original_owner_email='b@example.com', current_owner_name='B', current_owner_email='b@example.com')
+        self.Refund = Refund
+
+    def released_order(self, days_ago=1):
+        order = merch.advance(self.paid('pickup'), 'ready')
+        MerchOrder.objects.filter(pk=order.pk).update(release_at=timezone.now() - timedelta(days=days_ago))
+        return order
+
+    def test_the_parts_add_up_to_what_can_be_withdrawn(self):
+        from .views import balance_parts
+        self.released_order()
+        merch.advance(self.paid('pickup'), 'ready')                       # still in its window: not in the parts
+        PayoutRequest.objects.create(user=self.seller, amount=Decimal('5000'), method='bank', status='pending')
+        PayoutRequest.objects.create(user=self.seller, amount=Decimal('999'), method='bank', status='rejected')
+        parts = balance_parts(self.seller)
+        self.assertEqual((parts['tickets'], parts['merch'], parts['withdrawn']), (Decimal('10000'), Decimal('12000.00'), Decimal('5000')))
+        self.assertEqual(parts['tickets'] + parts['merch'] - parts['withdrawn'], compute_available_balance(self.seller))
+        self.client.force_authenticate(self.seller)
+        body = self.client.get('/api/payouts/balance/').json()
+        self.assertEqual({k: Decimal(v) for k, v in body['parts'].items()}, parts)
+        self.assertEqual(Decimal(body['available']), Decimal('17000'))
+
+    def test_the_event_balance_has_no_merch_in_it(self):
+        from .views import balance_parts
+        self.released_order()
+        self.assertEqual(balance_parts(self.seller, self.event)['merch'], Decimal('0'))
+
+    def activity(self):
+        self.client.force_authenticate(self.seller)
+        r = self.client.get('/api/payouts/activity/')
+        self.assertEqual(r.status_code, 200)
+        return r.json()['results']
+
+    def test_everything_that_moved_the_balance_is_listed_newest_first(self):
+        self.released_order(days_ago=1)
+        self.Refund.objects.create(payment=self.payment, event=self.event, amount=Decimal('5000'))
+        PayoutRequest.objects.create(user=self.seller, amount=Decimal('5000'), method='bank', status='processed')
+        rows = self.activity()
+        by_source = {r['source']: r for r in rows}
+        self.assertEqual(set(by_source), {'tickets', 'merch', 'refunds', 'withdrawals'})
+        self.assertEqual((by_source['tickets']['description'], by_source['tickets']['amount'], by_source['tickets']['detail']), ('2 tickets sold', '10000.00', 'Run Day'))
+        self.assertEqual((by_source['merch']['amount'], by_source['merch']['description'].startswith('Merch order BY-')), ('12000.00', True))
+        self.assertEqual((by_source['refunds']['amount'], by_source['refunds']['detail']), ('-5000.00', 'Run Day'))
+        self.assertEqual((by_source['withdrawals']['amount'], by_source['withdrawals']['description']), ('-5000.00', 'Withdrawal paid'))
+        times = [r['at'] for r in rows]
+        self.assertEqual(times, sorted(times, reverse=True))
+
+    def test_money_that_has_not_moved_yet_is_not_listed(self):
+        merch.advance(self.paid('pickup'), 'ready')                                            # in its window
+        held = merch.report_problem(merch.advance(self.paid('pickup'), 'ready'), 'damaged')    # on hold
+        MerchOrder.objects.filter(pk=held.pk).update(release_at=timezone.now() - timedelta(days=1))
+        PayoutRequest.objects.create(user=self.seller, amount=Decimal('100'), method='bank', status='rejected')
+        sources = [r['source'] for r in self.activity()]
+        self.assertNotIn('merch', sources)
+        self.assertNotIn('withdrawals', sources)
+
+    def test_other_organisers_and_signed_out_visitors_see_nothing_of_it(self):
+        other = User.objects.create_user(email='other@example.com')
+        self.client.force_authenticate(other)
+        self.assertEqual(self.client.get('/api/payouts/activity/').json()['results'], [])
+        self.client.force_authenticate(None)
+        self.assertIn(self.client.get('/api/payouts/activity/').status_code, (401, 403))
+
+
 class ProblemTests(MerchBase):
     def test_reporting_holds_the_money_until_byro_decides(self):
         order = merch.advance(self.paid('delivery'), 'ship')
@@ -586,6 +697,17 @@ class OrganiserApiTests(MerchBase):
         self.assertEqual([o['ref'] for o in self.client.get('/api/dashboard/merch-orders/?q=tunde').json()['results']], [b.ref])
         self.assertEqual([o['ref'] for o in self.client.get(f'/api/dashboard/merch-orders/?q={a.ref}').json()['results']], [a.ref])
 
+    def test_the_list_carries_the_next_release_date_and_whether_a_fee_applies(self):
+        body = self.client.get('/api/dashboard/merch-orders/').json()
+        self.assertIsNone(body['money']['next_release_at'])
+        self.assertEqual(Decimal(body['fee_rate']), 0)
+        merch.advance(self.paid('pickup'), 'ready')
+        body = self.client.get('/api/dashboard/merch-orders/').json()
+        self.assertIsNotNone(body['money']['next_release_at'])
+        self.assertEqual(body['money']['releasing'], '12000.00')
+        with override_settings(MERCH_FEE_RATE='0.05'):
+            self.assertEqual(Decimal(self.client.get('/api/dashboard/merch-orders/').json()['fee_rate']), Decimal('0.05'))
+
     def test_unpaid_orders_never_show(self):
         self.order()
         self.assertEqual(self.client.get('/api/dashboard/merch-orders/?filter=all').json()['results'], [])
@@ -689,14 +811,15 @@ class EmailTests(MerchBase):
             (me.shipped_email(delivery), ['GIG Logistics', 'GIG-48213377']),
             (me.refunded_email(cancelled), ['₦14,000', 'Sold out', '3 to 10 working days']),
             (me.pickup_moved_email(pickup), ['Cafe One, Yaba']),
-            (me.problem_email(reported), ['Nothing came', 'on hold']),
+            (me.problem_email(reported), ['Nothing came', 'on hold', 'when Byro has decided', 'order=BY-']),
             (me.waiting_email(self.paid('pickup')), ['refund']),
         ]
         for mail, expected in cases:
             blob = mail['html'] + mail['text'] + mail['subject']
             for fact in expected:
                 self.assertIn(fact, blob, f"{mail['subject']}: {fact}")
-            self.assertNotIn('—', blob, mail['subject'])
+            self.assertNotIn('\u2014', blob, mail['subject'])
+            self.assertNotIn('within 2 working days', blob, mail['subject'])   # no deadline we have not promised
             self.assertIn('token=' if 'View your order' in mail['html'] else 'dashboard', blob)
 
     def test_the_hook_sends_to_the_buyer_or_the_organiser(self):

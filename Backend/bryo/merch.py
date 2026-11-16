@@ -101,12 +101,16 @@ def save_fulfilment(user, data):
         raise MerchError('Enter the delivery fee in naira.')
     if fee < 0 or fee > Decimal('1000000'):
         raise MerchError('Enter a delivery fee between 0 and 1,000,000.')
+    if profile.pickup_address.strip() and address != profile.pickup_address.strip():
+        profile.pickup_previous_address = profile.pickup_address.strip()[:255]
+        profile.pickup_changed_at = timezone.now()
     profile.pickup_address = address
     profile.pickup_instructions = str(data.get('pickup_instructions', profile.pickup_instructions) or '').strip()[:300]
     profile.delivery_enabled = delivery
     profile.delivery_area = str(data.get('delivery_area', profile.delivery_area) or '').strip()[:120]
     profile.delivery_fee = fee.quantize(_CENTS)
-    profile.save(update_fields=['pickup_address', 'pickup_instructions', 'delivery_enabled', 'delivery_area', 'delivery_fee'])
+    profile.save(update_fields=['pickup_address', 'pickup_instructions', 'pickup_previous_address', 'pickup_changed_at',
+                                'delivery_enabled', 'delivery_area', 'delivery_fee'])
     open_pickups = MerchOrder.objects.filter(
         seller=user, fulfilment=MerchOrder.FULFIL_PICKUP, status__in=[MerchOrder.PAID, MerchOrder.READY],
     ).select_related('seller')
@@ -279,7 +283,7 @@ def _announce_paid(order_id):
     first = order.buyer_name.split(' ')[0] if order.buyer_name else 'Someone'
     notify(
         order.seller, 'merch_order', f"{first} paid ₦{order.amount:,.0f}",
-        body=f"{sum(l.quantity for l in order.lines.all())} item(s), order {order.ref}", link='/dashboard/merch?tab=orders',
+        body=f"{sum(l.quantity for l in order.lines.all())} item(s), order {order.ref}", link=f'/dashboard/merch?tab=orders&order={order.ref}',
     )
     _email(order, 'receipt')
 
@@ -379,7 +383,7 @@ def _announce_report(order_id):
     from .notifications import notify, notify_admins
     order = MerchOrder.objects.select_related('seller').get(pk=order_id)
     first = order.buyer_name.split(' ')[0] or 'A buyer'
-    notify(order.seller, 'merch_problem', f"{first} reported a problem", body=f"Order {order.ref}", link='/dashboard/merch?tab=orders')
+    notify(order.seller, 'merch_problem', f"{first} reported a problem", body=f"Order {order.ref}", link=f'/dashboard/merch?tab=orders&order={order.ref}')
     notify_admins('merch_problem', f"Merch problem on {order.ref}", body=order.report_reason.replace('_', ' '), link='/merch')
     _email(order, 'problem')
 

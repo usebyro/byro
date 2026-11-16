@@ -23,7 +23,8 @@ def order_url(order):
 
 
 def dashboard_url(order=None):
-    return f"{_site()}/dashboard/merch?tab=orders"
+    """The organiser's Orders tab, or that order's sheet when we know which one."""
+    return f"{_site()}/dashboard/merch?tab=orders" + (f"&order={order.ref}" if order is not None else "")
 
 
 def _seller_name(order):
@@ -191,13 +192,13 @@ def problem_email(order):
     ) if order.report_note else f'<p style="margin:0 0 20px;font-size:15px;font-weight:700;">{_h(_REASONS.get(order.report_reason, order.report_reason))}</p>'
     body = (
         _lead(f"{_h(first)} reported a problem with order {order.ref} ({_h(_lines_text(order))}).") + note
-        + _lead(f"The {_money(order.earnings)} you&#8217;d get for this order is on hold while Byro reviews it. We&#8217;ll email you and {_h(first)} within 2 working days. "
+        + _lead(f"The {_money(order.earnings)} you&#8217;d get for this order is on hold while Byro reviews it. We&#8217;ll email you and {_h(first)} when Byro has decided. "
                 "If you have proof of delivery, like a rider&#8217;s photo or a signed waybill, reply to this email with it.")
         + _btn_row(_btn(dashboard_url(order), 'Open the order'))
     )
     text = (
         f"{first} reported a problem with order {order.ref}.\n\n{_REASONS.get(order.report_reason, order.report_reason)}: {order.report_note}\n\n"
-        f"The {_money(order.earnings)} for this order is on hold while Byro reviews it. We'll email you and {first} within 2 working days. "
+        f"The {_money(order.earnings)} for this order is on hold while Byro reviews it. We'll email you and {first} when Byro has decided. "
         "If you have proof of delivery, reply to this email with it.\n\nByro Team\nsupport@usebyro.com"
     )
     return _wrap('', f"{_h(first)} reported a problem", body, _seller_footer(order),

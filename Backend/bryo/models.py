@@ -118,6 +118,9 @@ class UserProfile(models.Model):
     # organiser says where to collect. Delivery is optional, with an area and a fee that goes to the organiser.
     pickup_address = models.CharField(max_length=255, blank=True)
     pickup_instructions = models.CharField(max_length=300, blank=True)
+    # When the pickup address last changed and what it was, so a buyer who ordered earlier can be told.
+    pickup_previous_address = models.CharField(max_length=255, blank=True)
+    pickup_changed_at = models.DateTimeField(null=True, blank=True)
     delivery_enabled = models.BooleanField(default=False)
     delivery_area = models.CharField(max_length=120, blank=True)
     delivery_fee = models.DecimalField(max_digits=10, decimal_places=2, default=0)

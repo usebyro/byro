@@ -5,6 +5,9 @@ Every background job in one command, for a single scheduled service (Railway cro
 
 - send_scheduled_messages: organiser messages whose send time has come
 - process_refunds: finish refunds an admin approved
+- process_merch_orders: free held merch stock, tell organisers when merch money becomes available, remind
+  them about orders they have not started (10 days), cancel and refund those left 14 days, retry stuck merch refunds.
+  Safe to run every time: each order is reminded and announced once.
 - send_event_reminders: the day-before emails, from 09:00 Lagos time. Each event is only
   reminded once (Event.reminder_sent_at), so the first run after 09:00 sends and later runs skip.
 
@@ -25,10 +28,10 @@ REMINDERS_FROM_HOUR = 9
 
 
 class Command(BaseCommand):
-    help = 'Run scheduled messages, refunds and (from 09:00 Lagos) event reminders. Schedule every 5 minutes.'
+    help = 'Run scheduled messages, refunds, merch orders and (from 09:00 Lagos) event reminders. Schedule every 5 minutes.'
 
     def handle(self, *args, **options):
-        jobs = ['send_scheduled_messages', 'process_refunds']
+        jobs = ['send_scheduled_messages', 'process_refunds', 'process_merch_orders']
         if datetime.now(LAGOS).hour >= REMINDERS_FROM_HOUR:
             jobs.append('send_event_reminders')
 

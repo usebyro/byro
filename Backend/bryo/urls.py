@@ -50,6 +50,7 @@ from .newsletter_views import (
 )
 from .dash_events import DashboardEventsView
 from .reports_api import SalesReportView
+from .payout_activity import PayoutActivityView
 from .merch_views import (
     MerchCheckoutView, MerchVerifyView, MerchBuyerOrderView, MerchBuyerConfirmView, MerchBuyerReportView,
     MerchFulfilmentView, MerchOrdersView, MerchOrderDetailView, MerchOrderActionView, MerchOrderBulkView,
@@ -192,6 +193,7 @@ urlpatterns = [
     path('api/admin/reports/<int:pk>/', AdminReportDetailView.as_view(), name='admin-report-detail'),
     path('api/reports/', ReportView.as_view(), name='reports'),
     path('api/reports/sales/', SalesReportView.as_view(), name='reports-sales'),
+    path('api/payouts/activity/', PayoutActivityView.as_view(), name='payout-activity'),
     # Merch orders. Not under api/merch/, which is the organiser's item list.
     path('api/merch-orders/checkout/', MerchCheckoutView.as_view(), name='merch-checkout'),
     path('api/merch-orders/verify/<str:reference>/', MerchVerifyView.as_view(), name='merch-verify'),
