@@ -99,7 +99,7 @@ describe("admin merch problems", () => {
     const submit = await screen.findByRole("button", { name: "Refund this order" });
     await user.type(screen.getByLabelText("Order number"), "12");
     await user.click(submit);
-    expect(await screen.findByRole("alert")).toHaveTextContent("Enter an order number like BY-0012.");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Enter an order number like BY-K7M4QX.");
     await user.clear(screen.getByLabelText("Order number"));
     await user.type(screen.getByLabelText("Order number"), "by-0012");
     await user.click(submit);

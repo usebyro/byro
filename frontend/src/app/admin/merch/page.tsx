@@ -92,7 +92,7 @@ export default function AdminMerchPage() {
   const refundAny = async (e: React.FormEvent) => {
     e.preventDefault();
     const ref = refundRef.trim().toUpperCase();
-    if (!/^BY-\d+$/.test(ref)) return setError("Enter an order number like BY-0012.");
+    if (!/^BY-[A-Z0-9]{4,9}$/.test(ref)) return setError("Enter an order number like BY-K7M4QX.");
     if (!refundReason.trim()) return setError("Add a reason. The buyer sees it.");
     const ok = await ask({
       title: `Refund order ${ref}?`,
@@ -195,7 +195,7 @@ export default function AdminMerchPage() {
           <div className="flex flex-col gap-3">
             <label className="flex flex-col gap-1 text-xs font-semibold text-ink">
               Order number
-              <input value={refundRef} onChange={(e) => setRefundRef(e.target.value)} placeholder="BY-0012" className="h-10 rounded-lg border border-line px-3 text-sm font-normal" />
+              <input value={refundRef} onChange={(e) => setRefundRef(e.target.value)} placeholder="BY-K7M4QX" className="h-10 rounded-lg border border-line px-3 text-sm font-normal" />
             </label>
             <label className="flex flex-col gap-1 text-xs font-semibold text-ink">
               Reason (the buyer sees it)

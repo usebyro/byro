@@ -165,7 +165,7 @@ export default function MerchOrders({ onChanged }) {
     setDetail(null);
   };
 
-  // A link with ?order=BY-0003 opens that order.
+  // A link with ?order=BY-K7M4QX opens that order.
   useEffect(() => {
     const ref = urlParam("order");
     if (ref) openOrder(ref);
@@ -394,7 +394,7 @@ function Empty({ hasAny, searching, q, filter, onAll, onClear }) {
   let action = null;
   if (searching) {
     title = `No orders match “${q}”`;
-    body = "Try a first name or an order number like BY-0012. Search looks at every status.";
+    body = "Try a first name or an order number like BY-K7M4QX. Search looks at every status.";
     action = <button type="button" className="v-btn v-btn-s mt-2" onClick={onClear}>Clear search</button>;
   } else if (hasAny && filter === "need") {
     title = "Nothing to do right now";
