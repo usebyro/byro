@@ -33,6 +33,9 @@ export function middleware(request: NextRequest) {
     pathname.startsWith("/assets") ||
     pathname === "/admin-sw.js" ||
     pathname === "/admin.webmanifest" ||
+    // Sentry's tunnel for browser error reports. Without this the admin subdomain rewrites it to
+    // /admin/monitoring, which doesn't exist, and every report from the admin panel is lost.
+    pathname === "/monitoring" ||
     pathname.startsWith("/api/")
   ) {
     return withNoIndex(NextResponse.next());
