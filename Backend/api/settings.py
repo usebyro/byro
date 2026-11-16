@@ -271,6 +271,12 @@ REST_FRAMEWORK = {
         'merch_order': '240/hour',
         # Checking a promo code. It tells a stranger whether a guess is real, so keep guessing slow.
         'promo': '60/hour',
+        # Free registration is open to signed-out visitors. Generous enough for a whole office or campus
+        # behind one address, tight enough that one bot can't fill an event.
+        'register': '60/hour',
+        # Bank list and account-name lookups for the payout form: each is a Paystack call.
+        'bank_list': '120/hour',
+        'bank_lookup': '40/hour',
     },
 }
 
