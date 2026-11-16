@@ -63,6 +63,14 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
+        // Browsers must not guess a file's type (a picture served as a page), and should stay on HTTPS.
+        source: '/(.*)',
+        headers: [
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'Strict-Transport-Security', value: 'max-age=15552000' },
+        ],
+      },
+      {
         // The buyer's order link carries their access token in the address. Keep it out of the Referer
         // header so it can't reach another site through a link or an embedded image on the page.
         source: '/merch-order/:path*',

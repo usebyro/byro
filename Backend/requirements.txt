@@ -124,6 +124,7 @@ MarkupSafe==2.1.5
 more-itertools==10.7.0
 msgpack==1.1.0
 multidict==6.4.4
+nh3==0.3.7
 packaging==25.0
 parsimonious==0.10.0
 paystackapi==2.1.3

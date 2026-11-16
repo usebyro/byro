@@ -302,6 +302,11 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SECURE = os.getenv('ENVIRONMENT') == 'production'
+CSRF_COOKIE_SECURE = os.getenv('ENVIRONMENT') == 'production'
+# Tell browsers to use HTTPS only (6 months). Production only, and not for subdomains, so a local or preview
+# host is never locked out. SECURE_SSL_REDIRECT is left off on purpose: behind a proxy it can loop unless the
+# proxy's own HTTPS header is trusted, which is a deploy decision.
+SECURE_HSTS_SECONDS = 15552000 if os.getenv('ENVIRONMENT') == 'production' else 0
 
 
 

@@ -445,6 +445,10 @@ class Event(models.Model):
     )
 
     def save(self, *args, **kwargs):
+        # The description is shown as real formatting on the public page, so only the formatting the
+        # editor offers is kept; scripts and event handlers never reach the database.
+        from .html_clean import clean_html
+        self.description = clean_html(self.description)
         if self.slug:
             super().save(*args, **kwargs)
             return

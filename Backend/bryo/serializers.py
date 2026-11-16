@@ -448,6 +448,10 @@ class EventSerializer(serializers.ModelSerializer):
     def validate_event_image(self, value):
         return clean_image_upload(value) if value else value
 
+    def validate_description(self, value):
+        from .html_clean import clean_html
+        return clean_html(value)
+
     class Meta:
         model = Event
         fields = [
@@ -523,6 +527,10 @@ class EventSerializer(serializers.ModelSerializer):
     
     def to_representation(self, instance):
         data = super().to_representation(instance)
+        # Cleaned on the way out as well, so a description written before this check existed (or by a
+        # bulk update that skips save) can never reach a page as live HTML.
+        from .html_clean import clean_html
+        data['description'] = clean_html(data.get('description'))
         data['hosted_by'] = event_host_name(instance)
         from .pricing import fee_rate_for
         data['fee_rate'] = str(fee_rate_for(instance.owner if instance.owner_id else None))
