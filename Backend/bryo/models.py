@@ -118,6 +118,9 @@ class UserProfile(models.Model):
     # organiser says where to collect. Delivery is optional, with an area and a fee that goes to the organiser.
     pickup_address = models.CharField(max_length=255, blank=True)
     pickup_instructions = models.CharField(max_length=300, blank=True)
+    # When the pickup address last changed and what it was, so a buyer who ordered earlier can be told.
+    pickup_previous_address = models.CharField(max_length=255, blank=True)
+    pickup_changed_at = models.DateTimeField(null=True, blank=True)
     delivery_enabled = models.BooleanField(default=False)
     delivery_area = models.CharField(max_length=120, blank=True)
     delivery_fee = models.DecimalField(max_digits=10, decimal_places=2, default=0)
@@ -1036,6 +1039,7 @@ class MerchOrder(models.Model):
     # How the buyer looks the order up without an account, and the short code they show at pickup.
     access_token = models.CharField(max_length=64, unique=True)
     pickup_code = models.CharField(max_length=6)  # 6 digits for new orders; older ones have 4
+    ref_code = models.CharField(max_length=12, unique=True, null=True, blank=True, editable=False)   # BY-K7M4QX, what people see and quote
     code_verified = models.BooleanField(default=False)  # the organiser confirmed the buyer's code at pickup
     code_attempts = models.PositiveSmallIntegerField(default=0)  # wrong codes entered; the code stops being accepted after a few
 
@@ -1073,9 +1077,25 @@ class MerchOrder(models.Model):
         ordering = ['-created_at']
         indexes = [models.Index(fields=['seller', 'status'])]
 
+    # Letters and digits that are hard to mix up when read out: no 0/O, 1/I/L.
+    REF_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
+
+    @classmethod
+    def new_ref_code(cls):
+        import secrets
+        while True:
+            code = 'BY-' + ''.join(secrets.choice(cls.REF_ALPHABET) for _ in range(6))
+            if not cls.objects.filter(ref_code=code).exists():
+                return code
+
+    def save(self, *args, **kwargs):
+        if not self.ref_code:
+            self.ref_code = self.new_ref_code()
+        super().save(*args, **kwargs)
+
     @property
     def ref(self):
-        return f"BY-{self.pk:04d}"
+        return self.ref_code or f"BY-{self.pk:04d}"
 
     @property
     def is_pickup(self):

@@ -67,10 +67,22 @@ describe("nextStep", () => {
 describe("releaseLine", () => {
   it("tells the organiser where the money is", () => {
     expect(releaseLine(order({ release_state: "available" }))).toBe("You can withdraw this now.");
-    expect(releaseLine(order({ release_state: "releasing", release_at: "2026-11-24T09:00:00Z" }))).toMatch(/^Releases on 24 Nov/);
+    expect(releaseLine(order({ release_state: "releasing", release_at: "2026-11-24T09:00:00Z" }))).toMatch(/^Available on 24 Nov/);
     expect(releaseLine(order({ release_state: "on_hold" }))).toBe("On hold while Byro reviews a problem Kelechi reported.");
     expect(releaseLine(order({ release_state: "not_released" }))).toMatch(/once the order is complete/);
     expect(releaseLine(order({ release_state: "none" }))).toBe("");
+  });
+});
+
+describe("dates", () => {
+  it("show day and short month, from Intl, and tolerate blanks", async () => {
+    const { dayMonth, shortDate, dateTime } = await import("./merchOrders");
+    expect(dayMonth("2026-11-24T09:00:00Z")).toBe("24 Nov");
+    expect(dayMonth("2026-03-03T09:00:00Z")).toBe("3 Mar");
+    expect(dayMonth("")).toBe("");
+    expect(shortDate("nonsense")).toBe("");
+    expect(shortDate(new Date().toISOString())).toBe("Today");
+    expect(dateTime("2026-11-24T09:15:00Z")).toMatch(/^24 Nov, \d{1,2}:15/);
   });
 });
 

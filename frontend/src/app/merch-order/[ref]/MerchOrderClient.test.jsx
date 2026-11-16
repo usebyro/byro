@@ -43,6 +43,32 @@ describe("buyer's order page", () => {
     expect(screen.getByRole("link", { name: "Lagos Run Club" })).toHaveAttribute("href", "/u/lagosrun");
   });
 
+  it("has a skip link, and promises no deadline it can't keep", async () => {
+    axios.get.mockResolvedValue({ data: order({ problem: { reason: "damaged", resolved: false }, can_report: false }) });
+    open("?token=abc");
+    await screen.findByText("You reported a problem: Damaged.");
+    expect(screen.getByRole("link", { name: "Skip to content" })).toHaveAttribute("href", "#main");
+    expect(screen.getByText(/We'll email you when Byro has decided/)).toBeInTheDocument();
+    expect(document.body).not.toHaveTextContent("within 2 working days");
+  });
+
+  it("labels where to collect it, with Maps and the instructions", async () => {
+    axios.get.mockResolvedValue({ data: order() });
+    open("?token=abc");
+    expect(await screen.findByRole("heading", { name: "Collect from" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Open in Maps/ })).toHaveAttribute("href", expect.stringContaining("Cafe%20One%2C%20Yaba"));
+    expect(screen.getByRole("heading", { name: "Instructions" })).toBeInTheDocument();
+    expect(screen.getByText(/Order BY-0007 · Paid 12 Nov/)).toBeInTheDocument();
+    expect(screen.queryByText(/Changed on/)).not.toBeInTheDocument();
+  });
+
+  it("says when the organiser moved the pickup after the order, and where it was", async () => {
+    axios.get.mockResolvedValue({ data: order({ pickup: { address: "Hub 2, Akoka Road", instructions: "", changed_at: "2026-11-14T10:00:00Z", previous_address: "Cafe One, Herbert Macaulay Way" } }) });
+    open("?token=abc");
+    expect(await screen.findByText("Changed on 14 Nov. It was Cafe One, Herbert Macaulay Way.")).toBeInTheDocument();
+    expect(screen.getByText("Hub 2, Akoka Road")).toBeInTheDocument();
+  });
+
   it("without a key it says it can't find the order", async () => {
     open("");
     expect(await screen.findByRole("heading", { name: "We couldn't find that order" })).toBeInTheDocument();
@@ -61,6 +87,7 @@ describe("buyer's order page", () => {
     const user = userEvent.setup();
     open("?token=abc");
     expect(await screen.findByText("4821")).toBeInTheDocument();
+    expect(screen.getByText("Show this or your order number when you collect.")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Your order is ready to collect" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "I collected it" }));
     expect(axios.post).toHaveBeenCalledWith("merch-orders/BY-0007/confirm/", { token: "abc" });
@@ -96,7 +123,7 @@ describe("buyer's order page", () => {
     await user.type(screen.getByLabelText(/Tell us more/), "Nothing came");
     await user.click(send);
     expect(axios.post).toHaveBeenCalledWith("merch-orders/BY-0007/report/", { token: "abc", reason: "not_received", note: "Nothing came" });
-    expect(await screen.findByText("Problem reported")).toBeInTheDocument();
+    expect(await screen.findByText("You reported a problem: Not received.")).toBeInTheDocument();
     expect(screen.getByText(/We've told Lagos Run Club and Byro/)).toBeInTheDocument();
   });
 

@@ -16,6 +16,7 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 function Shell({ seller, children }) {
   return (
     <div className="min-h-[100dvh] bg-[#F6F8FB] text-ink">
+      <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-50 focus:rounded-xl focus:bg-ink focus:px-4 focus:py-2.5 focus:text-sm focus:font-bold focus:text-white">Skip to content</a>
       <header className="mx-auto flex max-w-[1040px] items-center justify-between gap-3 px-4 py-4 sm:px-8">
         <Link href="/" aria-label="Byro home"><Image src="/assets/images/logo.svg" alt="Byro" width={64} height={26} style={{ width: "auto", height: 26 }} priority /></Link>
         {seller && <span className="text-sm font-bold">{seller}</span>}
@@ -84,6 +85,8 @@ export default function MerchCheckoutClient({ handle }) {
   const subtotal = lines.reduce((n, l) => n + l.total, 0);
   const deliveryFee = deliveryOn ? Number(delivery.fee || 0) : 0;
   const amount = subtotal + deliveryFee;
+  const needArea = deliveryOn && !!delivery.area && !inArea;
+  const pickupPlace = (checkout?.pickup?.address || "").split(",").slice(-2).join(",").trim();
   const charge = amount > 0 ? Math.round(calculateTicketFees(amount, false, 0).paystackFee) : 0;
   const total = amount + charge;
 
@@ -121,6 +124,9 @@ export default function MerchCheckoutClient({ handle }) {
     setTouched(true);
     if (blocked) {
       if (cartProblem) setError(`${cartProblem.item?.name || "An item"}: ${cartProblem.problem}. Remove it or change the quantity to continue.`);
+      // Take keyboard and screen reader users to the first thing to fix, in the order the form shows them.
+      const firstId = [["address", "addr"], ["area", "in-area"], ["name", "name"], ["email", "email"], ["phone", "phone"]].find(([key]) => problems[key])?.[1];
+      if (firstId) document.getElementById(firstId)?.focus();
       return;
     }
     setSubmitting(true);
@@ -143,7 +149,7 @@ export default function MerchCheckoutClient({ handle }) {
   if (state === "loading") {
     return (
       <Shell>
-        <main className="mx-auto max-w-[640px] px-4 pb-16" aria-busy="true" aria-label="Loading checkout">
+        <main id="main" className="mx-auto max-w-[640px] px-4 pb-16" aria-busy="true" aria-label="Loading checkout">
           <span className="block h-8 w-40 animate-pulse rounded-lg bg-[#E3E8F0] motion-reduce:animate-none" />
         </main>
       </Shell>
@@ -153,7 +159,7 @@ export default function MerchCheckoutClient({ handle }) {
   if (state === "missing" || !profile) {
     return (
       <Shell>
-        <main className="mx-auto max-w-[640px] px-4 pb-16">
+        <main id="main" className="mx-auto max-w-[640px] px-4 pb-16">
           <section className={card} role="alert">
             <h1 className="font-display text-2xl font-bold">We couldn&apos;t find that seller</h1>
             <Link href="/discover" className="text-sm font-bold text-[#2451D6]">Find communities</Link>
@@ -165,7 +171,7 @@ export default function MerchCheckoutClient({ handle }) {
   if (!checkout?.enabled) {
     return (
       <Shell seller={name}>
-        <main className="mx-auto max-w-[640px] px-4 pb-16">
+        <main id="main" className="mx-auto max-w-[640px] px-4 pb-16">
           <section className={card} role="status">
             <h1 className="font-display text-2xl font-bold">{name} isn&apos;t taking payments yet</h1>
             <p className="m-0 text-[15px] text-[#3B4252]">You can still see what they sell on their page.</p>
@@ -178,11 +184,11 @@ export default function MerchCheckoutClient({ handle }) {
   if (lines.length === 0) {
     return (
       <Shell seller={name}>
-        <main className="mx-auto max-w-[640px] px-4 pb-16">
+        <main id="main" className="mx-auto max-w-[640px] px-4 pb-16">
           <section className={card}>
             <h1 className="font-display text-2xl font-bold">Your order is empty</h1>
             <p className="m-0 text-[15px] text-[#3B4252]">Pick something from {name}&apos;s merch to get started.</p>
-            <Link href={`/u/${handle}`} className="flex h-12 items-center justify-center rounded-full bg-brand px-6 text-base font-bold text-white">Back to merch</Link>
+            <Link href={`/u/${handle}`} className="flex h-12 items-center justify-center rounded-full bg-brand px-6 text-base font-bold text-white">See {name}&apos;s merch</Link>
           </section>
         </main>
       </Shell>
@@ -191,43 +197,49 @@ export default function MerchCheckoutClient({ handle }) {
 
   return (
     <Shell seller={name}>
-      <main className="mx-auto flex max-w-[1040px] flex-wrap items-start gap-6 px-4 pb-16 sm:px-8">
+      <main id="main" className="mx-auto flex max-w-[1040px] flex-wrap items-start gap-6 px-4 pb-16 max-sm:pb-44 sm:px-8">
         <form onSubmit={pay} noValidate className="flex min-w-0 flex-[3_1_460px] flex-col gap-4" aria-label="Checkout">
           <div className="flex flex-col gap-1.5">
-            <Link href={`/u/${handle}`} className="text-sm font-bold text-[#2451D6]">← Back to merch</Link>
+            <Link href={`/u/${handle}`} className="inline-flex min-h-11 items-center gap-1 self-start text-sm font-bold text-[#2451D6] hover:underline">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6" /></svg>
+              <span className="sr-only">Back to</span>{" "}{name}
+            </Link>
             <h1 className="font-display text-[clamp(26px,3vw,34px)] font-bold leading-tight tracking-tight">Checkout</h1>
           </div>
 
           <section className={card} aria-labelledby="how-title">
-            <h2 id="how-title" className="m-0 font-display text-lg font-bold">How do you want it?</h2>
-            {delivery ? (
-              <div role="radiogroup" aria-labelledby="how-title" onKeyDown={onRadioKey} className="flex flex-col gap-2.5">
-                <Choice buttonRef={pickRef} checked={how === "pickup"} onSelect={() => setHow("pickup")} title="Pick up" price="Free" hint={`From ${name}`} />
-                <Choice buttonRef={delRef} checked={how === "delivery"} onSelect={() => setHow("delivery")} title="Deliver to me" price={Number(delivery.fee) > 0 ? naira(delivery.fee) : "Free"} hint={delivery.area || "Delivery available"} />
-              </div>
-            ) : (
-              <div className="flex flex-col gap-1">
-                <div className="flex items-baseline justify-between gap-2"><b className="text-[15px]">Pick up</b><span className="font-extrabold">Free</span></div>
-                <span className="text-[13px] text-[#5B6272]">{name} only offers pickup.</span>
+            <h2 id="how-title" className="m-0 font-display text-lg font-bold">{delivery ? "How do you want it?" : "Pick up your order"}</h2>
+            {delivery && (
+              <div role="radiogroup" aria-labelledby="how-title" onKeyDown={onRadioKey} className="grid gap-2.5 sm:grid-cols-2">
+                <Choice buttonRef={pickRef} checked={how === "pickup"} onSelect={() => setHow("pickup")} icon="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21zM12 7.5a2 2 0 1 0 0 4 2 2 0 0 0 0-4z" title="Pick up" price="Free" hint={pickupPlace || `From ${name}`} />
+                <Choice buttonRef={delRef} checked={how === "delivery"} onSelect={() => setHow("delivery")} icon="M3 6h11v10H3zM14 9h4l3 3v4h-7M7 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM17 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4z" title="Deliver to me" price={Number(delivery.fee) > 0 ? naira(delivery.fee) : "Free"} hint={delivery.area || "Delivery available"} />
               </div>
             )}
 
             {!deliveryOn ? (
               <>
+                <div className="flex items-baseline justify-between gap-2">
+                  <h3 className="m-0 text-base font-extrabold">Pick up from</h3>
+                  {!delivery && <span className="text-[13px] font-bold text-[#5B6272]">Pickup only · Free</span>}
+                </div>
                 <div className="flex gap-3 rounded-[14px] bg-[#F6F8FB] p-3.5 text-sm leading-relaxed">
                   <svg className="mt-0.5 shrink-0" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21zM12 7.5a2 2 0 1 0 0 4 2 2 0 0 0 0-4z" /></svg>
                   <span className="flex flex-col gap-1"><b>{checkout.pickup.address}</b>{checkout.pickup.instructions && <span className="text-[#3B4252]">{checkout.pickup.instructions}</span>}</span>
                 </div>
-                <p className="m-0 text-[13px] text-[#5B6272]">We&apos;ll email you when your order is ready to collect, with a short pickup code to show.</p>
+                <p className="m-0 text-[13px] text-[#5B6272]">We&apos;ll email you when it&apos;s ready, with a short code to show when you collect.</p>
               </>
             ) : (
               <div className="flex flex-col gap-3.5">
+                <div className="flex items-baseline justify-between gap-2">
+                  <h3 className="m-0 text-base font-extrabold">Deliver to</h3>
+                  {delivery.area && <span className="text-[13px] font-bold text-[#5B6272]">{delivery.area}</span>}
+                </div>
                 <Field label="Delivery address" error={touched && problems.address} htmlFor="addr">
                   <textarea id="addr" rows={3} autoComplete="street-address" className={`${input} h-auto py-3 leading-normal`} value={form.address} onChange={(e) => set("address", e.target.value)} placeholder="House number, street, area, city" aria-invalid={touched && !!problems.address} />
                 </Field>
                 {delivery.area && (
                   <label className="flex cursor-pointer items-start gap-2.5 text-sm">
-                    <input type="checkbox" checked={inArea} onChange={(e) => setInArea(e.target.checked)} className="mt-0.5 h-[18px] w-[18px] accent-[#3669F6]" />
+                    <input id="in-area" type="checkbox" checked={inArea} onChange={(e) => setInArea(e.target.checked)} className="mt-0.5 h-[18px] w-[18px] accent-[#3669F6]" />
                     <span>This address is in {delivery.area.replace(/\s+only$/i, "")}.<span className="block text-[13px] text-[#5B6272]">{name} delivers in {delivery.area.replace(/\s+only$/i, "")} only.</span></span>
                   </label>
                 )}
@@ -241,20 +253,20 @@ export default function MerchCheckoutClient({ handle }) {
 
           <section className={card} aria-labelledby="you-title">
             <h2 id="you-title" className="m-0 font-display text-lg font-bold">Your details</h2>
-            <Field label="Full name" error={touched && problems.name} htmlFor="name">
-              <input id="name" className={input} autoComplete="name" value={form.name} onChange={(e) => set("name", e.target.value)} aria-invalid={touched && !!problems.name} />
+            <div className="grid gap-3.5 sm:grid-cols-2">
+              <Field label="Full name" error={touched && problems.name} htmlFor="name">
+                <input id="name" className={input} autoComplete="name" value={form.name} onChange={(e) => set("name", e.target.value)} aria-invalid={touched && !!problems.name} />
+              </Field>
+              <Field label={<>Phone{deliveryOn ? "" : <span className="font-medium text-[#5B6272]"> (optional)</span>}</>} error={touched && problems.phone} htmlFor="phone">
+                <input id="phone" type="tel" className={input} autoComplete="tel" value={form.phone} onChange={(e) => set("phone", e.target.value)} aria-invalid={touched && !!problems.phone} />
+              </Field>
+            </div>
+            <Field label="Email" error={touched && problems.email} htmlFor="email">
+              <input id="email" type="email" className={input} autoComplete="email" spellCheck={false} value={form.email} onChange={(e) => set("email", e.target.value)} aria-invalid={touched && !!problems.email} />
             </Field>
-            <Field label="Email" hint="Your receipt and order updates go here." error={touched && problems.email} htmlFor="email">
-              <input id="email" type="email" className={input} autoComplete="email" value={form.email} onChange={(e) => set("email", e.target.value)} aria-invalid={touched && !!problems.email} />
-            </Field>
-            <Field
-              label={<>Phone number{deliveryOn ? "" : <span className="font-medium text-[#5B6272]"> (optional)</span>}</>}
-              hint={deliveryOn ? "The seller or courier may call you on this number." : `So ${name} can reach you about pickup.`}
-              error={touched && problems.phone}
-              htmlFor="phone"
-            >
-              <input id="phone" type="tel" className={input} autoComplete="tel" value={form.phone} onChange={(e) => set("phone", e.target.value)} aria-invalid={touched && !!problems.phone} />
-            </Field>
+            <p className="m-0 text-[13px] leading-normal text-[#5B6272]">
+              Your receipt and order updates go to this email. {deliveryOn ? "The courier may call your phone." : `Phone is so ${name} can reach you about pickup.`}
+            </p>
           </section>
         </form>
 
@@ -270,11 +282,11 @@ export default function MerchCheckoutClient({ handle }) {
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="flex items-center rounded-full border border-[#E3E8F0]" role="group" aria-label={`Quantity of ${l.item?.name || "item"}`}>
-                      <button type="button" onClick={() => setQty(i, l.quantity - 1)} disabled={l.quantity <= 1} aria-label="One fewer" className="flex h-9 w-9 items-center justify-center text-lg disabled:opacity-40">−</button>
+                      <button type="button" onClick={() => setQty(i, l.quantity - 1)} disabled={l.quantity <= 1} aria-label="One fewer" className="flex h-11 w-11 items-center justify-center text-lg disabled:opacity-40">−</button>
                       <span className="w-7 text-center text-sm font-bold [font-variant-numeric:tabular-nums]" aria-live="polite">{l.quantity}</span>
-                      <button type="button" onClick={() => setQty(i, l.quantity + 1)} disabled={l.quantity >= MAX_QUANTITY || (l.stockLeft !== null && l.quantity >= l.stockLeft)} aria-label="One more" className="flex h-9 w-9 items-center justify-center text-lg disabled:opacity-40">+</button>
+                      <button type="button" onClick={() => setQty(i, l.quantity + 1)} disabled={l.quantity >= MAX_QUANTITY || (l.stockLeft !== null && l.quantity >= l.stockLeft)} aria-label="One more" className="flex h-11 w-11 items-center justify-center text-lg disabled:opacity-40">+</button>
                     </div>
-                    <button type="button" onClick={() => remove(i)} className="p-1 text-[13px] font-bold text-[#5B6272] hover:text-[#B42318]">Remove<span className="sr-only"> {l.item?.name}</span></button>
+                    <button type="button" onClick={() => remove(i)} className="inline-flex min-h-11 items-center px-2 text-[13px] font-bold text-[#5B6272] hover:text-[#B42318]">Remove<span className="sr-only"> {l.item?.name}</span></button>
                     {l.problem && <span role="alert" className="ml-auto text-[13px] font-bold text-[#B42318]">{l.problem}</span>}
                   </div>
                 </li>
@@ -283,20 +295,25 @@ export default function MerchCheckoutClient({ handle }) {
             <div className="flex flex-col gap-2 text-sm [font-variant-numeric:tabular-nums]">
               <div className="flex justify-between"><span>Items</span><span>{naira(subtotal)}</span></div>
               <div className="flex justify-between"><span>{deliveryOn ? "Delivery" : "Pickup"}</span><span>{deliveryOn && deliveryFee > 0 ? naira(deliveryFee) : "Free"}</span></div>
-              <div className="flex justify-between"><span>Payment charge</span><span>{naira(charge)}</span></div>
-              <div className="flex justify-between border-t border-[#EEF1F6] pt-2.5 text-[17px] font-extrabold"><span>Total</span><span>{naira(total)}</span></div>
+              <div className="flex justify-between"><span>Payment charge (estimate)</span><span>{naira(charge)}</span></div>
+              <div className="flex justify-between border-t border-[#EEF1F6] pt-2.5 text-[17px] font-extrabold max-sm:hidden"><span>Total</span><span>{naira(total)}</span></div>
             </div>
             {error && <p role="alert" className="m-0 text-sm font-bold text-[#B42318]">{error}</p>}
-            <button
-              type="button"
-              onClick={pay}
-              disabled={submitting}
-              aria-disabled={blocked || undefined}
-              className="flex h-[52px] w-full items-center justify-center rounded-full bg-brand px-4 text-base font-bold text-white transition-[filter,scale] hover:brightness-90 active:scale-[0.97] disabled:cursor-progress disabled:opacity-70 aria-disabled:opacity-60"
-            >
-              {submitting ? "Taking you to Paystack" : `Pay ${naira(total)}`}
-            </button>
-            <p className="m-0 text-center text-[13px] text-[#5B6272]">Paid securely through Paystack.</p>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 max-sm:fixed max-sm:inset-x-0 max-sm:bottom-0 max-sm:z-40 max-sm:bg-white max-sm:px-4 max-sm:pt-3 max-sm:pb-[calc(12px+env(safe-area-inset-bottom))] max-sm:shadow-[0_-1px_0_rgba(20,22,28,.08)]">
+              {needArea && <span id="pay-hint" className="basis-full text-center text-[13px] font-bold text-[#8A4B00]">Tick “This address is in {delivery.area.replace(/\s+only$/i, "")}” to pay.</span>}
+              <div className="flex shrink-0 flex-col text-xs text-[#5B6272] sm:hidden"><span>Total</span><b className="text-lg text-ink [font-variant-numeric:tabular-nums]">{naira(total)}</b></div>
+              <button
+                type="button"
+                onClick={pay}
+                disabled={submitting}
+                aria-disabled={needArea || (touched && blocked) || undefined}
+                aria-describedby={needArea ? "pay-hint" : undefined}
+                className="flex h-[52px] w-full items-center justify-center rounded-full bg-brand px-4 text-base font-bold text-white transition-[filter,scale] hover:brightness-90 active:scale-[0.97] disabled:cursor-progress disabled:opacity-70 aria-disabled:opacity-60 max-sm:w-auto max-sm:flex-1"
+              >
+                {submitting ? "Taking you to Paystack" : `Pay ${naira(total)}`}
+              </button>
+            </div>
+            <p className="m-0 text-center text-[13px] text-[#5B6272] max-sm:hidden">Payments by Paystack</p>
           </section>
         </aside>
       </main>
@@ -304,7 +321,7 @@ export default function MerchCheckoutClient({ handle }) {
   );
 }
 
-function Choice({ checked, onSelect, title, price, hint, buttonRef }) {
+function Choice({ checked, onSelect, title, price, hint, icon, buttonRef }) {
   return (
     <button
       ref={buttonRef}
@@ -313,13 +330,16 @@ function Choice({ checked, onSelect, title, price, hint, buttonRef }) {
       aria-checked={checked}
       tabIndex={checked ? 0 : -1}
       onClick={onSelect}
-      className={`flex w-full items-start gap-3 rounded-2xl p-4 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${checked ? "border-2 border-brand bg-[#F5F8FF] p-[15px]" : "border border-[#E3E8F0] bg-white"}`}
+      className={`flex w-full items-center gap-3 rounded-[20px] bg-white p-3.5 text-left transition-[border-color,box-shadow] motion-reduce:transition-none focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-[3px] focus-visible:outline-brand ${checked ? "border border-brand shadow-[inset_0_0_0_1px_#3669F6]" : "border border-[#E3E8F0]"}`}
     >
-      <span aria-hidden="true" className={`mt-0.5 h-5 w-5 shrink-0 rounded-full ${checked ? "border-[6px] border-brand" : "border-2 border-[#CBD3DF]"}`} />
-      <span className="flex min-w-0 flex-grow flex-col gap-0.5">
-        <span className="flex justify-between gap-2"><b className="text-[15px]">{title}</b><b className="[font-variant-numeric:tabular-nums]">{price}</b></span>
-        <span className="text-[13px] text-[#5B6272]">{hint}</span>
+      <span aria-hidden="true" className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${checked ? "bg-brand text-white" : "bg-[#F3F6FB] text-[#3B4252]"}`}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={icon} /></svg>
       </span>
+      <span className="flex min-w-0 flex-grow flex-col gap-px">
+        <b className="text-[15px]">{title}</b>
+        <span className="truncate text-[13px] text-[#5B6272]">{hint}</span>
+      </span>
+      <b className="shrink-0 text-[15px] [font-variant-numeric:tabular-nums]">{price}</b>
     </button>
   );
 }

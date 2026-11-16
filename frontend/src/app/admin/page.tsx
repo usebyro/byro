@@ -33,6 +33,9 @@ interface Event {
 interface AnalyticsSummary {
   total_tickets_sold: number;
   total_revenue: number;
+  ticket_revenue?: number;
+  merch_revenue?: number;
+  merch_orders?: number;
   total_events: number;
   active_events: number;
   private_events?: number;
@@ -302,7 +305,22 @@ export default function AdminDashboardPage() {
             <p className="font-display text-5xl md:text-7xl font-extrabold tracking-tight tabular-nums mt-1">
               {loading || !summary ? "—" : fmtNaira(Number(summary.total_revenue))}
             </p>
-            <p className="text-sm text-white/80 mt-2 tabular-nums">
+            {!loading && summary && summary.merch_revenue !== undefined && (
+              <dl className="m-0 mt-5 grid max-w-md grid-cols-2 gap-2.5">
+                <div className="rounded-2xl bg-white/10 px-4 py-3">
+                  <dt className="text-sm font-semibold text-white/80">Tickets</dt>
+                  <dd className="m-0 mt-0.5 text-xl font-extrabold tabular-nums md:text-2xl">{fmtNaira(Number(summary.ticket_revenue))}</dd>
+                </div>
+                <div className="rounded-2xl bg-white/10 px-4 py-3">
+                  <dt className="text-sm font-semibold text-white/80">Merch</dt>
+                  <dd className="m-0 mt-0.5 text-xl font-extrabold tabular-nums md:text-2xl">{fmtNaira(Number(summary.merch_revenue))}</dd>
+                  <dd className="m-0 mt-0.5 text-[13px] text-white/80">
+                    {summary.merch_orders ?? 0} {summary.merch_orders === 1 ? "order" : "orders"}
+                  </dd>
+                </div>
+              </dl>
+            )}
+            <p className="text-sm text-white/80 mt-4 tabular-nums">
               {trendLoading ? "Loading…" : `${fmtNaira(trendTotal)} in this period`}
             </p>
           </div>

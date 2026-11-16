@@ -21,6 +21,7 @@ Byro admins
   POST /api/admin/merch-orders/<ref>/resolve/      release the earnings, or refund the buyer
 """
 import logging
+import re
 import secrets
 from datetime import timedelta
 
@@ -56,13 +57,14 @@ def _fail(error):
 
 
 def _order_by_ref(ref, **filters):
-    """BY-0007 -> the order, or None."""
-    try:
-        pk = int(str(ref).upper().replace('BY-', '', 1))
-    except ValueError:
-        return None
+    """BY-K7M4QX -> the order, or None. Links in emails sent before refs changed (BY-0007) still open."""
+    text = str(ref or '').strip().upper()
+    if re.fullmatch(r'BY-\d{1,9}', text):
+        match = Q(pk=int(text[3:]))
+    else:
+        match = Q(ref_code=text)
     return (MerchOrder.objects.select_related('seller', 'seller__profile').prefetch_related('lines')
-            .filter(pk=pk, **filters).first())
+            .filter(match, **filters).first())
 
 
 def _site():
@@ -91,9 +93,9 @@ def _release_state(order):
         return 'none'
     if order.on_hold:
         return 'on_hold'
-    if order.release_at is None:
+    if order.status not in merch.DONE:
         return 'not_released'
-    return 'available' if order.release_at <= timezone.now() else 'releasing'
+    return 'releasing' if order.release_at and order.release_at > timezone.now() else 'available'
 
 
 def _seller_info(order):
@@ -104,27 +106,35 @@ def _seller_info(order):
     }
 
 
+def _pickup_for_buyer(order, profile):
+    """Where to collect it, and, if the organiser moved it after this order was paid, when and from where."""
+    info = {'address': profile.pickup_address if profile else '', 'instructions': profile.pickup_instructions if profile else '',
+            'changed_at': None, 'previous_address': ''}
+    if profile and profile.pickup_changed_at and order.paid_at and profile.pickup_changed_at > order.paid_at:
+        info['changed_at'] = profile.pickup_changed_at
+        info['previous_address'] = profile.pickup_previous_address
+    return info
+
+
 def buyer_payload(order, include_code=True):
     profile = getattr(order.seller, 'profile', None)
-    can_report = (
-        order.status in merch.LIVE and not order.on_hold
-        and (order.release_at is None or order.release_at > timezone.now())
-    )
+    # A problem can be reported until the money is available, and once.
+    waiting = order.status in merch.DONE and order.release_at is not None and order.release_at > timezone.now()
+    can_report = (order.status in merch.REPORTABLE or waiting) and order.reported_at is None
     return {
         'ref': order.ref, 'status': order.status, 'fulfilment': order.fulfilment,
         'seller': _seller_info(order), 'items': _lines(order),
         'subtotal': str(order.subtotal), 'delivery_fee': str(order.delivery_fee), 'amount': str(order.amount),
         'refund_amount': str(order.refund_amount), 'cancel_reason': order.cancel_reason,
         'paid_at': order.paid_at, 'steps': _steps(order),
-        'pickup': {'address': profile.pickup_address if profile else '', 'instructions': profile.pickup_instructions if profile else ''}
-        if order.is_pickup else None,
+        'pickup': _pickup_for_buyer(order, profile) if order.is_pickup else None,
         'pickup_code': order.pickup_code if include_code and order.is_pickup and order.status in (MerchOrder.READY, MerchOrder.PICKED_UP) else None,
         'delivery': {'name': order.buyer_name, 'phone': order.buyer_phone, 'address': order.delivery_address}
         if not order.is_pickup else None,
         'courier': order.courier, 'tracking': order.tracking,
         'problem': {'reason': order.report_reason, 'at': order.reported_at, 'resolved': order.report_resolved_at is not None,
                     'outcome': order.report_outcome} if order.reported_at else None,
-        'can_report': can_report, 'report_until': order.release_at if can_report else None,
+        'can_report': can_report, 'report_until': order.release_at if can_report and waiting else None,
         'can_confirm': (order.is_pickup and order.status == MerchOrder.READY) or (not order.is_pickup and order.status == MerchOrder.SHIPPED),
     }
 
@@ -342,14 +352,17 @@ class MerchOrdersView(APIView):
         q = (request.query_params.get('q') or '').strip()
         rows = base
         if q:
-            rows = rows.filter(Q(buyer_name__icontains=q) | Q(pk__in=_pk_from_ref(q)))
+            rows = rows.filter(Q(buyer_name__icontains=q) | Q(ref_code__icontains=q.replace(' ', '')) | Q(pk__in=_pk_from_ref(q)))
         else:
             rows = FILTERS.get(which, FILTERS['need'])(rows)
         counts = {k: fn(base).count() for k, fn in FILTERS.items()}
         return Response({
             'results': [seller_payload(o) for o in rows.order_by('-paid_at', '-pk')[:200]],
             'counts': counts,
-            'money': {k: str(v) for k, v in merch.balances(request.user).items()},
+            'money': {k: str(v) for k, v in merch.balances(request.user).items()}
+            | {'next_release_at': merch.next_release_at(request.user)},
+            # So the page only talks about Byro's fee when one is being taken.
+            'fee_rate': str(merch.fee_rate()),
         })
 
 
@@ -420,8 +433,8 @@ class MerchBalanceView(APIView):
 
     def get(self, request):
         held = (MerchOrder.objects.filter(seller=request.user, status__in=merch.LIVE)
-                .filter(Q(reported_at__isnull=False, report_resolved_at__isnull=True) | Q(release_at__isnull=True) | Q(release_at__gt=timezone.now()))
-                .select_related('seller', 'seller__profile').prefetch_related('lines').order_by('release_at', 'pk'))
+                .filter(Q(reported_at__isnull=False, report_resolved_at__isnull=True) | ~Q(status__in=merch.DONE) | Q(release_at__gt=timezone.now()))
+                .select_related('seller', 'seller__profile').prefetch_related('lines').order_by('paid_at', 'pk'))
         rows = [seller_payload(o) | {'earnings': str(o.earnings)} for o in held[:50]]
         return Response({'merch': {k: str(v) for k, v in merch.balances(request.user).items()}, 'orders': rows, 'order_count': held.count()})
 
@@ -436,7 +449,7 @@ class AdminMerchHeldView(APIView):
     def get(self, request):
         held = (MerchOrder.objects.filter(reported_at__isnull=False, report_resolved_at__isnull=True)
                 .select_related('seller', 'seller__profile').prefetch_related('lines').order_by('reported_at'))
-        return Response({'results': [seller_payload(o, detail=True) | {'seller': _seller_info(o)} for o in held]})
+        return Response({'results': [seller_payload(o, detail=True) | {'seller': _seller_info(o) | {'email': o.seller.email}} for o in held]})
 
 
 class AdminMerchRefundView(APIView):

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import API from "@/services/api";
+import "@/app/dashboard/dashboard-v2.css";
 import { handleProblem, friendlyProfileError, slugifyHandle } from "@/lib/handle";
 
 const SITE = (process.env.NEXT_PUBLIC_SITE_URL || "https://usebyro.com").replace(/^https?:\/\//, "").replace(/\/+$/, "");
@@ -74,96 +75,110 @@ function Setup({ profile, onDone }) {
   };
 
   return (
-    <div className="flex min-h-[70vh] items-center justify-center bg-[#F7F9FC] px-4 py-10">
-      <form onSubmit={submit} className="w-full max-w-md rounded-2xl border border-gray-100 bg-white p-6 shadow-sm sm:p-8">
-        <h1 className="font-serif text-2xl text-gray-900">Set up your community page</h1>
-        <p className="mb-6 mt-2 text-sm leading-relaxed text-gray-500">
-          Your events live on one page. People who buy tickets can follow it and hear about your next event.
-        </p>
+    <div className="dv2 flex min-h-[70vh] items-start justify-center bg-[#F6F8FB] px-4 py-8 sm:py-12">
+      <form onSubmit={submit} aria-labelledby="cg-title" className="v-card flex w-full max-w-[460px] flex-col gap-5 p-[22px] sm:p-8">
+        <div className="flex flex-col gap-2">
+          <h1 id="cg-title" className="v-h1 !text-[28px]">Set up your community page</h1>
+          <p className="v-sub leading-normal">
+            Your events live on one page. People who buy tickets can follow it and hear about your next event.
+          </p>
+        </div>
 
-        <div className="space-y-4">
-          <div className="flex items-center gap-4">
-            <span className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-gray-100 text-gray-400">
-              {preview ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={preview} alt="" className="h-full w-full object-cover" />
-              ) : (
-                <span aria-hidden="true" className="text-xl">+</span>
-              )}
-            </span>
-            <label className="cursor-pointer rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50">
-              {preview ? "Change photo" : "Add a photo (optional)"}
-              <input
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (!f) return;
-                  setFile(f);
-                  setPreview(URL.createObjectURL(f));
-                }}
-              />
-            </label>
-          </div>
-
-          <div>
-            <label htmlFor="cg-name" className="mb-1.5 block text-xs font-semibold text-gray-700">
-              Name or community name <span className="text-red-500">*</span>
-            </label>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
+          <span
+            aria-hidden="true"
+            className={`flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-[18px] text-2xl font-extrabold ${
+              preview ? "bg-[#14161C] text-white" : "bg-[#F1F3F7] text-[#8A91A0]"
+            }`}
+          >
+            {preview ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={preview} alt="" className="h-full w-full object-cover" />
+            ) : (
+              "+"
+            )}
+          </span>
+          <label className="v-btn v-btn-s">
+            {preview ? "Change photo" : "Add a photo (optional)"}
             <input
-              id="cg-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Lagos Run Club"
-              className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-100"
+              type="file"
+              accept="image/*"
+              className="sr-only"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (!f) return;
+                setFile(f);
+                setPreview(URL.createObjectURL(f));
+              }}
             />
-          </div>
-
-          <div>
-            <label htmlFor="cg-handle" className="mb-1.5 block text-xs font-semibold text-gray-700">
-              Username <span className="text-red-500">*</span>
-            </label>
-            <div className="flex items-center rounded-xl border border-gray-200 focus-within:border-blue-300 focus-within:ring-2 focus-within:ring-blue-100">
-              <span className="select-none pl-4 text-xs text-gray-400">{SITE}/u/</span>
-              <input
-                id="cg-handle"
-                value={shownHandle}
-                onChange={(e) => {
-                  setHandleEdited(true);
-                  setHandle(e.target.value.replace(/\s+/g, "-"));
-                }}
-                placeholder="lagos-run-club"
-                className="min-w-0 flex-1 rounded-xl bg-transparent py-2.5 pl-1 pr-4 text-sm text-gray-900 placeholder-gray-400 focus:outline-none"
-              />
-            </div>
-          </div>
-
-          <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-gray-200 p-4">
-            <input
-              type="checkbox"
-              checked={isPublic}
-              onChange={(e) => setIsPublic(e.target.checked)}
-              className="mt-0.5 h-4 w-4 accent-blue-600"
-            />
-            <span>
-              <span className="block text-sm font-semibold text-gray-900">List my community publicly</span>
-              <span className="mt-0.5 block text-xs text-gray-500">Show it on the communities page so new people can find and follow you.</span>
-            </span>
           </label>
         </div>
 
+        <label className="flex flex-col gap-1.5">
+          <span className="v-lbl">Name or community name</span>
+          <input
+            id="cg-name"
+            value={name}
+            onChange={(e) => {
+              setName(e.target.value);
+              setError("");
+            }}
+            placeholder="Lagos Run Club"
+            aria-required="true"
+            className="v-input"
+          />
+        </label>
+
+        <label className="flex flex-col gap-1.5">
+          <span className="v-lbl">Username</span>
+          <span className="flex h-11 items-center overflow-hidden rounded-xl border border-[#CBD3DF] bg-white focus-within:border-[#3669F6] focus-within:shadow-[0_0_0_4px_rgba(54,105,246,0.16)]">
+            <span className="select-none whitespace-nowrap pl-3.5 text-[15px] text-[#5B6272]">{SITE}/u/</span>
+            <input
+              id="cg-handle"
+              value={shownHandle}
+              onChange={(e) => {
+                setHandleEdited(true);
+                setHandle(e.target.value.replace(/\s+/g, "-"));
+                setError("");
+              }}
+              placeholder="lagos-run-club"
+              aria-required="true"
+              className="h-full min-w-0 flex-1 border-0 bg-transparent pl-0.5 pr-3.5 text-base text-[#14161C] outline-none"
+            />
+          </span>
+        </label>
+
+        <div className="flex items-center gap-3.5 rounded-2xl bg-[#F7F9FC] px-4 py-3.5">
+          <span id="cg-pub" className="flex flex-1 flex-col gap-0.5">
+            <span className="text-[15px] font-extrabold">List my community publicly</span>
+            <span className="v-hint">Show it on the communities page so new people can find and follow you.</span>
+          </span>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={isPublic}
+            aria-labelledby="cg-pub"
+            onClick={() => setIsPublic((v) => !v)}
+            className={`relative h-7 w-12 shrink-0 rounded-full border-0 transition-colors motion-reduce:transition-none ${
+              isPublic ? "bg-[#3669F6]" : "bg-[#C9D0DC]"
+            }`}
+          >
+            <span
+              aria-hidden="true"
+              className={`absolute top-[3px] h-[22px] w-[22px] rounded-full bg-white shadow transition-[left] motion-reduce:transition-none ${
+                isPublic ? "left-[23px]" : "left-[3px]"
+              }`}
+            />
+          </button>
+        </div>
+
         {error && (
-          <p role="alert" className="mt-4 text-sm text-red-600">
+          <p role="alert" className="m-0 text-sm font-bold text-[#B42318]">
             {error}
           </p>
         )}
 
-        <button
-          type="submit"
-          disabled={saving}
-          className="mt-6 w-full rounded-full bg-blue-600 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
-        >
+        <button type="submit" disabled={saving} className="v-btn v-btn-p v-btn-lg w-full">
           {saving ? "Saving…" : "Continue to create event"}
         </button>
       </form>

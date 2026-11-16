@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import axiosInstance from "@/utils/axios";
 import BusyButton, { useButtonResult } from "@/components/dashboard/v2/BusyButton";
@@ -31,6 +31,17 @@ export default function FulfilmentSettings({ settings, onSaved, id = "fulfilment
   };
 
   const dirty = JSON.stringify(form) !== JSON.stringify(toForm(settings));
+
+  // Leaving with changes that were not saved asks first, so a new pickup address is not lost by accident.
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (e) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
   const missingAddress = !form.pickup_address.trim();
 
   const save = async (e) => {

@@ -4,27 +4,10 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { toast } from "sonner";
 import API from "@/services/api";
 import BankLogo from "@/components/dashboard/BankLogo";
-import SectionError from "@/components/dashboard/v2/SectionError";
 import BusyButton, { useButtonResult } from "@/components/dashboard/v2/BusyButton";
 import { BalanceBreakdown, MerchFigures, ShortfallNotice } from "@/components/merch/MerchBalance";
-import { withdrawBlockedLine } from "@/lib/merchOrders";
-
-// Backend status -> label, status ink, dot, amount ink (design: Paid / Pending / Cancelled-style grey).
-const STATUS = {
-  processed: { label: "Paid", ink: "#1F7A52", dot: "#2F9E6E", amt: "#14161C" },
-  on_hold: { label: "On hold", ink: "#14161C", dot: "#8A91A0", amt: "#14161C" },
-  pending: { label: "Pending", ink: "#8A4B00", dot: "#F5B83D", amt: "#14161C" },
-  rejected: { label: "Rejected", ink: "#B42318", dot: "#D03B3B", amt: "#5B6272" },
-};
-const STATUS_FALLBACK = { label: "", ink: "#5B6272", dot: "#8A91A0", amt: "#5B6272" };
-
-const FILTERS = [
-  ["all", "All"],
-  ["processed", "Paid"],
-  ["pending", "Pending"],
-  ["on_hold", "On hold"],
-  ["rejected", "Rejected"],
-];
+import MoneyActivity from "@/components/merch/MoneyActivity";
+import { merchFigures, withdrawBlockedLine } from "@/lib/merchOrders";
 
 const BANK_DETAILS_STORAGE_KEY = "byro_payout_bank_details";
 
@@ -59,10 +42,8 @@ function fmtWhen(iso) {
 export default function StudioPayouts() {
   const [payouts, setPayouts] = useState([]);
   const [loadingPayouts, setLoadingPayouts] = useState(true);
-  const [payoutsFailed, setPayoutsFailed] = useState(false);
   const [withdrawResult, flashWithdraw] = useButtonResult();
   const [balanceFailed, setBalanceFailed] = useState(false);
-  const [filter, setFilter] = useState("all");
 
   const [banks, setBanks] = useState([]);
   const [loadingBanks, setLoadingBanks] = useState(false);
@@ -119,9 +100,8 @@ export default function StudioPayouts() {
               }
         );
       }
-      setPayoutsFailed(false);
     } catch {
-      setPayoutsFailed(true);
+      // The payout figures stay at zero; the balance and activity sections show their own errors.
     } finally {
       setLoadingPayouts(false);
     }
@@ -294,8 +274,6 @@ export default function StudioPayouts() {
   // The newest request, while it's still waiting, gets the progress steps.
   const inFlight = payouts[0]?.status === "pending" ? payouts[0] : null;
 
-  const count = (s) => (s === "all" ? payouts.length : payouts.filter((p) => p.status === s).length);
-  const rows = filter === "all" ? payouts : payouts.filter((p) => p.status === filter);
   const parsedAmount = parseFloat(withdrawAmount);
   const bankLabel = `${bankDetails.bankName} ${maskAccount(bankDetails.accountNumber)}`;
 
@@ -319,10 +297,11 @@ export default function StudioPayouts() {
             ) : (
               <span className="v-hero break-words">{balance ? fmt(balance.available) : "—"}</span>
             )}
-            {!loadingBalance && balance && <MerchFigures merch={balance.merch} />}
-            {!loadingBalance && balance && (
+            {!loadingBalance && balance && <MerchFigures merch={balance.merch} onOpen={() => setBreakdownOpen(true)} />}
+            {/* Without merch money to press, the panel (where Available comes from) stays one link away. */}
+            {!loadingBalance && balance && merchFigures(balance.merch).length === 0 && (
               <button type="button" onClick={() => setBreakdownOpen(true)} className="self-start p-0 text-sm font-bold text-brand-dark hover:underline">
-                See what&apos;s in your balance
+                Balance details
               </button>
             )}
             {balanceFailed && !loadingBalance && (
@@ -539,92 +518,7 @@ export default function StudioPayouts() {
         </div>
       </div>
 
-      <section aria-label="Payout history" className="v-card v-bf min-w-0 overflow-hidden" style={{ "--i": 4 }}>
-        <div className="flex flex-wrap items-center gap-3 px-[22px] py-5">
-          <h2 className="v-h2 grow">History</h2>
-          {payouts.length > 0 && (
-            <div role="group" aria-label="Filter payouts" className="v-seg">
-              {FILTERS.map(([value, label]) => (
-                <button
-                  key={value}
-                  type="button"
-                  aria-pressed={filter === value}
-                  onClick={() => setFilter(value)}
-                >
-                  {label}
-                  <span className="n">{count(value)}</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {loadingPayouts ? (
-          <div className="flex flex-col gap-3 border-t border-hairline px-[22px] py-5">
-            {[0, 1, 2].map((i) => (
-              <div key={i} className="v-skel h-6" />
-            ))}
-          </div>
-        ) : payoutsFailed ? (
-          <SectionError what="your withdrawals" onRetry={() => { setLoadingPayouts(true); loadPayouts(); }} className="border-t border-hairline" />
-        ) : payouts.length === 0 ? (
-          <div className="border-t border-hairline px-[22px] py-10 text-center">
-            <p className="m-0 text-[15px] font-extrabold">No withdrawals yet</p>
-            <p className="v-hint m-0 mt-1">Once your tickets sell, request a withdrawal to your bank here.</p>
-          </div>
-        ) : rows.length === 0 ? (
-          <p className="v-hint m-0 border-t border-hairline px-[22px] py-8 text-center">Nothing here for this filter</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="v-stack w-full min-w-[680px] border-collapse">
-              <thead>
-                <tr className="border-y border-hairline">
-                  <th scope="col" className="v-th px-[22px] py-3 text-left">Type</th>
-                  <th scope="col" className="v-th p-3 text-left">Amount</th>
-                  <th scope="col" className="v-th p-3 text-left">Status</th>
-                  <th scope="col" className="v-th p-3 text-left">Reference ID</th>
-                  <th scope="col" className="v-th py-3 pl-3 pr-[22px] text-left">Date</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((p, i) => {
-                  const s = STATUS[p.status] || STATUS_FALLBACK;
-                  return (
-                    <tr key={p.id} className="v-row v-al border-b border-hairline" style={{ "--i": Math.min(i, 12) }}>
-                      <td className="px-[22px] py-3.5 text-[14px] font-bold">{p.method === "bank" ? "Bank transfer" : "Wallet"}</td>
-                      <td data-l="Amount" className="px-3 py-3.5">
-                        <span className="v-tab text-[15px] font-extrabold" style={{ color: s.amt }}>
-                          {fmt(p.amount)}
-                        </span>
-                      </td>
-                      <td data-l="Status" className="px-3 py-3.5">
-                        <span className="v-status" style={{ color: s.ink }}>
-                          <span className="v-dot" style={{ background: s.dot }} />
-                          {s.label || p.status}
-                        </span>
-                        {p.status === "on_hold" && (
-                          <span className="v-hint mt-1 block text-xs">{p.hold_reason ? `${p.hold_reason} ` : ""}Contact support if you need help.</span>
-                        )}
-                        {p.status === "rejected" && (
-                          <span className="v-hint mt-1 block text-xs">Back in your balance. Check your bank details or contact support.</span>
-                        )}
-                      </td>
-                      <td data-l="Reference ID" className="v-tab px-3 py-3.5 text-[14px] text-muted">{p.reference}</td>
-                      <td data-l="Date" className="py-3.5 pl-3 pr-[22px] text-[14px]">{fmtDate(p.requested_at)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-        <p className="v-hint m-0 px-[22px] py-3.5 text-center">
-          Questions?{" "}
-          <a href="mailto:support@usebyro.com" className="font-bold text-brand-dark">
-            support@usebyro.com
-          </a>
-        </p>
-      </section>
+      <MoneyActivity />
 
       {breakdownOpen && <BalanceBreakdown balance={balance} onClose={() => setBreakdownOpen(false)} />}
     </div>

@@ -27,10 +27,16 @@ class RunJobsTests(SimpleTestCase):
         return ran, None
 
     def test_reminders_wait_until_nine_in_lagos(self):
-        self.assertEqual(self.run_at(8)[0], ['send_scheduled_messages', 'process_refunds'])
-        self.assertEqual(self.run_at(9)[0], ['send_scheduled_messages', 'process_refunds', 'send_event_reminders'])
+        self.assertEqual(self.run_at(8)[0], ['send_scheduled_messages', 'process_refunds', 'process_merch_orders'])
+        self.assertEqual(self.run_at(9)[0], ['send_scheduled_messages', 'process_refunds', 'process_merch_orders', 'send_event_reminders'])
+
+    def test_merch_runs_every_time_and_a_merch_failure_does_not_stop_reminders(self):
+        ran, error = self.run_at(10, fail='process_merch_orders')
+        self.assertIn('process_merch_orders', ran)
+        self.assertIn('send_event_reminders', ran)
+        self.assertIn('process_merch_orders', error)
 
     def test_one_failing_job_does_not_stop_the_others(self):
         ran, error = self.run_at(10, fail='send_scheduled_messages')
-        self.assertEqual(ran, ['send_scheduled_messages', 'process_refunds', 'send_event_reminders'])
+        self.assertEqual(ran, ['send_scheduled_messages', 'process_refunds', 'process_merch_orders', 'send_event_reminders'])
         self.assertIn('send_scheduled_messages', error)

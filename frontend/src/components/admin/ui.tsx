@@ -133,7 +133,8 @@ export const SUSPEND_EVENT_BODY =
 export async function throwIfFailed(res: Response): Promise<void> {
   if (res.ok) return;
   const data = await res.json().catch(() => ({}));
-  throw new Error(data?.error || data?.detail || "");
+  // A reply that isn't JSON (a crash page, a gateway timeout) has no message, so say which status it was.
+  throw new Error(data?.error || data?.detail || `The server answered with an error (HTTP ${res.status}).`);
 }
 
 export interface ConfirmOptions {

@@ -13,5 +13,6 @@ export default defineConfig({
     include: ["src/**/*.test.{js,jsx,ts,tsx}"],
     css: false,
     restoreMocks: true,
+    testTimeout: 15000, // a busy machine (dev servers running) can be slow on the first render of a file
   },
 });

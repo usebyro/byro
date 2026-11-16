@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('bryo', '0078_merch_release_notice'),
+        ('bryo', '0080_merch_ref_code'),
     ]
 
     operations = [

@@ -3729,6 +3729,39 @@ def ticket_net_price_expr():
     )
 
 
+def balance_parts(user, event=None):
+    """
+    The three pieces of an organiser's balance, in naira: `tickets` (earned from tickets on events they own),
+    `merch` (merch earnings that have been released), and `withdrawn` (payout requests that are pending, on hold
+    or processed). Available is tickets + merch - withdrawn. See compute_available_balance for the rules.
+    """
+    if event is not None:
+        if event.owner_id != user.id:
+            return {'tickets': Decimal('0'), 'merch': Decimal('0'), 'withdrawn': Decimal('0')}
+        event_ids = [event.pk]
+    else:
+        event_ids = list(Event.objects.filter(owner=user).values_list('pk', flat=True))
+
+    net_price = ticket_net_price_expr()
+    tickets = (
+        Ticket.objects.filter(event_id__in=event_ids, payment_status='paid')
+        .aggregate(total=Coalesce(Sum(net_price), Decimal('0')))['total']
+    )
+    merch_earned = Decimal('0')
+    if event is None:
+        # Merch earnings count once an order is complete and its safety window has passed (see bryo/merch.py).
+        from . import merch
+        merch_earned = merch.available_earnings(user)
+
+    payouts = PayoutRequest.objects.filter(
+        user=user, status__in=['pending', 'on_hold', 'processed']
+    )
+    if event is not None:
+        payouts = payouts.filter(event=event)
+    withdrawn = payouts.aggregate(total=Coalesce(Sum('amount'), Decimal('0')))['total']
+    return {'tickets': tickets, 'merch': merch_earned, 'withdrawn': withdrawn}
+
+
 def compute_available_balance(user, event=None):
     """
     Funds an organiser can currently withdraw.
@@ -3751,31 +3784,8 @@ def compute_available_balance(user, event=None):
 
     When `event` is given, the balance is scoped to that single event.
     """
-    if event is not None:
-        if event.owner_id != user.id:
-            return Decimal('0')
-        event_ids = [event.pk]
-    else:
-        event_ids = list(Event.objects.filter(owner=user).values_list('pk', flat=True))
-
-    net_price = ticket_net_price_expr()
-    earned = (
-        Ticket.objects.filter(event_id__in=event_ids, payment_status='paid')
-        .aggregate(total=Coalesce(Sum(net_price), Decimal('0')))['total']
-    )
-    if event is None:
-        # Merch earnings count once an order is complete and its safety window has passed (see bryo/merch.py).
-        from . import merch
-        earned += merch.available_earnings(user)
-
-    payouts = PayoutRequest.objects.filter(
-        user=user, status__in=['pending', 'on_hold', 'processed']
-    )
-    if event is not None:
-        payouts = payouts.filter(event=event)
-    withdrawn = payouts.aggregate(total=Coalesce(Sum('amount'), Decimal('0')))['total']
-
-    return earned - withdrawn
+    parts = balance_parts(user, event)
+    return parts['tickets'] + parts['merch'] - parts['withdrawn']
 
 
 class PayoutRequestView(APIView):
@@ -3921,6 +3931,9 @@ class PayoutBalanceView(APIView):
             'merch': {k: str(v) for k, v in merch.balances(request.user).items() if k != 'available'}
             | {'next_release_at': merch.next_release_at(request.user)},
             'shortfall': str(max(-raw, Decimal('0'))),
+            # Where `available` comes from: what was earned from tickets and from released merch, less what
+            # has been withdrawn or requested.
+            'parts': {k: str(v) for k, v in balance_parts(request.user).items()},
             'currency': 'NGN',
         })
 
@@ -4211,9 +4224,14 @@ class AdminAnalyticsSummaryView(APIView):
 
     def get(self, request):
         total_tickets = Ticket.objects.filter(payment_status__in=['paid', 'free']).count()
-        total_revenue = Payment.objects.filter(status='successful').aggregate(
+        ticket_revenue = Payment.objects.filter(status='successful').aggregate(
             total=Sum('amount')
         )['total'] or 0
+        from . import merch
+        # Merch counts too: what buyers paid for orders that haven't been refunded or cancelled.
+        merch_orders = MerchOrder.objects.filter(status__in=merch.LIVE)
+        merch_revenue = merch_orders.aggregate(total=Sum('amount'))['total'] or 0
+        total_revenue = ticket_revenue + merch_revenue
         total_events = Event.objects.count()
         active_events = Event.objects.filter(is_active=True).count()
         private_events = Event.objects.filter(visibility='private').count()
@@ -4228,6 +4246,9 @@ class AdminAnalyticsSummaryView(APIView):
         return Response({
             'total_tickets_sold': total_tickets,
             'total_revenue': total_revenue,
+            'ticket_revenue': ticket_revenue,
+            'merch_revenue': merch_revenue,
+            'merch_orders': merch_orders.count(),
             'total_events': total_events,
             'active_events': active_events,
             'private_events': private_events,
@@ -4585,8 +4606,15 @@ class AdminAnalyticsRevenueTrendView(APIView):
             .annotate(revenue=Sum('amount'))
             .order_by('date')
         )
-        data = [{'date': str(r['date']), 'revenue': r['revenue']} for r in rows]
-        return Response(data)
+        from . import merch
+        by_day = {str(r['date']): r['revenue'] for r in rows}
+        merch_rows = (
+            MerchOrder.objects.filter(status__in=merch.LIVE, paid_at__gte=since)
+            .annotate(date=TruncDate('paid_at')).values('date').annotate(revenue=Sum('amount'))
+        )
+        for r in merch_rows:
+            by_day[str(r['date'])] = (by_day.get(str(r['date'])) or 0) + r['revenue']
+        return Response([{'date': d, 'revenue': by_day[d]} for d in sorted(by_day)])
 
 
 def _log_admin_action(request, action, target_type, target_id, target_label='', detail=''):

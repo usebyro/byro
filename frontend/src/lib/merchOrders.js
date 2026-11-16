@@ -2,7 +2,8 @@
 
 export const naira = (n) => `₦${Math.round(Number(n || 0)).toLocaleString("en-NG")}`;
 
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const DAY_MONTH = new Intl.DateTimeFormat("en-NG", { day: "numeric", month: "short" });
+const TIME = new Intl.DateTimeFormat("en-NG", { hour: "numeric", minute: "2-digit" });
 
 export function shortDate(iso) {
   if (!iso) return "";
@@ -12,21 +13,20 @@ export function shortDate(iso) {
   const days = Math.round((new Date(today.getFullYear(), today.getMonth(), today.getDate()) - new Date(d.getFullYear(), d.getMonth(), d.getDate())) / 86400000);
   if (days === 0) return "Today";
   if (days === 1) return "Yesterday";
-  return `${d.getDate()} ${MONTHS[d.getMonth()]}`;
+  return DAY_MONTH.format(d);
 }
 
 export function dayMonth(iso) {
   if (!iso) return "";
   const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? "" : `${d.getDate()} ${MONTHS[d.getMonth()]}`;
+  return Number.isNaN(d.getTime()) ? "" : DAY_MONTH.format(d);
 }
 
 export function dateTime(iso) {
   if (!iso) return "";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
-  const time = d.toLocaleTimeString("en-NG", { hour: "numeric", minute: "2-digit" });
-  return `${shortDate(iso)}, ${time}`;
+  return `${shortDate(iso)}, ${TIME.format(d)}`;
 }
 
 // status -> [text, ink class, dot class]. Pickup orders that are only paid say what comes next for pickup.
@@ -92,7 +92,7 @@ export function releaseLine(order) {
     case "available":
       return "You can withdraw this now.";
     case "releasing":
-      return `Releases on ${dayMonth(order.release_at)}, once the safety window ends.`;
+      return `Available on ${dayMonth(order.release_at)}, unless ${first} reports a problem.`;
     case "on_hold":
       return `On hold while Byro reviews a problem ${first} reported.`;
     case "not_released":
@@ -156,7 +156,7 @@ export function merchFigures(merch = {}) {
 // One line about where a held-back merch order's money is, for the "what's in your balance" panel.
 export function heldOrderLine(order) {
   if (order.on_hold) return "On hold while Byro reviews a problem the buyer reported.";
-  if (order.release_state === "releasing") return `Releases on ${dayMonth(order.release_at)}.`;
+  if (order.release_state === "releasing") return `Available on ${dayMonth(order.release_at)}.`;
   if (order.release_state === "not_released") {
     if (order.status === "paid") return order.fulfilment === "pickup" ? "Waiting for you to get it ready." : "Waiting for you to pack it.";
     if (order.status === "packed") return "Waiting for you to ship it.";
@@ -166,9 +166,15 @@ export function heldOrderLine(order) {
 }
 
 export const RELEASE_RULES = [
+  "The buyer confirms they have it: straight away.",
   "Pickup, picked up with the code: straight away.",
-  "Pickup, picked up without the code: 3 days later.",
-  "Pickup, never collected: 7 days after Ready for pickup.",
-  "Delivery, delivered: 3 days later.",
-  "Delivery, never marked delivered: 10 days after Shipped.",
+  "Pickup, picked up without the code: 2 days later.",
+  "Delivery, marked delivered by you: 2 days later.",
 ];
+
+// A WhatsApp link for a Nigerian number: 0803 412 5185 becomes wa.me/2348034125185.
+export function whatsappLink(phone) {
+  const digits = String(phone || "").replace(/\D/g, "");
+  if (digits.length < 7) return "";
+  return `https://wa.me/${digits.startsWith("0") ? `234${digits.slice(1)}` : digits}`;
+}
