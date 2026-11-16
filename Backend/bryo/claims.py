@@ -131,7 +131,9 @@ class AdminEventClaimView(APIView):
             return Response({'error': 'Enter a valid email address.'}, status=status.HTTP_400_BAD_REQUEST)
 
         with transaction.atomic():
-            event = get_object_or_404(Event.objects.select_for_update().select_related('owner'), pk=pk)
+            # Lock the event row only: its owner can be empty (a draft Byro built itself), and Postgres refuses
+            # FOR UPDATE across that outer join. SQLite ignores row locks, so tests would never show it.
+            event = get_object_or_404(Event.objects.select_for_update(of=('self',)).select_related('owner'), pk=pk)
             # Only drafts staff built themselves. A live event or one with sales belongs to its
             # organiser already, and moving it would be a transfer, which Byro doesn't do.
             if not event.is_draft:

@@ -44,6 +44,14 @@ class SendingTests(ClaimBase):
         self.assertNotIn('\u2014', kwargs['html'] + kwargs['text'])
         self.assertTrue(AdminAction.objects.filter(action=AdminAction.ACTION_EVENT_CLAIM_SENT).exists())
 
+    def test_a_draft_with_no_owner_can_be_sent(self):
+        # Postgres refuses a row lock across the owner join when there is no owner; the lock is on the event only.
+        self.event.owner = None
+        self.event.save()
+        r = self.send()
+        self.assertEqual(r.status_code, 201)
+        self.assertTrue(self.event.claims.exists())
+
     def test_nothing_changes_on_the_event_until_it_is_claimed(self):
         self.send()
         self.event.refresh_from_db()

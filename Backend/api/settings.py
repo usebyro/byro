@@ -394,3 +394,13 @@ STORAGES = {
 
 
 
+
+# Print warnings and errors (including the traceback of any crash that ends in a 500) to the console, so they
+# show up in Railway's logs. Without this, Django keeps a production 500's traceback to itself.
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {'plain': {'format': '%(levelname)s %(name)s: %(message)s'}},
+    'handlers': {'console': {'class': 'logging.StreamHandler', 'formatter': 'plain'}},
+    'root': {'handlers': ['console'], 'level': 'WARNING'},
+}
