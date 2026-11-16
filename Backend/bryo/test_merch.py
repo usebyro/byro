@@ -48,6 +48,16 @@ class MerchBase(TestCase):
         order, _ = merch.mark_paid(self.order(fulfilment, **kw), 'card')
         return order
 
+    def handed_over(self, **kw):
+        """A pickup handed over against the buyer's code: nothing left to wait for."""
+        order = merch.advance(self.paid('pickup', **kw), 'ready')
+        return merch.advance(order, 'picked_up', code=order.pickup_code)
+
+    def wait_out(self, order):
+        """Skip the 2 days an organiser-only completion waits."""
+        MerchOrder.objects.filter(pk=order.pk).update(release_at=timezone.now() - timedelta(minutes=1))
+        return MerchOrder.objects.get(pk=order.pk)
+
 
 class FulfilmentSettingsTests(MerchBase):
     def put(self, **body):
@@ -324,74 +334,81 @@ class FulfilmentStepsTests(MerchBase):
 
 
 class ReleaseRuleTests(MerchBase):
-    """When an order's earnings can be withdrawn."""
+    """Merch money is available when the buyer confirms or the code is checked, and 2 days after the organiser says so alone."""
 
-    def days_from_now(self, order):
-        order.refresh_from_db()
-        return None if order.release_at is None else (order.release_at - timezone.now()).total_seconds() / 86400
+    def available(self):
+        return merch.balances(self.seller)['available']
 
-    def test_nothing_is_released_before_the_order_is_ready_or_shipped(self):
-        order = self.paid('delivery')
-        self.assertIsNone(order.release_at)
-        self.assertIsNone(merch.advance(order, 'pack').release_at)
+    def test_nothing_is_available_while_the_order_is_open(self):
+        delivery, pickup = self.paid('delivery'), self.paid('pickup')
+        self.assertEqual(self.available(), 0)
+        merch.advance(MerchOrder.objects.get(pk=delivery.pk), 'pack')
+        merch.advance(MerchOrder.objects.get(pk=delivery.pk), 'ship')
+        merch.advance(MerchOrder.objects.get(pk=pickup.pk), 'ready')
+        b = merch.balances(self.seller)
+        self.assertEqual((b['available'], b['not_released']), (Decimal('0.00'), Decimal('26000.00')))   # 14,000 + 12,000
+        self.assertIsNone(MerchOrder.objects.get(pk=pickup.pk).release_at)
 
-    def test_pickup_with_the_buyers_code_releases_straight_away(self):
-        order = merch.advance(self.paid('pickup'), 'ready')
-        self.assertAlmostEqual(self.days_from_now(order), 7, delta=0.01)   # never collected: 7 days
-        done = merch.advance(order, 'picked_up', code=order.pickup_code)
+    def test_delivered_by_the_organiser_alone_is_available_after_two_days(self):
+        order = merch.advance(self.paid('delivery'), 'ship')
+        self.assertEqual(self.available(), 0)
+        done = merch.advance(order, 'delivered')
+        b = merch.balances(self.seller)
+        self.assertEqual((b['available'], b['releasing']), (Decimal('0.00'), Decimal('14000.00')))
+        self.assertAlmostEqual(done.release_at, done.delivered_at + timedelta(days=merch.HOLD_DAYS), delta=timedelta(seconds=5))
+        self.wait_out(done)
+        self.assertEqual(self.available(), Decimal('14000.00'))
+        self.assertEqual(merch.balances(self.seller)['releasing'], 0)
+
+    def test_picked_up_with_the_code_is_available_at_once_and_without_it_after_two_days(self):
+        done = self.handed_over()
         self.assertTrue(done.code_verified)
-        self.assertLessEqual(done.release_at, timezone.now())
+        self.assertEqual(self.available(), Decimal('12000.00'))
+        without = merch.advance(merch.advance(self.paid('pickup'), 'ready'), 'picked_up')
+        self.assertFalse(without.code_verified)
+        b = merch.balances(self.seller)
+        self.assertEqual((b['available'], b['releasing']), (Decimal('12000.00'), Decimal('12000.00')))
+        self.wait_out(without)
+        self.assertEqual(self.available(), Decimal('24000.00'))
 
     def test_a_wrong_code_is_refused_and_changes_nothing(self):
         order = merch.advance(self.paid('pickup'), 'ready')
         with self.assertRaises(merch.MerchError):
             merch.advance(order, 'picked_up', code='0000')
         order.refresh_from_db()
-        self.assertEqual(order.status, 'ready')
+        self.assertEqual((order.status, self.available()), ('ready', Decimal('0.00')))
 
-    def test_pickup_without_the_code_waits_three_days(self):
-        order = merch.advance(self.paid('pickup'), 'ready')
-        done = merch.advance(order, 'picked_up')
-        self.assertFalse(done.code_verified)
-        self.assertAlmostEqual(self.days_from_now(done), 3, delta=0.01)
-
-    def test_delivery_waits_three_days_after_delivered_or_ten_after_shipped(self):
-        shipped = merch.advance(self.paid('delivery'), 'ship')
-        self.assertAlmostEqual(self.days_from_now(shipped), 10, delta=0.01)
-        delivered = merch.advance(shipped, 'delivered')
-        self.assertAlmostEqual(self.days_from_now(delivered), 3, delta=0.01)
-
-    def test_a_late_delivered_mark_never_pushes_the_release_later(self):
-        shipped = merch.advance(self.paid('delivery'), 'ship')
-        MerchOrder.objects.filter(pk=shipped.pk).update(release_at=timezone.now() + timedelta(days=1))
-        delivered = merch.advance(MerchOrder.objects.get(pk=shipped.pk), 'delivered')
-        self.assertLess(self.days_from_now(delivered), 1.01)
-
-    def test_the_buyer_confirming_marks_it_done_with_the_same_wait(self):
+    def test_the_buyer_confirming_makes_it_available_at_once(self):
         pickup = merch.advance(self.paid('pickup'), 'ready')
         self.assertEqual(merch.confirm_by_buyer(pickup).status, 'picked_up')
-        self.assertAlmostEqual(self.days_from_now(pickup), 3, delta=0.01)
+        self.assertEqual(self.available(), Decimal('12000.00'))
         delivery = merch.advance(self.paid('delivery'), 'ship')
         self.assertEqual(merch.confirm_by_buyer(delivery).status, 'delivered')
+        self.assertEqual(self.available(), Decimal('26000.00'))
         with self.assertRaises(merch.MerchError):
             merch.confirm_by_buyer(self.paid('delivery'))   # not shipped yet
 
+    def test_the_next_release_date_is_the_earliest_one_still_waiting(self):
+        self.assertIsNone(merch.next_release_at(self.seller))
+        first = merch.advance(merch.advance(self.paid('delivery'), 'ship'), 'delivered')
+        self.assertEqual(merch.next_release_at(self.seller), first.release_at)
+        merch.report_problem(first, 'damaged')   # on hold: not counted down
+        self.assertIsNone(merch.next_release_at(self.seller))
+
 
 class BalanceTests(MerchBase):
-    def release(self, order, days):
-        MerchOrder.objects.filter(pk=order.pk).update(release_at=timezone.now() + timedelta(days=days))
+    def fulfilled(self):
+        return self.handed_over()
 
     def test_the_four_buckets(self):
-        not_yet = self.paid('delivery')                                    # 14,000
-        releasing = merch.advance(self.paid('pickup'), 'ready')            # 12,000, ready: releases in 7 days
-        available = merch.advance(self.paid('pickup'), 'ready')
-        self.release(available, -1)                                        # 12,000, window passed
-        held = merch.advance(self.paid('pickup'), 'ready')
-        merch.report_problem(held, 'not_received')                         # 12,000
+        self.paid('delivery')                                                               # 14,000 still to fulfil
+        merch.advance(self.paid('pickup'), 'ready')                                         # 12,000 ready, not collected yet
+        self.fulfilled()                                                                    # 12,000 available
+        merch.advance(merch.advance(self.paid('pickup'), 'ready'), 'picked_up')             # 12,000 releasing (organiser alone)
+        merch.report_problem(merch.advance(self.paid('pickup'), 'ready'), 'not_received')   # 12,000 on hold
         b = merch.balances(self.seller)
-        self.assertEqual({k: str(v) for k, v in b.items()}, {
-            'available': '12000.00', 'releasing': '12000.00', 'on_hold': '12000.00', 'not_released': '14000.00'})
-        self.assertTrue(not_yet and releasing)
+        self.assertEqual({k: str(v) for k, v in b.items()},
+                         {'available': '12000.00', 'releasing': '12000.00', 'on_hold': '12000.00', 'not_released': '26000.00'})
 
     def test_refunded_and_cancelled_orders_count_for_nothing(self):
         order = self.paid('pickup')
@@ -399,35 +416,35 @@ class BalanceTests(MerchBase):
             merch.cancel(order, 'Sorry')
         self.assertEqual(sum(merch.balances(self.seller).values()), Decimal('0'))
 
-    def test_released_merch_money_joins_the_withdrawable_balance_and_can_be_withdrawn(self):
+    def test_fulfilled_merch_money_joins_the_withdrawable_balance_and_can_be_withdrawn(self):
         order = merch.advance(self.paid('pickup'), 'ready')
         self.assertEqual(compute_available_balance(self.seller), Decimal('0'))
-        self.release(order, -1)
+        merch.advance(order, 'picked_up', code=order.pickup_code)
         self.assertEqual(compute_available_balance(self.seller), Decimal('12000.00'))
         PayoutRequest.objects.create(user=self.seller, amount=Decimal('5000'), method='bank', status='pending')
         self.assertEqual(compute_available_balance(self.seller), Decimal('7000.00'))
 
     def test_a_refund_after_money_was_withdrawn_takes_the_balance_below_zero(self):
-        order = merch.advance(self.paid('pickup'), 'ready')
-        self.release(order, -1)
+        order = self.fulfilled()
         PayoutRequest.objects.create(user=self.seller, amount=Decimal('12000'), method='bank', status='processed')
         with patch('bryo.merch.send_refund'):
-            merch.admin_refund(MerchOrder.objects.get(pk=order.pk), 'Buyer emailed support after the window')
+            merch.admin_refund(MerchOrder.objects.get(pk=order.pk), 'Buyer emailed support after it was marked complete')
         self.assertEqual(compute_available_balance(self.seller), Decimal('-12000.00'))
 
 
 class AccountTests(MerchBase):
     def test_the_payouts_balance_endpoint_shows_merch_money_and_any_shortfall(self):
         self.client.force_authenticate(self.seller)
-        releasing = merch.advance(self.paid('pickup'), 'ready')
+        order = merch.advance(self.paid('pickup'), 'ready')
         r = self.client.get('/api/payouts/balance/').json()
         self.assertEqual(Decimal(r['available']), 0)
-        self.assertEqual((r['merch']['releasing'], r['merch']['not_released'], Decimal(r['shortfall'])), ('12000.00', '0.00', 0))
-        MerchOrder.objects.filter(pk=releasing.pk).update(release_at=timezone.now() - timedelta(hours=1))
+        self.assertEqual((r['merch']['not_released'], r['merch']['on_hold'], Decimal(r['shortfall'])), ('12000.00', '0.00', 0))
+        self.assertEqual(set(r['merch']), {'not_released', 'on_hold', 'releasing', 'next_release_at'})
+        merch.advance(MerchOrder.objects.get(pk=order.pk), 'picked_up', code=order.pickup_code)
         self.assertEqual(Decimal(self.client.get('/api/payouts/balance/').json()['available']), 12000)
         PayoutRequest.objects.create(user=self.seller, amount=Decimal('12000'), method='bank', status='processed')
         with patch('bryo.merch.send_refund'):
-            merch.admin_refund(MerchOrder.objects.get(pk=releasing.pk), 'Late complaint')
+            merch.admin_refund(MerchOrder.objects.get(pk=order.pk), 'Late complaint')
         r = self.client.get('/api/payouts/balance/').json()
         self.assertEqual((Decimal(r['available']), Decimal(r['shortfall'])), (0, 12000))
 
@@ -454,15 +471,13 @@ class BalancePartsAndActivityTests(MerchBase):
                                   original_owner_email='b@example.com', current_owner_name='B', current_owner_email='b@example.com')
         self.Refund = Refund
 
-    def released_order(self, days_ago=1):
-        order = merch.advance(self.paid('pickup'), 'ready')
-        MerchOrder.objects.filter(pk=order.pk).update(release_at=timezone.now() - timedelta(days=days_ago))
-        return order
+    def released_order(self):
+        return self.handed_over()
 
     def test_the_parts_add_up_to_what_can_be_withdrawn(self):
         from .views import balance_parts
         self.released_order()
-        merch.advance(self.paid('pickup'), 'ready')                       # still in its window: not in the parts
+        merch.advance(self.paid('pickup'), 'ready')                       # still open: not in the parts
         PayoutRequest.objects.create(user=self.seller, amount=Decimal('5000'), method='bank', status='pending')
         PayoutRequest.objects.create(user=self.seller, amount=Decimal('999'), method='bank', status='rejected')
         parts = balance_parts(self.seller)
@@ -485,7 +500,7 @@ class BalancePartsAndActivityTests(MerchBase):
         return r.json()['results']
 
     def test_everything_that_moved_the_balance_is_listed_newest_first(self):
-        self.released_order(days_ago=1)
+        self.released_order()
         self.Refund.objects.create(payment=self.payment, event=self.event, amount=Decimal('5000'))
         PayoutRequest.objects.create(user=self.seller, amount=Decimal('5000'), method='bank', status='processed')
         rows = self.activity()
@@ -499,13 +514,18 @@ class BalancePartsAndActivityTests(MerchBase):
         self.assertEqual(times, sorted(times, reverse=True))
 
     def test_money_that_has_not_moved_yet_is_not_listed(self):
-        merch.advance(self.paid('pickup'), 'ready')                                            # in its window
-        held = merch.report_problem(merch.advance(self.paid('pickup'), 'ready'), 'damaged')    # on hold
-        MerchOrder.objects.filter(pk=held.pk).update(release_at=timezone.now() - timedelta(days=1))
+        merch.advance(self.paid('pickup'), 'ready')                                            # still open
+        merch.report_problem(merch.advance(self.paid('pickup'), 'ready'), 'damaged')           # on hold
+        merch.advance(merch.advance(self.paid('pickup'), 'ready'), 'picked_up')                # inside its 2 days
         PayoutRequest.objects.create(user=self.seller, amount=Decimal('100'), method='bank', status='rejected')
         sources = [r['source'] for r in self.activity()]
         self.assertNotIn('merch', sources)
         self.assertNotIn('withdrawals', sources)
+
+    def test_money_is_listed_once_its_two_days_are_up(self):
+        order = merch.advance(merch.advance(self.paid('pickup'), 'ready'), 'picked_up')
+        self.wait_out(order)
+        self.assertIn('merch', [r['source'] for r in self.activity()])
 
     def test_other_organisers_and_signed_out_visitors_see_nothing_of_it(self):
         other = User.objects.create_user(email='other@example.com')
@@ -524,19 +544,47 @@ class ProblemTests(MerchBase):
         with self.assertRaises(merch.MerchError):
             merch.report_problem(order, 'damaged')            # already open
 
-    def test_a_bad_reason_or_a_closed_window_is_refused(self):
+    def test_a_bad_reason_is_refused_and_so_is_a_report_on_a_finished_order(self):
         order = merch.advance(self.paid('pickup'), 'ready')
         with self.assertRaises(merch.MerchError):
             merch.report_problem(order, 'rude')
-        MerchOrder.objects.filter(pk=order.pk).update(release_at=timezone.now() - timedelta(hours=1))
+        done = self.wait_out(merch.advance(order, 'picked_up'))
+        with self.assertRaises(merch.MerchError) as ctx:
+            merch.report_problem(done, 'damaged')
+        self.assertEqual(ctx.exception.status, 409)
+        self.assertIn('already complete', ctx.exception.message)
+        self.assertIn('support@usebyro.com', ctx.exception.message)
+        delivered = self.wait_out(merch.advance(merch.advance(self.paid('delivery'), 'ship'), 'delivered'))
+        with self.assertRaises(merch.MerchError):
+            merch.report_problem(delivered, 'not_received')
+        confirmed = merch.confirm_by_buyer(merch.advance(self.paid('pickup'), 'ready'))   # released at once: nothing left to report
+        with self.assertRaises(merch.MerchError):
+            merch.report_problem(confirmed, 'damaged')
+
+    def test_a_problem_can_be_reported_during_the_two_days_and_holds_the_money(self):
+        delivered = merch.advance(merch.advance(self.paid('delivery'), 'ship'), 'delivered')
+        reported = merch.report_problem(delivered, 'not_received', 'Never came')
+        self.assertTrue(reported.on_hold)
+        b = merch.balances(self.seller)
+        self.assertEqual((b['on_hold'], b['releasing'], b['available']), (Decimal('14000.00'), 0, 0))
+        released = merch.resolve_report(reported, 'release')
+        self.assertEqual(merch.balances(self.seller)['available'], Decimal('14000.00'))   # no more waiting
+        self.assertLessEqual(released.release_at, timezone.now())
+
+    def test_a_buyer_can_report_once_even_after_byro_has_decided(self):
+        order = merch.report_problem(merch.advance(self.paid('pickup'), 'ready'), 'other')
+        merch.resolve_report(order, 'release')
         with self.assertRaises(merch.MerchError) as ctx:
             merch.report_problem(MerchOrder.objects.get(pk=order.pk), 'damaged')
-        self.assertIn('has passed', ctx.exception.message)
+        self.assertIn('already reported', ctx.exception.message)
 
-    def test_releasing_pays_the_organiser_now(self):
+    def test_releasing_lifts_the_hold_and_the_money_follows_fulfilment(self):
         order = merch.report_problem(merch.advance(self.paid('pickup'), 'ready'), 'other')
         released = merch.resolve_report(order, 'release')
         self.assertFalse(released.on_hold)
+        b = merch.balances(self.seller)
+        self.assertEqual((b['available'], b['on_hold'], b['not_released']), (Decimal('0.00'), Decimal('0.00'), Decimal('12000.00')))
+        merch.advance(released, 'picked_up', code=released.pickup_code)
         self.assertEqual(merch.balances(self.seller)['available'], Decimal('12000.00'))
 
     def test_refunding_cancels_the_order_and_asks_paystack(self):
@@ -546,6 +594,30 @@ class ProblemTests(MerchBase):
         self.assertEqual(result.status, 'refund_processing')
         self.assertEqual(result.refund_amount, Decimal('14000.00'))   # items and delivery fee
         refund.assert_called_once_with(order.pk)
+
+    def test_the_buyer_page_offers_a_report_until_the_money_is_available(self):
+        order = merch.advance(self.paid('delivery'), 'ship')
+        url = f'/api/merch-orders/{order.ref}/'
+        body = self.client.get(url, {'token': order.access_token}).json()
+        self.assertTrue(body['can_report'])
+        self.assertIsNone(body['report_until'])
+        done = merch.advance(MerchOrder.objects.get(pk=order.pk), 'delivered')
+        body = self.client.get(url, {'token': order.access_token}).json()
+        self.assertTrue(body['can_report'])
+        self.assertIsNotNone(body['report_until'])
+        self.wait_out(done)
+        body = self.client.get(url, {'token': order.access_token}).json()
+        self.assertFalse(body['can_report'])
+        self.assertIsNone(body['report_until'])
+        r = self.client.post(url + 'report/', {'token': order.access_token, 'reason': 'not_received'}, format='json')
+        self.assertEqual(r.status_code, 409)
+        self.assertIn('support@usebyro.com', r.json()['error'])
+
+    def test_after_a_report_the_buyer_page_stops_offering_another(self):
+        order = merch.advance(self.paid('pickup'), 'ready')
+        merch.report_problem(order, 'damaged')
+        url = f'/api/merch-orders/{order.ref}/'
+        self.assertFalse(self.client.get(url, {'token': order.access_token}).json()['can_report'])
 
     def test_buyer_endpoints_need_the_token(self):
         order = merch.advance(self.paid('pickup'), 'ready')
@@ -658,28 +730,51 @@ class TimeBasedTests(MerchBase):
 
 
 class ReleaseNoticeTests(MerchBase):
-    def test_the_organiser_is_told_once_when_money_becomes_available(self):
+    def test_the_organiser_is_told_at_once_when_the_code_releases_the_money_and_only_once(self):
         order = merch.advance(self.paid('pickup'), 'ready')
-        self.assertEqual(merch.process_due_orders()['released'], 0)          # still in its window
-        MerchOrder.objects.filter(pk=order.pk).update(release_at=timezone.now() - timedelta(minutes=1))
-        self.assertEqual(merch.process_due_orders()['released'], 1)
-        self.assertEqual(merch.process_due_orders()['released'], 0)          # never twice
+        self.assertFalse(Notification.objects.filter(kind='merch_released').exists())
+        with self.captureOnCommitCallbacks(execute=True):
+            merch.advance(order, 'picked_up', code=order.pickup_code)
         note = Notification.objects.get(recipient=self.seller, kind='merch_released')
         self.assertIn('₦12,000 from order', note.title)
+        self.assertIn("Kelechi's order was marked picked up. You can withdraw it now.", note.body)
         self.assertEqual(note.link, '/dashboard/payouts')
+        self.assertEqual(merch.process_due_orders()['released'], 0)          # the cron has nothing left to say
 
-    def test_held_orders_are_not_announced_until_released(self):
-        order = merch.report_problem(merch.advance(self.paid('pickup'), 'ready'), 'damaged')
-        MerchOrder.objects.filter(pk=order.pk).update(release_at=timezone.now() - timedelta(minutes=1))
+    def test_nothing_is_said_while_the_two_days_run_and_the_cron_says_it_when_they_end(self):
+        order = merch.advance(self.paid('delivery'), 'ship')
+        with self.captureOnCommitCallbacks(execute=True):
+            done = merch.advance(order, 'delivered')
+        self.assertFalse(Notification.objects.filter(kind='merch_released').exists())
+        self.assertEqual(merch.process_due_orders()['released'], 0)
+        MerchOrder.objects.filter(pk=done.pk).update(delivered_at=timezone.now() - timedelta(days=2, minutes=1),
+                                                     release_at=timezone.now() - timedelta(minutes=1))   # two days on
+        self.assertEqual(merch.process_due_orders()['released'], 1)
+        self.assertEqual(merch.process_due_orders()['released'], 0)
+        self.assertIn("didn't report a problem", Notification.objects.get(recipient=self.seller, kind='merch_released').body)
+
+    def test_a_buyer_confirming_a_delivery_says_delivered(self):
+        order = merch.advance(self.paid('delivery'), 'ship')
+        with self.captureOnCommitCallbacks(execute=True):
+            merch.confirm_by_buyer(order)
+        self.assertIn('marked delivered', Notification.objects.get(recipient=self.seller, kind='merch_released').body)
+
+    def test_a_missed_notice_is_sent_by_the_cron_once(self):
+        order = merch.advance(self.paid('pickup'), 'ready')
+        merch.advance(order, 'picked_up', code=order.pickup_code)   # the after-commit notice never ran
+        self.assertEqual(merch.process_due_orders()['released'], 1)
         self.assertEqual(merch.process_due_orders()['released'], 0)
 
-    def test_the_balance_says_when_the_next_money_arrives(self):
+    def test_nothing_is_announced_for_orders_that_are_not_fulfilled(self):
+        merch.report_problem(merch.advance(self.paid('pickup'), 'ready'), 'damaged')
+        merch.advance(self.paid('delivery'), 'ship')
+        self.assertEqual(merch.process_due_orders()['released'], 0)
+
+    def test_the_balance_shows_what_is_releasing(self):
         self.client.force_authenticate(self.seller)
-        self.assertIsNone(self.client.get('/api/payouts/balance/').json()['merch']['next_release_at'])
-        order = merch.advance(self.paid('pickup'), 'ready')
+        merch.advance(self.paid('pickup'), 'ready')
         r = self.client.get('/api/payouts/balance/').json()['merch']
-        self.assertIsNotNone(r['next_release_at'])
-        self.assertEqual(r['releasing'], '12000.00')
+        self.assertEqual(r, {'on_hold': '0.00', 'releasing': '0.00', 'not_released': '12000.00', 'next_release_at': None})
 
 
 class OrganiserApiTests(MerchBase):
@@ -697,14 +792,20 @@ class OrganiserApiTests(MerchBase):
         self.assertEqual([o['ref'] for o in self.client.get('/api/dashboard/merch-orders/?q=tunde').json()['results']], [b.ref])
         self.assertEqual([o['ref'] for o in self.client.get(f'/api/dashboard/merch-orders/?q={a.ref}').json()['results']], [a.ref])
 
-    def test_the_list_carries_the_next_release_date_and_whether_a_fee_applies(self):
+    def test_the_list_carries_the_money_and_whether_a_fee_applies(self):
         body = self.client.get('/api/dashboard/merch-orders/').json()
-        self.assertIsNone(body['money']['next_release_at'])
+        self.assertEqual(set(body['money']), {'available', 'releasing', 'on_hold', 'not_released', 'next_release_at'})
         self.assertEqual(Decimal(body['fee_rate']), 0)
-        merch.advance(self.paid('pickup'), 'ready')
-        body = self.client.get('/api/dashboard/merch-orders/').json()
-        self.assertIsNotNone(body['money']['next_release_at'])
-        self.assertEqual(body['money']['releasing'], '12000.00')
+        order = merch.advance(self.paid('pickup'), 'ready')
+        money = self.client.get('/api/dashboard/merch-orders/').json()['money']
+        self.assertEqual((money['not_released'], money['available']), ('12000.00', '0.00'))
+        merch.advance(order, 'picked_up')
+        money = self.client.get('/api/dashboard/merch-orders/').json()['money']
+        self.assertEqual((money['not_released'], money['releasing'], money['available']), ('0.00', '12000.00', '0.00'))
+        self.assertIsNotNone(money['next_release_at'])
+        self.wait_out(order)
+        money = self.client.get('/api/dashboard/merch-orders/').json()['money']
+        self.assertEqual((money['releasing'], money['available']), ('0.00', '12000.00'))
         with override_settings(MERCH_FEE_RATE='0.05'):
             self.assertEqual(Decimal(self.client.get('/api/dashboard/merch-orders/').json()['fee_rate']), Decimal('0.05'))
 
@@ -731,12 +832,16 @@ class OrganiserApiTests(MerchBase):
         self.assertEqual((r.json()['status'], r.json()['tracking']), ('shipped', 'GIG-9'))
         self.assertEqual(self.client.post(url, {'action': 'explode'}, format='json').status_code, 400)
 
-    def test_the_detail_shows_the_buyer_the_money_and_when_it_arrives(self):
+    def test_the_detail_shows_the_buyer_the_money_and_where_it_is(self):
         order = merch.advance(self.paid('delivery'), 'ship')
         d = self.client.get(f'/api/dashboard/merch-orders/{order.ref}/').json()
         self.assertEqual(d['buyer']['phone'], '0803 412 5185')
-        self.assertEqual((d['earnings'], d['delivery_fee'], d['release_state']), ('14000.00', '2000.00', 'releasing'))
+        self.assertEqual((d['earnings'], d['delivery_fee'], d['release_state']), ('14000.00', '2000.00', 'not_released'))
         self.assertIn('Surulere', d['delivery_address'])
+        done = merch.advance(order, 'delivered')
+        self.assertEqual(self.client.get(f'/api/dashboard/merch-orders/{order.ref}/').json()['release_state'], 'releasing')
+        self.wait_out(done)
+        self.assertEqual(self.client.get(f'/api/dashboard/merch-orders/{order.ref}/').json()['release_state'], 'available')
 
     def test_bulk_moves_what_it_can_and_reports_the_rest(self):
         a, b = self.paid('pickup'), self.paid('pickup')
@@ -788,6 +893,13 @@ class AdminTests(MerchBase):
             refunded = merch.admin_refund(self.held, 'Not received')
         self.assertFalse(refunded.on_hold)
         self.assertEqual(refunded.report_outcome, 'refund')
+
+    def test_the_held_list_says_how_to_reach_the_organiser(self):
+        self.client.force_authenticate(self.boss)
+        row = self.client.get('/api/admin/merch-orders/held/').json()['results'][0]
+        self.assertEqual(row['seller']['email'], 'seller@example.com')
+        self.assertEqual(row['buyer']['email'], 'kelechi@example.com')
+        self.assertEqual(row['buyer']['phone'], '0803 412 5185')
 
     def test_viewers_and_anonymous_cannot_resolve(self):
         url = f'/api/admin/merch-orders/{self.held.ref}/resolve/'

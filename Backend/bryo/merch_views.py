@@ -90,9 +90,9 @@ def _release_state(order):
         return 'none'
     if order.on_hold:
         return 'on_hold'
-    if order.release_at is None:
+    if order.status not in merch.DONE:
         return 'not_released'
-    return 'available' if order.release_at <= timezone.now() else 'releasing'
+    return 'releasing' if order.release_at and order.release_at > timezone.now() else 'available'
 
 
 def _seller_info(order):
@@ -115,10 +115,9 @@ def _pickup_for_buyer(order, profile):
 
 def buyer_payload(order, include_code=True):
     profile = getattr(order.seller, 'profile', None)
-    can_report = (
-        order.status in merch.LIVE and not order.on_hold
-        and (order.release_at is None or order.release_at > timezone.now())
-    )
+    # A problem can be reported until the money is available, and once.
+    waiting = order.status in merch.DONE and order.release_at is not None and order.release_at > timezone.now()
+    can_report = (order.status in merch.REPORTABLE or waiting) and order.reported_at is None
     return {
         'ref': order.ref, 'status': order.status, 'fulfilment': order.fulfilment,
         'seller': _seller_info(order), 'items': _lines(order),
@@ -132,7 +131,7 @@ def buyer_payload(order, include_code=True):
         'courier': order.courier, 'tracking': order.tracking,
         'problem': {'reason': order.report_reason, 'at': order.reported_at, 'resolved': order.report_resolved_at is not None,
                     'outcome': order.report_outcome} if order.reported_at else None,
-        'can_report': can_report, 'report_until': order.release_at if can_report else None,
+        'can_report': can_report, 'report_until': order.release_at if can_report and waiting else None,
         'can_confirm': (order.is_pickup and order.status == MerchOrder.READY) or (not order.is_pickup and order.status == MerchOrder.SHIPPED),
     }
 
@@ -429,8 +428,8 @@ class MerchBalanceView(APIView):
 
     def get(self, request):
         held = (MerchOrder.objects.filter(seller=request.user, status__in=merch.LIVE)
-                .filter(Q(reported_at__isnull=False, report_resolved_at__isnull=True) | Q(release_at__isnull=True) | Q(release_at__gt=timezone.now()))
-                .select_related('seller', 'seller__profile').prefetch_related('lines').order_by('release_at', 'pk'))
+                .filter(Q(reported_at__isnull=False, report_resolved_at__isnull=True) | ~Q(status__in=merch.DONE) | Q(release_at__gt=timezone.now()))
+                .select_related('seller', 'seller__profile').prefetch_related('lines').order_by('paid_at', 'pk'))
         rows = [seller_payload(o) | {'earnings': str(o.earnings)} for o in held[:50]]
         return Response({'merch': {k: str(v) for k, v in merch.balances(request.user).items()}, 'orders': rows, 'order_count': held.count()})
 
@@ -445,7 +444,7 @@ class AdminMerchHeldView(APIView):
     def get(self, request):
         held = (MerchOrder.objects.filter(reported_at__isnull=False, report_resolved_at__isnull=True)
                 .select_related('seller', 'seller__profile').prefetch_related('lines').order_by('reported_at'))
-        return Response({'results': [seller_payload(o, detail=True) | {'seller': _seller_info(o)} for o in held]})
+        return Response({'results': [seller_payload(o, detail=True) | {'seller': _seller_info(o) | {'email': o.seller.email}} for o in held]})
 
 
 class AdminMerchRefundView(APIView):

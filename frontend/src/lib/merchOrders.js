@@ -92,7 +92,7 @@ export function releaseLine(order) {
     case "available":
       return "You can withdraw this now.";
     case "releasing":
-      return `Releases on ${dayMonth(order.release_at)}, once the safety window ends.`;
+      return `Available on ${dayMonth(order.release_at)}, unless ${first} reports a problem.`;
     case "on_hold":
       return `On hold while Byro reviews a problem ${first} reported.`;
     case "not_released":
@@ -156,7 +156,7 @@ export function merchFigures(merch = {}) {
 // One line about where a held-back merch order's money is, for the "what's in your balance" panel.
 export function heldOrderLine(order) {
   if (order.on_hold) return "On hold while Byro reviews a problem the buyer reported.";
-  if (order.release_state === "releasing") return `Releases on ${dayMonth(order.release_at)}.`;
+  if (order.release_state === "releasing") return `Available on ${dayMonth(order.release_at)}.`;
   if (order.release_state === "not_released") {
     if (order.status === "paid") return order.fulfilment === "pickup" ? "Waiting for you to get it ready." : "Waiting for you to pack it.";
     if (order.status === "packed") return "Waiting for you to ship it.";
@@ -166,9 +166,15 @@ export function heldOrderLine(order) {
 }
 
 export const RELEASE_RULES = [
+  "The buyer confirms they have it: straight away.",
   "Pickup, picked up with the code: straight away.",
-  "Pickup, picked up without the code: 3 days later.",
-  "Pickup, never collected: 7 days after Ready for pickup.",
-  "Delivery, delivered: 3 days later.",
-  "Delivery, never marked delivered: 10 days after Shipped.",
+  "Pickup, picked up without the code: 2 days later.",
+  "Delivery, marked delivered by you: 2 days later.",
 ];
+
+// A WhatsApp link for a Nigerian number: 0803 412 5185 becomes wa.me/2348034125185.
+export function whatsappLink(phone) {
+  const digits = String(phone || "").replace(/\D/g, "");
+  if (digits.length < 7) return "";
+  return `https://wa.me/${digits.startsWith("0") ? `234${digits.slice(1)}` : digits}`;
+}

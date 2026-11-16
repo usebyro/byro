@@ -88,7 +88,7 @@ describe("why Withdraw is off", () => {
 describe("one line per held order", () => {
   it("says where each order's money is", () => {
     expect(heldOrderLine({ on_hold: true })).toMatch(/On hold while Byro reviews/);
-    expect(heldOrderLine({ release_state: "releasing", release_at: "2026-11-24T09:00:00Z" })).toBe("Releases on 24 Nov.");
+    expect(heldOrderLine({ release_state: "releasing", release_at: "2026-11-24T09:00:00Z" })).toBe("Available on 24 Nov.");
     expect(heldOrderLine({ release_state: "not_released", status: "paid", fulfilment: "pickup" })).toBe("Waiting for you to get it ready.");
     expect(heldOrderLine({ release_state: "not_released", status: "paid", fulfilment: "delivery" })).toBe("Waiting for you to pack it.");
     expect(heldOrderLine({ release_state: "not_released", status: "packed", fulfilment: "delivery" })).toBe("Waiting for you to ship it.");
@@ -104,8 +104,8 @@ describe("what's in your balance", () => {
     const dialog = screen.getByRole("dialog", { name: "Balance details" });
     expect(within(dialog).getByText("Ticket money is available as soon as a ticket is sold.")).toBeInTheDocument();
     expect(within(dialog).getByText("Pickup, picked up with the code: straight away.")).toBeInTheDocument();
-    expect(within(dialog).getByText("Delivery, never marked delivered: 10 days after Shipped.")).toBeInTheDocument();
-    expect(await within(dialog).findByText("Releases on 24 Nov.")).toBeInTheDocument();
+    expect(within(dialog).getByText("Delivery, marked delivered by you: 2 days later.")).toBeInTheDocument();
+    expect(await within(dialog).findByText("Available on 24 Nov.")).toBeInTheDocument();
     expect(within(dialog).getByText("On hold while Byro reviews a problem the buyer reported.")).toBeInTheDocument();
     expect(within(dialog).getAllByRole("link", { name: /Tunde/ })[0]).toHaveAttribute("href", "/dashboard/merch?tab=orders&order=BY-0002");
     expect(axios.get).toHaveBeenCalledWith("dashboard/merch-orders/balance/");

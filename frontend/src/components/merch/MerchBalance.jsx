@@ -114,7 +114,7 @@ export function BalanceBreakdown({ balance, onClose }) {
             <ul className="m-0 flex list-none flex-col gap-1 p-0 text-[13px] text-body">
               {RELEASE_RULES.map((r) => <li key={r}>{r}</li>)}
             </ul>
-            <span className="v-hint">The last three only if the buyer hasn&apos;t reported a problem. A reported problem puts that order On hold while Byro reviews it.</span>
+            <span className="v-hint">The 2 days only count if the buyer hasn&apos;t reported a problem. A reported problem puts that order On hold while Byro reviews it.</span>
           </div>
         </section>
 

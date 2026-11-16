@@ -67,7 +67,7 @@ describe("nextStep", () => {
 describe("releaseLine", () => {
   it("tells the organiser where the money is", () => {
     expect(releaseLine(order({ release_state: "available" }))).toBe("You can withdraw this now.");
-    expect(releaseLine(order({ release_state: "releasing", release_at: "2026-11-24T09:00:00Z" }))).toMatch(/^Releases on 24 Nov/);
+    expect(releaseLine(order({ release_state: "releasing", release_at: "2026-11-24T09:00:00Z" }))).toMatch(/^Available on 24 Nov/);
     expect(releaseLine(order({ release_state: "on_hold" }))).toBe("On hold while Byro reviews a problem Kelechi reported.");
     expect(releaseLine(order({ release_state: "not_released" }))).toMatch(/once the order is complete/);
     expect(releaseLine(order({ release_state: "none" }))).toBe("");

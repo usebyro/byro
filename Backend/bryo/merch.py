@@ -3,17 +3,16 @@ Merch orders: pricing, checkout, fulfilment steps, when earnings are released, r
 
 How the money moves
   The buyer pays items + delivery fee (+ Paystack's own charge). Byro's fee, if any (MERCH_FEE_RATE,
-  zero for now), comes off the items. The organiser earns items - fee + delivery fee, and it joins their
-  withdrawable balance only once the order is complete and its safety window has passed:
+  zero for now), comes off the items. The organiser earns items - fee + delivery fee. That money is
+  Not yet released while the order is open. When it is fulfilled it becomes available:
 
-    pickup, picked up with the buyer's code ........ straight away
-    pickup, picked up without the code ............. 3 days later
-    pickup, never collected ........................ 7 days after "ready for pickup"
-    delivery, delivered ............................ 3 days later
-    delivery, never marked delivered ............... 10 days after "shipped"
+    the buyer taps "I received it" / "I collected it" ........ straight away
+    a pickup handed over against the buyer's code ............ straight away
+    the organiser marks it delivered or picked up alone ...... 2 days later
 
-  A buyer can report a problem until the release date; that puts the earnings on hold until Byro
-  decides. An order the organiser never starts is cancelled and refunded 14 days after payment.
+  A buyer can report a problem until the money is available; that puts the order's earnings on hold until
+  Byro decides. After that they write to support, and Byro can refund any order. An order the organiser
+  never starts is cancelled and refunded 14 days after payment.
 """
 import logging
 import re
@@ -35,16 +34,15 @@ logger = logging.getLogger(__name__)
 RESERVATION_MINUTES = 10      # stock is held this long while a buyer pays
 MAX_LINES = 20
 MAX_QUANTITY = 20
-SAFETY_DAYS = 3               # after delivery, or a pickup handed over without the code
-UNCOLLECTED_DAYS = 7          # a ready pickup nobody collects releases this long after "ready"
-UNDELIVERED_DAYS = 10         # a shipped order nobody marks delivered releases this long after "shipped"
+HOLD_DAYS = 2                # after the organiser marks it delivered or picked up on their own, the buyer can still report
 REMIND_AFTER_DAYS = 10        # tell the organiser an unstarted order is waiting
 AUTO_CANCEL_DAYS = 14         # then cancel it and refund the buyer
 
 REPORT_REASONS = ('not_received', 'wrong_item', 'damaged', 'other')
 LIVE = [MerchOrder.PAID, MerchOrder.PACKED, MerchOrder.SHIPPED, MerchOrder.DELIVERED,
         MerchOrder.READY, MerchOrder.PICKED_UP]
-DONE = (MerchOrder.DELIVERED, MerchOrder.PICKED_UP)
+DONE = (MerchOrder.DELIVERED, MerchOrder.PICKED_UP)           # fulfilled: the money is available
+REPORTABLE = (MerchOrder.PAID, MerchOrder.PACKED, MerchOrder.SHIPPED, MerchOrder.READY)  # open orders: a problem can always be reported
 _CENTS = Decimal('0.01')
 
 
@@ -302,10 +300,6 @@ STEPS = {
 }
 
 
-def _earlier(current, candidate):
-    return candidate if current is None or candidate < current else current
-
-
 def advance(order, action, *, courier='', tracking='', code='', by_buyer=False):
     """One step along the order's way. Raises MerchError when it isn't allowed from where the order is."""
     if action not in STEPS:
@@ -324,13 +318,12 @@ def advance(order, action, *, courier='', tracking='', code='', by_buyer=False):
         elif action == 'ship':
             locked.packed_at = locked.packed_at or now
             locked.shipped_at, locked.courier, locked.tracking = now, (courier or '').strip()[:120], (tracking or '').strip()[:120]
-            locked.release_at = _earlier(locked.release_at, now + timedelta(days=UNDELIVERED_DAYS))
         elif action == 'ready':
             locked.ready_at = now
-            locked.release_at = _earlier(locked.release_at, now + timedelta(days=UNCOLLECTED_DAYS))
         elif action == 'delivered':
             locked.delivered_at = now
-            locked.release_at = _earlier(locked.release_at, now + timedelta(days=SAFETY_DAYS))
+            # The buyer saying it arrived releases the money now; the organiser saying so alone leaves a short window.
+            locked.release_at = now if by_buyer else now + timedelta(days=HOLD_DAYS)
         elif action == 'picked_up':
             locked.picked_up_at = now
             code = (code or '').strip()
@@ -338,11 +331,12 @@ def advance(order, action, *, courier='', tracking='', code='', by_buyer=False):
                 if code != locked.pickup_code:
                     raise MerchError("That code doesn't match this order.")
                 locked.code_verified = True
-                locked.release_at = now  # handed over against the buyer's own code: nothing to wait for
-            else:
-                locked.release_at = _earlier(locked.release_at, now + timedelta(days=SAFETY_DAYS))
+            # Handed over against the buyer's own code, or confirmed by the buyer: nothing to wait for.
+            locked.release_at = now if (by_buyer or locked.code_verified) else now + timedelta(days=HOLD_DAYS)
         locked.save()
         transaction.on_commit(lambda: _email(locked, {'ready': 'ready', 'ship': 'shipped'}.get(action, '')))
+        if action in ('delivered', 'picked_up'):
+            transaction.on_commit(lambda: announce_release(locked.pk))   # only says anything if it is available already
     return locked
 
 
@@ -366,12 +360,13 @@ def report_problem(order, reason, note=''):
         raise MerchError('Choose what went wrong.')
     with transaction.atomic():
         locked = MerchOrder.objects.select_for_update().select_related('seller').get(pk=order.pk)
-        if locked.status not in LIVE:
+        window_open = locked.status in DONE and locked.release_at is not None and locked.release_at > timezone.now()
+        if locked.status in DONE and not window_open:
+            raise MerchError("This order is already complete. If something is wrong, email support@usebyro.com and we'll look into it.", status=409)
+        if locked.status not in REPORTABLE and not window_open:
             raise MerchError('There is nothing to report on this order.', status=409)
-        if locked.on_hold:
+        if locked.reported_at is not None:
             raise MerchError('You have already reported a problem on this order.', status=409)
-        if locked.release_at and locked.release_at <= timezone.now():
-            raise MerchError('The time to report a problem on this order has passed. Email support@usebyro.com.', status=409)
         locked.report_reason, locked.report_note = reason, (note or '').strip()[:500]
         locked.reported_at, locked.report_resolved_at, locked.report_outcome = timezone.now(), None, ''
         locked.save()
@@ -389,7 +384,10 @@ def _announce_report(order_id):
 
 
 def resolve_report(order, outcome):
-    """Byro decides: release the earnings to the organiser, or refund the buyer."""
+    """
+    Byro decides. 'release' lifts the hold, so the organiser carries on: a fulfilled order's money is available
+    at once, an open order's once it is fulfilled. 'refund' returns the buyer's money.
+    """
     if outcome not in ('release', 'refund'):
         raise MerchError("Choose 'release' or 'refund'.")
     with transaction.atomic():
@@ -397,8 +395,8 @@ def resolve_report(order, outcome):
         if not locked.on_hold:
             raise MerchError('This order has no open problem.', status=409)
         locked.report_resolved_at, locked.report_outcome = timezone.now(), outcome
-        if outcome == 'release':
-            locked.release_at = timezone.now()
+        if outcome == 'release' and locked.status in DONE:
+            locked.release_at = timezone.now()   # the problem was not real: no more waiting
         locked.save()
         if outcome == 'refund':
             _start_refund(locked, 'Refunded after your problem report.', restock=False)
@@ -406,7 +404,7 @@ def resolve_report(order, outcome):
 
 
 def admin_refund(order, reason):
-    """Byro support refunds a paid order whatever step it is at, for example after the time to report has passed."""
+    """Byro support refunds a paid order whatever step it is at, for example one the buyer writes about after it was marked complete."""
     reason = (reason or '').strip()[:300]
     if not reason:
         raise MerchError('Add a reason. The buyer sees it.')
@@ -529,7 +527,7 @@ def process_due_orders(now=None):
         _email(order, 'waiting')
         summary['reminded'] += 1
 
-    summary['released'] = announce_releases(now)
+    summary['released'] = announce_releases()
 
     # Only ones that have had a few minutes to go out by themselves and did not.
     stuck = MerchOrder.objects.filter(
@@ -540,20 +538,32 @@ def process_due_orders(now=None):
     return summary
 
 
-def announce_releases(now=None):
-    """Tell organisers when an order's earnings have become available. Once per order."""
+def _available_now():
+    """Fulfilled orders whose money can be withdrawn: no wait left, and not on hold."""
+    return (Q(status__in=DONE) & (Q(release_at__isnull=True) | Q(release_at__lte=timezone.now()))
+            & ~Q(reported_at__isnull=False, report_resolved_at__isnull=True))
+
+
+def announce_release(order_id):
+    """Tell the organiser an order's earnings are now available. Once per order, and only when they are."""
     from .notifications import notify
-    now = now or timezone.now()
-    due = (MerchOrder.objects.filter(status__in=LIVE, release_at__lte=now, released_notified_at__isnull=True)
-           .exclude(reported_at__isnull=False, report_resolved_at__isnull=True).select_related('seller'))
-    count = 0
-    for order in due:
-        MerchOrder.objects.filter(pk=order.pk, released_notified_at__isnull=True).update(released_notified_at=now)
-        first = order.buyer_name.split(' ')[0] if order.buyer_name else 'the buyer'
-        notify(order.seller, 'merch_released', f"₦{order.earnings:,.0f} from order {order.ref} is now available",
-               body=f"{first} didn't report a problem. Withdraw it from Payouts.", link='/dashboard/payouts')
-        count += 1
-    return count
+    claimed = MerchOrder.objects.filter(_available_now(), pk=order_id, released_notified_at__isnull=True).update(released_notified_at=timezone.now())
+    if not claimed:
+        return False
+    order = MerchOrder.objects.select_related('seller').get(pk=order_id)
+    first = order.buyer_name.split(' ')[0] if order.buyer_name else 'The buyer'
+    did = 'picked up' if order.is_pickup else 'delivered'
+    done_at = order.delivered_at or order.picked_up_at
+    waited = bool(done_at and order.release_at and order.release_at - done_at > timedelta(hours=1))
+    body = f"{first} didn't report a problem. You can withdraw it now." if waited else f"{first}'s order was marked {did}. You can withdraw it now."
+    notify(order.seller, 'merch_released', f"₦{order.earnings:,.0f} from order {order.ref} is now available", body=body, link='/dashboard/payouts')
+    return True
+
+
+def announce_releases():
+    """The same for orders whose wait has ended since (and any notice that failed). Run by the cron."""
+    ids = list(MerchOrder.objects.filter(_available_now(), released_notified_at__isnull=True).values_list('pk', flat=True))
+    return sum(1 for pk in ids if announce_release(pk))
 
 
 # ---------------------------------------------------------------------------
@@ -572,18 +582,20 @@ def _sum(qs):
 
 def balances(user):
     """
-    Merch earnings in four buckets (naira): `available` can be withdrawn now; `releasing` is complete and
-    waiting out its window; `on_hold` has an open problem; `not_released` is still to be fulfilled.
+    Merch earnings in four buckets (naira): `available` can be withdrawn now; `releasing` is from fulfilled orders
+    still inside their 2 days; `on_hold` is from orders with an open problem; `not_released` is from orders still
+    to be fulfilled.
     """
     now = timezone.now()
     live = MerchOrder.objects.filter(seller=user, status__in=LIVE)
     held = Q(reported_at__isnull=False, report_resolved_at__isnull=True)
     free = live.exclude(held)
+    done = free.filter(status__in=DONE)
     return {
-        'available': _money(_sum(free.filter(release_at__lte=now))),
-        'releasing': _money(_sum(free.filter(release_at__gt=now))),
+        'available': _money(_sum(done.filter(Q(release_at__isnull=True) | Q(release_at__lte=now)))),
+        'releasing': _money(_sum(done.filter(release_at__gt=now))),
         'on_hold': _money(_sum(live.filter(held))),
-        'not_released': _money(_sum(free.filter(release_at__isnull=True))),
+        'not_released': _money(_sum(free.exclude(status__in=DONE))),
     }
 
 
@@ -593,8 +605,7 @@ def available_earnings(user):
 
 def next_release_at(user):
     """When the next merch earnings become available, or None."""
-    now = timezone.now()
-    live = MerchOrder.objects.filter(seller=user, status__in=LIVE, release_at__gt=now)
+    live = MerchOrder.objects.filter(seller=user, status__in=DONE, release_at__gt=timezone.now())
     return live.exclude(reported_at__isnull=False, report_resolved_at__isnull=True).order_by('release_at').values_list('release_at', flat=True).first()
 
 

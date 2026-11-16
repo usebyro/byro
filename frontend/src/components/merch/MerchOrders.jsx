@@ -9,7 +9,7 @@ import BusyButton from "@/components/dashboard/v2/BusyButton";
 import Sheet from "@/components/merch/Sheet";
 import {
   BULK_HINT, BULK_LABEL, REPORT_REASON, bulkKey, dateTime, itemsText, naira, nextStep, packingSlip,
-  releaseLine, shortDate, dayMonth, statusOf,
+  releaseLine, shortDate, dayMonth, statusOf, whatsappLink,
 } from "@/lib/merchOrders";
 
 const FILTERS = [
@@ -199,7 +199,7 @@ export default function MerchOrders({ onChanged }) {
             </div>
             <div className="grid gap-1 rounded-2xl bg-[#F6F8FB] p-1 min-[900px]:grid-cols-3">
               <MoneyRow href="/dashboard/payouts" label="Ready to withdraw" value={naira(money?.available)} />
-              <MoneyRow href="/dashboard/payouts" label="Releasing soon" value={naira(money?.releasing)} note={money?.next_release_at ? `Next release ${dayMonth(money.next_release_at)}` : "After each order's safety window"} />
+              <MoneyRow href="/dashboard/payouts" label="Releasing soon" value={naira(money?.releasing)} note={money?.next_release_at ? `Next release ${dayMonth(money.next_release_at)}` : "2 days after you mark an order done"} />
               <MoneyRow onClick={() => { setFilter("need"); setQ(""); setSel([]); }} label="Orders still to hand over" value={naira(money?.not_released)} note="Pack, get ready or ship them" />
             </div>
           </div>
@@ -484,8 +484,7 @@ function OrderDetail({ order: o, onChange }) {
     setTimeout(() => frame.remove(), 1500);
   };
 
-  const phoneDigits = (o.buyer.phone || "").replace(/\D/g, "");
-  const whatsapp = phoneDigits ? `https://wa.me/${phoneDigits.startsWith("0") ? `234${phoneDigits.slice(1)}` : phoneDigits}` : "";
+  const whatsapp = whatsappLink(o.buyer.phone);
 
   return (
     <div className="flex flex-col gap-5">
@@ -525,7 +524,7 @@ function OrderDetail({ order: o, onChange }) {
             <label className="flex flex-col gap-1.5">
               <span className="v-lbl">Code from {first} <span className="font-medium text-muted">(optional)</span></span>
               <input className="v-input v-tab max-w-[160px] tracking-[.2em]" inputMode="numeric" value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 4))} placeholder="4 digits" aria-describedby="code-hint" />
-              <span id="code-hint" className="v-hint">With the code, the money is released straight away. Without it, 3 days later.</span>
+              <span id="code-hint" className="v-hint">With the code, the money is available straight away. Without it, 2 days later.</span>
             </label>
           )}
           {next[3] === "ready" && <p className="v-hint m-0">{first} gets an email with the pickup address and instructions.</p>}

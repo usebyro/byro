@@ -9,6 +9,7 @@ not listed here (the Payouts page shows it as its own figures).
 from decimal import Decimal
 
 from django.db.models import Q
+from django.db.models.functions import Coalesce
 from django.utils import timezone
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -43,11 +44,12 @@ def activity(user, limit=LIMIT):
 
     # Merch money that has been released to the balance.
     now = timezone.now()
-    released = (MerchOrder.objects.filter(seller=user, status__in=[MerchOrder.DELIVERED, MerchOrder.PICKED_UP, MerchOrder.READY, MerchOrder.SHIPPED],
-                                          release_at__lte=now)
-                .exclude(reported_at__isnull=False, report_resolved_at__isnull=True).order_by('-release_at')[:100])
+    released = (MerchOrder.objects.filter(seller=user, status__in=[MerchOrder.DELIVERED, MerchOrder.PICKED_UP])
+                .filter(Q(release_at__isnull=True) | Q(release_at__lte=now))
+                .exclude(reported_at__isnull=False, report_resolved_at__isnull=True)
+                .annotate(done_at=Coalesce('release_at', 'delivered_at', 'picked_up_at')).order_by('-done_at')[:100])
     for o in released:
-        rows.append({'at': o.release_at, 'source': 'merch', 'amount': o.earnings,
+        rows.append({'at': o.done_at, 'source': 'merch', 'amount': o.earnings,
                      'description': f"Merch order {o.ref} released", 'detail': o.buyer_name.split(' ')[0] if o.buyer_name else ''})
 
     # Ticket refunds, which take the refunded tickets out of the earnings.
