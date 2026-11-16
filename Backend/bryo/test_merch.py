@@ -509,7 +509,7 @@ class BalancePartsAndActivityTests(MerchBase):
         self.assertEqual((by_source['tickets']['description'], by_source['tickets']['amount'], by_source['tickets']['detail']), ('2 tickets sold', '10000.00', 'Run Day'))
         self.assertEqual((by_source['merch']['amount'], by_source['merch']['description'].startswith('Merch order BY-')), ('12000.00', True))
         self.assertEqual((by_source['refunds']['amount'], by_source['refunds']['detail']), ('-5000.00', 'Run Day'))
-        self.assertEqual((by_source['withdrawals']['amount'], by_source['withdrawals']['description']), ('-5000.00', 'Withdrawal paid'))
+        self.assertEqual((by_source['withdrawals']['amount'], by_source['withdrawals']['status']), ('-5000.00', 'paid'))
         times = [r['at'] for r in rows]
         self.assertEqual(times, sorted(times, reverse=True))
 
@@ -517,10 +517,17 @@ class BalancePartsAndActivityTests(MerchBase):
         merch.advance(self.paid('pickup'), 'ready')                                            # still open
         merch.report_problem(merch.advance(self.paid('pickup'), 'ready'), 'damaged')           # on hold
         merch.advance(merch.advance(self.paid('pickup'), 'ready'), 'picked_up')                # inside its 2 days
-        PayoutRequest.objects.create(user=self.seller, amount=Decimal('100'), method='bank', status='rejected')
         sources = [r['source'] for r in self.activity()]
         self.assertNotIn('merch', sources)
         self.assertNotIn('withdrawals', sources)
+
+    def test_every_payout_is_listed_with_where_it_stands(self):
+        for status in ('pending', 'on_hold', 'processed', 'rejected'):
+            PayoutRequest.objects.create(user=self.seller, amount=Decimal('1000'), method='bank', status=status,
+                                         bank_name='GTBank', account_number='0123454821')
+        rows = [r for r in self.activity() if r['source'] == 'withdrawals']
+        self.assertEqual(sorted(r['status'] for r in rows), ['on_hold', 'paid', 'pending', 'unpaid'])
+        self.assertEqual({r['description'] for r in rows}, {'Payout to GTBank ••••4821'})
 
     def test_money_is_listed_once_its_two_days_are_up(self):
         order = merch.advance(merch.advance(self.paid('pickup'), 'ready'), 'picked_up')

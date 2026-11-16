@@ -1,7 +1,7 @@
 """
 Everything that moved an organiser's balance, newest first, for the Payouts page:
 
-  ticket sales (one line per order), merch released, ticket refunds, and withdrawals.
+  ticket sales (one line per order), merch released, ticket refunds, and payouts (with where each one stands).
 
 Merch money that is still waiting out its safety window, or on hold, has not moved the balance yet, so it is
 not listed here (the Payouts page shows it as its own figures).
@@ -57,11 +57,14 @@ def activity(user, limit=LIMIT):
         rows.append({'at': r.created_at, 'source': 'refunds', 'amount': -r.amount,
                      'description': 'Refund to a buyer', 'detail': r.event.name})
 
-    # Withdrawals the organiser asked for (rejected ones never held money).
-    for p in PayoutRequest.objects.filter(user=user).exclude(status='rejected').order_by('-requested_at')[:60]:
+    # Every payout the organiser asked for. A pending or paid one has taken the money out of the balance; one
+    # that was rejected has not (it went back), so it is listed as 'unpaid' and its amount does not count.
+    for p in PayoutRequest.objects.filter(user=user).order_by('-requested_at')[:60]:
+        where = (f"{p.bank_name} ••••{p.account_number[-4:]}".strip() if p.method == 'bank' and p.account_number
+                 else p.bank_name or ('wallet' if p.method == 'wallet' else 'your bank'))
         rows.append({'at': p.requested_at, 'source': 'withdrawals', 'amount': -p.amount,
-                     'description': 'Withdrawal ' + {'processed': 'paid', 'on_hold': 'on hold'}.get(p.status, 'requested'),
-                     'detail': p.event.name if p.event_id else ''})
+                     'status': {'processed': 'paid', 'on_hold': 'on_hold', 'rejected': 'unpaid'}.get(p.status, 'pending'),
+                     'description': f"Payout to {where}", 'detail': p.event.name if p.event_id else ''})
 
     rows.sort(key=lambda r: r['at'], reverse=True)
     return rows[:limit]
