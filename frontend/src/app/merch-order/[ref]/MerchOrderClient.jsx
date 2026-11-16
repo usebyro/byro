@@ -34,6 +34,7 @@ function readLink() {
 function Shell({ seller, children }) {
   return (
     <div className="min-h-[100dvh] bg-[#F6F8FB] text-ink">
+      <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-50 focus:rounded-xl focus:bg-ink focus:px-4 focus:py-2.5 focus:text-sm focus:font-bold focus:text-white">Skip to content</a>
       <header className="mx-auto flex max-w-[640px] items-center justify-between gap-3 px-4 py-4">
         <Link href="/" aria-label="Byro home"><Image src="/assets/images/logo.svg" alt="Byro" width={64} height={26} style={{ width: "auto", height: 26 }} priority /></Link>
         {seller && (
@@ -42,7 +43,7 @@ function Shell({ seller, children }) {
             : <span className="text-sm font-bold">{seller.name}</span>
         )}
       </header>
-      <main className="mx-auto flex max-w-[640px] flex-col gap-4 px-4 pb-16">{children}</main>
+      <main id="main" className="mx-auto flex max-w-[640px] flex-col gap-4 px-4 pb-16">{children}</main>
     </div>
   );
 }
@@ -192,7 +193,7 @@ function OrderView({ order: o, token, onChange }) {
   return (
     <>
       <section className={card} aria-labelledby="order-title">
-        <span className="text-[13px] font-bold text-[#5B6272]">Order {o.ref}{o.paid_at ? `, paid ${dayMonth(o.paid_at)}` : ""}</span>
+        <span className="text-xs font-extrabold uppercase tracking-[0.1em] text-[#5B6272]">Order {o.ref}{o.paid_at ? ` · Paid ${dayMonth(o.paid_at)}` : ""}</span>
         <h1 id="order-title" className="font-display text-[28px] font-bold leading-tight">{head[0]}</h1>
         {lead && <p className="m-0 text-[15px] leading-relaxed text-[#3B4252]">{lead}</p>}
         {refunded && o.cancel_reason && <p className="m-0 rounded-xl bg-[#FFFAEB] p-3 text-sm"><b className="mb-0.5 block text-[13px] text-[#8A4B00]">From {seller}</b>“{o.cancel_reason}”</p>}
@@ -203,10 +204,12 @@ function OrderView({ order: o, token, onChange }) {
         )}
         {o.problem && (
           <div role="status" className="rounded-xl bg-[#FFF6E5] p-3.5 text-sm text-[#6B4A08]">
-            <b className="text-[#8A4B00]">{o.problem.resolved ? "Problem resolved" : "Problem reported"}</b>{" "}
+            <b className="block text-[#8A4B00]">
+              {o.problem.resolved ? "Problem resolved" : `You reported a problem: ${REPORT_REASON[o.problem.reason] || o.problem.reason}.`}
+            </b>
             {o.problem.resolved
               ? "Byro has reviewed what you reported. We've emailed you."
-              : `We've told ${seller} and Byro. We'll email you within 2 working days.`}
+              : `We've told ${seller} and Byro. We'll email you when Byro has decided.`}
           </div>
         )}
       </section>
@@ -236,23 +239,33 @@ function OrderView({ order: o, token, onChange }) {
 
       {pickup && o.pickup_code && (
         <section className={`${card} !bg-[#EEF3FF]`} aria-label="Your pickup code">
-          <span className="text-[13px] font-bold text-[#5B6272]">Your pickup code</span>
+          <span className="text-xs font-extrabold uppercase tracking-[0.1em] text-[#5B6272]">Pickup code</span>
           <span className="font-display text-[44px] font-extrabold leading-none tracking-[.14em]" aria-label={`Pickup code ${o.pickup_code.split("").join(" ")}`}>{o.pickup_code}</span>
-          <span className="text-sm text-[#3B4252]">Show this code or your order number, {o.ref}, when you collect.</span>
+          <span className="text-sm text-[#3B4252]">Show this or your order number when you collect.</span>
         </section>
       )}
 
       {!refunded && (
-        <section className={card} aria-label={pickup ? "Where to collect it" : "Delivery"}>
+        <section className={card} aria-label={pickup ? "Collect from" : "Delivery"}>
           {pickup ? (
             <>
-              <h2 className="m-0 text-[15px] font-extrabold">Where to collect it</h2>
+              <h2 className="m-0 text-xs font-extrabold uppercase tracking-[0.1em] text-[#5B6272]">Collect from</h2>
               <p className="m-0 text-[15px] font-bold">{o.pickup?.address}</p>
-              {o.pickup?.instructions && <p className="m-0 text-sm text-[#3B4252]">{o.pickup.instructions}</p>}
+              {o.pickup?.changed_at && (
+                <p role="status" className="m-0 rounded-xl bg-[#FFF6E5] p-3 text-[13px] text-[#6B4A08]">
+                  Changed on {dayMonth(o.pickup.changed_at)}.{o.pickup.previous_address ? ` It was ${o.pickup.previous_address}.` : ""}
+                </p>
+              )}
               {o.pickup?.address && (
                 <a className="self-start text-sm font-bold text-[#2451D6]" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(o.pickup.address)}`} target="_blank" rel="noopener noreferrer">
                   Open in Maps<span className="sr-only"> (opens in a new tab)</span>
                 </a>
+              )}
+              {o.pickup?.instructions && (
+                <div className="flex flex-col gap-0.5 border-t border-[#EEF1F6] pt-3">
+                  <h3 className="m-0 text-xs font-extrabold uppercase tracking-[0.1em] text-[#5B6272]">Instructions</h3>
+                  <p className="m-0 text-sm text-[#3B4252]">{o.pickup.instructions}</p>
+                </div>
               )}
             </>
           ) : (

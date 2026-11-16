@@ -35,7 +35,7 @@ const fill = async (user, details = {}) => {
   const d = { name: "Kelechi Obi", email: "kelechi@example.com", phone: "08034125185", ...details };
   await user.type(screen.getByLabelText("Full name"), d.name);
   await user.type(screen.getByLabelText("Email"), d.email);
-  if (d.phone) await user.type(screen.getByLabelText(/Phone number/), d.phone);
+  if (d.phone) await user.type(screen.getByLabelText(/^Phone/), d.phone);
 };
 
 beforeEach(() => {
@@ -55,10 +55,11 @@ describe("merch checkout", () => {
     expect(lines[1]).toHaveTextContent("₦5,000");
     expect(within(summary).getByText("Items").nextSibling).toHaveTextContent("₦17,000");
     expect(within(summary).getByText("Pickup").nextSibling).toHaveTextContent("Free");
-    expect(screen.getByText("Cafe One, Yaba")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Pick up from" })).toBeInTheDocument();
+    expect(screen.getAllByText("Cafe One, Yaba").length).toBeGreaterThan(0);
     expect(screen.getByRole("radio", { name: /Pick up/ })).toHaveAttribute("aria-checked", "true");
     // Paystack's own charge is added on top of the items: 1.5% of 17,000 plus the flat 100.
-    expect(within(summary).getByText("Payment charge").nextSibling).toHaveTextContent("₦");
+    expect(within(summary).getByText("Payment charge (estimate)").nextSibling).toHaveTextContent("₦");
     expect(screen.getByRole("button", { name: /^Pay ₦17,/ })).toBeInTheDocument();
   });
 
@@ -84,7 +85,8 @@ describe("merch checkout", () => {
   it("only offers pickup when the seller has delivery off", async () => {
     await setup(profile({ merch_checkout: { enabled: true, pickup: { address: "Cafe One", instructions: "" }, delivery: { enabled: false } } }));
     expect(screen.queryByRole("radio")).not.toBeInTheDocument();
-    expect(screen.getByText(/only offers pickup/)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Pick up your order" })).toBeInTheDocument();
+    expect(screen.getByText("Pickup only · Free")).toBeInTheDocument();
   });
 
   it("explains each missing detail instead of failing silently", async () => {
@@ -93,6 +95,84 @@ describe("merch checkout", () => {
     expect(await screen.findByText("Enter your name.")).toBeInTheDocument();
     expect(screen.getByText(/That email doesn't look right/)).toBeInTheDocument();
     expect(axios.post).not.toHaveBeenCalled();
+  });
+
+  it("takes focus to the first thing to fix", async () => {
+    const user = await setup();
+    await user.click(screen.getByRole("button", { name: /^Pay/ }));
+    expect(screen.getByLabelText("Full name")).toHaveFocus();
+    await user.type(screen.getByLabelText("Full name"), "Kelechi Obi");
+    await user.click(screen.getByRole("button", { name: /^Pay/ }));
+    expect(screen.getByLabelText("Email")).toHaveFocus();
+  });
+
+  it("for delivery the address comes first, then the area, then the details", async () => {
+    const user = await setup();
+    await user.click(screen.getByRole("radio", { name: /Deliver to me/ }));
+    await fill(user);
+    await user.click(screen.getByRole("button", { name: /^Pay/ }));
+    expect(screen.getByLabelText("Delivery address")).toHaveFocus();
+    await user.type(screen.getByLabelText("Delivery address"), "12B Adebayo Street, Surulere");
+    await user.click(screen.getByRole("button", { name: /^Pay/ }));
+    expect(screen.getByRole("checkbox", { name: /This address is in Lagos/ })).toHaveFocus();
+  });
+
+  it("for delivery, Pay says why it is off until the area is ticked, then turns on", async () => {
+    const user = await setup();
+    await user.click(screen.getByRole("radio", { name: /Deliver to me/ }));
+    const pay = screen.getByRole("button", { name: /^Pay/ });
+    expect(pay).toHaveAttribute("aria-disabled", "true");
+    expect(pay).toHaveAccessibleDescription("Tick “This address is in Lagos” to pay.");
+    await user.click(screen.getByRole("checkbox", { name: /This address is in Lagos/ }));
+    expect(pay).not.toHaveAttribute("aria-disabled");
+    expect(screen.queryByText("Tick “This address is in Lagos” to pay.")).not.toBeInTheDocument();
+  });
+
+  it("shows the total next to Pay for phones, which keep Pay in a bar at the bottom", async () => {
+    await setup();
+    const bar = screen.getByRole("button", { name: /^Pay/ }).parentElement;
+    expect(bar).toHaveClass("max-sm:fixed", "max-sm:bottom-0");
+    expect(within(bar).getByText("Total")).toBeInTheDocument();
+  });
+
+  it("offers pickup and delivery as two cards with their price and place", async () => {
+    await setup();
+    const pick = screen.getByRole("radio", { name: /Pick up/ });
+    const del = screen.getByRole("radio", { name: /Deliver to me/ });
+    expect(pick).toHaveTextContent("Free");
+    expect(pick).toHaveTextContent("Cafe One, Yaba");
+    expect(del).toHaveTextContent("₦2,000");
+    expect(del).toHaveTextContent("Lagos only");
+    expect(pick.parentElement).toHaveClass("sm:grid-cols-2");
+  });
+
+  it("does not look disabled until they have tried to pay", async () => {
+    const user = await setup();
+    const pay = screen.getByRole("button", { name: /^Pay/ });
+    expect(pay).not.toHaveAttribute("aria-disabled");
+    await user.click(pay);
+    expect(pay).toHaveAttribute("aria-disabled", "true");
+  });
+
+  it("quantity and remove are 44px to tap", async () => {
+    await setup();
+    for (const button of screen.getAllByRole("button", { name: /One more|One fewer/ })) {
+      expect(button).toHaveClass("h-11", "w-11");
+    }
+    for (const button of screen.getAllByRole("button", { name: /^Remove/ })) {
+      expect(button).toHaveClass("min-h-11");
+    }
+  });
+
+  it("says the payment charge is an estimate", async () => {
+    await setup();
+    expect(screen.getByText("Payment charge (estimate)")).toBeInTheDocument();
+  });
+
+  it("has a way to skip to the content", async () => {
+    await setup();
+    expect(screen.getByRole("link", { name: "Skip to content" })).toHaveAttribute("href", "#main");
+    expect(document.getElementById("main")).not.toBeNull();
   });
 
   it("delivery also needs a full address, a phone number and the area confirmed", async () => {
