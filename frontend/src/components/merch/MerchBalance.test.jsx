@@ -28,11 +28,36 @@ describe("merch figures", () => {
   });
 });
 
+describe("merch figures as rows", () => {
+  it("each figure is a row you can press, and pressing opens the details", async () => {
+    const onOpen = vi.fn();
+    const user = userEvent.setup();
+    render(<MerchFigures merch={merch({ releasing: "13400.00", not_released: "14000.00", next_release_at: "2026-11-17T09:00:00Z" })} onOpen={onOpen} />);
+    const group = screen.getByRole("group", { name: "Money not yet available" });
+    const rows = within(group).getAllByRole("button");
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toHaveTextContent("Releasing soon");
+    expect(rows[0]).toHaveTextContent("₦13,400");
+    expect(rows[0]).toHaveTextContent("Next release 17 Nov");
+    await user.click(rows[1]);
+    expect(onOpen).toHaveBeenCalledTimes(1);
+  });
+
+  it("with nothing to show there are no rows at all", () => {
+    const { container } = render(<MerchFigures merch={merch()} onOpen={() => {}} />);
+    expect(container).toBeEmptyDOMElement();
+  });
+});
+
 describe("shortfall notice", () => {
   it("explains a balance taken below zero by a refund", () => {
     render(<ShortfallNotice shortfall="2375.00" />);
     expect(screen.getByRole("status")).toHaveTextContent("₦2,375 from a refunded order is being taken from your next earnings.");
     expect(screen.getByRole("status")).toHaveTextContent("above ₦0");
+  });
+  it("offers a way to ask support", () => {
+    render(<ShortfallNotice shortfall="2375.00" />);
+    expect(screen.getByRole("link", { name: "Email support" })).toHaveAttribute("href", expect.stringContaining("mailto:support@usebyro.com"));
   });
   it("stays away when there is none", () => {
     const { container } = render(<ShortfallNotice shortfall="0" />);
@@ -76,14 +101,25 @@ describe("what's in your balance", () => {
   it("lists the rules and the orders behind the held money, linking to them", async () => {
     axios.get.mockResolvedValue({ data: { orders: [order("BY-0002"), order("BY-0003", { on_hold: true, release_state: "on_hold" })], order_count: 2, merch: {} } });
     render(<BalanceBreakdown balance={{ merch: merch({ releasing: "12000", on_hold: "12000" }) }} onClose={() => {}} />);
-    const dialog = screen.getByRole("dialog", { name: "What's in your balance" });
+    const dialog = screen.getByRole("dialog", { name: "Balance details" });
     expect(within(dialog).getByText("Ticket money is available as soon as a ticket is sold.")).toBeInTheDocument();
     expect(within(dialog).getByText("Pickup, picked up with the code: straight away.")).toBeInTheDocument();
     expect(within(dialog).getByText("Delivery, never marked delivered: 10 days after Shipped.")).toBeInTheDocument();
     expect(await within(dialog).findByText("Releases on 24 Nov.")).toBeInTheDocument();
     expect(within(dialog).getByText("On hold while Byro reviews a problem the buyer reported.")).toBeInTheDocument();
-    expect(within(dialog).getAllByRole("link", { name: /Tunde/ })[0]).toHaveAttribute("href", "/dashboard/merch?tab=orders");
+    expect(within(dialog).getAllByRole("link", { name: /Tunde/ })[0]).toHaveAttribute("href", "/dashboard/merch?tab=orders&order=BY-0002");
     expect(axios.get).toHaveBeenCalledWith("dashboard/merch-orders/balance/");
+  });
+
+  it("shows where Available comes from, adding up to the total", async () => {
+    axios.get.mockResolvedValue({ data: { orders: [], order_count: 0, merch: {} } });
+    render(<BalanceBreakdown balance={{ merch: merch(), parts: { tickets: "10000.00", merch: "12000.00", withdrawn: "5000.00" } }} onClose={() => {}} />);
+    const section = screen.getByRole("region", { name: "Where Available comes from" });
+    expect(within(section).getByText("Earned from tickets").nextSibling).toHaveTextContent("₦10,000");
+    expect(within(section).getByText("Earned from merch, released").nextSibling).toHaveTextContent("₦12,000");
+    expect(within(section).getByText("Withdrawn or requested").nextSibling).toHaveTextContent("−₦5,000");
+    expect(within(section).getByText("Available").nextSibling).toHaveTextContent("₦17,000");
+    await screen.findByText("No merch orders are waiting.");
   });
 
   it("caps the list and offers the rest", async () => {

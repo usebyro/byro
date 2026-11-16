@@ -7,7 +7,8 @@ import BankLogo from "@/components/dashboard/BankLogo";
 import SectionError from "@/components/dashboard/v2/SectionError";
 import BusyButton, { useButtonResult } from "@/components/dashboard/v2/BusyButton";
 import { BalanceBreakdown, MerchFigures, ShortfallNotice } from "@/components/merch/MerchBalance";
-import { withdrawBlockedLine } from "@/lib/merchOrders";
+import MoneyActivity from "@/components/merch/MoneyActivity";
+import { merchFigures, withdrawBlockedLine } from "@/lib/merchOrders";
 
 // Backend status -> label, status ink, dot, amount ink (design: Paid / Pending / Cancelled-style grey).
 const STATUS = {
@@ -319,10 +320,11 @@ export default function StudioPayouts() {
             ) : (
               <span className="v-hero break-words">{balance ? fmt(balance.available) : "—"}</span>
             )}
-            {!loadingBalance && balance && <MerchFigures merch={balance.merch} />}
-            {!loadingBalance && balance && (
+            {!loadingBalance && balance && <MerchFigures merch={balance.merch} onOpen={() => setBreakdownOpen(true)} />}
+            {/* Without merch money to press, the panel (where Available comes from) stays one link away. */}
+            {!loadingBalance && balance && merchFigures(balance.merch).length === 0 && (
               <button type="button" onClick={() => setBreakdownOpen(true)} className="self-start p-0 text-sm font-bold text-brand-dark hover:underline">
-                See what&apos;s in your balance
+                Balance details
               </button>
             )}
             {balanceFailed && !loadingBalance && (
@@ -539,7 +541,9 @@ export default function StudioPayouts() {
         </div>
       </div>
 
-      <section aria-label="Payout history" className="v-card v-bf min-w-0 overflow-hidden" style={{ "--i": 4 }}>
+      <MoneyActivity />
+
+      <section aria-label="Payout history" className="v-card v-bf min-w-0 overflow-hidden" style={{ "--i": 5 }}>
         <div className="flex flex-wrap items-center gap-3 px-[22px] py-5">
           <h2 className="v-h2 grow">History</h2>
           {payouts.length > 0 && (
