@@ -8,6 +8,7 @@ import API from "@/services/api";
 import { authSuccess } from "@/redux/auth/authSlice";
 import { trackLogin, trackSignUp } from "@/lib/analytics";
 import Link from "next/link";
+import { safeRedirect } from "@/lib/safeRedirect";
 
 function OAuthCallback() {
   const router = useRouter();
@@ -44,7 +45,7 @@ function OAuthCallback() {
         try {
           const saved = sessionStorage.getItem("authRedirect");
           sessionStorage.removeItem("authRedirect");
-          if (saved && saved.startsWith("/") && !saved.startsWith("//")) target = saved;
+          target = safeRedirect(saved);
         } catch {}
         if (!data.user.is_profile_complete) {
           router.replace(target ? `/onboarding-preview?redirect=${encodeURIComponent(target)}` : "/onboarding-preview");
