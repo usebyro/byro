@@ -4131,9 +4131,14 @@ class AdminAnalyticsSummaryView(APIView):
 
     def get(self, request):
         total_tickets = Ticket.objects.filter(payment_status__in=['paid', 'free']).count()
-        total_revenue = Payment.objects.filter(status='successful').aggregate(
+        ticket_revenue = Payment.objects.filter(status='successful').aggregate(
             total=Sum('amount')
         )['total'] or 0
+        from . import merch
+        # Merch counts too: what buyers paid for orders that haven't been refunded or cancelled.
+        merch_orders = MerchOrder.objects.filter(status__in=merch.LIVE)
+        merch_revenue = merch_orders.aggregate(total=Sum('amount'))['total'] or 0
+        total_revenue = ticket_revenue + merch_revenue
         total_events = Event.objects.count()
         active_events = Event.objects.filter(is_active=True).count()
         private_events = Event.objects.filter(visibility='private').count()
@@ -4148,6 +4153,9 @@ class AdminAnalyticsSummaryView(APIView):
         return Response({
             'total_tickets_sold': total_tickets,
             'total_revenue': total_revenue,
+            'ticket_revenue': ticket_revenue,
+            'merch_revenue': merch_revenue,
+            'merch_orders': merch_orders.count(),
             'total_events': total_events,
             'active_events': active_events,
             'private_events': private_events,
@@ -4505,8 +4513,15 @@ class AdminAnalyticsRevenueTrendView(APIView):
             .annotate(revenue=Sum('amount'))
             .order_by('date')
         )
-        data = [{'date': str(r['date']), 'revenue': r['revenue']} for r in rows]
-        return Response(data)
+        from . import merch
+        by_day = {str(r['date']): r['revenue'] for r in rows}
+        merch_rows = (
+            MerchOrder.objects.filter(status__in=merch.LIVE, paid_at__gte=since)
+            .annotate(date=TruncDate('paid_at')).values('date').annotate(revenue=Sum('amount'))
+        )
+        for r in merch_rows:
+            by_day[str(r['date'])] = (by_day.get(str(r['date'])) or 0) + r['revenue']
+        return Response([{'date': d, 'revenue': by_day[d]} for d in sorted(by_day)])
 
 
 def _log_admin_action(request, action, target_type, target_id, target_label='', detail=''):

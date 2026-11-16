@@ -948,3 +948,20 @@ class EmailTests(MerchBase):
         with self.captureOnCommitCallbacks(execute=True):
             merch.report_problem(merch.advance(self.paid('pickup'), 'ready'), 'damaged')
         self.assertIn('seller@example.com', {c.args[0] for c in send_email.call_args_list})
+
+
+class AdminOverviewTests(MerchBase):
+    def test_merch_sales_count_in_the_overview_total_and_trend(self):
+        from .models import AdminMember
+        boss = User.objects.create_user(email='boss@example.com')
+        AdminMember.objects.create(email='boss@example.com', role='admin')
+        self.client.force_authenticate(boss)
+        self.paid('delivery')                                   # 12,000 + 2,000 delivery
+        pickup = self.paid('pickup')                            # 12,000
+        with patch('bryo.merch.send_refund'):
+            merch.cancel(pickup, 'Sorry')                       # refunded orders are not revenue
+        s = self.client.get('/api/admin/analytics/summary/').json()
+        self.assertEqual((Decimal(str(s['merch_revenue'])), s['merch_orders']), (Decimal('14000'), 1))
+        self.assertEqual(Decimal(str(s['total_revenue'])), Decimal(str(s['ticket_revenue'])) + Decimal('14000'))
+        trend = self.client.get('/api/admin/analytics/revenue-trend/?days=7').json()
+        self.assertEqual(sum(Decimal(str(p['revenue'])) for p in trend), Decimal('14000'))
