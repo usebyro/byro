@@ -123,6 +123,15 @@ class ClaimingTests(ClaimBase):
     def test_unknown_link_is_a_404(self):
         self.assertEqual(self.client.get('/api/event-claims/nope/').status_code, 404)
 
+    def test_a_draft_with_no_owner_can_be_claimed(self):
+        # Postgres refuses a row lock across the owner join when there is no owner; the lock is on the claim only.
+        self.event.owner = None
+        self.event.save()
+        r = self.claim(self.jane)
+        self.assertEqual(r.status_code, 200)
+        self.event.refresh_from_db()
+        self.assertEqual(self.event.owner, self.jane)
+
     def test_claiming_makes_them_the_owner_and_removes_staff_access(self):
         EventCoHost.objects.create(event=self.event, user=self.boss, invited_email=self.boss.email,
                                    added_by=self.boss, status=EventCoHost.STATUS_ACCEPTED)

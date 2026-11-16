@@ -212,7 +212,9 @@ class EventClaimClaimView(APIView):
     def post(self, request, token):
         with transaction.atomic():
             claim = (
-                EventClaim.objects.select_for_update()
+                # Lock the claim row only: the event's owner can be empty, and Postgres refuses FOR UPDATE
+                # across that outer join (SQLite ignores row locks, so tests never show it).
+                EventClaim.objects.select_for_update(of=('self',))
                 .select_related('event__owner').filter(token=token).first()
             )
             if claim is None:
