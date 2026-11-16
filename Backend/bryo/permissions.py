@@ -24,6 +24,8 @@ def get_admin_member(user):
     allowed = settings.ADMIN_BOOTSTRAP_EMAILS
     if allowed and email not in allowed:
         return None
+    if not allowed and not settings.ADMIN_BOOTSTRAP_OPEN:
+        return None
     with transaction.atomic():
         if allowed or not AdminMember.objects.exists():
             return AdminMember.objects.create(

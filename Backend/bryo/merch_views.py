@@ -21,6 +21,7 @@ Byro admins
   POST /api/admin/merch-orders/<ref>/resolve/      release the earnings, or refund the buyer
 """
 import logging
+import secrets
 from datetime import timedelta
 
 import requests
@@ -232,7 +233,7 @@ class MerchVerifyView(APIView):
     throttle_scope = 'merch_checkout'
 
     def get(self, request, reference):
-        from .views import _paid_amount_ok, _paystack_transaction
+        from .views import _is_ngn, _kobo, _paid_amount_ok, _paystack_transaction
         order = MerchOrder.objects.select_related('seller', 'seller__profile').prefetch_related('lines').filter(paystack_reference=reference).first()
         if order is None:
             return Response({'error': 'We could not find that order.'}, status=status.HTTP_404_NOT_FOUND)
@@ -244,7 +245,7 @@ class MerchVerifyView(APIView):
                                        f"support@usebyro.com with reference {reference}.")}, status=status.HTTP_400_BAD_REQUEST)
         txn = data.get('status')
         if txn == 'success':
-            if not _paid_amount_ok(int(data.get('amount') or 0), int(order.amount * 100)):
+            if not _is_ngn(data) or not _paid_amount_ok(_kobo(data.get('amount')), int(order.amount * 100)):
                 logger.error('Merch amount mismatch for %s: paystack=%s expected=%s', reference, data.get('amount'), order.amount)
                 return Response({'error': ("We couldn't confirm your payment. Contact support@usebyro.com "
                                            f"with reference {reference} and we'll sort it out.")}, status=status.HTTP_400_BAD_REQUEST)
@@ -267,7 +268,8 @@ class _BuyerOrderView(APIView):
         token = request.query_params.get('token') or request.data.get('token') or ''
         order = _order_by_ref(ref)
         # One answer for "no such order" and "wrong token", so a ref can't be probed.
-        if order is None or not token or token != order.access_token or order.status in (MerchOrder.PENDING, MerchOrder.FAILED):
+        if (order is None or not token or order.status in (MerchOrder.PENDING, MerchOrder.FAILED)
+                or not secrets.compare_digest(str(token).encode(), order.access_token.encode())):
             return None
         return order
 

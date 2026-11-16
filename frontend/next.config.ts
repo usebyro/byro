@@ -60,6 +60,16 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  async headers() {
+    return [
+      {
+        // The buyer's order link carries their access token in the address. Keep it out of the Referer
+        // header so it can't reach another site through a link or an embedded image on the page.
+        source: '/merch-order/:path*',
+        headers: [{ key: 'Referrer-Policy', value: 'no-referrer' }],
+      },
+    ];
+  },
   async redirects() {
     return [
       {

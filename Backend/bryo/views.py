@@ -90,6 +90,19 @@ class InsufficientCapacityError(Exception):
 RESERVATION_MINUTES = 10
 
 
+def _kobo(value):
+    """Paystack's amount as a whole number, or 0 when it is missing or not a number."""
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _is_ngn(data):
+    """Merch is priced in naira. A payment in any other currency is never accepted as paid."""
+    return str((data or {}).get('currency') or 'NGN').upper() == 'NGN'
+
+
 def _paid_amount_ok(paid_kobo, expected_kobo):
     """True if Paystack's reported amount covers what we asked it to charge.
 
@@ -1160,7 +1173,7 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
             hashlib.sha512
         ).hexdigest()
         
-        if hash_value != signature:
+        if not hmac.compare_digest(hash_value, signature):
             return Response({
                 'error': 'Invalid signature'
             }, status=status.HTTP_400_BAD_REQUEST)
@@ -1235,7 +1248,7 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                 from . import merch
                 order = MerchOrder.objects.filter(paystack_reference=reference).first()
                 if order is not None:
-                    if _paid_amount_ok(data.get('amount', 0), int(order.amount * 100)):
+                    if _is_ngn(data) and _paid_amount_ok(_kobo(data.get('amount')), int(order.amount * 100)):
                         merch.mark_paid(order, data.get('channel') or '')
                     else:
                         logger.error("Webhook amount mismatch for merch order %s: Paystack=%s kobo, expected=%s",
