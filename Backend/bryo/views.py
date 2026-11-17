@@ -4,7 +4,8 @@ from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
-from rest_framework.throttling import ScopedRateThrottle
+from rest_framework.throttling import ScopedRateThrottle, SimpleRateThrottle
+from rest_framework.exceptions import Throttled
 from django.core.validators import validate_email
 from django.core.exceptions import ValidationError as DjangoValidationError
 from .services import workos_api, zoho
@@ -98,6 +99,16 @@ PAYSTACK_WAIT_SECONDS = 15
 # The public event list: at most this many events per request, and a signed-out answer is reused this long.
 EVENT_LIST_MAX = 200
 EVENT_LIST_CACHE_SECONDS = 30
+# The query parameters the list reads; anything else is ignored and must not change its cache key.
+EVENT_LIST_PARAMS = ('area', 'category', 'date', 'featured', 'host', 'max_price', 'min_price', 'search', 'sort', 'when')
+
+
+class EventSearchThrottle(SimpleRateThrottle):
+    """Limits free-text searches of the event list, per visitor."""
+    scope = 'event_search'
+
+    def get_cache_key(self, request, view):
+        return self.cache_format % {'scope': self.scope, 'ident': self.get_ident(request)}
 
 
 def _kobo(value):
@@ -2429,13 +2440,23 @@ class EventViewSet(viewsets.ModelViewSet):
         except (TypeError, ValueError):
             offset = 0
 
+        if request.query_params.get('search'):
+            # A text search scans every event's name, description and place, so it is limited on its own.
+            throttle = EventSearchThrottle()
+            if not throttle.allow_request(request, self):
+                raise Throttled(wait=throttle.wait())
+
         signed_out = not request.user.is_authenticated and 'HTTP_AUTHORIZATION' not in request.META
         key = data = None
         if signed_out:
             # Tied to how many events exist and when one last changed, so a new or edited event shows up at once.
             stamp = Event.objects.aggregate(n=Count('id'), latest=Max('updated_at'), featured=Max('featured_until'))
+            # Only the parameters the list actually reads go into the key. Keying on the whole query string would
+            # let a visitor add ?x=random to every request and never be served from the cache.
+            wanted = {name: request.query_params.get(name, '')[:200] for name in EVENT_LIST_PARAMS}
+            wanted.update(limit=limit, offset=offset)
             key = 'events-list:' + hashlib.sha1(
-                f"{request.get_full_path()}|{stamp['n']}|{stamp['latest']}|{stamp['featured']}".encode()).hexdigest()
+                f"{sorted(wanted.items())}|{stamp['n']}|{stamp['latest']}|{stamp['featured']}".encode()).hexdigest()
             data = cache.get(key)
         if data is None:
             queryset = self.filter_queryset(self.get_queryset())

@@ -87,6 +87,15 @@ class EventListTests(TestCase):
         make_events(self.owners, 1, start=2)
         self.assertEqual(len(self.anon.get('/api/events/').json()), 3)
 
+    def test_junk_query_parameters_cannot_dodge_the_cache(self):
+        make_events(self.owners, 10)
+        self.anon.get('/api/events/')
+        for junk in ('?x=1', '?cb=abc123', '?utm=1&z=2', '?_=1699999999'):
+            with CaptureQueriesContext(connection) as q:
+                r = self.anon.get('/api/events/' + junk)
+            self.assertEqual(r.status_code, 200)
+            self.assertLessEqual(len(q), 3, f'{junk} bypassed the cache ({len(q)} queries)')
+
     def test_different_searches_do_not_share_an_answer(self):
         make_events(self.owners, 3)
         everything = self.anon.get('/api/events/').json()
@@ -120,14 +129,22 @@ class RateLimitTests(TestCase):
     def test_free_registration_is_limited_per_visitor(self):
         # One proxy in front writes the real address at the right end; the caller controls the rest.
         codes = [APIClient().post(f'/api/events/{self.event.slug}/register/', {'name': 'Bot', 'email': f'v{i}@example.com'},
-                                  format='json', HTTP_X_FORWARDED_FOR='198.51.100.7').status_code for i in range(70)]
-        self.assertEqual(codes[:60], [201] * 60)
-        self.assertIn(429, codes[60:])
+                                  format='json', HTTP_X_FORWARDED_FOR='198.51.100.7').status_code for i in range(310)]
+        self.assertEqual(codes[:300], [201] * 300)
+        self.assertIn(429, codes[300:])
 
-    def test_a_big_group_on_different_addresses_is_not_blocked(self):
+    def test_a_whole_conference_on_one_wifi_can_still_register(self):
+        # Hundreds of people behind one venue address in an hour must not be blocked.
         codes = [APIClient().post(f'/api/events/{self.event.slug}/register/', {'name': 'P', 'email': f'p{i}@example.com'},
-                                  format='json', HTTP_X_FORWARDED_FOR=f'203.0.113.{i + 1}').status_code for i in range(70)]
+                                  format='json', HTTP_X_FORWARDED_FOR='203.0.113.50').status_code for i in range(250)]
         self.assertNotIn(429, codes)
+
+    def test_searching_the_event_list_is_limited_per_visitor(self):
+        make_events([self.owner], 2)
+        codes = [APIClient().get(f'/api/events/?search=event{i}', HTTP_X_FORWARDED_FOR='198.51.100.9').status_code for i in range(125)]
+        self.assertEqual(codes[:120], [200] * 120)
+        self.assertIn(429, codes[120:])
+        self.assertEqual(APIClient().get('/api/events/', HTTP_X_FORWARDED_FOR='198.51.100.9').status_code, 200)   # browsing is unaffected
 
     def test_bank_account_lookups_are_limited_per_person(self):
         client = APIClient()
