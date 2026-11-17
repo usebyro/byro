@@ -38,6 +38,18 @@ describe("safeRedirect", () => {
     }
   });
 
+  it("refuses dot-segment tricks that resolve to another site", () => {
+    for (const v of ["/..//evil.com", "/a/..//evil.com", "/.//evil.com", "/%2e%2e//evil.com", "/%2e%2e/%2e%2e//evil.com", "/a/./..//evil.com"]) {
+      expect(safeRedirect(v), v).toBeNull();
+    }
+  });
+
+  it("still resolves harmless dot-segments on this site", () => {
+    expect(safeRedirect("/a/../home")).toBe("/home");
+    expect(safeRedirect("/x/../../evil.com")).toBe("/evil.com");   // stays a path on this site
+    expect(safeRedirect("/./home")).toBe("/home");
+  });
+
   it("refuses things that are not strings", () => {
     for (const v of [null, undefined, 42, {}, ["/home"]]) expect(safeRedirect(v)).toBeNull();
   });

@@ -14,7 +14,11 @@ export function safeRedirect(value) {
   try {
     const url = new URL(value, PLACEHOLDER);
     if (url.origin !== PLACEHOLDER) return null;
-    return url.pathname + url.search + url.hash;
+    const path = url.pathname + url.search + url.hash;
+    // Resolving "." and ".." can leave a path that starts with "//" ("/..//evil.com" becomes "//evil.com"),
+    // which a browser reads as another site, so the result is held to the same rules as the input.
+    if (!path.startsWith("/") || path.startsWith("//") || /[\\\u0000-\u001f\u007f]/.test(path)) return null;
+    return path;
   } catch {
     return null;
   }
