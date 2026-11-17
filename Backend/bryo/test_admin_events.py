@@ -208,6 +208,24 @@ class EditDetailsTests(AdminBase):
         self.assertFalse(self.event.event_image)
         self.assertIn('image', AdminAction.objects.get(action=AdminAction.ACTION_EVENT_EDITED).detail)
 
+    def test_admin_moves_the_date_and_time_and_ticket_holders_are_told(self):
+        from unittest import mock
+        with mock.patch('bryo.views.notify_event_changed') as told:
+            r = self.patch(self.boss, day='2031-03-14', time_from='18:30', time_to='21:00')
+        self.assertEqual(r.status_code, 200)
+        self.event.refresh_from_db()
+        self.assertEqual((str(self.event.day), str(self.event.time_from), str(self.event.time_to)), ('2031-03-14', '18:30:00', '21:00:00'))
+        self.assertEqual(AdminAction.objects.get(action=AdminAction.ACTION_EVENT_EDITED).detail, 'date, time')
+        labels = [c[0] for c in told.call_args[0][1]]
+        self.assertEqual(labels, ['Date', 'Time'])
+
+    def test_a_bad_date_or_time_is_refused(self):
+        before = (self.event.day, self.event.time_from)
+        for body in ({'day': 'soon'}, {'day': '2031-02-31'}, {'time_from': '25:00'}, {'time_to': ''}):
+            self.assertEqual(self.patch(self.boss, **body).status_code, 400, body)
+        self.event.refresh_from_db()
+        self.assertEqual((self.event.day, self.event.time_from), before)
+
     def test_viewers_cannot_edit(self):
         self.assertEqual(self.patch(self.viewer, name='Hacked').status_code, 403)
 

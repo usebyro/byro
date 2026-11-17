@@ -20,6 +20,7 @@ interface Event {
   category: string;
   day: string;
   time_from: string;
+  time_to?: string;
   location: string;
   ticket_price: number | string;
   tiers?: EventTier[];
@@ -186,6 +187,9 @@ function EditDetails({ event, onSaved }: { event: Event; onSaved: (updated: Even
   const [open, setOpen] = useState(false);
   const [name, setName] = useState(event.name);
   const [location, setLocation] = useState(event.location);
+  const [day, setDay] = useState(event.day);
+  const [timeFrom, setTimeFrom] = useState((event.time_from ?? "").slice(0, 5));
+  const [timeTo, setTimeTo] = useState((event.time_to ?? "").slice(0, 5));
   const [description, setDescription] = useState(event.description ?? "");
   const [removeImage, setRemoveImage] = useState(false);
   const [note, setNote] = useState("");
@@ -197,6 +201,9 @@ function EditDetails({ event, onSaved }: { event: Event; onSaved: (updated: Even
     setError("");
     try {
       const body: Record<string, unknown> = { name, location, description, note };
+      if (day) body.day = day;
+      if (timeFrom) body.time_from = timeFrom;
+      if (timeTo) body.time_to = timeTo;
       if (removeImage) body.remove_image = true;
       const res = await fetch(`/api/admin/events/${event.id}`, {
         method: "PATCH",
@@ -219,7 +226,7 @@ function EditDetails({ event, onSaved }: { event: Event; onSaved: (updated: Even
   const field = "w-full rounded-lg border border-line bg-white px-3 py-2 text-sm text-ink";
   if (!open) {
     return (
-      <ActionRow title="Details" hint="Fix a typo or remove an unsuitable image. The organiser is told.">
+      <ActionRow title="Details" hint="Fix a typo, change the date or time, or remove an unsuitable image. The organiser is told.">
         <button type="button" onClick={() => setOpen(true)} className={BTN_BRAND}>Edit details</button>
       </ActionRow>
     );
@@ -236,6 +243,18 @@ function EditDetails({ event, onSaved }: { event: Event; onSaved: (updated: Even
       <label className="block text-xs text-muted">Location
         <input className={`${field} mt-1`} value={location} maxLength={255} onChange={(e) => setLocation(e.target.value)} />
       </label>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <label className="block text-xs text-muted">Date
+          <input type="date" className={`${field} mt-1`} value={day} onChange={(e) => setDay(e.target.value)} />
+        </label>
+        <label className="block text-xs text-muted">Starts
+          <input type="time" className={`${field} mt-1`} value={timeFrom} onChange={(e) => setTimeFrom(e.target.value)} />
+        </label>
+        <label className="block text-xs text-muted">Ends
+          <input type="time" className={`${field} mt-1`} value={timeTo} onChange={(e) => setTimeTo(e.target.value)} />
+        </label>
+      </div>
+      <p className="text-faint -mt-1 text-xs leading-relaxed">Changing the date or time emails everyone who has a ticket.</p>
       <label className="block text-xs text-muted">Description
         <textarea className={`${field} mt-1`} rows={5} value={description} onChange={(e) => setDescription(e.target.value)} />
       </label>

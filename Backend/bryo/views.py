@@ -60,6 +60,7 @@ from django.http import JsonResponse
 from django.conf import settings
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from django.utils.dateparse import parse_date, parse_time
 import requests
 import hmac
 import hashlib
@@ -4262,7 +4263,7 @@ class AdminAnalyticsSummaryView(APIView):
 class AdminEventDetailView(APIView):
     """
     PATCH  /api/admin/events/<pk>/  — any of { is_active, visibility: 'public' | 'private', sales_closed,
-                                      is_draft: true, name, location, description, remove_image: true, note }
+                                      is_draft: true, name, location, description, day, time_from, time_to, remove_image: true, note }
     DELETE /api/admin/events/<pk>/
 
     Not the owner-facing EventViewSet: no ownership check, gated only by the
@@ -4323,6 +4324,20 @@ class AdminEventDetailView(APIView):
                 if value != getattr(event, field):
                     edits[field] = value
                     changed.append(field)
+        # Date and time, e.g. when the organiser asks Byro to move the event. Ticket holders are emailed.
+        for field, parse, label in (('day', parse_date, 'date'), ('time_from', parse_time, 'start time'), ('time_to', parse_time, 'end time')):
+            if field in request.data:
+                raw = str(request.data.get(field) or '').strip()
+                try:
+                    value = parse(raw) if raw else None
+                except ValueError:  # well-formed but impossible, like 2026-02-31
+                    value = None
+                if value is None:
+                    return Response({'error': f"Enter a valid {label}."}, status=status.HTTP_400_BAD_REQUEST)
+                if value != getattr(event, field):
+                    edits[field] = value
+                    changed.append('date' if field == 'day' else 'time')
+        changed = list(dict.fromkeys(changed))
         if request.data.get('remove_image') is True and event.event_image:
             edits['event_image'] = None
             changed.append('image')
