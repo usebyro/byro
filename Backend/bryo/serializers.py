@@ -448,6 +448,10 @@ class EventSerializer(serializers.ModelSerializer):
     def validate_event_image(self, value):
         return clean_image_upload(value) if value else value
 
+    def validate_description(self, value):
+        from .html_clean import clean_html
+        return clean_html(value)
+
     class Meta:
         model = Event
         fields = [
@@ -497,7 +501,12 @@ class EventSerializer(serializers.ModelSerializer):
         """Number of active events this owner has hosted, for the public 'Organised by' card."""
         if not obj.owner:
             return 0
-        return Event.objects.filter(owner=obj.owner, is_active=True, is_draft=False).count()
+        # One count per organiser per request, not per event: a list of 100 events by 10 organisers
+        # asks 10 times instead of 100.
+        counts = self.context.setdefault('_owner_event_counts', {})
+        if obj.owner_id not in counts:
+            counts[obj.owner_id] = Event.objects.filter(owner=obj.owner, is_active=True, is_draft=False).count()
+        return counts[obj.owner_id]
 
     def get_role(self, obj):
         """
@@ -523,9 +532,16 @@ class EventSerializer(serializers.ModelSerializer):
     
     def to_representation(self, instance):
         data = super().to_representation(instance)
+        # Cleaned on the way out as well, so a description written before this check existed (or by a
+        # bulk update that skips save) can never reach a page as live HTML.
+        from .html_clean import clean_html
+        data['description'] = clean_html(data.get('description'))
         data['hosted_by'] = event_host_name(instance)
         from .pricing import fee_rate_for
-        data['fee_rate'] = str(fee_rate_for(instance.owner if instance.owner_id else None))
+        fees = self.context.setdefault('_owner_fee_rates', {})   # one lookup per organiser per request
+        if instance.owner_id not in fees:
+            fees[instance.owner_id] = str(fee_rate_for(instance.owner if instance.owner_id else None))
+        data['fee_rate'] = fees[instance.owner_id]
         until = getattr(instance, 'featured_until', None)
         data['is_featured'] = bool(until and until > timezone.now())
 

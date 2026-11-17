@@ -4,7 +4,8 @@ from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
-from rest_framework.throttling import ScopedRateThrottle
+from rest_framework.throttling import ScopedRateThrottle, SimpleRateThrottle
+from rest_framework.exceptions import Throttled
 from django.core.validators import validate_email
 from django.core.exceptions import ValidationError as DjangoValidationError
 from .services import workos_api, zoho
@@ -52,7 +53,9 @@ from .serializers import clean_image_upload
 from .permissions import IsEventOwnerOrCoHost, IsEventOwner, IsAdminMember, get_admin_member
 from django.db import transaction, IntegrityError
 from django.db import models
-from django.db.models import Q, Min, OuterRef, Subquery, Sum, Count, F
+from django.db.models import Q, Min, Max, OuterRef, Subquery, Sum, Count, F
+from django.core.cache import cache
+from django.utils.cache import patch_cache_control, patch_vary_headers
 from django.db.models.functions import TruncDate, TruncMonth, Cast, Greatest
 from django.db.models.fields.json import KeyTextTransform
 from django.db.models.functions import Coalesce
@@ -90,6 +93,23 @@ class InsufficientCapacityError(Exception):
 # How long a buyer's seats are held while they pay. After this a pending
 # payment stops counting against capacity and the seats go back on sale.
 RESERVATION_MINUTES = 10
+
+# How long a request waits on Paystack before giving up. Each waiting request holds a server thread.
+PAYSTACK_WAIT_SECONDS = 15
+
+# The public event list: at most this many events per request, and a signed-out answer is reused this long.
+EVENT_LIST_MAX = 200
+EVENT_LIST_CACHE_SECONDS = 30
+# The query parameters the list reads; anything else is ignored and must not change its cache key.
+EVENT_LIST_PARAMS = ('area', 'category', 'date', 'featured', 'host', 'max_price', 'min_price', 'search', 'sort', 'when')
+
+
+class EventSearchThrottle(SimpleRateThrottle):
+    """Limits free-text searches of the event list, per visitor."""
+    scope = 'event_search'
+
+    def get_cache_key(self, request, view):
+        return self.cache_format % {'scope': self.scope, 'ident': self.get_ident(request)}
 
 
 def _kobo(value):
@@ -985,7 +1005,7 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                 paystack_url, 
                 json=payment_data, 
                 headers=headers,
-                timeout=30
+                timeout=PAYSTACK_WAIT_SECONDS
             )
             response_data = response.json()
             
@@ -1046,7 +1066,7 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
         }
         
         try:
-            response = requests.get(paystack_url, headers=headers, timeout=30)
+            response = requests.get(paystack_url, headers=headers, timeout=PAYSTACK_WAIT_SECONDS)
             response_data = response.json()
             
             if response.status_code == 200 and response_data.get('status'):
@@ -2180,7 +2200,7 @@ class EventViewSet(viewsets.ModelViewSet):
           host       - an organiser's handle: only their events (the community page)
           sort       - "trending" | "newest" (default) | "date" | "price_low" | "price_high"
         """
-        queryset = Event.objects.select_related('owner').prefetch_related('cohosts__user', 'tiers')
+        queryset = Event.objects.select_related('owner', 'owner__profile').prefetch_related('cohosts__user', 'tiers')
 
         # Category filtering (supports multiple comma-separated values)
         category = self.request.query_params.get('category', None)
@@ -2403,13 +2423,54 @@ class EventViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-    @method_decorator(never_cache)
     def list(self, request, *args, **kwargs):
         """
         List all events (public access)
-        Supports filtering by category and search
+        Supports filtering by category and search.
+
+        One request can never return more than EVENT_LIST_MAX events (?limit= and ?offset= page through
+        them), and a signed-out visitor's answer is kept for EVENT_LIST_CACHE_SECONDS, so a flood of
+        identical requests costs one computation instead of one each.
         """
-        return super().list(request, *args, **kwargs)
+        try:
+            limit = min(max(int(request.query_params.get('limit', EVENT_LIST_MAX)), 1), EVENT_LIST_MAX)
+        except (TypeError, ValueError):
+            limit = EVENT_LIST_MAX
+        try:
+            offset = max(int(request.query_params.get('offset', 0)), 0)
+        except (TypeError, ValueError):
+            offset = 0
+
+        if request.query_params.get('search'):
+            # A text search scans every event's name, description and place, so it is limited on its own.
+            throttle = EventSearchThrottle()
+            if not throttle.allow_request(request, self):
+                raise Throttled(wait=throttle.wait())
+
+        signed_out = not request.user.is_authenticated and 'HTTP_AUTHORIZATION' not in request.META
+        key = data = None
+        if signed_out:
+            # Tied to how many events exist and when one last changed, so a new or edited event shows up at once.
+            stamp = Event.objects.aggregate(n=Count('id'), latest=Max('updated_at'), featured=Max('featured_until'))
+            # Only the parameters the list actually reads go into the key. Keying on the whole query string would
+            # let a visitor add ?x=random to every request and never be served from the cache.
+            wanted = {name: request.query_params.get(name, '')[:200] for name in EVENT_LIST_PARAMS}
+            wanted.update(limit=limit, offset=offset)
+            key = 'events-list:' + hashlib.sha1(
+                f"{sorted(wanted.items())}|{stamp['n']}|{stamp['latest']}|{stamp['featured']}".encode()).hexdigest()
+            data = cache.get(key)
+        if data is None:
+            queryset = self.filter_queryset(self.get_queryset())
+            data = list(self.get_serializer(list(queryset[offset:offset + limit]), many=True).data)
+            if key:
+                cache.set(key, data, EVENT_LIST_CACHE_SECONDS)
+        response = Response(data)
+        if signed_out:
+            patch_cache_control(response, public=True, max_age=15, s_maxage=EVENT_LIST_CACHE_SECONDS, stale_while_revalidate=60)
+        else:
+            patch_cache_control(response, private=True, no_store=True)
+        patch_vary_headers(response, ['Authorization'])
+        return response
     
     @method_decorator(never_cache)
     def retrieve(self, request, *args, **kwargs):
@@ -2732,7 +2793,8 @@ class EventViewSet(viewsets.ModelViewSet):
             'role': role
         })
     
-    @action(detail=True, methods=['POST'], permission_classes=[AllowAny])
+    @action(detail=True, methods=['POST'], permission_classes=[AllowAny],
+            throttle_classes=[ScopedRateThrottle], throttle_scope='register')
     def register(self, request, slug=None):
         """
         Register for an event.
@@ -4171,6 +4233,7 @@ class AdminPayoutView(APIView):
 class PaystackBankListView(APIView):
     """GET /api/paystack/banks/?country=nigeria — list supported banks."""
     permission_classes = [IsAuthenticated]
+    throttle_scope = 'bank_list'
 
     def get(self, request):
         country = request.query_params.get('country', 'nigeria')
@@ -4180,7 +4243,7 @@ class PaystackBankListView(APIView):
                 'https://api.paystack.co/bank',
                 params={'country': country},
                 headers=headers,
-                timeout=30,
+                timeout=PAYSTACK_WAIT_SECONDS,
             )
         except requests.RequestException:
             return Response({'error': "We couldn't reach our payment provider. Try again in a minute."}, status=status.HTTP_502_BAD_GATEWAY)
@@ -4191,6 +4254,9 @@ class PaystackBankListView(APIView):
 class PaystackResolveAccountView(APIView):
     """GET /api/paystack/resolve-account/?account_number=...&bank_code=... — verify account name."""
     permission_classes = [IsAuthenticated]
+    # Each lookup is a Paystack call that holds a thread and counts against Byro's Paystack limits, and the
+    # answer is a stranger's account name, so it is kept to what filling in a payout form needs.
+    throttle_scope = 'bank_lookup'
 
     def get(self, request):
         account_number = request.query_params.get('account_number')
@@ -4207,7 +4273,7 @@ class PaystackResolveAccountView(APIView):
                 'https://api.paystack.co/bank/resolve',
                 params={'account_number': account_number, 'bank_code': bank_code},
                 headers=headers,
-                timeout=30,
+                timeout=PAYSTACK_WAIT_SECONDS,
             )
         except requests.RequestException:
             return Response({'error': "We couldn't reach our payment provider. Try again in a minute."}, status=status.HTTP_502_BAD_GATEWAY)
@@ -4790,7 +4856,7 @@ def _paystack_transaction(reference):
     try:
         res = requests.get(
             f'{settings.PAYSTACK_API_BASE}/transaction/verify/{reference}',
-            headers={'Authorization': f'Bearer {settings.PAYSTACK_SECRET_KEY.strip()}'}, timeout=20,
+            headers={'Authorization': f'Bearer {settings.PAYSTACK_SECRET_KEY.strip()}'}, timeout=PAYSTACK_WAIT_SECONDS,
         )
         body = res.json()
     except Exception as e:  # network, timeout, bad JSON

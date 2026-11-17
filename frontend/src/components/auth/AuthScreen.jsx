@@ -11,6 +11,7 @@ import axiosInstance from "@/utils/axios";
 import API from "@/services/api";
 import { authSuccess } from "@/redux/auth/authSlice";
 import { trackLogin, trackSignUp } from "@/lib/analytics";
+import { safeRedirect } from "@/lib/safeRedirect";
 
 const OTP_LENGTH = 6;
 const RESEND_COOLDOWN_SECONDS = 60;
@@ -45,7 +46,7 @@ export default function AuthScreen() {
   const searchParams = useSearchParams();
   // Only same-site paths: a "?redirect=" pointing off-site must never be followed.
   const rawRedirect = searchParams.get("redirect");
-  const redirectTo = rawRedirect && rawRedirect.startsWith("/") && !rawRedirect.startsWith("//") ? rawRedirect : null;
+  const redirectTo = safeRedirect(rawRedirect);
   const dispatch = useDispatch();
   const [currentSlide, setCurrentSlide] = useState(0);
   const [step, setStep] = useState("email");

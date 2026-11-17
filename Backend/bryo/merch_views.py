@@ -215,7 +215,7 @@ class MerchCheckoutView(APIView):
         }
         try:
             res = requests.post(
-                f'{settings.PAYSTACK_API_BASE}/transaction/initialize', json=payload, timeout=30,
+                f'{settings.PAYSTACK_API_BASE}/transaction/initialize', json=payload, timeout=15,
                 headers={'Authorization': f'Bearer {settings.PAYSTACK_SECRET_KEY.strip()}', 'Content-Type': 'application/json'},
             )
             body = res.json()

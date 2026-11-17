@@ -8,6 +8,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { CompassIcon, Megaphone01Icon, Camera01Icon, UserIcon } from "@hugeicons/core-free-icons";
 import API from "@/services/api";
 import { handleProblem, friendlyProfileError } from "@/lib/handle";
+import { safeRedirect } from "@/lib/safeRedirect";
 import { FaXTwitter, FaInstagram, FaLinkedinIn, FaTelegram } from "react-icons/fa6";
 
 const ROLES = [
@@ -68,7 +69,7 @@ const SLIDES = [
 const returnPath = (fallback) => {
   if (typeof window === "undefined") return fallback;
   const target = new URLSearchParams(window.location.search).get("redirect");
-  return target && target.startsWith("/") && !target.startsWith("//") ? target : fallback;
+  return safeRedirect(target) || fallback;
 };
 
 export default function OnboardingScreen() {
