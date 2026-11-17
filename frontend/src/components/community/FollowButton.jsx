@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/redux/useAuth";
 import { toast } from "sonner";
@@ -17,7 +17,17 @@ import { trackFollow } from "@/lib/analytics";
  * with the button updating first and rolling back if the request fails.
  * Your own page never shows the button.
  */
-export default function FollowButton({ handle, initialFollowing = false, onChange, className = "" }) {
+export default function FollowButton(props) {
+  // useSearchParams needs a Suspense boundary on any page that is built ahead of time (the communities
+  // directory is); without one the whole build fails. The button just appears a moment later.
+  return (
+    <Suspense fallback={null}>
+      <FollowButtonInner {...props} />
+    </Suspense>
+  );
+}
+
+function FollowButtonInner({ handle, initialFollowing = false, onChange, className = "" }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();

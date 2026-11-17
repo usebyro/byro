@@ -346,16 +346,16 @@ export default function PublicProfileClient({ username }) {
                         <Link
                           key={evt.slug}
                           href={`/discover/${evt.slug}`}
-                          className="flex items-center gap-4 border-t border-hairline py-4 transition-[scale] active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand md:gap-5"
+                          className="flex flex-col gap-3 border-t border-hairline py-5 transition-[scale] active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand sm:flex-row sm:items-center sm:gap-4 sm:py-4 md:gap-5"
                         >
-                          <div className="relative h-20 w-28 shrink-0 overflow-hidden rounded-xl md:h-24 md:w-[152px]">
-                            <EventImage event={evt} sizes="152px" />
+                          <div className="relative aspect-[16/10] w-full shrink-0 overflow-hidden rounded-2xl sm:aspect-auto sm:h-20 sm:w-28 sm:rounded-xl md:h-24 md:w-[152px]">
+                            <EventImage event={evt} sizes="(min-width: 640px) 152px, 100vw" />
                           </div>
                           <div className="flex min-w-0 flex-1 flex-col gap-1">
                             <span className="text-sm font-bold text-brand-dark">
                               {parts.short} · {formatTime(evt.time_from)}
                             </span>
-                            <span className="font-display text-lg font-bold leading-tight tracking-[-0.02em] md:text-[22px]">{evt.name}</span>
+                            <span className="font-display text-xl font-bold leading-tight tracking-[-0.02em] sm:text-lg md:text-[22px]">{evt.name}</span>
                             <span className="text-sm text-muted">
                               {evt.location}
                               <span className="sm:hidden"> · {priceLabel(evt)}</span>
