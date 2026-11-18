@@ -96,7 +96,7 @@ function TakeHome({ percent }) {
         <div className="flex flex-col gap-1">
           <span className="text-sm text-muted">Guest pays</span>
           <span className="font-display text-[30px] font-bold tabular-nums tracking-[-0.02em]">{naira(guestPays)}</span>
-          <span className="text-xs text-muted">plus Paystack processing, shown at checkout</span>
+          <span className="text-xs text-muted">plus payment processing, shown at checkout</span>
         </div>
         <div className="flex flex-col gap-1">
           <span className="text-sm text-muted">You get</span>
@@ -174,7 +174,7 @@ export default function PricingPage() {
     },
     {
       q: "How do guests pay?",
-      a: "Card, bank transfer or USSD through Paystack. No account needed.",
+      a: "Card or bank transfer through Bachs. No account needed.",
     },
     {
       q: "What if I cancel an event?",
@@ -240,7 +240,7 @@ export default function PricingPage() {
             </div>
           </div>
           <p {...rise(3)} className="mt-4 text-center text-sm leading-normal text-body motion-safe:animate-rise">
-            No setup or monthly fees. Paystack card and bank processing is shown to the buyer at checkout.
+            No setup or monthly fees. Card and bank processing is shown to the buyer at checkout.
           </p>
         </section>
 

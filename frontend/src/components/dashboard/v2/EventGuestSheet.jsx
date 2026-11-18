@@ -127,7 +127,7 @@ export default function EventGuestSheet({ slug, guest, isOwner, canCheckIn, even
         {order?.paid !== undefined && (
           <p className="v-hint m-0">
             {order.fee_paid_by_buyer ? "Service fee paid by the buyer." : "Service fee taken from your share."}
-            {order.channel ? ` Paid by ${order.channel.toLowerCase()} with Paystack.` : " Paid with Paystack."}
+            {order.channel ? ` Paid by ${order.channel.replace(/_/g, " ").toLowerCase()}.` : " Paid online."}
           </p>
         )}
 

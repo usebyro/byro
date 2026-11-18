@@ -38,7 +38,7 @@ interface EventRefunds {
 }
 
 interface RefundsResponse {
-  paystack_balance: string | null;
+  balance: string | null;
   awaiting_total: string;
   events: EventRefunds[];
 }
@@ -146,24 +146,24 @@ export default function AdminRefundsPage() {
     }
   };
 
-  // Ask before sending money back. If Paystack's balance looks too low, the server says so and we ask again, with the warning.
+  // Ask before sending money back. If the Bachs balance looks too low, the server says so and we ask again, with the warning.
   const askSend = async (e: EventRefunds, lowBalance?: string) => {
     const n = e.progress.awaiting;
     const ok = await ask({
-      title: lowBalance ? "Paystack's balance looks too low" : `Send ${n} refund${n === 1 ? "" : "s"} for ${e.name}?`,
+      title: lowBalance ? "The Bachs balance looks too low" : `Send ${n} refund${n === 1 ? "" : "s"} for ${e.name}?`,
       body: (
         <>
           <p>
             {n} buyer{n === 1 ? "" : "s"} get <b className="text-ink">{naira(e.progress.awaiting_amount)}</b> back in total: the
-            ticket price they paid, to the card or bank account they used. Byro&apos;s service fee and Paystack&apos;s charge
+            ticket price they paid, to the card or bank account they used. Byro&apos;s service fee and the payment processing charge
             aren&apos;t refunded. This can&apos;t be undone.
           </p>
           <p className="mt-2 text-muted">
-            Paystack balance: {data?.paystack_balance != null ? naira(data.paystack_balance) : "couldn't be checked"}.
+            Bachs balance: {data?.balance != null ? naira(data.balance) : "couldn't be checked"}.
           </p>
           {lowBalance && (
             <p className="mt-3 rounded-lg bg-waiting-tint px-3 py-2 text-waiting">
-              {lowBalance} Refunds can also come out of the next payout, but any Paystack can&apos;t cover will fail and can be
+              {lowBalance} Refunds can also come out of the next payout, but any Bachs can&apos;t cover will fail and can be
               retried after you top up.
             </p>
           )}
@@ -200,8 +200,8 @@ export default function AdminRefundsPage() {
       <div className="mb-6">
         <h1 className="font-display text-ink text-3xl font-extrabold tracking-tight">Refunds</h1>
         <p className="text-muted text-sm mt-1">
-          Events organisers have cancelled, and the ticket price owed back to each buyer. Check the Paystack
-          balance, then send. Byro&apos;s service fee and Paystack&apos;s charge are never refunded.
+          Events organisers have cancelled, and the ticket price owed back to each buyer. Check the Bachs
+          balance, then send. Byro&apos;s service fee and the payment processing charge are never refunded.
         </p>
       </div>
 
@@ -213,9 +213,9 @@ export default function AdminRefundsPage() {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <Stat
-          label="Paystack balance"
-          value={data?.paystack_balance != null ? naira(data.paystack_balance) : "—"}
-          note={data && data.paystack_balance == null ? "Couldn't check it just now" : "Available for refunds"}
+          label="Bachs balance"
+          value={data?.balance != null ? naira(data.balance) : "—"}
+          note={data && data.balance == null ? "Couldn't check it just now" : "Available for refunds"}
         />
         <Stat
           label="Awaiting your approval"
@@ -223,7 +223,7 @@ export default function AdminRefundsPage() {
           note="Not sent until you approve"
           tone="border-l-2 border-l-yellow-500/50"
         />
-        <Stat label="In progress" value={String(inProgress)} note="Sending or with Paystack" />
+        <Stat label="In progress" value={String(inProgress)} note="Sending or with Bachs" />
         <Stat
           label="Need attention"
           value={String(failedCount)}
@@ -281,7 +281,7 @@ export default function AdminRefundsPage() {
                 <dl className="mt-5 grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
                   <div><dt className="text-faint text-xs">Total owed</dt><dd className="text-ink tabular-nums">{naira(p.total_amount)} <span className="text-faint text-xs">({p.total_refunds})</span></dd></div>
                   <div><dt className="text-faint text-xs">Awaiting approval</dt><dd className="text-waiting tabular-nums">{p.awaiting}</dd></div>
-                  <div><dt className="text-faint text-xs">Sent to Paystack</dt><dd className="text-body tabular-nums">{sentCount}</dd></div>
+                  <div><dt className="text-faint text-xs">Sent to Bachs</dt><dd className="text-body tabular-nums">{sentCount}</dd></div>
                   <div><dt className="text-faint text-xs">Returned to buyers</dt><dd className="text-good tabular-nums">{p.processed} <span className="text-faint text-xs">{naira(p.processed_amount)}</span></dd></div>
                   <div><dt className="text-faint text-xs">Need attention</dt><dd className={`tabular-nums ${p.failed ? "text-danger" : "text-muted"}`}>{p.failed}</dd></div>
                 </dl>
@@ -296,9 +296,8 @@ export default function AdminRefundsPage() {
                   <div className="mt-5 border-t border-hairline pt-4">
                     <p className="text-body text-xs font-medium mb-1">Refunds that need you</p>
                     <p className="text-faint text-xs mb-3">
-                      If Paystack didn&apos;t capture the buyer&apos;s bank details (it can happen with transfers and
-                      USSD), open the payment reference in your Paystack dashboard and enter their account there.
-                      If Paystack&apos;s balance was too low, top it up and press Retry.
+                      Look the payment reference up in your Bachs dashboard to see why the refund didn&apos;t go
+                      through. If the Bachs balance was too low, top it up and press Retry.
                     </p>
                     <div className="overflow-x-auto">
                       <table className="w-full text-xs">
@@ -308,7 +307,7 @@ export default function AdminRefundsPage() {
                             <th scope="col" className="pb-2 pr-4 font-medium">Amount</th>
                             <th scope="col" className="pb-2 pr-4 font-medium">Status</th>
                             <th scope="col" className="pb-2 pr-4 font-medium">Reason</th>
-                            <th scope="col" className="pb-2 font-medium">Paystack reference</th>
+                            <th scope="col" className="pb-2 font-medium">Payment reference</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-hairline">

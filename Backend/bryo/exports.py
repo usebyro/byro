@@ -51,11 +51,11 @@ def _rows(kind, start, end):
         qs = (Refund.objects.filter(created_at__date__gte=start, created_at__date__lte=end)
               .select_related('payment', 'event').order_by('created_at'))
         yield ['Created', 'Processed', 'Status', 'Event', 'Payment reference', 'Buyer email', 'Amount',
-               'Reason', 'Paystack refund ID', 'Problem']
+               'Reason', 'Provider refund ID', 'Problem']
         for r in qs:
             yield [_when(r.created_at), _when(r.processed_at), r.status, r.event.name,
                    r.payment.paystack_reference, r.payment.customer_email, r.amount,
-                   r.reason or ('Event cancelled' if r.event.cancelled_at else ''), r.paystack_refund_id,
+                   r.reason or ('Event cancelled' if r.event.cancelled_at else ''), r.bachs_refund_id or r.paystack_refund_id,
                    r.failure_reason]
     elif kind == 'users':
         qs = (UserProfile.objects.filter(user__date_joined__date__gte=start, user__date_joined__date__lte=end)

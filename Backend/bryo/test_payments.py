@@ -29,7 +29,7 @@ from .views import _fulfil_payment
 User = get_user_model()
 
 TEST_SECRET = 'sk_test_1234567890abcdef'
-PAYMENT_SETTINGS = dict(PAYSTACK_SECRET_KEY=TEST_SECRET)
+PAYMENT_SETTINGS = dict(PAYSTACK_SECRET_KEY=TEST_SECRET, PAYMENT_PROVIDER='paystack')
 
 INITIALIZE_URL = '/api/payments/initialize/'
 WEBHOOK_URL = '/api/payments/webhook/'
@@ -68,6 +68,7 @@ def make_payment(event, *, reference='EVT-test-00000000-abcdef12',
         'user_id': None,
     }
     metadata.update(kw.pop('metadata', {}))
+    kw.setdefault('provider', 'paystack')  # these tests drive the Paystack path; Bachs has its own
     return Payment.objects.create(
         event=event,
         customer_email='buyer@example.com',

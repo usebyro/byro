@@ -34,7 +34,7 @@ export default function CookiesPage() {
             <h2 className="text-lg font-semibold text-gray-900 mb-2">2. Essential (always on)</h2>
             <ul className="list-disc pl-5 space-y-1.5">
               <li><strong>Sign-in.</strong> Keeps you signed in to your Byro account.</li>
-              <li><strong>Checkout and payments.</strong> Paystack handles card and bank payments on its own pages, under its own policy.</li>
+              <li><strong>Checkout and payments.</strong> Bachs handles card and bank payments on its own pages, under its own policy.</li>
               <li><strong>Security.</strong> A Cloudflare Turnstile check helps block bots when you sign in or buy a ticket.</li>
               <li><strong>Your choice.</strong> We remember your answer to the cookie banner so we do not ask on every visit.</li>
             </ul>

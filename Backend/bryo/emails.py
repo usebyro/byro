@@ -981,7 +981,7 @@ def event_cancelled_email(name, event_name, date, time, location, reason, refund
 
     `refund_state` says how far the refund has got:
       'arranged' - sent when the event is cancelled: the refund is being arranged
-      'sent'     - sent once the refund has actually gone to Paystack
+      'sent'     - sent once the refund has actually gone to the payment provider
 
     The organiser's reason is free text, so it is escaped here.
     """
@@ -1095,7 +1095,7 @@ def refunds_awaiting_email(event_name, owner_email, order_count, total, admin_ur
         <p style="color:{BODY};font-size:15px;line-height:1.6;margin:0 0 20px;">
           <strong style="color:{INK};">{escape(event_name)}</strong> (organiser: {escape(owner_email)}) was cancelled.
           {order_count} refund{'s' if order_count != 1 else ''} totalling <strong style="color:{INK};">{amount}</strong>
-          {'are' if order_count != 1 else 'is'} waiting for you to send. Check the Paystack balance first, then approve them in the admin panel.
+          {'are' if order_count != 1 else 'is'} waiting for you to send. Check the Bachs balance first, then approve them in the admin panel.
         </p>
         {_button(admin_url, "Open refunds", BRAND)}
     """
@@ -1104,7 +1104,7 @@ def refunds_awaiting_email(event_name, owner_email, order_count, total, admin_ur
     text = (
         f"{event_name} (organiser: {owner_email}) was cancelled.\n"
         f"{order_count} refund(s) totalling {amount} are waiting for you to send.\n"
-        f"Check the Paystack balance first, then approve them: {admin_url}\n"
+        f"Check the Bachs balance first, then approve them: {admin_url}\n"
     )
     return {"subject": f"Refunds to send: {event_name} was cancelled ({amount})", "html": html, "text": text}
 

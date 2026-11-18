@@ -65,6 +65,29 @@ PAYSTACK_PUBLIC_KEY = config('PAYSTACK_PUBLIC_KEY', default='')
 PAYSTACK_CALLBACK_URL = config('PAYSTACK_CALLBACK_URL', default='http://localhost:3000/payment/callback')
 PAYSTACK_CALLBACK_URL = config('PAYSTACK_CALLBACK_URL', default='https://usebyro.com/payment/callback')
 
+# PAYMENT_PROVIDER picks the provider for NEW orders: 'paystack' (the default) or 'bachs'
+# (see bryo/bachs.py). Bachs only takes orders when this says so or the buyer is on
+# BACHS_TEST_EMAILS. Each payment keeps the provider that took it, so older orders still
+# verify and refund through the provider that took them.
+PAYMENT_PROVIDER = config('PAYMENT_PROVIDER', default='paystack').strip().lower()
+# Test list for going live: while PAYMENT_PROVIDER is 'paystack', buyers whose checkout email
+# or account email is listed here (comma-separated) still pay through Bachs. Everyone else stays
+# on Paystack. Empty = nobody. Ignored once PAYMENT_PROVIDER is 'bachs' (everyone uses Bachs).
+BACHS_TEST_EMAILS = {
+    e.strip().lower() for e in config('BACHS_TEST_EMAILS', default='').split(',') if e.strip()
+}
+BACHS_SECRET_KEY = config('BACHS_SECRET_KEY', default='')
+BACHS_WEBHOOK_SECRET = config('BACHS_WEBHOOK_SECRET', default='')
+# Sandbox keys (sk_sandbox_...) only work against the sandbox host, live keys only against production.
+BACHS_API_BASE = config(
+    'BACHS_API_BASE',
+    default='https://sandbox-api.bachs.io' if BACHS_SECRET_KEY.strip().startswith('sk_sandbox_') else 'https://api.bachs.io',
+).rstrip('/')
+# Bachs refuses localhost here, even in the sandbox: it must be a public URL.
+BACHS_SUCCESS_URL = config('BACHS_SUCCESS_URL', default=PAYSTACK_CALLBACK_URL)
+# Optional comma-separated list, e.g. "NGN_CARD,NGN_BANK_TRANSFER". Empty = the account's checkout settings.
+BACHS_PAYMENT_METHODS = config('BACHS_PAYMENT_METHODS', default='')
+
 # Email
 RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')
 

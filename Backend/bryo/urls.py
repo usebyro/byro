@@ -19,8 +19,8 @@ from .views import (
     AdminEventRefundsView,
     AdminEventDetailView,
     AdminEventAttendeesView,
-    PaystackBankListView,
-    PaystackResolveAccountView,
+    BankListView,
+    ResolveAccountView,
     AdminAnalyticsSummaryView,
     AdminAnalyticsRevenueTrendView,
     AdminAnalyticsSignupTrendView,
@@ -151,9 +151,9 @@ urlpatterns = [
     path('api/admin/events/<int:pk>/', AdminEventDetailView.as_view(), name='admin-event-detail'),
     path('api/admin/events/<slug:slug>/attendees/', AdminEventAttendeesView.as_view(), name='admin-event-attendees'),
 
-    # Paystack — bank verification
-    path('api/paystack/banks/', PaystackBankListView.as_view(), name='paystack-banks'),
-    path('api/paystack/resolve-account/', PaystackResolveAccountView.as_view(), name='paystack-resolve-account'),
+    # Bank verification for organiser payouts (Bachs)
+    path('api/banks/', BankListView.as_view(), name='banks'),
+    path('api/banks/resolve-account/', ResolveAccountView.as_view(), name='resolve-account'),
 
     # Admin — analytics
     path('api/admin/analytics/summary/', AdminAnalyticsSummaryView.as_view(), name='admin-analytics-summary'),

@@ -263,7 +263,7 @@ export default function AdminSettingsPage() {
           hint={
             <>
               Try a ticket price to see the split{dirty ? " with the new fee" : ""}. Organisers choose who pays the fee when they create an
-              event. Paystack&apos;s own charge is added on top for the buyer.
+              event. The payment processing charge is added on top for the buyer.
             </>
           }
         >

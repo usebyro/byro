@@ -888,7 +888,7 @@ const API = {
 
   getBanks: async (country = "nigeria") => {
     try {
-      const response = await axiosInstance.get("paystack/banks/", { params: { country } });
+      const response = await axiosInstance.get("banks/", { params: { country } });
       return response.data;
     } catch (error) {
       throw handleApiError(error);
@@ -897,7 +897,7 @@ const API = {
 
   resolveAccount: async (accountNumber, bankCode) => {
     try {
-      const response = await axiosInstance.get("paystack/resolve-account/", {
+      const response = await axiosInstance.get("banks/resolve-account/", {
         params: { account_number: accountNumber, bank_code: bankCode },
       });
       return response.data;
