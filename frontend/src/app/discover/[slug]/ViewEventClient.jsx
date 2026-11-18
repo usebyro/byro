@@ -3,8 +3,6 @@
 import ReportButton from "@/components/ReportButton";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { SquareLock01Icon } from "@hugeicons/core-free-icons";
 import { useRouter, useSearchParams, notFound } from "next/navigation";
 import API from "@/services/api";
 import { toast } from "sonner";
@@ -454,14 +452,10 @@ export default function ViewEventClient({ slug, initialEvent = null }) {
                   </div>
                   <div className="flex items-center gap-3.5 rounded-[20px] bg-paper p-[18px_20px]">
                     <span className="flex h-14 w-[52px] shrink-0 items-center justify-center rounded-[14px] bg-white">
-                      {event.address_hidden ? (
-                        <HugeiconsIcon icon={SquareLock01Icon} size={22} color="#3669F6" strokeWidth={1.8} />
-                      ) : (
-                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#3669F6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                          <path d="M12 21s7-6.2 7-11.5A7 7 0 0 0 5 9.5C5 14.8 12 21 12 21z" />
-                          <circle cx="12" cy="9.5" r="2.5" />
-                        </svg>
-                      )}
+                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#3669F6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M12 21s7-6.2 7-11.5A7 7 0 0 0 5 9.5C5 14.8 12 21 12 21z" />
+                        <circle cx="12" cy="9.5" r="2.5" />
+                      </svg>
                     </span>
                     <span className="min-w-0 flex-1 text-[15px]">
                       {event.address_hidden ? (
