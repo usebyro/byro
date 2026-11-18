@@ -106,9 +106,9 @@ export default function TermsPage() {
             <ul className="list-disc pl-5 space-y-1.5 mt-2">
               <li>Ticket sales are subject to availability. The price shown at checkout is the price you pay, including any service fee.</li>
               <li>A service fee may apply to paid tickets. Fees are shown before you pay, and the Pricing page lists current rates.</li>
-              <li>Payments are processed by Paystack or other third-party payment providers. We do not store your full card details, and the provider&apos;s own terms apply to the payment.</li>
-              <li>Ticket payments are collected through Byro&apos;s Paystack account, not directly by the Organiser. Organiser earnings are paid out to the bank account the Organiser provides, after fees.</li>
-              <li>We may hold, delay or withhold a payout while we verify the Organiser and the event, check that the event is genuine, investigate suspected fraud, chargebacks or disputes, deal with a cancelled or changed event, or meet legal and Paystack compliance requirements. We may ask for identity, business or event documents, and a payout may stay on hold until we receive them.</li>
+              <li>Payments are processed by Bachs or other third-party payment providers. We do not store your full card details, and the provider&apos;s own terms apply to the payment.</li>
+              <li>Ticket payments are collected through Byro&apos;s Bachs account, not directly by the Organiser. Organiser earnings are paid out to the bank account the Organiser provides, after fees.</li>
+              <li>We may hold, delay or withhold a payout while we verify the Organiser and the event, check that the event is genuine, investigate suspected fraud, chargebacks or disputes, deal with a cancelled or changed event, or meet legal and payment provider compliance requirements. We may ask for identity, business or event documents, and a payout may stay on hold until we receive them.</li>
               <li>Refunds are handled under our Refund Policy and the Organiser&apos;s terms.</li>
               <li>Tickets are for the named event only. You may not resell a ticket for more than its face value or in breach of the Organiser&apos;s rules, and we may cancel tickets we believe were obtained or sold unfairly.</li>
             </ul>

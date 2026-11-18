@@ -712,6 +712,7 @@ class PaymentSerializer(serializers.ModelSerializer):
             'customer_name',
             'amount',
             'currency',
+            'provider',
             'paystack_reference',
             'paystack_access_code',
             'paystack_authorization_url',
@@ -726,6 +727,7 @@ class PaymentSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = [
             'id',
+            'provider',
             'paystack_reference',
             'paystack_access_code',
             'paystack_authorization_url',

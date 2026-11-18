@@ -309,11 +309,13 @@ class AdminSendingTests(RefundTestBase):
     def test_the_admin_list_shows_balance_and_what_is_waiting(self):
         self.run_with(FakePaystack())
         self.client.force_authenticate(self.admin)
-        with patch('bryo.refunds.requests.request', side_effect=FakePaystack(balance=Decimal('250000'))):
+        from .test_bachs import FakeBachs  # Byro's balance now lives at Bachs
+        with self.settings(BACHS_SECRET_KEY='sk_sandbox_test', BACHS_API_BASE='https://sandbox-api.bachs.io'), \
+                patch('bryo.bachs.requests.request', side_effect=FakeBachs()):
             res = self.client.get('/api/admin/refunds/')
         self.assertEqual(res.status_code, 200)
         body = res.json()
-        self.assertEqual(Decimal(body['paystack_balance']), Decimal('250000'))
+        self.assertEqual(Decimal(body['balance']), Decimal('90000'))
         self.assertEqual(Decimal(body['awaiting_total']), Decimal('5000'))
         self.assertEqual(body['events'][0]['progress']['awaiting'], 1)
 

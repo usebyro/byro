@@ -42,9 +42,11 @@ from .community import (
     stamps_for_user, passport_for_user, unfollow_from_token,
 )
 from .pricing import calculate_ticket_fees, DEFAULT_FEE_RATE, FEE_RATE, MAX_FEE_RATE, PAYSTACK_FEE_CAP, default_fee_rate, fee_rate_for
+from . import bachs
+from urllib.parse import urlencode
 from .refunds import (
-    EventCancellationError, apply_refund_webhook, authorise_refunds, cancel_event, cancellation_preview,
-    paystack_balance, process_event_refunds, refund_progress, refundable_amount, send_arranged_notice,
+    EventCancellationError, apply_bachs_refund_webhook, apply_refund_webhook, authorise_refunds, cancel_event, cancellation_preview,
+    bachs_balance, balance_check, process_event_refunds, refund_progress, refundable_amount, send_arranged_notice,
 )
 from django.urls import reverse
 from .serializers import EventSerializer, TicketSerializer, PaymentSerializer, TicketTierSerializer, PromoCodeSerializer, MerchItemSerializer
@@ -743,6 +745,59 @@ def _fulfil_payment(payment, ticket_user):
         return new_tickets, all_tickets
 
 
+def _provider_for_new_order(*emails):
+    """
+    Which processor takes a new paid order. settings.PAYMENT_PROVIDER decides, except that
+    while it is 'paystack', buyers on settings.BACHS_TEST_EMAILS (checkout or account email)
+    are sent to Bachs, so the team can test Bachs on the live site without moving customers.
+    """
+    if settings.PAYMENT_PROVIDER == Payment.PROVIDER_PAYSTACK:
+        test_list = getattr(settings, 'BACHS_TEST_EMAILS', None) or set()
+        if any((e or '').strip().lower() in test_list for e in emails if e):
+            return Payment.PROVIDER_BACHS
+        return Payment.PROVIDER_PAYSTACK
+    return Payment.PROVIDER_BACHS
+
+
+def _charge_amount(payment):
+    """What we asked the processor to charge the buyer for this order."""
+    stored = (payment.metadata or {}).get('charge_amount')
+    return Decimal(str(stored)) if stored not in (None, '') else payment.amount
+
+
+def _stored_ticket_user(payment):
+    uid = (payment.metadata or {}).get('user_id')
+    return get_user_model().objects.filter(pk=uid).first() if uid else None
+
+
+def _complete_bachs_payment(payment, checkout, ticket_user, request=None):
+    """Issue the tickets for a Bachs checkout already confirmed paid. Safe to call twice."""
+    new_tickets, all_tickets = _fulfil_payment(payment, ticket_user)
+    Payment.objects.filter(pk=payment.pk).update(
+        channel=bachs.channel_of(checkout),
+        bachs_charge_id=bachs.charge_id_of(checkout) or payment.bachs_charge_id,
+    )
+    payment.refresh_from_db()
+
+    def _post_commit():
+        if new_tickets:
+            _email_tickets(new_tickets, payment.event)
+            log_activity(
+                'ticket.purchased', request=request, email=payment.customer_email,
+                target_type='event', target_id=payment.event_id, target_label=payment.event.name,
+                detail=f"{len(new_tickets)} ticket(s), {payment.currency} {payment.amount}",
+            )
+            ticket_sale(payment.event, len(new_tickets), paid_amount=payment.amount, payment=payment)
+            if apps.posthog_client is not None:
+                apps.posthog_client.capture('payment_completed', properties={
+                    'amount': float(payment.amount), 'currency': payment.currency,
+                    'ticket_count': len(new_tickets), 'payment_channel': payment.channel or 'unknown',
+                    'provider': 'bachs',
+                })
+    transaction.on_commit(_post_commit)
+    return all_tickets
+
+
 class PaystackPaymentViewSet(viewsets.ViewSet):
     """
     ViewSet for handling Paystack payment operations for event tickets
@@ -750,7 +805,7 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
     
     
     def get_permissions(self):
-        if self.action in ['webhook', 'verify_payment', 'initialize_payment']:
+        if self.action in ['webhook', 'bachs_webhook', 'verify_payment', 'initialize_payment']:
             return [AllowAny()]
         return [IsAuthenticated()]
     
@@ -905,6 +960,17 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
 
         # Generate unique reference with random suffix to prevent collisions
         reference = f"EVT-{event.slug}-{timezone.now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:8]}"
+        provider = _provider_for_new_order(
+            customer_email, request.user.email if request.user.is_authenticated else None,
+        )
+        if provider == Payment.PROVIDER_BACHS and not bachs.is_configured():
+            logger.error('Bachs takes new orders but BACHS_SECRET_KEY is empty; checkout refused')
+            return Response({
+                'error': "We couldn't start your payment. You haven't been charged. Try again in a minute."
+            }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        # Bachs takes its fee out of what Byro receives, so the buyer is charged the all-in
+        # price the cart shows. Paystack adds its fee on top of `total` itself.
+        charge_amount = fees['display_total'] if provider == Payment.PROVIDER_BACHS else amount
 
         # Reserve the seats BEFORE calling Paystack. The pending payment is what
         # holds them: lock_and_check_capacity counts pending payments as taken.
@@ -926,6 +992,7 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                     amount=amount,
                     fee_rate=fee_rate,
                     currency='NGN',
+                    provider=provider,
                     paystack_reference=reference,
                     status='pending',
                     ip_address=self.get_client_ip(request),
@@ -940,6 +1007,7 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                         'fee_rate': str(fee_rate),
                         'paystack_fee': str(fees['paystack_fee']),
                         'display_total': str(fees['display_total']),
+                        'charge_amount': str(charge_amount),
                         'discount_amount': str(discount_amount),
                         'form_answers': [{'question_id': q.id, 'answer': a} for q, a in answers],
                         'follow_organizer': _wants_follow(request.data),
@@ -947,6 +1015,9 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                 )
         except InsufficientCapacityError as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        if provider == Payment.PROVIDER_BACHS:
+            return self._initialize_bachs(payment, event, tier, fees, charge_amount, quantity, seats)
 
         # Initialize Paystack payment
         paystack_secret_key = settings.PAYSTACK_SECRET_KEY.strip()
@@ -1033,11 +1104,184 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                 'error': "We couldn't reach our payment provider. You haven't been charged. Try again in a minute."
             }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
     
+    def _initialize_bachs(self, payment, event, tier, fees, charge_amount, quantity, seats):
+        """Open a Bachs checkout session for a reserved payment and hand back its URL."""
+        reference = payment.paystack_reference
+        try:
+            checkout = bachs.create_checkout(
+                reference=reference,
+                amount=charge_amount,
+                email=payment.customer_email,
+                name=payment.customer_name,
+                success_url=f'{settings.BACHS_SUCCESS_URL}?{urlencode({"reference": reference})}',
+                cancel_url=_event_page_url(event),
+                metadata={
+                    'event_id': event.id, 'event_slug': event.slug, 'quantity': quantity,
+                    'seats': seats, 'tier_id': tier.id if tier is not None else None,
+                },
+                # Bachs closes the session when our seat hold ends, so a buyer cannot pay for seats
+                # someone else has since been sold.
+                expires_in_minutes=RESERVATION_MINUTES,
+            )
+        except bachs.BachsUnavailable as e:
+            _release_reservation(payment)
+            logger.error("Bachs checkout request failed for %s: %s", reference, e)
+            return Response({
+                'error': "We couldn't reach our payment provider. You haven't been charged. Try again in a minute."
+            }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        except bachs.BachsError as e:
+            _release_reservation(payment)
+            logger.error("Bachs refused checkout for %s: %s %s", reference, e.code, e)
+            return Response({
+                'error': "We couldn't start your payment. You haven't been charged. Try again in a minute."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        checkout_url = checkout.get('checkout_url')
+        payment.bachs_checkout_id = str(checkout.get('checkout_id') or '')
+        payment.paystack_authorization_url = checkout_url
+        payment.save(update_fields=['bachs_checkout_id', 'paystack_authorization_url', 'updated_at'])
+
+        if apps.posthog_client is not None:
+            apps.posthog_client.capture('payment_initialized', properties={
+                'amount': float(charge_amount), 'currency': 'NGN', 'quantity': quantity,
+                'seat_count': seats, 'has_ticket_tier': tier is not None, 'provider': 'bachs',
+            })
+
+        # Same shape as the Paystack answer, so the checkout page just follows authorization_url.
+        return Response({
+            'status': 'success',
+            'message': 'Payment initialized successfully',
+            'data': {
+                'authorization_url': checkout_url,
+                'access_code': payment.bachs_checkout_id,
+                'reference': reference,
+                'amount': float(charge_amount),
+                'subtotal': float(fees['subtotal']),
+                'service_fee': float(fees['service_fee']),
+                'currency': 'NGN',
+                'provider': 'bachs',
+            }
+        }, status=status.HTTP_200_OK)
+
+    def _verify_bachs(self, request, payment):
+        """verify/<reference> for an order Bachs took: ask Bachs, never trust the redirect."""
+        reference = payment.paystack_reference
+        if payment.status == 'successful':
+            return Response({
+                'status': 'success',
+                'message': 'Payment already verified',
+                'tickets': TicketSerializer(list(payment.tickets_purchased.all()), many=True).data,
+                'payment': PaymentSerializer(payment).data,
+            }, status=status.HTTP_200_OK)
+        if not payment.bachs_checkout_id:
+            return Response({'error': 'Payment record not found. Please try initiating payment again.'},
+                            status=status.HTTP_404_NOT_FOUND)
+        try:
+            checkout = bachs.fetch_checkout(payment.bachs_checkout_id)
+        except bachs.BachsUnavailable as e:
+            logger.error("Bachs verify request failed for %s: %s", reference, e)
+            return Response({
+                'error': "We couldn't reach our payment provider. Refresh in a minute to check your payment."
+            }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        except bachs.BachsError as e:
+            logger.error("Bachs verify failed for %s: %s", reference, e)
+            return Response({
+                'error': (
+                    "We couldn't confirm your payment yet. If you were charged, contact "
+                    f"support@usebyro.com with reference {reference}."
+                )
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        outcome = bachs.checkout_outcome(checkout, _charge_amount(payment))
+        if outcome == 'mismatch':
+            logger.error("Bachs amount mismatch for payment %s: Bachs=%s %s, expected=%s NGN",
+                         reference, checkout.get('amount'), checkout.get('currency'), _charge_amount(payment))
+            return Response({
+                'error': (
+                    "We couldn't confirm your payment. Contact support@usebyro.com "
+                    f"with reference {reference} and we'll sort it out."
+                )
+            }, status=status.HTTP_400_BAD_REQUEST)
+        if outcome == 'failed':
+            Payment.objects.filter(pk=payment.pk, status='pending').update(status='failed')
+            return Response({'status': 'failed', 'message': 'Payment was not successful'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        if outcome == 'pending':
+            return Response({
+                'status': 'processing',
+                'message': "Your payment hasn't gone through yet. If you finished paying, refresh in a minute."
+            }, status=status.HTTP_202_ACCEPTED)
+
+        ticket_user = request.user if request.user.is_authenticated else _stored_ticket_user(payment)
+        all_tickets = _complete_bachs_payment(payment, checkout, ticket_user, request=request)
+        payment.refresh_from_db()
+        if payment.event.cancelled_at:
+            return Response({
+                'status': 'event_cancelled',
+                'message': 'This event was cancelled before your payment went through. No ticket was issued, and the ticket price will be refunded to you.',
+            }, status=status.HTTP_200_OK)
+        return Response({
+            'status': 'success',
+            'message': 'Payment verified successfully',
+            'tickets': TicketSerializer(all_tickets, many=True).data,
+            'payment': PaymentSerializer(payment).data,
+        }, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['post'], url_path='bachs-webhook', permission_classes=[AllowAny])
+    def bachs_webhook(self, request):
+        """
+        Bachs webhook deliveries. The body only tells us WHICH checkout or refund changed;
+        what happened is always read back from Bachs before a ticket is issued.
+        A 5xx makes Bachs retry, so it is returned only when we could not finish the work.
+        """
+        if not bachs.verify_signature(request.body, request.headers):
+            return Response({'error': 'Invalid signature'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            body = json.loads(request.body or b'{}')
+        except ValueError:
+            return Response({'error': 'Invalid body'}, status=status.HTTP_400_BAD_REQUEST)
+        event_type = body.get('type') or ''
+        data = body.get('data') or {}
+
+        if event_type.startswith('refund.'):
+            apply_bachs_refund_webhook(event_type, data)
+            return Response({'status': 'success'})
+
+        if event_type not in ('checkout.completed', 'collection.succeeded'):
+            return Response({'status': 'ignored'})
+
+        checkout_id = data.get('checkout_id') or ''
+        lookup = Q(bachs_checkout_id=checkout_id) if checkout_id else Q(pk__in=[])
+        if data.get('reference'):
+            lookup |= Q(paystack_reference=data['reference'])
+        payment = Payment.objects.filter(lookup, provider=Payment.PROVIDER_BACHS).first()
+        if payment is None or payment.status == 'successful':
+            return Response({'status': 'success'})
+        try:
+            checkout = bachs.fetch_checkout(payment.bachs_checkout_id or checkout_id)
+        except (bachs.BachsUnavailable, bachs.BachsError) as e:
+            logger.error("Bachs webhook could not read checkout for %s: %s", payment.paystack_reference, e)
+            return Response({'status': 'retry'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+        outcome = bachs.checkout_outcome(checkout, _charge_amount(payment))
+        if outcome == 'mismatch':
+            logger.error("Bachs webhook amount mismatch for payment %s: Bachs=%s %s, expected=%s NGN",
+                         payment.paystack_reference, checkout.get('amount'), checkout.get('currency'),
+                         _charge_amount(payment))
+        elif outcome == 'success':
+            _complete_bachs_payment(payment, checkout, _stored_ticket_user(payment))
+        return Response({'status': 'success'})
+
     @action(detail=False, methods=['get'], url_path='verify/(?P<reference>[^/.]+)')
     def verify_payment(self, request, reference=None):
         """
         Verify a Paystack payment and create ticket(s) if successful
         """
+        bachs_payment = Payment.objects.filter(
+            paystack_reference=reference, provider=Payment.PROVIDER_BACHS,
+        ).select_related('event').first()
+        if bachs_payment is not None:
+            return self._verify_bachs(request, bachs_payment)
         paystack_secret_key = settings.PAYSTACK_SECRET_KEY.strip()
         paystack_url = f'{settings.PAYSTACK_API_BASE}/transaction/verify/{reference}'
         
@@ -3171,7 +3415,7 @@ class EventViewSet(viewsets.ModelViewSet):
         GET /api/events/<slug>/refunds/   where the refunds for a cancelled event have got to
 
         Read-only. Money is sent by a Byro admin from the admin panel, because the
-        Paystack balance the refunds come out of belongs to Byro.
+        Bachs balance the refunds come out of belongs to Byro.
         """
         event = self.get_object()
         if not event.cancelled_at:
@@ -3961,7 +4205,7 @@ def _alert_byro_of_refunds(event, summary):
 class AdminRefundsView(APIView):
     """
     GET /api/admin/refunds/ — every cancelled event that has refunds, how far each has got,
-    and Byro's Paystack balance so an admin can check the money is there before sending.
+    and Byro's Bachs balance so an admin can check the money is there before sending.
     """
     permission_classes = [IsAdminMember]
 
@@ -3986,9 +4230,8 @@ class AdminRefundsView(APIView):
                 'event_id': event.pk, 'name': event.name, 'slug': event.slug,
                 'owner_email': event.owner.email, 'progress': refund_progress(event), 'problems': problems,
             })
-        balance = paystack_balance()
         return Response({
-            'paystack_balance': balance,  # None when Paystack could not be reached
+            'balance': bachs_balance(),  # Byro's Bachs NGN balance; None when Bachs could not be reached
             'awaiting_total': sum((r['progress']['awaiting_amount'] for r in rows), Decimal('0')),
             'events': rows,
         })
@@ -3999,7 +4242,7 @@ class AdminEventRefundsView(APIView):
     POST /api/admin/events/<id>/refunds/   {"action": "send" | "continue" | "retry"}
 
     send     approve every refund still awaiting approval, and send the first batch.
-             Refuses (409) when Byro's Paystack balance looks too low unless
+             Refuses (409) when Byro's Bachs balance looks too low unless
              {"confirm_low_balance": true}: refunds can also come out of a pending payout.
     continue send the next batch of approved refunds.
     retry    put failed refunds back in the queue and send a batch.
@@ -4018,12 +4261,16 @@ class AdminEventRefundsView(APIView):
             needed = progress['awaiting_amount']
             if needed <= 0 and not progress['waiting']:
                 return Response({'error': 'There are no refunds waiting to be sent.'}, status=status.HTTP_400_BAD_REQUEST)
-            balance = paystack_balance()
-            if balance is not None and balance < needed and not request.data.get('confirm_low_balance'):
-                return Response({
-                    'error': f'Your Paystack balance (₦{balance:,.2f}) is less than the ₦{needed:,.2f} to refund.',
-                    'code': 'low_balance', 'balance': balance, 'needed': needed,
-                }, status=status.HTTP_409_CONFLICT)
+            # Each refund comes out of the balance of the processor that took the order.
+            for row in balance_check(event.refunds.filter(status=Refund.STATUS_AWAITING)):
+                low = row['balance'] is not None and row['balance'] < row['needed']
+                if low and not request.data.get('confirm_low_balance'):
+                    return Response({
+                        'error': (f"Your {row['label']} balance (₦{row['balance']:,.2f}) is less than the "
+                                  f"₦{row['needed']:,.2f} to refund."),
+                        'code': 'low_balance', 'balance': row['balance'], 'needed': row['needed'],
+                        'provider': row['provider'],
+                    }, status=status.HTTP_409_CONFLICT)
             count = authorise_refunds(event)
             _log_admin_action(
                 request, AdminAction.ACTION_REFUNDS_SENT, 'event', event.pk, event.name,
@@ -4168,51 +4415,54 @@ class AdminPayoutView(APIView):
         return Response(PayoutRequestSerializer(payout).data)
 
 
-class PaystackBankListView(APIView):
-    """GET /api/paystack/banks/?country=nigeria — list supported banks."""
+COUNTRY_CODES = {'nigeria': 'NG', 'ghana': 'GH'}
+
+
+class BankListView(APIView):
+    """GET /api/banks/?country=NG — banks an organiser can be paid into (from Bachs)."""
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        country = request.query_params.get('country', 'nigeria')
-        headers = {'Authorization': f'Bearer {settings.PAYSTACK_SECRET_KEY.strip()}'}
+        raw = (request.query_params.get('country') or 'NG').strip()
+        country = COUNTRY_CODES.get(raw.lower(), raw.upper()[:2])
         try:
-            response = requests.get(
-                'https://api.paystack.co/bank',
-                params={'country': country},
-                headers=headers,
-                timeout=30,
-            )
-        except requests.RequestException:
-            return Response({'error': "We couldn't reach our payment provider. Try again in a minute."}, status=status.HTTP_502_BAD_GATEWAY)
-
-        return Response(response.json(), status=response.status_code)
+            banks = bachs.list_banks(country)
+        except (bachs.BachsUnavailable, bachs.BachsError) as e:
+            logger.error('Bachs bank list failed: %s', e)
+            return Response({'error': "We couldn't load the list of banks. Try again in a minute."},
+                            status=status.HTTP_502_BAD_GATEWAY)
+        # {status, data: [{name, code}]}: the shape the payouts page has always read.
+        return Response({'status': True, 'data': banks})
 
 
-class PaystackResolveAccountView(APIView):
-    """GET /api/paystack/resolve-account/?account_number=...&bank_code=... — verify account name."""
+class ResolveAccountView(APIView):
+    """GET /api/banks/resolve-account/?account_number=...&bank_code=... — the name on the account."""
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        account_number = request.query_params.get('account_number')
-        bank_code = request.query_params.get('bank_code')
+        account_number = (request.query_params.get('account_number') or '').strip()
+        bank_code = (request.query_params.get('bank_code') or '').strip()
         if not account_number or not bank_code:
             return Response(
                 {'error': 'Enter your account number and choose your bank.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-
-        headers = {'Authorization': f'Bearer {settings.PAYSTACK_SECRET_KEY.strip()}'}
         try:
-            response = requests.get(
-                'https://api.paystack.co/bank/resolve',
-                params={'account_number': account_number, 'bank_code': bank_code},
-                headers=headers,
-                timeout=30,
-            )
-        except requests.RequestException:
-            return Response({'error': "We couldn't reach our payment provider. Try again in a minute."}, status=status.HTTP_502_BAD_GATEWAY)
-
-        return Response(response.json(), status=response.status_code)
+            result = bachs.resolve_account(account_number, bank_code)
+        except bachs.BachsUnavailable:
+            return Response({'error': "We couldn't reach our payment provider. Try again in a minute."},
+                            status=status.HTTP_502_BAD_GATEWAY)
+        except bachs.BachsError as e:
+            return Response({'status': False, 'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        if not result.get('resolved') or not result.get('account_name'):
+            return Response({
+                'status': False,
+                'error': result.get('message') or "We couldn't find this account. Check the number and the bank.",
+            }, status=status.HTTP_400_BAD_REQUEST)
+        return Response({'status': True, 'data': {
+            'account_name': result['account_name'],
+            'account_number': result.get('account_number') or account_number,
+        }})
 
 
 # ---------------------------------------------------------------------------
@@ -4849,6 +5099,7 @@ class AdminPaymentDetailView(APIView):
         return Response({
             'id': str(p.pk), 'reference': p.paystack_reference, 'status': p.status,
             'amount': str(p.amount), 'currency': p.currency, 'channel': p.channel,
+            'provider': p.provider, 'charged': str(_charge_amount(p)),
             'subtotal': meta.get('subtotal'), 'service_fee': meta.get('service_fee'),
             'refundable': str(refundable_amount(p)) if p.status == 'successful' else '0',
             'seats': meta.get('seats') or meta.get('quantity'),
@@ -4900,10 +5151,41 @@ class AdminPaymentPaystackView(APIView):
                                  and _paid_amount_ok(paid_kobo, int(p.amount * 100)),
         }
 
+    def _bachs_checkout(self, p):
+        """(checkout, None) or (None, error) for a Bachs order."""
+        if not p.bachs_checkout_id:
+            return None, 'This order never reached Bachs.'
+        try:
+            return bachs.fetch_checkout(p.bachs_checkout_id), None
+        except (bachs.BachsUnavailable, bachs.BachsError) as e:
+            return None, f'Could not read this order from Bachs: {e}'[:300]
+
+    def _compare_bachs(self, p, checkout):
+        outcome = bachs.checkout_outcome(checkout, _charge_amount(p))
+        return {
+            'provider': 'bachs',
+            # Same key as Paystack orders so the admin screen shows it without changes.
+            'paystack': {
+                'status': checkout.get('payment_status') or checkout.get('status'),
+                'amount': checkout.get('amount'), 'currency': checkout.get('currency'),
+                'channel': bachs.channel_of(checkout), 'paid_at': checkout.get('completed_at'),
+                'gateway_response': checkout.get('status'),
+                'customer_email': (checkout.get('customer') or checkout.get('customer_details') or {}).get('email'),
+            },
+            'byro': {'status': p.status, 'amount': str(_charge_amount(p))},
+            'amount_matches': outcome != 'mismatch',
+            'can_issue_tickets': outcome == 'success' and p.status != 'successful',
+        }
+
     def get(self, request, payment_id):
         p = Payment.objects.filter(pk=payment_id).first()
         if not p:
             return Response({'error': 'Payment not found.'}, status=status.HTTP_404_NOT_FOUND)
+        if p.provider == Payment.PROVIDER_BACHS:
+            checkout, err = self._bachs_checkout(p)
+            if err:
+                return Response({'error': err}, status=status.HTTP_502_BAD_GATEWAY)
+            return Response(self._compare_bachs(p, checkout))
         data, err = _paystack_transaction(p.paystack_reference)
         if err:
             return Response({'error': err}, status=status.HTTP_502_BAD_GATEWAY)
@@ -4915,6 +5197,22 @@ class AdminPaymentPaystackView(APIView):
             return Response({'error': 'Payment not found.'}, status=status.HTTP_404_NOT_FOUND)
         if p.status == 'successful':
             return Response({'error': 'This order is already complete.'}, status=status.HTTP_400_BAD_REQUEST)
+        if p.provider == Payment.PROVIDER_BACHS:
+            checkout, err = self._bachs_checkout(p)
+            if err:
+                return Response({'error': err}, status=status.HTTP_502_BAD_GATEWAY)
+            check = self._compare_bachs(p, checkout)
+            if not check['can_issue_tickets']:
+                why = ('The amount Bachs received does not match this order.' if not check['amount_matches']
+                       else 'Bachs does not show this payment as paid.')
+                return Response({'error': why, **check}, status=status.HTTP_400_BAD_REQUEST)
+            before = p.tickets_purchased.count()
+            with transaction.atomic():
+                _complete_bachs_payment(p, checkout, _stored_ticket_user(p), request=request)
+            issued = p.tickets_purchased.count() - before
+            _log_admin_action(request, AdminAction.ACTION_ORDER_FULFILLED, 'payment', p.paystack_reference,
+                              p.event.name[:255], f'{issued} ticket(s) to {p.customer_email} (Bachs)')
+            return Response({'issued': issued, 'status': p.status})
         data, err = _paystack_transaction(p.paystack_reference)
         if err:
             return Response({'error': err}, status=status.HTTP_502_BAD_GATEWAY)

@@ -219,7 +219,7 @@ function SupportPage() {
       try {
         const data = await post(`/api/admin/support/orders/${o.payment!.id}/refund`, { reason: reason.trim() });
         if (data.status === "failed" || data.status === "needs_attention") {
-          toast.error("Paystack didn't accept the refund", { description: data.failure_reason || "See the Refunds page." });
+          toast.error("Bachs didn't accept the refund", { description: data.failure_reason || "See the Refunds page." });
         } else {
           toast.success("Refund sent", { description: `${formatNaira(Number(data.amount))} to ${o.payment!.customer_email}` });
         }

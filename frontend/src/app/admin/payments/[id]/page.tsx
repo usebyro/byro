@@ -32,6 +32,7 @@ interface Detail {
   organizer: { email: string; name: string; handle: string | null } | null;
   refund: { status: string; amount: string; reason: string; failure_reason: string } | null;
   tickets: { ticket_id: string; holder_name: string; holder_email: string; status: string; tier: string; checked_in: boolean }[];
+  provider?: "bachs" | "paystack";
 }
 
 interface Check {
@@ -87,7 +88,7 @@ export default function AdminPaymentDetailPage({ params }: { params: Promise<{ i
       if (!res.ok) throw new Error(body?.error);
       setCheck(body);
     } catch (err) {
-      toast.error("Couldn't check Paystack", { description: (err as Error).message || "Try again." });
+      toast.error("Couldn't check with the payment provider", { description: (err as Error).message || "Try again." });
     } finally {
       setChecking(false);
     }
@@ -97,7 +98,7 @@ export default function AdminPaymentDetailPage({ params }: { params: Promise<{ i
     if (!data) return;
     const ok = await confirm({
       title: "Issue the tickets for this order?",
-      body: `Paystack shows it as paid. The tickets are created and emailed to ${data.customer_email}.`,
+      body: `The payment provider shows it as paid. The tickets are created and emailed to ${data.customer_email}.`,
       confirmLabel: "Issue tickets",
     });
     if (!ok) return;
@@ -132,6 +133,8 @@ export default function AdminPaymentDetailPage({ params }: { params: Promise<{ i
     );
   }
   if (!data) return <div className="p-5 md:p-8">{back}<div className="mt-6 grid gap-4 lg:grid-cols-2"><SkeletonCard className="h-48" /><SkeletonCard className="h-48" /></div></div>;
+  // Older orders were taken by Paystack; everything new goes through Bachs.
+  const providerName = data.provider === "paystack" ? "Paystack" : "Bachs";
 
   return (
     <div className="p-5 md:p-8">
@@ -196,8 +199,8 @@ export default function AdminPaymentDetailPage({ params }: { params: Promise<{ i
       <section className="mt-4 bg-white border border-line rounded-xl p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-sm font-bold text-ink">Paystack</h2>
-            <p className="text-xs text-muted">Compare this order with what Paystack has on record.</p>
+            <h2 className="text-sm font-bold text-ink">{providerName}</h2>
+            <p className="text-xs text-muted">Compare this order with what {providerName} has on record.</p>
           </div>
           <button
             type="button"
@@ -205,23 +208,23 @@ export default function AdminPaymentDetailPage({ params }: { params: Promise<{ i
             disabled={checking}
             className="rounded-lg border border-line bg-white px-3 py-2 text-sm font-bold text-ink hover:bg-mist disabled:opacity-60"
           >
-            {checking ? "Checking…" : "Check with Paystack"}
+            {checking ? "Checking…" : `Check with ${providerName}`}
           </button>
         </div>
         {check && (
           <div className="mt-4">
             <dl className="divide-y divide-hairline">
-              <Row label="Status at Paystack / Byro"><span className="capitalize">{check.paystack.status}</span> / <span className="capitalize">{check.byro.status}</span></Row>
-              <Row label="Amount at Paystack / Byro">{naira(check.paystack.amount)} / {naira(check.byro.amount)}</Row>
-              <Row label="Paystack says">{check.paystack.gateway_response || "—"}</Row>
-              <Row label="Paid at Paystack">{when(check.paystack.paid_at)}</Row>
+              <Row label={`Status at ${providerName} / Byro`}><span className="capitalize">{check.paystack.status}</span> / <span className="capitalize">{check.byro.status}</span></Row>
+              <Row label={`Amount at ${providerName} / Byro`}>{naira(check.paystack.amount)} / {naira(check.byro.amount)}</Row>
+              <Row label={`${providerName} says`}>{check.paystack.gateway_response || "—"}</Row>
+              <Row label={`Paid at ${providerName}`}>{when(check.paystack.paid_at)}</Row>
             </dl>
             {!check.amount_matches && (
-              <p className="mt-3 text-sm font-semibold text-danger">The amounts don&apos;t match. Don&apos;t issue tickets; contact Paystack.</p>
+              <p className="mt-3 text-sm font-semibold text-danger">The amounts don&apos;t match. Don&apos;t issue tickets; contact {providerName}.</p>
             )}
             {check.can_issue_tickets && (
               <div className="mt-4 rounded-lg bg-waiting-tint border border-waiting-hover p-4 text-sm text-waiting">
-                <p className="font-semibold">Paystack shows this as paid, but the buyer never got their tickets.</p>
+                <p className="font-semibold">{providerName} shows this as paid, but the buyer never got their tickets.</p>
                 {me.can.moderate ? (
                   <button
                     type="button"

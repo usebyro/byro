@@ -13,7 +13,7 @@ export const FAQS = [
   {
     topic: "payments",
     q: "How do I pay?",
-    a: "Card, bank transfer or USSD through Paystack. You don't need a Byro account to buy a ticket.",
+    a: "Card or bank transfer through Bachs. You don't need a Byro account to buy a ticket.",
   },
   {
     topic: "payments",

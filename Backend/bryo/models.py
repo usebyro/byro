@@ -209,7 +209,11 @@ class Payment(models.Model):
         ('qr', 'QR'),
         ('mobile_money', 'Mobile Money'),
         ('bank_transfer', 'Bank Transfer'),
+        ('crypto', 'Crypto'),
     ]
+    PROVIDER_PAYSTACK = 'paystack'
+    PROVIDER_BACHS = 'bachs'
+    PROVIDER_CHOICES = [(PROVIDER_PAYSTACK, 'Paystack'), (PROVIDER_BACHS, 'Bachs')]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     event = models.ForeignKey('Event', on_delete=models.CASCADE, related_name='payments')
@@ -237,10 +241,18 @@ class Payment(models.Model):
     # Byro's service fee rate charged on this order (0.05 = 5%). Kept so later fee changes never alter old orders.
     fee_rate = models.DecimalField(max_digits=5, decimal_places=4, default=Decimal('0.05'))
     
-    # Paystack fields
+    # Which processor took this order. Verification and refunds always go back to it.
+    provider = models.CharField(max_length=20, choices=PROVIDER_CHOICES, default=PROVIDER_BACHS)
+
+    # Paystack fields. paystack_reference is Byro's own order reference (EVT-...), used for
+    # every provider: Bachs gets it as the checkout session's `reference`.
     paystack_reference = models.CharField(max_length=255, unique=True)
     paystack_access_code = models.CharField(max_length=255, blank=True, null=True)
     paystack_authorization_url = models.URLField(blank=True, null=True)
+
+    # Bachs fields
+    bachs_checkout_id = models.CharField(max_length=64, blank=True, default='', db_index=True)
+    bachs_charge_id = models.CharField(max_length=64, blank=True, default='')
     
     # Transaction details
     status = models.CharField(max_length=20, choices=PAYMENT_STATUS, default='pending')
@@ -301,6 +313,7 @@ class Refund(models.Model):
     currency = models.CharField(max_length=3, default='NGN')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_AWAITING)
     paystack_refund_id = models.CharField(max_length=64, blank=True, default='')
+    bachs_refund_id = models.CharField(max_length=64, blank=True, default='')
     failure_reason = models.CharField(max_length=500, blank=True, default='')
     attempts = models.PositiveIntegerField(default=0)
     last_attempt_at = models.DateTimeField(null=True, blank=True)
@@ -1580,7 +1593,7 @@ class AdminAction(models.Model):
         (ACTION_TICKET_CHECKED_IN, 'Ticket checked in by support'),
         (ACTION_TICKET_CHECKIN_UNDONE, 'Check-in undone by support'),
         (ACTION_ORDER_REFUNDED, 'Order refunded by support'),
-        (ACTION_ORDER_FULFILLED, 'Tickets issued by support after Paystack confirmed'),
+        (ACTION_ORDER_FULFILLED, 'Tickets issued by support after the payment provider confirmed'),
         (ACTION_PROMO_DISABLED, 'Promo code switched off'),
         (ACTION_PROMO_ENABLED, 'Promo code switched back on'),
         (ACTION_COMMUNITY_HIDDEN, 'Community hidden from the directory'),

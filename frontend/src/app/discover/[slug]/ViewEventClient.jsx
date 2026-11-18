@@ -725,7 +725,7 @@ export default function ViewEventClient({ slug, initialEvent = null }) {
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2F9E6E" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                       <path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z" />
                     </svg>
-                    Secure checkout with Paystack
+                    Secure checkout with Bachs
                   </p>
                 </>
               )}

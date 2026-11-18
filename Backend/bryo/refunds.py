@@ -32,6 +32,7 @@ from django.db.models import F, Q, Sum
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 
+from . import bachs
 from .emails import event_cancelled_email
 from .models import Payment, Refund, Ticket
 from .pricing import FEE_RATE
@@ -258,11 +259,13 @@ def _claim(refund):
 
 
 def submit_refund(refund):
-    """Send one order's refund to Paystack and record the outcome."""
+    """Send one order's refund to the processor that took the order and record the outcome."""
     if not _claim(refund):
         return refund
 
     payment = refund.payment
+    if payment.provider == Payment.PROVIDER_BACHS:
+        return _submit_bachs_refund(refund, payment)
     try:
         data = find_paystack_refund(payment.paystack_reference) or create_paystack_refund(
             payment.paystack_reference, refund.amount,
@@ -285,6 +288,48 @@ def submit_refund(refund):
 
     refund.status = PAYSTACK_STATUS.get(data.get('status'), Refund.STATUS_PROCESSING)
     refund.paystack_refund_id = str(data.get('id') or '')
+    refund.failure_reason = ''
+    if refund.status == Refund.STATUS_PROCESSED:
+        refund.processed_at = timezone.now()
+    refund.save()
+    _notify_refund(refund)
+    return refund
+
+
+def _submit_bachs_refund(refund, payment):
+    """
+    Refund a Bachs order. Bachs allows one live refund per charge, and our refund reference is
+    fixed per Refund row, so a retry after a timeout finds or replays the same refund instead of
+    sending the money twice.
+    """
+    if not payment.bachs_charge_id:
+        refund.status = Refund.STATUS_NEEDS_ATTENTION
+        refund.failure_reason = 'This Bachs order has no charge ID, so it cannot be refunded automatically.'
+        refund.save(update_fields=['status', 'failure_reason', 'updated_at'])
+        return refund
+    try:
+        data = bachs.find_refund(payment.bachs_charge_id) or bachs.create_refund(
+            charge_id=payment.bachs_charge_id,
+            reference=f'RF-{refund.pk}-{payment.paystack_reference}'[:128],
+            amount=refund.amount,
+            reason=refund.reason or f'{refund.event.name} was cancelled',
+        )
+    except bachs.BachsUnavailable as e:
+        refund.status = (
+            Refund.STATUS_NEEDS_ATTENTION if refund.attempts >= MAX_ATTEMPTS else Refund.STATUS_PENDING
+        )
+        refund.failure_reason = str(e)[:500]
+        refund.save(update_fields=['status', 'failure_reason', 'updated_at'])
+        return refund
+    except bachs.BachsError as e:
+        refund.status = Refund.STATUS_FAILED
+        refund.failure_reason = str(e)[:500]
+        refund.save(update_fields=['status', 'failure_reason', 'updated_at'])
+        logger.error('Bachs refused refund %s for %s: %s', refund.pk, payment.paystack_reference, e)
+        return refund
+
+    refund.status = bachs.REFUND_STATUS.get((data.get('status') or '').lower(), Refund.STATUS_PROCESSING)
+    refund.bachs_refund_id = str(data.get('refund_id') or data.get('id') or '')
     refund.failure_reason = ''
     if refund.status == Refund.STATUS_PROCESSED:
         refund.processed_at = timezone.now()
@@ -417,6 +462,26 @@ def paystack_balance():
     return Decimal('0.00')
 
 
+def bachs_balance():
+    """Byro's available NGN balance at Bachs, or None if Bachs is not set up or cannot be reached."""
+    return bachs.ngn_balance()
+
+
+def balance_check(refunds_qs):
+    """
+    For the refunds about to be sent, each provider's balance next to what it must pay out:
+    [{'provider', 'balance' (None = unknown), 'needed'}]. Only providers with money owed appear.
+    """
+    rows = []
+    for provider, label, fetch in ((Payment.PROVIDER_PAYSTACK, 'Paystack', paystack_balance),
+                                   (Payment.PROVIDER_BACHS, 'Bachs', bachs_balance)):
+        needed = refunds_qs.filter(payment__provider=provider).aggregate(
+            t=Coalesce(Sum('amount'), Decimal('0')))['t']
+        if needed > 0:
+            rows.append({'provider': provider, 'label': label, 'balance': fetch(), 'needed': needed})
+    return rows
+
+
 def models_count():
     from django.db.models import Count
     return Count('pk')
@@ -447,6 +512,35 @@ def apply_refund_webhook(event_type, data):
         refund.failure_reason = (data.get('message') or 'Paystack reported the refund failed')[:500]
     if data.get('id') and not refund.paystack_refund_id:
         refund.paystack_refund_id = str(data['id'])
+    refund.save()
+    _notify_refund(refund)
+    return True
+
+
+def apply_bachs_refund_webhook(event_type, data):
+    """Handle Bachs refund.created / refund.paid / refund.failed."""
+    refund_id, charge_id = data.get('refund_id') or '', data.get('charge_id') or ''
+    lookup = Q(bachs_refund_id=refund_id) if refund_id else Q(pk__in=[])
+    if charge_id:
+        lookup |= Q(payment__bachs_charge_id=charge_id)
+    refund = Refund.objects.filter(lookup, payment__provider=Payment.PROVIDER_BACHS).select_related(
+        'payment', 'event').first()
+    if refund is None:
+        return False
+    state = (data.get('status') or {'refund.paid': 'success', 'refund.failed': 'failed',
+                                     'refund.created': 'processing'}.get(event_type, '')).lower()
+    new_status = bachs.REFUND_STATUS.get(state)
+    if not new_status or refund.status == Refund.STATUS_PROCESSED:
+        return True
+    refund.status = new_status
+    if new_status == Refund.STATUS_PROCESSED:
+        refund.processed_at = timezone.now()
+        refund.failure_reason = ''
+    elif new_status == Refund.STATUS_FAILED:
+        refund.failure_reason = (data.get('reason_failed') or data.get('message')
+                                 or 'Bachs reported the refund failed')[:500]
+    if refund_id and not refund.bachs_refund_id:
+        refund.bachs_refund_id = refund_id
     refund.save()
     _notify_refund(refund)
     return True
