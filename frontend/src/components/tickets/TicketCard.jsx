@@ -140,7 +140,7 @@ export default function TicketCard({ ticket, justStamped = false }) {
                   <p className={LABEL}>Venue</p>
                   <p className="text-[15px] font-extrabold text-[#14161C]">{ticket.event_location}</p>
                   {ticket.event_address_private && (
-                    <p className="mt-0.5 inline-flex items-center gap-1.5 text-[13px] font-bold text-[#1F7A52]">
+                    <p className="mt-0.5 flex items-center gap-1.5 text-[13px] font-bold text-[#1F7A52]">
                       <HugeiconsIcon icon={SquareLock01Icon} size={14} color="currentColor" strokeWidth={2} />
                       Only ticket holders see this
                     </p>
@@ -150,7 +150,7 @@ export default function TicketCard({ ticket, justStamped = false }) {
                       href={directions}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-[13px] font-bold text-[#3669F6] hover:text-[#2451D6]"
+                      className="mt-1 inline-block text-[13px] font-bold text-[#3669F6] hover:text-[#2451D6]"
                     >
                       Get directions
                     </a>
