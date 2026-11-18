@@ -137,15 +137,6 @@ export default function TicketCard({ ticket, justStamped = false }) {
                 <div>
                   <p className={LABEL}>Venue</p>
                   <p className="text-[15px] font-extrabold text-[#14161C]">{ticket.event_location}</p>
-                  {ticket.event_address_private && (
-                    <p className="mt-0.5 flex items-center gap-1.5 text-[13px] font-bold text-[#1F7A52]">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="shrink-0">
-                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-                        <circle cx="12" cy="10" r="3" />
-                      </svg>
-                      Only ticket holders see this
-                    </p>
-                  )}
                   {directions && (
                     <a
                       href={directions}
