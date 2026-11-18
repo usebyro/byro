@@ -16,6 +16,7 @@ import MerchSlideshow from "@/components/merch/MerchSlideshow";
 import MerchTile, { bag, merchPhotos, merchPrice, merchStock } from "@/components/merch/MerchTile";
 import Delayed from "@/components/dashboard/v2/Delayed";
 import { addToCart, MAX_QUANTITY } from "@/lib/merchCart";
+import { trackShare, trackViewItem, trackAddToCart, merchItem } from "@/lib/analytics";
 import { categoryTone, dayParts, eventInitials, formatTime, priceLabel } from "@/lib/eventFormat";
 
 const PAST_PAGE = 6;
@@ -225,6 +226,7 @@ export default function PublicProfileClient({ username }) {
               title={name}
               campaign="profile_share"
               content={username}
+              onShare={(method) => trackShare({ method, contentType: "profile", itemId: profile.handle || username })}
               className="flex h-12 w-12 items-center justify-center rounded-full border border-line bg-white text-ink transition-[background-color,scale] hover:bg-mist active:scale-[0.96]"
               aria-label="Share community"
             >
@@ -467,8 +469,15 @@ function MerchDialog({ item, storeName, handle, checkout, onClose }) {
       return;
     }
     addToCart(handle, { item_id: item.id, option, quantity: qty });
+    trackAddToCart({ items: [merchItem(item, qty, option)] });
     router.push(`/merch-checkout/${handle}`);
   };
+
+  // The preview opening is the merch "view_item".
+  useEffect(() => {
+    trackViewItem({ items: [merchItem(item, 1)] });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item.id]);
 
   useEffect(() => {
     const opener = document.activeElement;

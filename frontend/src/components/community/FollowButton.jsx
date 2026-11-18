@@ -27,7 +27,7 @@ export default function FollowButton(props) {
   );
 }
 
-function FollowButtonInner({ handle, initialFollowing = false, onChange, className = "" }) {
+function FollowButtonInner({ handle, organiserId, initialFollowing = false, onChange, className = "" }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -54,7 +54,7 @@ function FollowButtonInner({ handle, initialFollowing = false, onChange, classNa
     API.followProfile(handle)
       .then((data) => {
         setFollowing(data.following);
-        trackFollow({ handle, following: data.following });
+        trackFollow({ handle, organiserId, following: data.following });
         onChange?.(data.followers_count, data.following);
       })
       .catch((err) => toast.error("Couldn't follow", { description: err?.message || "Try again." }));
@@ -80,7 +80,7 @@ function FollowButtonInner({ handle, initialFollowing = false, onChange, classNa
     try {
       const data = next ? await API.followProfile(handle) : await API.unfollowProfile(handle);
       setFollowing(data.following);
-      trackFollow({ handle, following: data.following });
+      trackFollow({ handle, organiserId, following: data.following });
       onChange?.(data.followers_count, data.following);
     } catch (err) {
       setFollowing(!next);

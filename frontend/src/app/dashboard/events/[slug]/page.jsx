@@ -17,6 +17,7 @@ import EventSalesChart from "@/components/dashboard/v2/EventSalesChart";
 import EventGuestSheet from "@/components/dashboard/v2/EventGuestSheet";
 import EventTeamPanel from "@/components/dashboard/v2/EventTeamPanel";
 import SectionError from "@/components/dashboard/v2/SectionError";
+import { trackShare } from "@/lib/analytics";
 
 const BASE_URL = (process.env.NEXT_PUBLIC_API_URL || "https://byro-production.up.railway.app").replace(/\/api\/?$/, "");
 const PAGE_SIZE = 25;
@@ -659,6 +660,7 @@ export default function StudioEventPage() {
                 title={event?.name || ""}
                 campaign="event_share"
                 content={slug}
+                onShare={(method) => trackShare({ method, contentType: "event", itemId: event?.id, eventSlug: slug })}
                 className="v-btn v-btn-s v-btn-lg"
               >
                 Share
@@ -1248,7 +1250,7 @@ export default function StudioEventPage() {
       </div>
 
       {showPublished && (
-        <EventPublishedModal event={{ slug, name: event?.name }} onClose={closePublished} />
+        <EventPublishedModal event={{ id: event?.id, slug, name: event?.name }} onClose={closePublished} />
       )}
     </div>
   );

@@ -10,7 +10,7 @@ import {
   FaLinkedinIn,
   FaLink,
 } from "react-icons/fa6";
-import { withShareUtm } from "@/lib/analytics";
+import { withShareUtm, trackShare } from "@/lib/analytics";
 
 /**
  * Shown once, right after an event is published. Every share link is
@@ -43,6 +43,7 @@ export default function EventPublishedModal({ event, onClose }) {
 
   const link = (source) => withShareUtm(url, "event_share", event.slug, source, source);
 
+  const sent = (method) => trackShare({ method, contentType: "event", itemId: event.id, eventSlug: event.slug });
   const openWindow = (href) => window.open(href, "_blank", "noopener,noreferrer");
 
   const channels = [
@@ -96,6 +97,7 @@ export default function EventPublishedModal({ event, onClose }) {
     navigator.clipboard
       .writeText(link("copy_link"))
       .then(() => {
+        sent("copy_link");
         setCopied(true);
         toast.success("Link copied");
         setTimeout(() => setCopied(false), 2000);
@@ -124,7 +126,10 @@ export default function EventPublishedModal({ event, onClose }) {
               <button
                 key={channel.key}
                 type="button"
-                onClick={channel.onClick}
+                onClick={() => {
+                  sent(channel.key);
+                  channel.onClick();
+                }}
                 aria-label={`Share on ${channel.label}`}
                 title={channel.label}
                 className="w-11 h-11 rounded-full flex items-center justify-center border border-gray-200 hover:bg-gray-50 transition-colors"

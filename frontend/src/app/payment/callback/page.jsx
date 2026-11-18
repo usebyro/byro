@@ -3,7 +3,7 @@ import { useEffect, useState, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import API from "@/services/api";
-import { trackPurchase } from "@/lib/analytics";
+import { trackPurchase, ticketItem } from "@/lib/analytics";
 import { openPaymentSupport } from "@/lib/support";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { BadgeCheckIcon, CircleXIcon } from "@hugeicons/core-free-icons";
@@ -29,21 +29,29 @@ function PaymentCallbackContent() {
           const payment = data.payment;
           const event = payment?.event || {};
 
-          // Count the sale now that Paystack says it was paid. Once per payment, even if the page is reloaded.
-          try {
-            const key = `purchase_tracked_${reference}`;
-            if (!sessionStorage.getItem(key)) {
-              sessionStorage.setItem(key, "1");
-              trackPurchase({
-                transactionId: reference,
-                eventName: event?.name || ticket?.event_name || "",
-                eventSlug: event?.slug || "",
-                value: Number(payment?.amount) || 0,
-                quantity: data.tickets?.length || 1,
-                isFree: false,
-              });
-            }
-          } catch {}
+          // Count the sale now that Paystack says it was paid. trackPurchase sends it once per reference, so a
+          // reload or a second tab can't count it again. Items are the issued tickets, one line per tier.
+          const tickets = data.tickets || [];
+          const byTier = new Map();
+          for (const t of tickets) {
+            const k = t.tier_name || "General admission";
+            const line = byTier.get(k) || { name: k, price: Number(t.tier_price ?? t.ticket_price) || 0, quantity: 0 };
+            line.quantity += 1;
+            byTier.set(k, line);
+          }
+          const eventId = event?.id ?? ticket?.event;
+          trackPurchase({
+            transactionId: reference,
+            items: [...byTier.values()].map((l) =>
+              ticketItem({ id: eventId, name: event?.name || ticket?.event_name || "", category: event?.category || ticket?.event_category }, l, l.quantity),
+            ),
+            value: Number(payment?.amount) || 0,
+            // Byro's fee as the backend recorded it for this payment.
+            serviceFee: payment?.metadata?.service_fee != null ? Number(payment.metadata.service_fee) : undefined,
+            eventId,
+            eventSlug: event?.slug || ticket?.event_slug,
+            organiserId: event?.owner,
+          });
 
           const ticketData = {
             attendeeName: payment?.customer_name || "",

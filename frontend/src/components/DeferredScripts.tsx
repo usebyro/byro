@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect } from "react";
+import { GA_MEASUREMENT_ID as GA_ID, isStaffArea } from "@/lib/analytics";
 
-const GA_ID = "G-PKLCDNL7QC";
 const TAWK_SRC = "https://embed.tawk.to/6a36e24716fcef1d436fc177/1jrj67qeb";
 
 // Where someone is likely to need the chat straight away, so it isn't held back.
@@ -29,7 +29,10 @@ export default function DeferredScripts() {
       if (loaded) return;
       loaded = true;
       cleanup();
-      addScript(`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`);
+      // Staff pages don't load GA at all.
+      if (!isStaffArea(window.location.hostname, window.location.pathname)) {
+        addScript(`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`);
+      }
       const w = window as unknown as { Tawk_API?: object; Tawk_LoadStart?: Date };
       w.Tawk_API = w.Tawk_API || {};
       w.Tawk_LoadStart = new Date();
