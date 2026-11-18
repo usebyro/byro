@@ -23,6 +23,7 @@ from .views import (
     PaystackResolveAccountView,
     AdminAnalyticsSummaryView,
     AdminAnalyticsRevenueTrendView,
+    AdminAnalyticsSignupTrendView,
     AdminAnalyticsActivityTrendView,
     AdminUsersListView,
     AdminUserDetailView,
@@ -162,6 +163,7 @@ urlpatterns = [
     path('api/admin/notifications/', AdminNotificationsView.as_view(), name='admin-notifications'),
     path('api/admin/notifications/read/', AdminNotificationsReadView.as_view(), name='admin-notifications-read'),
     path('api/admin/analytics/activity-trend/', AdminAnalyticsActivityTrendView.as_view(), name='admin-analytics-activity-trend'),
+    path('api/admin/analytics/signup-trend/', AdminAnalyticsSignupTrendView.as_view(), name='admin-analytics-signup-trend'),
     path('api/admin/analytics/revenue-trend/', AdminAnalyticsRevenueTrendView.as_view(), name='admin-analytics-revenue-trend'),
 
     # Admin — users

@@ -61,6 +61,19 @@ interface ActivityChartPoint {
   events: number;
 }
 
+interface SignupPoint {
+  date: string;
+  signups: number;
+  guests: number;
+}
+
+interface SignupChartPoint {
+  day: string;
+  label: string;
+  signups: number;
+  guests: number;
+}
+
 interface ChartPoint {
   day: string;
   label: string;
@@ -131,6 +144,14 @@ function fillActivity(rows: ActivityPoint[], days: number): ActivityChartPoint[]
   }));
 }
 
+function fillSignups(rows: SignupPoint[], days: number): SignupChartPoint[] {
+  const byDate = new Map(rows.map((r) => [r.date, r]));
+  return series(days, ["signups", "guests"], (iso) => ({
+    signups: byDate.get(iso)?.signups ?? 0,
+    guests: byDate.get(iso)?.guests ?? 0,
+  }));
+}
+
 // Byro's stamp colours, in order of size; "Other" is always the quiet grey.
 const CATEGORY_COLORS = ["#3669F6", "#FFC93C", "#D0668E", "#2F9E6E", "#C9971C", "#14161C", "#8FB4FF"];
 function categoryColor(name: string, index: number) {
@@ -172,6 +193,9 @@ export default function AdminDashboardPage() {
   const [activityRangeDays, setActivityRangeDays] = useState(30);
   const [activity, setActivity] = useState<ActivityChartPoint[]>([]);
   const [activityLoading, setActivityLoading] = useState(true);
+  const [signupRangeDays, setSignupRangeDays] = useState(30);
+  const [signups, setSignups] = useState<SignupChartPoint[]>([]);
+  const [signupsLoading, setSignupsLoading] = useState(true);
 
   // Events power the "Events by category" chart; summary powers the stat cards.
   useEffect(() => {
@@ -247,6 +271,26 @@ export default function AdminDashboardPage() {
     };
   }, [activityRangeDays]);
 
+  // New accounts per day.
+  useEffect(() => {
+    let cancelled = false;
+    setSignupsLoading(true);
+    fetch(`/api/admin/analytics/signup-trend?days=${signupRangeDays}`)
+      .then((res) => (res.ok ? res.json() : []))
+      .then((rows: SignupPoint[]) => {
+        if (!cancelled) setSignups(fillSignups(Array.isArray(rows) ? rows : [], signupRangeDays));
+      })
+      .catch(() => {
+        if (!cancelled) setSignups(fillSignups([], signupRangeDays));
+      })
+      .finally(() => {
+        if (!cancelled) setSignupsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [signupRangeDays]);
+
   const categoryData = useMemo(() => {
     const counts: Record<string, number> = {};
     events.forEach((e) => {
@@ -267,6 +311,8 @@ export default function AdminDashboardPage() {
   const sortedCategories = [...categoryData].sort((x, y) => y.count - x.count);
   const ticketsInRange = activity.reduce((sum, p) => sum + p.tickets, 0);
   const eventsInRange = activity.reduce((sum, p) => sum + p.events, 0);
+  const signupsInRange = signups.reduce((sum, p) => sum + p.signups, 0);
+  const guestsInRange = signups.reduce((sum, p) => sum + p.guests, 0);
   const trendTotal = revenueTrend.reduce((sum, p) => sum + p.revenue, 0);
 
   return (
@@ -436,6 +482,46 @@ export default function AdminDashboardPage() {
               />
               <Line yAxisId="tickets" type="monotone" dataKey="tickets" stroke="#3669F6" strokeWidth={3} dot={activityRangeDays <= 14 ? { r: 3, fill: "#3669F6" } : false} isAnimationActive={false} />
               <Line yAxisId="events" type="monotone" dataKey="events" stroke="#FFC93C" strokeWidth={3} dot={activityRangeDays <= 14 ? { r: 3, fill: "#FFC93C" } : false} isAnimationActive={false} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      </section>
+
+      <section className="rounded-3xl border border-line bg-white p-5 md:p-6 mb-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="font-display text-ink text-lg font-extrabold">New users</h2>
+            <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
+              <span className="flex items-center gap-2 text-body">
+                <span className="h-2.5 w-2.5 rounded-full bg-brand" />
+                <b className="tabular-nums text-ink">{signupsLoading ? "—" : signupsInRange.toLocaleString()}</b> signed up
+              </span>
+              <span className="flex items-center gap-2 text-body">
+                <span className="h-2.5 w-2.5 rounded-full bg-faint" />
+                <b className="tabular-nums text-ink">{signupsLoading ? "—" : guestsInRange.toLocaleString()}</b> guest checkouts
+              </span>
+            </div>
+          </div>
+          <RangePicker value={signupRangeDays} options={REVENUE_RANGES} onChange={setSignupRangeDays} />
+        </div>
+        <div className="h-60 relative mt-4 -mx-2">
+          {!signupsLoading && signups.every((p) => p.signups === 0 && p.guests === 0) && (
+            <p className="absolute inset-0 flex items-center justify-center text-muted text-sm pointer-events-none z-10">
+              No new users in this period
+            </p>
+          )}
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={signups} accessibilityLayer>
+              <CartesianGrid strokeDasharray="3 3" stroke="#EDF0F5" vertical={false} />
+              <XAxis dataKey="day" tick={{ fill: "#8A91A0", fontSize: 12 }} axisLine={false} tickLine={false} interval="preserveStartEnd" minTickGap={28} tickMargin={8} />
+              <YAxis tick={{ fill: "#8A91A0", fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} width={32} />
+              <Tooltip
+                contentStyle={{ background: "#fff", border: "1px solid #E3E8F0", borderRadius: 12, fontSize: 12, color: "#14161C", boxShadow: "0 12px 30px rgba(20,22,28,0.12)" }}
+                formatter={(value, name) => [Number(value).toLocaleString(), name === "signups" ? "Signed up" : "Guest checkouts"]}
+                labelFormatter={(_, payload) => payload?.[0]?.payload?.label ?? ""}
+              />
+              <Line type="monotone" dataKey="signups" stroke="#3669F6" strokeWidth={3} dot={signupRangeDays <= 14 ? { r: 3, fill: "#3669F6" } : false} isAnimationActive={false} />
+              <Line type="monotone" dataKey="guests" stroke="#8A91A0" strokeWidth={2} strokeDasharray="5 4" dot={false} isAnimationActive={false} />
             </LineChart>
           </ResponsiveContainer>
         </div>

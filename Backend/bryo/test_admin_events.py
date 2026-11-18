@@ -317,3 +317,30 @@ class AccessTests(AdminBase):
         self.assertEqual(self.post(self.boss, 'cohosts', email=self.owner.email).status_code, 400)
         self.assertEqual(self.post(self.boss, 'cohosts', email='nope').status_code, 400)
 
+
+
+class SignupTrendTests(AdminBase):
+
+    def get(self, user, days=30):
+        self.as_(user)
+        return self.client.get(f'/api/admin/analytics/signup-trend/?days={days}')
+
+    def test_counts_sign_ups_and_guests_apart_and_skips_deleted_accounts(self):
+        before = {r['date']: r for r in self.get(self.boss).json()}
+        today = str(timezone.now().date())
+        base = before.get(today, {'signups': 0, 'guests': 0})
+        User.objects.create_user(email='real@example.com', auth_provider='workos')
+        User.objects.create_user(email='guest@example.com', auth_provider='guest')
+        User.objects.create_user(email='gone@deleted.usebyro.com', auth_provider='workos')
+        row = {r['date']: r for r in self.get(self.boss).json()}[today]
+        self.assertEqual((row['signups'] - base['signups'], row['guests'] - base['guests']), (1, 1))
+
+    def test_older_accounts_fall_outside_the_range(self):
+        old = User.objects.create_user(email='old@example.com', auth_provider='workos')
+        User.objects.filter(pk=old.pk).update(date_joined=timezone.now() - timezone.timedelta(days=100))
+        dates = [r['date'] for r in self.get(self.boss, days=7).json()]
+        self.assertNotIn(str((timezone.now() - timezone.timedelta(days=100)).date()), dates)
+
+    def test_only_admins_can_see_it(self):
+        self.client.force_authenticate(None)
+        self.assertIn(self.client.get('/api/admin/analytics/signup-trend/').status_code, (401, 403))

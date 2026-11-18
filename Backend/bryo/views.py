@@ -4602,6 +4602,38 @@ class AdminAnalyticsActivityTrendView(APIView):
         return Response([{'date': d, **v} for d, v in sorted(by_date.items())])
 
 
+class AdminAnalyticsSignupTrendView(APIView):
+    """GET /api/admin/analytics/signup-trend/?days=30
+
+    New accounts per day: real sign-ups (people who made an account) and guests (people who only
+    bought a ticket or merch, so Byro holds their email but they never signed in). Deleted accounts
+    are left out. Days with nothing are left out; the dashboard fills the gaps."""
+    permission_classes = [IsAdminMember]
+
+    def get(self, request):
+        from django.contrib.auth import get_user_model
+        from .accounts import DELETED_DOMAIN
+        try:
+            days = int(request.query_params.get('days', 30))
+        except ValueError:
+            days = 30
+        days = max(1, min(days, 730))
+        since = timezone.now() - timedelta(days=days)
+        rows = (
+            get_user_model().objects
+            .filter(date_joined__gte=since)
+            .exclude(email__iendswith=DELETED_DOMAIN)
+            .annotate(date=TruncDate('date_joined'))
+            .values('date')
+            .annotate(
+                signups=Count('id', filter=~Q(auth_provider='guest')),
+                guests=Count('id', filter=Q(auth_provider='guest')),
+            )
+            .order_by('date')
+        )
+        return Response([{'date': str(r['date']), 'signups': r['signups'], 'guests': r['guests']} for r in rows])
+
+
 class AdminAnalyticsRevenueTrendView(APIView):
     """GET /api/admin/analytics/revenue-trend/?days=30"""
     permission_classes = [IsAdminMember]
