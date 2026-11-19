@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import axiosInstance from "@/utils/axios";
 import { clearCart } from "@/lib/merchCart";
+import { trackPurchase, merchItem } from "@/lib/analytics";
 import { REPORT_REASON, dateTime, dayMonth, naira } from "@/lib/merchOrders";
 
 const POLL_MS = 4000;
@@ -80,6 +81,15 @@ export default function MerchOrderClient({ orderRef }) {
         setOrder(data.order);
         setPhase("ready");
         clearCart(data.order?.seller?.handle);
+        // Paid and confirmed: count the sale once per order, however often this page is reloaded.
+        if (data.order?.ref) {
+          trackPurchase({
+            transactionId: data.order.ref,
+            items: (data.order.items || []).map((l) => merchItem({ id: l.item_id, name: l.name, price: l.unit_price }, l.quantity, l.option)),
+            value: Number(data.order.amount) || 0,
+            serviceFee: data.order.service_fee != null ? Number(data.order.service_fee) : undefined,
+          });
+        }
       } catch (err) {
         if (stopped) return;
         const status = err?.response?.status;

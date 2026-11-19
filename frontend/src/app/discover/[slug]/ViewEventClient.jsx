@@ -19,7 +19,7 @@ import Delayed from "@/components/dashboard/v2/Delayed";
 import { stampCity as stampCityOf, stampDate as stampDateOf, stampInk, stampShortName } from "@/lib/stamps";
 import { StackTile } from "@/components/brand/EventTile";
 import { categoryTone, dayParts, formatNaira, formatTime, isPast } from "@/lib/eventFormat";
-import { trackViewEvent, trackShareEvent, trackSaveEvent, trackBeginCheckout } from "@/lib/analytics";
+import { trackViewItem, trackShare, trackSaveEvent, ticketItem } from "@/lib/analytics";
 import { calculateTicketFees } from "@/lib/pricing";
 import { ticketLimits, describeTicketLimits } from "@/lib/ticketLimits";
 import LoadFailed from "@/components/states/LoadFailed";
@@ -85,15 +85,15 @@ export default function ViewEventClient({ slug, initialEvent = null }) {
     return `${base}${event.event_image}`;
   }, [event]);
 
-  /* Set browser tab title + fire GA4 view_event */
+  /* Set browser tab title + fire GA4 view_item */
   useEffect(() => {
     if (event?.name) {
       document.title = `${event.name} | Byro`;
-      trackViewEvent({
-        eventName: event.name,
+      trackViewItem({
+        items: [ticketItem(event, { price: parseFloat(event.ticket_price ?? 0) }, 1)],
+        eventId: event.id,
         eventSlug: event.slug,
-        category: event.category,
-        isFree: parseFloat(event.ticket_price ?? 0) === 0,
+        organiserId: event.owner,
       });
     }
   }, [event?.name]);
@@ -346,11 +346,8 @@ export default function ViewEventClient({ slug, initialEvent = null }) {
   const tierTotal = tierFees.displayTotal;
 
   const startCheckout = () => {
-    trackBeginCheckout({
-      eventName: event.name,
-      eventSlug: event.slug,
-      value: parseFloat(event.ticket_price ?? 0),
-    });
+    // GA's add_to_cart and begin_checkout fire inside the checkout, once a tier and quantity are chosen
+    // and when the buyer moves on to pay.
     setShowCheckout(true);
   };
 
@@ -380,7 +377,7 @@ export default function ViewEventClient({ slug, initialEvent = null }) {
                   title={event.name}
                   campaign="event_share"
                   content={event.slug}
-                  onShare={(method) => trackShareEvent({ eventName: event.name, eventSlug: event.slug, method })}
+                  onShare={(method) => trackShare({ method, contentType: "event", itemId: event.id, eventSlug: event.slug })}
                   className={iconBtn}
                 >
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -392,7 +389,7 @@ export default function ViewEventClient({ slug, initialEvent = null }) {
                   type="button"
                   aria-label={saved ? "Remove from saved" : "Save event"}
                   aria-pressed={saved}
-                  onClick={() => { setSaved(s => !s); if (!saved) trackSaveEvent({ eventName: event.name, eventSlug: event.slug }); }}
+                  onClick={() => { setSaved(s => !s); if (!saved) trackSaveEvent({ eventId: event.id, eventSlug: event.slug, organiserId: event.owner }); }}
                   className={iconBtn}
                 >
                   <svg width="20" height="20" viewBox="0 0 24 24" fill={saved ? "#ef4444" : "none"} stroke={saved ? "#ef4444" : "currentColor"} strokeWidth="2" strokeLinejoin="round" aria-hidden="true">

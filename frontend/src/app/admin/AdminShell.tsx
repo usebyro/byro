@@ -48,7 +48,7 @@ const navItems = [
   { label: "Activity", href: "/activity", icon: Activity01Icon },
   { label: "Audit log", href: "/audit-log", icon: Clock01Icon },
   { label: "Team", href: "/team", icon: UserGroupIcon },
-  { label: "Service fee", href: "/settings", icon: Settings01Icon },
+  { label: "Settings", href: "/settings", icon: Settings01Icon },
 ];
 
 // Grouped by the job: people and their pages, money, the record of who did what, and running the admin itself.

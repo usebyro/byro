@@ -8,7 +8,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import API from "@/services/api";
 import { toast } from "sonner";
-import { trackPurchase, trackSelectTicket } from "@/lib/analytics";
+import { trackAddToCart, trackBeginCheckout, trackFreeTicket, ticketItem, type AnalyticsItem } from "@/lib/analytics";
 import { calculateTicketFees } from "@/lib/pricing";
 
 interface Event {
@@ -31,6 +31,8 @@ interface Event {
   max_tickets_per_person?: number;
   /** The organiser's service fee rate, e.g. "0.0500". */
   fee_rate?: string;
+  /** The organiser's user id. */
+  owner?: number | string;
   /** Which processor takes new paid orders ("paystack" | "bachs"); decides the fee estimate. */
   payment_provider?: string;
 }
@@ -284,6 +286,12 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
   const serviceFee = fees.displayTotal - fees.subtotal;
   const total = discountedSubtotal + serviceFee;
   const totalQty = Object.values(quantities).reduce((a: number, b: number) => a + b, 0);
+  /** One GA item per tier that has tickets chosen. */
+  const analyticsItems = (): AnalyticsItem[] =>
+    tiers
+      .filter((t) => (quantities[String(t.id)] || 0) > 0)
+      .map((t) => ticketItem(event, { name: t.name, price: t.price }, quantities[String(t.id)]));
+  const analyticsContext = { eventId: event.id, eventSlug: event.slug, organiserId: event.owner };
 
   /* ── Attendees (per-seat guest capture) ──
      Only one tier can be selected at a time (the + button resets others), so
@@ -430,18 +438,19 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
           ticketId: ticket?.id || ticket?.ticket_id,
         };
         localStorage.setItem("ticketData", JSON.stringify(ticketData));
-        trackPurchase({
-          transactionId: ticket?.ticket_id || ticket?.id || 'free',
-          eventName: event.name,
-          eventSlug: event.slug,
-          value: 0,
-          quantity: totalQty,
-          isFree: true,
+        // A free ticket isn't a purchase: its own event, value 0, and the real ticket id (or a generated one).
+        trackFreeTicket({
+          transactionId: ticket?.ticket_id || (ticket?.id ? String(ticket.id) : undefined),
+          items: analyticsItems(),
+          ...analyticsContext,
         });
         onClose();
         router.push("/order-confirmed");
         return;
       }
+
+      // The buyer is moving on to pay: the chosen tiers and quantities, and what they will be charged.
+      trackBeginCheckout({ items: analyticsItems(), value: total, serviceFee: fees.serviceFee, ...analyticsContext });
 
       const result = await API.initializePayment({
         event_slug: event.slug,
@@ -1221,14 +1230,8 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
                       }
                       {
                         if (step === 1) {
-                          const selectedTier = tiers.find(t => (quantities[String(t.id)] || 0) > 0);
-                          trackSelectTicket({
-                            eventName: event.name,
-                            eventSlug: event.slug,
-                            tierName: selectedTier?.name ?? 'General',
-                            quantity: totalQty,
-                            value: total,
-                          });
+                          // A tier and quantity are chosen.
+                          trackAddToCart({ items: analyticsItems(), ...analyticsContext });
                         }
                         setStep((s) => Math.min(s + 1, 4));
                       }

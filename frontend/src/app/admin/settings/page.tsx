@@ -51,8 +51,17 @@ interface Organiser {
   events: number | null;
 }
 
+type Tab = "fees" | "payments";
+
 const STEP = 0.25;
 const clean = (n: number) => String(Math.round(n * 100) / 100);
+
+/* One surface style for the whole page: a white panel on the admin's paper background. */
+const PANEL = "rounded-2xl border border-line bg-white p-5 md:p-6";
+
+/* Named properties only, so presses and hovers stay on the compositor. */
+const PRESS =
+  "transition-[background-color,border-color,box-shadow,opacity,transform,scale] duration-150 ease-out active:scale-[0.96] motion-reduce:transition-none";
 
 /** "changed to", between an old and a new value. */
 const To = () => (
@@ -62,20 +71,18 @@ const To = () => (
   </>
 );
 
-/* A settings group: what it is on the left, the controls on the right (stacked on phones). */
-function Section({ title, hint, children }: { title: string; hint: React.ReactNode; children: React.ReactNode }) {
+/* A titled block of controls. The title and hint sit above, stacked, never beside. */
+function Block({ title, hint, children }: { title: string; hint?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <section className="grid gap-x-10 gap-y-4 border-t border-line py-8 first:border-t-0 first:pt-0 md:grid-cols-[220px_minmax(0,1fr)]">
-      <div>
-        <h3 className="font-display text-lg font-bold text-ink">{title}</h3>
-        <p className="mt-1 text-sm leading-relaxed text-muted text-pretty">{hint}</p>
-      </div>
-      <div className="min-w-0">{children}</div>
+    <section>
+      <h2 className="font-display text-xl font-bold tracking-tight text-ink">{title}</h2>
+      {hint && <p className="mt-1 max-w-[65ch] text-sm leading-relaxed text-muted text-pretty">{hint}</p>}
+      <div className="mt-4">{children}</div>
     </section>
   );
 }
 
-/* A percentage box with − and + buttons, 0.25 at a time. */
+/* A percentage box with - and + buttons, 0.25 at a time. */
 function PercentInput({
   value,
   onChange,
@@ -94,13 +101,15 @@ function PercentInput({
   const n = Number(value);
   const bump = (d: number) => onChange(clean(Math.min(max, Math.max(0, (Number.isFinite(n) ? n : 0) + d))));
   const big = size === "lg";
-  const step = `flex shrink-0 items-center justify-center rounded-full text-ink hover:bg-mist disabled:opacity-40 ${big ? "h-11 w-11 text-xl" : "h-8 w-8"}`;
+  const step = `flex shrink-0 items-center justify-center rounded-full text-ink hover:bg-mist disabled:opacity-40 ${PRESS} ${
+    big ? "h-12 w-12 text-2xl" : "h-8 w-8"
+  }`;
   return (
-    <div className={`inline-flex items-center gap-1 rounded-full border border-line bg-white ${big ? "p-1" : "p-0.5"}`}>
+    <div className={`inline-flex items-center gap-1 rounded-full border border-line bg-white focus-within:border-brand focus-within:ring-2 focus-within:ring-brand/25 ${big ? "p-1.5" : "p-0.5"}`}>
       <button type="button" className={step} onClick={() => bump(-STEP)} disabled={disabled || n <= 0} aria-label={`Lower ${label}`}>
         −
       </button>
-      <label className="flex items-baseline">
+      <label className="flex items-baseline justify-center">
         <span className="sr-only">{label}</span>
         <input
           type="number"
@@ -111,11 +120,11 @@ function PercentInput({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           disabled={disabled}
-          className={`bg-transparent text-center font-display font-bold tabular-nums text-ink focus:outline-none disabled:text-muted [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none ${
-            big ? "w-20 text-3xl" : "w-12 text-base"
+          className={`bg-transparent text-center font-display font-extrabold tabular-nums tracking-tight text-ink focus:outline-none disabled:text-muted [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none ${
+            big ? "w-28 text-5xl" : "w-12 text-base font-bold"
           }`}
         />
-        <span className={`font-display font-bold text-muted ${big ? "text-2xl" : "text-sm"}`}>%</span>
+        <span className={`font-display font-bold text-muted ${big ? "text-3xl" : "text-sm"}`}>%</span>
       </label>
       <button type="button" className={step} onClick={() => bump(STEP)} disabled={disabled || n >= max} aria-label={`Raise ${label}`}>
         +
@@ -124,23 +133,92 @@ function PercentInput({
   );
 }
 
-/* One side of the live receipt. */
-function Receipt({ title, rows, note }: { title: string; rows: [string, string, boolean?][]; note: string }) {
+/* Tabs: Fees and Payments. Arrow keys move between them; the choice lives in the URL hash so a link can open one. */
+function Tabs({ value, onChange }: { value: Tab; onChange: (t: Tab) => void }) {
+  const tabs: { id: Tab; label: string }[] = [
+    { id: "fees", label: "Fees" },
+    { id: "payments", label: "Payments" },
+  ];
   return (
-    <div className="flex flex-col rounded-2xl border border-line bg-white p-5">
-      <p className="text-xs font-bold uppercase tracking-[0.06em] text-faint">{title}</p>
-      <dl className="mt-3 flex-1 divide-y divide-hairline">
-        {rows.map(([label, value, strong]) => (
-          <div key={label} className="flex items-baseline justify-between gap-4 py-2 text-sm">
-            <dt className={strong ? "font-bold text-ink" : "text-muted"}>{label}</dt>
-            <dd className={`tabular-nums ${strong ? "font-display text-lg font-bold text-ink" : "text-ink"}`}>{value}</dd>
-          </div>
-        ))}
-      </dl>
-      <p className="mt-3 text-xs leading-relaxed text-faint">{note}</p>
+    <div role="tablist" aria-label="Settings" className="flex w-full gap-1 rounded-full bg-mist p-1 sm:inline-flex sm:w-auto">
+      {tabs.map((t) => {
+        const on = value === t.id;
+        return (
+          <button
+            key={t.id}
+            id={`tab-${t.id}`}
+            type="button"
+            role="tab"
+            aria-selected={on}
+            aria-controls={`panel-${t.id}`}
+            tabIndex={on ? 0 : -1}
+            onClick={() => onChange(t.id)}
+            onKeyDown={(e) => {
+              if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+              e.preventDefault();
+              const next = tabs[(tabs.findIndex((x) => x.id === value) + (e.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length].id;
+              onChange(next);
+              document.getElementById(`tab-${next}`)?.focus();
+            }}
+            className={`h-11 flex-1 rounded-full px-5 text-sm font-bold sm:h-10 sm:flex-none ${PRESS} ${
+              on ? "bg-white text-ink shadow-[0_1px_2px_rgba(20,22,28,0.08),0_0_0_1px_rgba(20,22,28,0.04)]" : "text-muted hover:text-ink"
+            }`}
+          >
+            {t.label}
+          </button>
+        );
+      })}
     </div>
   );
 }
+
+/* A change log folded away by default: it matters when you need it, not on every visit. */
+function Timeline({
+  entries,
+}: {
+  entries: { key: string; tone: "brand" | "marigold"; title: string; change: React.ReactNode; at: string; who: string }[];
+}) {
+  return (
+    <details className="group rounded-2xl border border-line bg-white">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-2xl px-5 py-4 text-sm font-bold text-ink hover:bg-mist focus-visible:outline-2 focus-visible:outline-brand [&::-webkit-details-marker]:hidden">
+        <span>
+          History <span className="ml-1 font-normal tabular-nums text-faint">{entries.length === 0 ? "No changes yet" : `${entries.length} change${entries.length === 1 ? "" : "s"}`}</span>
+        </span>
+        <HugeiconsIcon icon={ArrowRight02Icon} size={16} color="currentColor" aria-hidden="true" className="text-muted transition-transform duration-150 ease-out group-open:rotate-90 motion-reduce:transition-none" />
+      </summary>
+      <div className="border-t border-hairline px-5 py-5">
+        {entries.length === 0 ? (
+          <p className="text-sm text-faint">Nothing has been changed here yet.</p>
+        ) : (
+          <>
+            <ol className="relative space-y-4 border-l border-line pl-5">
+              {entries.map((h) => (
+                <li key={h.key} className="relative">
+                  <span aria-hidden="true" className={`absolute -left-[26px] top-1.5 h-2.5 w-2.5 rounded-full ${h.tone === "brand" ? "bg-brand" : "bg-marigold"}`} />
+                  <p className="text-sm text-ink">
+                    <b>{h.title}</b> <span className="tabular-nums">{h.change}</span>
+                  </p>
+                  <p className="text-xs text-faint">
+                    {fmtDateTime(h.at)}, {h.who || "unknown"}
+                  </p>
+                </li>
+              ))}
+            </ol>
+            <p className="mt-5 text-xs text-faint">The full record is in the Audit log.</p>
+          </>
+        )}
+      </div>
+    </details>
+  );
+}
+
+const arrowParts = (change: string) =>
+  change.split("->").map((part, j) => (
+    <span key={j}>
+      {j > 0 && <To />}
+      {part.trim()}
+    </span>
+  ));
 
 export default function AdminSettingsPage() {
   const me = useAdminMe();
@@ -151,6 +229,17 @@ export default function AdminSettingsPage() {
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
   const [price, setPrice] = useState("5000");
+  const [payer, setPayer] = useState<"buyer" | "organiser">("buyer");
+  const [tab, setTab] = useState<Tab>("fees");
+
+  useEffect(() => {
+    if (window.location.hash === "#payments") setTab("payments");
+  }, []);
+
+  const chooseTab = (t: Tab) => {
+    setTab(t);
+    window.history.replaceState(null, "", t === "fees" ? window.location.pathname : `#${t}`);
+  };
 
   const load = useCallback(async () => {
     try {
@@ -225,9 +314,9 @@ export default function AdminSettingsPage() {
   }
   if (!data) {
     return (
-      <div className="p-5 md:p-8 max-w-5xl space-y-4">
+      <div className="max-w-5xl space-y-4 p-5 md:p-8">
         <SkeletonCard className="h-16" />
-        <SkeletonCard className="h-56" />
+        <SkeletonCard className="h-64" />
         <SkeletonCard className="h-40" />
       </div>
     );
@@ -237,126 +326,145 @@ export default function AdminSettingsPage() {
   const p = Math.max(0, Number(price) || 0);
   const fee = Math.round(p * (shown / 100));
 
+  const rows: [string, string, boolean?][] =
+    payer === "buyer"
+      ? [
+          ["Ticket", formatNaira(p)],
+          [`Byro fee (${clean(shown)}%)`, formatNaira(fee)],
+          ["Buyer pays", formatNaira(p + fee), true],
+          ["Organiser gets", formatNaira(p)],
+        ]
+      : [
+          ["Buyer pays", formatNaira(p)],
+          [`Byro fee (${clean(shown)}%)`, `−${formatNaira(fee)}`],
+          ["Organiser gets", formatNaira(p - fee), true],
+        ];
+
   return (
-    <div className="p-5 pb-28 md:p-8 md:pb-28 max-w-5xl">
-      <header className="mb-8">
-        <h1 className="font-display text-ink text-3xl font-extrabold tracking-tight">Settings</h1>
-        <p className="text-muted text-sm mt-1">What Byro charges on paid tickets, and which payment provider takes new orders.</p>
+    <div className="max-w-5xl p-5 pb-28 md:p-8 md:pb-28">
+      <header className="mb-6">
+        <h1 className="font-display text-3xl font-extrabold tracking-tight text-ink">Settings</h1>
+        <p className="mt-1 max-w-[65ch] text-sm text-muted text-pretty">What Byro charges on paid tickets, and which payment provider takes new orders.</p>
       </header>
 
-      <h2 className="mb-3 font-display text-xl font-bold text-ink">Service fee</h2>
+      <Tabs value={tab} onChange={chooseTab} />
 
-      <div className="rounded-3xl border border-line bg-white p-5 md:p-8">
-        <Section
-          title="Default service fee"
-          hint={
-            <>
-              Charged on every paid ticket, unless the organiser has a special fee. Free tickets are never charged.
-              {!isOwner && <span className="mt-2 block font-semibold text-ink">Only Owners can change it.</span>}
-            </>
-          }
-        >
-          <div className="flex flex-wrap items-center gap-x-6 gap-y-4">
-            <PercentInput value={draft} onChange={setDraft} max={max} disabled={!isOwner} label="Default service fee" />
-            <div className="text-sm">
-              {dirty ? (
-                <p className="font-semibold text-waiting">
-                  Not saved: {data.default_fee_percent}% <To /> {clean(pct)}%
-                </p>
-              ) : (
-                <p className="text-muted">Current fee on new orders</p>
-              )}
-              {data.updated_by_email && (
-                <p className="mt-0.5 text-xs text-faint">
-                  Last changed {fmtDateTime(data.updated_at)} by {data.updated_by_email}
-                </p>
-              )}
-            </div>
-          </div>
-          {!valid && <p role="alert" className="mt-3 text-sm text-danger">Enter a number from 0 to {data.max_fee_percent}.</p>}
-        </Section>
-
-        <Section
-          title="What people pay"
-          hint={
-            <>
-              Try a ticket price to see the split{dirty ? " with the new fee" : ""}. Organisers choose who pays the fee when they create an
-              event. The payment processing charge is added on top for the buyer.
-            </>
-          }
-        >
-          <label className="mb-4 flex w-fit items-center gap-2 rounded-full border border-line bg-white px-4 py-2 text-sm focus-within:ring-2 focus-within:ring-brand/30">
-            <span className="text-muted">Ticket price</span>
-            <span className="font-bold text-ink">₦</span>
-            <input
-              type="number"
-              inputMode="numeric"
-              min={0}
-              step={500}
-              value={price}
-              onChange={(e) => setPrice(e.target.value)}
-              aria-label="Ticket price in naira"
-              className="w-24 bg-transparent font-bold tabular-nums text-ink focus:outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
-            />
-          </label>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Receipt
-              title="Buyer pays the fee"
-              rows={[
-                ["Ticket", formatNaira(p)],
-                [`Byro fee (${clean(shown)}%)`, formatNaira(fee)],
-                ["Buyer pays", formatNaira(p + fee), true],
-                ["Organiser gets", formatNaira(p)],
-              ]}
-              note="Most events. The fee is added to the price at checkout."
-            />
-            <Receipt
-              title="Organiser pays the fee"
-              rows={[
-                ["Buyer pays", formatNaira(p)],
-                [`Byro fee (${clean(shown)}%)`, `−${formatNaira(fee)}`],
-                ["Organiser gets", formatNaira(p - fee), true],
-              ]}
-              note="The buyer sees one clean price; the fee comes out of the organiser's earnings."
-            />
-          </div>
-        </Section>
-
-        <Section
-          title="Special fees"
-          hint="A different fee for one organiser, e.g. a partner or a charity. It replaces the default for their new orders."
-        >
-          <SpecialFees deals={data.organiser_fees} defaultPercent={data.default_fee_percent} max={max} canEdit={isOwner} onSet={setDeal} />
-        </Section>
-
-        <Section title="History" hint="Every fee change, newest first. The full record is in the Audit log.">
-          {data.history.length === 0 ? (
-            <p className="text-sm text-faint">No changes yet.</p>
-          ) : (
-            <ol className="relative space-y-4 border-l border-line pl-5">
-              {data.history.map((h, i) => (
-                <li key={i} className="relative">
-                  <span aria-hidden="true" className={`absolute -left-[26px] top-1.5 h-2.5 w-2.5 rounded-full ${h.kind === "default" ? "bg-brand" : "bg-marigold"}`} />
-                  <p className="text-sm text-ink">
-                    <b>{h.kind === "default" ? "Default fee" : h.target}</b>{" "}
-                    <span className="tabular-nums">
-                      {h.change.split("->").map((part, j) => (
-                        <span key={j}>{j > 0 && <To />}{part.trim()}</span>
-                      ))}
-                    </span>
+      {tab === "fees" && (
+        <div role="tabpanel" id="panel-fees" aria-labelledby="tab-fees" className="mt-8 space-y-10">
+          {/* The fee on the left, what it does to a real price on the right. */}
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+            <section className="flex flex-col rounded-2xl border border-line bg-white p-5 md:p-6">
+              <h2 className="font-display text-xl font-bold tracking-tight text-ink">Default service fee</h2>
+              <p className="mt-1 text-sm leading-relaxed text-muted text-pretty">
+                Charged on every paid ticket unless the organiser has a special fee. Free tickets are never charged.
+              </p>
+              <div className="my-6">
+                <PercentInput value={draft} onChange={setDraft} max={max} disabled={!isOwner} label="Default service fee" />
+              </div>
+              <div className="mt-auto text-sm">
+                {dirty ? (
+                  <p className="font-semibold text-waiting">
+                    Not saved: {data.default_fee_percent}% <To /> {clean(pct)}%
                   </p>
-                  <p className="text-xs text-faint">
-                    {fmtDateTime(h.at)} · {h.who || "—"}
+                ) : (
+                  <p className="text-muted">Current fee on new orders</p>
+                )}
+                {data.updated_by_email && (
+                  <p className="mt-0.5 text-xs text-faint">
+                    Last changed {fmtDateTime(data.updated_at)} by {data.updated_by_email}
                   </p>
-                </li>
-              ))}
-            </ol>
-          )}
-        </Section>
-      </div>
+                )}
+                {!isOwner && <p className="mt-2 font-semibold text-ink">Only Owners can change it.</p>}
+                {!valid && <p role="alert" className="mt-2 text-danger">Enter a number from 0 to {data.max_fee_percent}.</p>}
+              </div>
+            </section>
 
-      <h2 className="mb-3 mt-10 font-display text-xl font-bold text-ink">Payments</h2>
-      <PaymentsCard payments={data.payments} canEdit={isOwner} onSaved={(body) => setData(body)} />
+            <section className={PANEL}>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h2 className="font-display text-xl font-bold tracking-tight text-ink">What people pay</h2>
+                <label className="flex items-center gap-2 rounded-full border border-line bg-white px-4 py-2 text-sm focus-within:border-brand focus-within:ring-2 focus-within:ring-brand/25">
+                  <span className="text-muted">Ticket price</span>
+                  <span className="font-bold text-ink">₦</span>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min={0}
+                    step={500}
+                    value={price}
+                    onChange={(e) => setPrice(e.target.value)}
+                    aria-label="Ticket price in naira"
+                    className="w-20 bg-transparent font-bold tabular-nums text-ink focus:outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+                  />
+                </label>
+              </div>
+
+              <div role="radiogroup" aria-label="Who pays the fee" className="mt-4 grid w-full grid-cols-2 gap-1 rounded-full bg-mist p-1 sm:inline-grid sm:w-auto">
+                {(
+                  [
+                    ["buyer", "Buyer pays"],
+                    ["organiser", "Organiser pays"],
+                  ] as const
+                ).map(([id, label]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    role="radio"
+                    aria-checked={payer === id}
+                    onClick={() => setPayer(id)}
+                    className={`h-10 rounded-full px-4 text-center text-sm font-semibold sm:h-9 ${PRESS} ${
+                      payer === id ? "bg-white text-ink shadow-[0_1px_2px_rgba(20,22,28,0.08),0_0_0_1px_rgba(20,22,28,0.04)]" : "text-muted hover:text-ink"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Receipt: an inset tray, so the inner radius is the outer one minus the tray's padding. */}
+              <div className="mt-4 rounded-2xl bg-paper p-1.5">
+                <dl className="divide-y divide-hairline rounded-[10px] bg-white px-4">
+                  {rows.map(([label, value, strong]) => (
+                    <div key={label} className="flex items-baseline justify-between gap-4 py-3 text-sm">
+                      <dt className={strong ? "font-bold text-ink" : "text-muted"}>{label}</dt>
+                      <dd className={`tabular-nums ${strong ? "font-display text-xl font-bold text-ink" : "text-ink"}`}>{value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+              <p className="mt-3 max-w-[65ch] text-xs leading-relaxed text-faint text-pretty">
+                {payer === "buyer"
+                  ? "Most events. The fee is added to the price at checkout, and the payment processing charge goes on top for the buyer."
+                  : "The buyer sees one clean price and the fee comes out of the organiser's earnings. The payment processing charge still goes on top for the buyer."}
+                {dirty && " Showing the unsaved fee."}
+              </p>
+            </section>
+          </div>
+
+          <Block
+            title="Special fees"
+            hint="A different fee for one organiser, such as a partner or a charity. It replaces the default for their new orders."
+          >
+            <SpecialFees deals={data.organiser_fees} defaultPercent={data.default_fee_percent} max={max} canEdit={isOwner} onSet={setDeal} />
+          </Block>
+
+          <Timeline
+            entries={data.history.map((h, i) => ({
+              key: String(i),
+              tone: h.kind === "default" ? "brand" : "marigold",
+              title: h.kind === "default" ? "Default fee" : h.target,
+              change: arrowParts(h.change),
+              at: h.at,
+              who: h.who,
+            }))}
+          />
+        </div>
+      )}
+
+      {tab === "payments" && (
+        <div role="tabpanel" id="panel-payments" aria-labelledby="tab-payments" className="mt-8">
+          <PaymentsPanel payments={data.payments} canEdit={isOwner} onSaved={(body) => setData(body)} />
+        </div>
+      )}
 
       {/* Save bar: only while there's an unsaved change, so it's obvious and never in the way otherwise. */}
       {isOwner && dirty && (
@@ -367,13 +475,13 @@ export default function AdminSettingsPage() {
             className="flex w-full max-w-xl items-center justify-between gap-3 rounded-full bg-ink py-2 pl-5 pr-2 text-white shadow-[0_16px_40px_rgba(20,22,28,0.28)] animate-dialog-in motion-reduce:animate-none"
           >
             <p className="text-sm">
-              Default fee <b className="tabular-nums">{data.default_fee_percent}% <To /> {clean(pct)}%</b>
+              <span className="hidden sm:inline">Default fee </span><b className="tabular-nums">{data.default_fee_percent}% <To /> {clean(pct)}%</b>
             </p>
             <div className="flex gap-1.5">
               <button
                 type="button"
                 onClick={() => setDraft(data.default_fee_percent)}
-                className="h-10 rounded-full px-4 text-sm font-bold text-white/80 hover:bg-white/10 hover:text-white"
+                className={`h-10 rounded-full px-4 text-sm font-bold text-white/80 hover:bg-white/10 hover:text-white ${PRESS}`}
               >
                 Discard
               </button>
@@ -426,8 +534,8 @@ function SpecialFees({
           <table className="w-full text-sm">
             <thead className="bg-paper">
               <tr className="text-left">
-                <th scope="col" className="px-4 py-2.5 text-xs font-bold text-faint">Organiser</th>
-                <th scope="col" className="px-4 py-2.5 text-xs font-bold text-faint">Fee</th>
+                <th scope="col" className="px-3 py-2.5 text-xs font-bold text-faint sm:px-4">Organiser</th>
+                <th scope="col" className="px-3 py-2.5 text-xs font-bold text-faint sm:px-4">Fee</th>
                 <th scope="col" className="hidden px-4 py-2.5 text-xs font-bold text-faint sm:table-cell">Events</th>
                 <th scope="col" className="px-4 py-2.5"><span className="sr-only">Actions</span></th>
               </tr>
@@ -438,7 +546,7 @@ function SpecialFees({
                 const vs = diff(d.fee_percent);
                 return (
                   <tr key={d.user_id} className="align-middle">
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-3 sm:px-4">
                       {d.handle ? (
                         <a href={publicHref(`/u/${d.handle}`)} target="_blank" rel="noopener noreferrer" className="font-semibold text-ink hover:underline">
                           {d.name}
@@ -446,9 +554,9 @@ function SpecialFees({
                       ) : (
                         <span className="font-semibold text-ink">{d.name}</span>
                       )}
-                      <span className="block max-w-[220px] truncate text-xs text-muted">{d.email}</span>
+                      <span className="block max-w-[130px] truncate text-xs text-muted sm:max-w-[220px]">{d.email}</span>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-3 sm:px-4">
                       {isEditing ? (
                         <PercentInput value={editValue} onChange={setEditValue} max={max} label={`${d.name}'s fee`} size="sm" />
                       ) : (
@@ -459,10 +567,10 @@ function SpecialFees({
                       )}
                     </td>
                     <td className="hidden px-4 py-3 tabular-nums text-muted sm:table-cell">{d.events}</td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-3 py-3 text-right sm:px-4">
                       {canEdit &&
                         (isEditing ? (
-                          <span className="inline-flex gap-1.5">
+                          <span className="inline-flex flex-col items-stretch gap-1.5 sm:flex-row">
                             <Button size="sm" variant="ghost" onClick={() => setEditing(null)}>
                               Cancel
                             </Button>
@@ -478,7 +586,7 @@ function SpecialFees({
                             </Button>
                           </span>
                         ) : (
-                          <span className="inline-flex gap-1.5">
+                          <span className="inline-flex flex-col items-stretch gap-1.5 sm:flex-row">
                             <Button
                               size="sm"
                               variant="secondary"
@@ -511,7 +619,7 @@ function SpecialFees({
               <span className="block truncate text-xs text-muted">{adding.email}</span>
             </span>
             <PercentInput value={addValue} onChange={setAddValue} max={max} label={`${adding.name}'s fee`} size="sm" />
-            <span className="inline-flex gap-1.5">
+            <span className="inline-flex flex-col items-stretch gap-1.5 sm:flex-row">
               <Button size="sm" variant="ghost" onClick={() => setAdding(null)}>
                 Cancel
               </Button>
@@ -646,8 +754,9 @@ function OrganiserSearch({ exclude, onPick }: { exclude: number[]; onPick: (o: O
   );
 }
 
-/* Which provider takes new ticket orders, the Bachs test list, and their history. */
-function PaymentsCard({
+
+/* Which provider takes new ticket orders, how Bachs is connected, the Bachs test list, and their history. */
+function PaymentsPanel({
   payments,
   canEdit,
   onSaved,
@@ -715,20 +824,28 @@ function PaymentsCard({
     }
   };
 
-  const bachsStatus = !payments.bachs_configured
-    ? { text: "Not set up: BACHS_SECRET_KEY is empty on the server", cls: "text-danger" }
-    : payments.bachs_mode === "sandbox"
-      ? { text: "Sandbox key: test payments only, no real money moves", cls: "text-waiting" }
-      : { text: "Live key", cls: "text-good" };
+  /* Real state, so a coloured dot is earned here: green is working, amber is test-only, red is broken. */
+  const connection: { label: string; text: string; tone: "good" | "waiting" | "danger" }[] = [
+    !payments.bachs_configured
+      ? { label: "Bachs key", text: "Not set up. BACHS_SECRET_KEY is empty on the server.", tone: "danger" }
+      : payments.bachs_mode === "sandbox"
+        ? { label: "Bachs key", text: "Sandbox key. Test payments only, no real money moves.", tone: "waiting" }
+        : { label: "Bachs key", text: "Live key", tone: "good" },
+    payments.bachs_webhook_configured
+      ? { label: "Bachs webhook", text: "Secret set", tone: "good" }
+      : { label: "Bachs webhook", text: "BACHS_WEBHOOK_SECRET is empty. Bachs payments only confirm when the buyer returns to Byro.", tone: "danger" },
+  ];
+  const dot = { good: "bg-good", waiting: "bg-waiting", danger: "bg-danger" } as const;
+  const ink = { good: "text-good", waiting: "text-waiting", danger: "text-danger" } as const;
 
   return (
-    <div className="rounded-3xl border border-line bg-white p-5 md:p-8">
-      <Section
+    <div className="space-y-10">
+      <Block
         title="Provider for new orders"
         hint={
           <>
-            Which payment provider buyers are sent to when they pay for a ticket. Orders already taken always stay with the provider that took
-            them. Merch still uses Paystack.
+            Which provider buyers are sent to when they pay for a ticket. Orders already taken always stay with the provider that took them. Merch
+            still uses Paystack.
             {!canEdit && <span className="mt-2 block font-semibold text-ink">Only Owners can change it.</span>}
           </>
         }
@@ -745,21 +862,19 @@ function PaymentsCard({
                 aria-checked={active}
                 disabled={!canEdit || blocked || switching !== null}
                 onClick={() => choose(p)}
-                className={`flex flex-col items-start rounded-2xl border p-4 text-left transition-colors disabled:cursor-not-allowed ${
+                className={`flex min-h-[132px] flex-col items-start rounded-2xl border p-5 text-left disabled:cursor-not-allowed active:scale-[0.98] ${PRESS} ${
                   active ? "border-brand bg-sky ring-2 ring-brand/30" : "border-line bg-white enabled:hover:bg-mist"
                 } ${blocked ? "opacity-60" : ""}`}
               >
-                <span className="flex w-full items-center justify-between gap-2">
-                  <span className="font-display text-lg font-bold text-ink">{PROVIDER_NAME[p]}</span>
-                  {active && (
-                    <span className="rounded-full bg-brand px-2.5 py-0.5 text-xs font-bold text-white">Taking new orders</span>
-                  )}
+                <span className="flex w-full flex-wrap items-center justify-between gap-x-2 gap-y-1.5">
+                  <span className="font-display text-2xl font-extrabold tracking-tight text-ink">{PROVIDER_NAME[p]}</span>
+                  {active && <span className="rounded-full bg-brand px-3 py-1 text-xs font-bold text-white">Taking new orders</span>}
                   {switching === p && <span className="text-xs font-semibold text-muted">Switching…</span>}
                 </span>
-                <span className="mt-1 text-xs leading-relaxed text-muted">
+                <span className="mt-2 max-w-[38ch] text-sm leading-relaxed text-muted text-pretty">
                   {p === "paystack"
                     ? "Paystack adds its processing charge on top for the buyer."
-                    : "The buyer pays the all-in price; Bachs takes its fee from what Byro receives."}
+                    : "Bachs adds its own fee on top at checkout, so Byro receives the full amount."}
                 </span>
               </button>
             );
@@ -767,93 +882,74 @@ function PaymentsCard({
         </div>
         <p className="mt-3 text-xs text-faint">
           {payments.source === "server"
-            ? "Not chosen here yet: following the server's PAYMENT_PROVIDER setting."
+            ? "Not chosen here yet. Following the server's PAYMENT_PROVIDER setting."
             : "Chosen here. This overrides the server's PAYMENT_PROVIDER setting."}
         </p>
-        <dl className="mt-4 grid gap-1 text-sm sm:grid-cols-[140px_minmax(0,1fr)]">
-          <dt className="text-muted">Bachs key</dt>
-          <dd className={`font-semibold ${bachsStatus.cls}`}>{bachsStatus.text}</dd>
-          <dt className="text-muted">Bachs webhook</dt>
-          <dd className={`font-semibold ${payments.bachs_webhook_configured ? "text-good" : "text-danger"}`}>
-            {payments.bachs_webhook_configured
-              ? "Secret set"
-              : "BACHS_WEBHOOK_SECRET is empty: Bachs payments only confirm when the buyer returns to Byro"}
-          </dd>
-        </dl>
-      </Section>
+        <ul className="mt-3 space-y-1.5">
+          {connection.map((c) => (
+            <li key={c.label} className={`flex items-start gap-2 text-sm ${ink[c.tone]}`}>
+              <span aria-hidden="true" className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${dot[c.tone]}`} />
+              <span className="text-pretty">
+                <b>{c.label}:</b> {c.text}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </Block>
 
-      <Section
-        title="Bachs test list"
-        hint={
-          <>
+      <section>
+          <h2 className="font-display text-xl font-bold tracking-tight text-ink">Bachs test list</h2>
+          <p className="mt-1 max-w-[65ch] text-sm leading-relaxed text-muted text-pretty">
             While Paystack takes new orders, buyers with these emails (the email at checkout, or the account they&apos;re signed in with) pay through
             Bachs instead. Use it to try Bachs with real money before switching everyone.
-          </>
-        }
-      >
-        <label htmlFor="bachs-test-emails" className="mb-1.5 block text-sm font-bold text-ink">
-          Emails, one per line
-        </label>
-        <textarea
-          id="bachs-test-emails"
-          rows={Math.min(8, Math.max(3, parsed.length + 1))}
-          value={emailsDraft}
-          onChange={(e) => setEmailsDraft(e.target.value)}
-          disabled={!canEdit || savingEmails}
-          placeholder={"you@example.com\nteammate@example.com"}
-          className="w-full max-w-md rounded-2xl border border-line bg-white px-4 py-3 text-sm text-ink placeholder:text-faint focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/25 disabled:text-muted"
-        />
-        {payments.provider === "bachs" && (
-          <p className="mt-2 text-xs font-semibold text-waiting">Bachs is taking every new order, so this list makes no difference right now.</p>
-        )}
-        {!payments.bachs_configured && parsed.length > 0 && (
-          <p className="mt-2 text-xs font-semibold text-danger">
-            Bachs isn&apos;t set up on the server, so people on this list can&apos;t pay until BACHS_SECRET_KEY is set.
           </p>
-        )}
-        {payments.server_test_emails.length > 0 && (
-          <p className="mt-2 text-xs text-faint">
-            Also on the list from the server&apos;s BACHS_TEST_EMAILS: {payments.server_test_emails.join(", ")}
-          </p>
-        )}
-        {canEdit && (
-          <div className="mt-3 flex gap-1.5">
-            <Button variant="primary" size="sm" onClick={saveEmails} loading={savingEmails} disabled={!emailsDirty}>
-              Save list
-            </Button>
-            {emailsDirty && (
-              <Button variant="ghost" size="sm" onClick={() => setEmailsDraft(payments.test_emails.join("\n"))}>
-                Discard
+          <label htmlFor="bachs-test-emails" className="mb-1.5 mt-5 block text-sm font-bold text-ink">
+            Emails, one per line
+          </label>
+          <textarea
+            id="bachs-test-emails"
+            rows={Math.min(8, Math.max(3, parsed.length + 1))}
+            value={emailsDraft}
+            onChange={(e) => setEmailsDraft(e.target.value)}
+            disabled={!canEdit || savingEmails}
+            placeholder={"you@example.com\nteammate@example.com"}
+            className="w-full max-w-md rounded-xl border border-line bg-white px-4 py-3 text-sm text-ink placeholder:text-faint focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/25 disabled:text-muted"
+          />
+          {payments.provider === "bachs" && (
+            <p className="mt-2 text-xs font-semibold text-waiting">Bachs is taking every new order, so this list makes no difference right now.</p>
+          )}
+          {!payments.bachs_configured && parsed.length > 0 && (
+            <p className="mt-2 text-xs font-semibold text-danger">
+              Bachs isn&apos;t set up on the server, so people on this list can&apos;t pay until BACHS_SECRET_KEY is set.
+            </p>
+          )}
+          {payments.server_test_emails.length > 0 && (
+            <p className="mt-2 text-xs text-faint">Also on the list from the server&apos;s BACHS_TEST_EMAILS: {payments.server_test_emails.join(", ")}</p>
+          )}
+          {canEdit && (
+            <div className="mt-3 flex gap-1.5">
+              <Button variant="primary" size="sm" onClick={saveEmails} loading={savingEmails} disabled={!emailsDirty}>
+                Save list
               </Button>
-            )}
-          </div>
-        )}
-      </Section>
+              {emailsDirty && (
+                <Button variant="ghost" size="sm" onClick={() => setEmailsDraft(payments.test_emails.join("\n"))}>
+                  Discard
+                </Button>
+              )}
+            </div>
+          )}
+      </section>
 
-      <Section title="History" hint="Provider and test list changes, newest first. The full record is in the Audit log.">
-        {payments.history.length === 0 ? (
-          <p className="text-sm text-faint">No changes yet.</p>
-        ) : (
-          <ol className="relative space-y-4 border-l border-line pl-5">
-            {payments.history.map((h, i) => (
-              <li key={i} className="relative">
-                <span aria-hidden="true" className={`absolute -left-[26px] top-1.5 h-2.5 w-2.5 rounded-full ${h.kind === "provider" ? "bg-brand" : "bg-marigold"}`} />
-                <p className="text-sm text-ink">
-                  <b>{h.kind === "provider" ? "Provider" : "Test list"}</b>{" "}
-                  {h.kind === "provider"
-                    ? h.change.split("->").map((part, j) => (
-                        <span key={j}>{j > 0 && <To />}{part.trim()}</span>
-                      ))
-                    : h.change}
-                </p>
-                <p className="text-xs text-faint">
-                  {fmtDateTime(h.at)} · {h.who || "—"}
-                </p>
-              </li>
-            ))}
-          </ol>
-        )}
-      </Section>
+      <Timeline
+        entries={payments.history.map((h, i) => ({
+          key: String(i),
+          tone: h.kind === "provider" ? "brand" : "marigold",
+          title: h.kind === "provider" ? "Provider" : "Test list",
+          change: h.kind === "provider" ? arrowParts(h.change) : h.change,
+          at: h.at,
+          who: h.who,
+        }))}
+      />
     </div>
   );
 }

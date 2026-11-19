@@ -83,7 +83,7 @@ def _steps(order):
 
 
 def _lines(order):
-    return [{'name': l.name, 'option': l.option, 'quantity': l.quantity,
+    return [{'item_id': l.item_id, 'name': l.name, 'option': l.option, 'quantity': l.quantity,
              'unit_price': str(l.unit_price), 'total': str(l.total)} for l in order.lines.all()]
 
 
@@ -125,6 +125,7 @@ def buyer_payload(order, include_code=True):
         'ref': order.ref, 'status': order.status, 'fulfilment': order.fulfilment,
         'seller': _seller_info(order), 'items': _lines(order),
         'subtotal': str(order.subtotal), 'delivery_fee': str(order.delivery_fee), 'amount': str(order.amount),
+        'service_fee': str(order.service_fee),
         'refund_amount': str(order.refund_amount), 'cancel_reason': order.cancel_reason,
         'paid_at': order.paid_at, 'steps': _steps(order),
         'pickup': _pickup_for_buyer(order, profile) if order.is_pickup else None,

@@ -605,7 +605,7 @@ export default function EventCreationForm({ editSlug = null, initialData = null,
 
         // Count the event as created when it goes live (a new publish, or a draft being published).
         if (!isDraft && (!editSlug || wasDraft)) {
-          trackCreateEvent({ eventName, category });
+          trackCreateEvent({ eventId: response.id, eventSlug: slug, category, organiserId: response.owner });
         }
 
         const dates = repeatedOn ? ` on ${repeatedOn + 1} dates` : "";

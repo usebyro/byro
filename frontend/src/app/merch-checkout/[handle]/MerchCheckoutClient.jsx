@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import axiosInstance from "@/utils/axios";
+import { trackBeginCheckout, merchItem } from "@/lib/analytics";
 import { useAuth } from "@/redux/useAuth";
 import { calculateTicketFees } from "@/lib/pricing";
 import { MAX_QUANTITY, readCart, writeCart } from "@/lib/merchCart";
@@ -131,6 +132,8 @@ export default function MerchCheckoutClient({ handle }) {
     }
     setSubmitting(true);
     setError("");
+    // The buyer is moving on to pay: what is in the cart and what they will be charged.
+    trackBeginCheckout({ items: lines.map((l) => merchItem({ id: l.item_id, name: l.item?.name || "", price: l.price }, l.quantity, l.option)), value: total });
     try {
       const { data } = await axiosInstance.post("merch-orders/checkout/", {
         handle,

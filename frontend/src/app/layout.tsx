@@ -8,6 +8,7 @@ import AppToaster from '@/components/ui/AppToaster';
 import { displayFont, bodyFont } from "@/components/brand/fonts";
 import CookieBanner from "@/components/CookieBanner";
 import DeferredScripts from "@/components/DeferredScripts";
+import AnalyticsGate from "@/components/AnalyticsGate";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -131,6 +132,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             });
           }
         } catch (e) {}
+        // Staff pages (admin.usebyro.com, /admin/*) send nothing. Organiser pages (/dashboard) stay tracked.
+        var h = location.hostname, p = location.pathname;
+        if (h.indexOf('admin.') === 0 || p === '/admin' || p.indexOf('/admin/') === 0) {
+          window['ga-disable-G-PKLCDNL7QC'] = true;
+        }
         gtag('js', new Date());
         gtag('config', 'G-PKLCDNL7QC');
       `}</Script>
@@ -164,6 +170,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <div className="flex flex-col min-h-screen">
             <main className="flex-1">{children}</main>
           </div>
+          <AnalyticsGate />
         </Providers>
         <DeferredScripts />
         <CookieBanner />
