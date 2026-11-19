@@ -437,7 +437,8 @@ export default function ViewEventClient({ slug, initialEvent = null }) {
                       <b>{parts.long}</b>
                       <br />
                       <span className="text-muted">{timeRange}</span>
-                      {calUrl && (
+                      {/* Only for a signed-in visitor who holds a ticket. */}
+                      {calUrl && registered && (
                         <>
                           <br />
                           <a href={calUrl} target="_blank" rel="noopener noreferrer" className="text-sm font-bold text-brand hover:text-brand-dark">
