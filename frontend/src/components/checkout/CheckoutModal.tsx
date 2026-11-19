@@ -31,6 +31,8 @@ interface Event {
   max_tickets_per_person?: number;
   /** The organiser's service fee rate, e.g. "0.0500". */
   fee_rate?: string;
+  /** Which processor takes new paid orders ("paystack" | "bachs"); decides the fee estimate. */
+  payment_provider?: string;
 }
 
 interface TicketTier {
@@ -273,10 +275,12 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
     : 0;
   const discountedSubtotal = subtotal - discount;
   const passFeeToAttendee = event.pass_fee_to_attendee !== false;
-  const fees = calculateTicketFees(discountedSubtotal, passFeeToAttendee, Number(event.fee_rate) || undefined);
+  const fees = calculateTicketFees(
+    discountedSubtotal, passFeeToAttendee, Number(event.fee_rate) || undefined, event.payment_provider,
+  );
   // Buyer-facing "service fee" = everything added on top of the subtotal
-  // (Byro's 6.5% + the simulated Paystack cut), so the shown total equals what
-  // Paystack will actually charge and no fee jumps at checkout.
+  // (Byro's fee plus the processor's cut: simulated for Paystack, estimated for
+  // Bachs), so the shown total matches what the buyer is charged and no fee jumps at checkout.
   const serviceFee = fees.displayTotal - fees.subtotal;
   const total = discountedSubtotal + serviceFee;
   const totalQty = Object.values(quantities).reduce((a: number, b: number) => a + b, 0);

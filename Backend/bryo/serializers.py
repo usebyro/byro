@@ -526,6 +526,9 @@ class EventSerializer(serializers.ModelSerializer):
         data['hosted_by'] = event_host_name(instance)
         from .pricing import fee_rate_for
         data['fee_rate'] = str(fee_rate_for(instance.owner if instance.owner_id else None))
+        # Which processor takes new paid orders, so the cart can estimate the right processing fee.
+        from .views import _current_provider
+        data['payment_provider'] = _current_provider()
         until = getattr(instance, 'featured_until', None)
         data['is_featured'] = bool(until and until > timezone.now())
 
