@@ -745,18 +745,39 @@ def _fulfil_payment(payment, ticket_user):
         return new_tickets, all_tickets
 
 
+def _payment_settings():
+    """(provider chosen in Admin > Settings or '' for the server setting, admin test emails)."""
+    from .models import PlatformSettings
+    try:
+        st = PlatformSettings.get()
+        return st.payment_provider or '', set(st.bachs_test_email_list())
+    except Exception:  # e.g. before the migration has run: fall back to the server settings
+        logger.exception('Could not read payment settings; using the server settings')
+        return '', set()
+
+
+def _current_provider(chosen=None):
+    """The provider new orders go to by default: the admin's choice, else settings.PAYMENT_PROVIDER."""
+    if chosen is None:
+        chosen, _ = _payment_settings()
+    chosen = chosen or settings.PAYMENT_PROVIDER
+    return Payment.PROVIDER_BACHS if chosen == Payment.PROVIDER_BACHS else Payment.PROVIDER_PAYSTACK
+
+
 def _provider_for_new_order(*emails):
     """
-    Which processor takes a new paid order. settings.PAYMENT_PROVIDER decides, except that
-    while it is 'paystack', buyers on settings.BACHS_TEST_EMAILS (checkout or account email)
-    are sent to Bachs, so the team can test Bachs on the live site without moving customers.
+    Which processor takes a new paid order. Byro owners choose Paystack or Bachs in
+    Admin > Settings (falling back to settings.PAYMENT_PROVIDER). While Paystack is chosen,
+    buyers on the Bachs test list (admin list plus settings.BACHS_TEST_EMAILS, checkout or
+    account email) are sent to Bachs, so the team can test Bachs without moving customers.
     """
-    if settings.PAYMENT_PROVIDER == Payment.PROVIDER_PAYSTACK:
-        test_list = getattr(settings, 'BACHS_TEST_EMAILS', None) or set()
-        if any((e or '').strip().lower() in test_list for e in emails if e):
-            return Payment.PROVIDER_BACHS
-        return Payment.PROVIDER_PAYSTACK
-    return Payment.PROVIDER_BACHS
+    chosen, admin_list = _payment_settings()
+    if _current_provider(chosen) == Payment.PROVIDER_BACHS:
+        return Payment.PROVIDER_BACHS
+    test_list = admin_list | set(getattr(settings, 'BACHS_TEST_EMAILS', None) or ())
+    if any((e or '').strip().lower() in test_list for e in emails if e):
+        return Payment.PROVIDER_BACHS
+    return Payment.PROVIDER_PAYSTACK
 
 
 def _charge_amount(payment):
@@ -5507,10 +5528,45 @@ class FeeInfoView(APIView):
         return Response(data)
 
 
+MAX_BACHS_TEST_EMAILS = 50
+
+
+def _parse_test_emails(raw):
+    """A clean, de-duplicated list of emails from a list or from text split by commas, spaces or lines."""
+    if raw is None:
+        return []
+    if isinstance(raw, (list, tuple)):
+        raw = ' '.join(str(x) for x in raw)
+    if not isinstance(raw, str):
+        raise ValueError('Send the test emails as a list or as text.')
+    emails = []
+    for part in raw.replace(',', ' ').replace(';', ' ').split():
+        email = part.strip().strip('"\'<>').lower()
+        if not email:
+            continue
+        try:
+            validate_email(email)
+        except DjangoValidationError:
+            raise ValueError(f'"{email}" is not a valid email address.')
+        if email not in emails:
+            emails.append(email)
+    if len(emails) > MAX_BACHS_TEST_EMAILS:
+        raise ValueError(f'Add at most {MAX_BACHS_TEST_EMAILS} test emails.')
+    return emails
+
+
+def _provider_name(code):
+    return 'Bachs' if code == Payment.PROVIDER_BACHS else 'Paystack'
+
+
 class AdminSettingsView(APIView):
     """
     GET   /api/admin/settings/ — platform settings and every organiser on a special fee.
-    PATCH /api/admin/settings/ {default_fee_percent} — owners only. Applies to new orders; paid ones keep their fee.
+    PATCH /api/admin/settings/ — owners only. Any of:
+          {default_fee_percent}   applies to new orders; paid ones keep their fee.
+          {payment_provider: 'paystack'|'bachs'}   which processor takes NEW paid ticket orders.
+          {bachs_test_emails: [..] or "a@x.com, b@y.com"}   buyers sent to Bachs while Paystack is chosen.
+    Orders already taken keep the provider that took them, so switching never strands a payment.
     """
     permission_classes = [IsAdminMember]
     method_roles = {'PATCH': AdminMember.ROLE_OWNER}
@@ -5524,6 +5580,10 @@ class AdminSettingsView(APIView):
         history = AdminAction.objects.filter(
             action__in=[AdminAction.ACTION_FEE_DEFAULT_CHANGED, AdminAction.ACTION_FEE_OVERRIDE_CHANGED]
         ).order_by('-created_at')[:15]
+        payment_history = AdminAction.objects.filter(
+            action__in=[AdminAction.ACTION_PAYMENT_PROVIDER_CHANGED, AdminAction.ACTION_BACHS_TEST_EMAILS_CHANGED]
+        ).order_by('-created_at')[:10]
+        key = (settings.BACHS_SECRET_KEY or '').strip()
         return Response({
             'default_fee_percent': _percent(st.default_fee_rate),
             'max_fee_percent': _percent(MAX_FEE_RATE),
@@ -5538,22 +5598,83 @@ class AdminSettingsView(APIView):
                 'kind': 'default' if h.action == AdminAction.ACTION_FEE_DEFAULT_CHANGED else 'organiser',
                 'who': h.actor_email, 'target': h.target_label, 'change': h.detail, 'at': h.created_at,
             } for h in history],
+            'payments': {
+                # What new orders use right now, and whether that came from this page or the server.
+                'provider': _current_provider(st.payment_provider),
+                'source': 'admin' if st.payment_provider else 'server',
+                'test_emails': st.bachs_test_email_list(),
+                # Emails listed in the server's BACHS_TEST_EMAILS; shown read-only.
+                'server_test_emails': sorted(getattr(settings, 'BACHS_TEST_EMAILS', None) or ()),
+                'bachs_configured': bachs.is_configured(),
+                'bachs_mode': ('sandbox' if key.startswith('sk_sandbox_') else 'live') if key else None,
+                'bachs_webhook_configured': bool((settings.BACHS_WEBHOOK_SECRET or '').strip()),
+                'history': [{
+                    'kind': 'provider' if h.action == AdminAction.ACTION_PAYMENT_PROVIDER_CHANGED else 'test_emails',
+                    'who': h.actor_email, 'change': h.detail, 'at': h.created_at,
+                } for h in payment_history],
+            },
         })
 
     def patch(self, request):
         from .models import PlatformSettings
+        data = request.data
+        fields = ('default_fee_percent', 'payment_provider', 'bachs_test_emails')
+        if not any(f in data for f in fields):
+            return Response({'error': 'Nothing to change.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Validate everything before changing anything.
+        rate = provider = emails = None
         try:
-            rate = _rate_from_percent(request.data.get('default_fee_percent'))
+            if 'default_fee_percent' in data:
+                rate = _rate_from_percent(data.get('default_fee_percent'))
+            if 'payment_provider' in data:
+                provider = str(data.get('payment_provider') or '').strip().lower()
+                if provider not in (Payment.PROVIDER_PAYSTACK, Payment.PROVIDER_BACHS):
+                    raise ValueError('Choose Paystack or Bachs.')
+                if provider == Payment.PROVIDER_BACHS and not bachs.is_configured():
+                    raise ValueError("Bachs isn't set up on the server yet (BACHS_SECRET_KEY is empty), "
+                                     'so it cannot take orders.')
+            if 'bachs_test_emails' in data:
+                emails = _parse_test_emails(data.get('bachs_test_emails'))
         except ValueError as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        st = PlatformSettings.get()
-        old = st.default_fee_rate
-        if rate != old:
-            st.default_fee_rate = rate
-            st.updated_by_email = getattr(request, 'admin_member', None).email if getattr(request, 'admin_member', None) else ''
-            st.save()
-            _log_admin_action(request, AdminAction.ACTION_FEE_DEFAULT_CHANGED, 'settings', 'fee', 'Default service fee',
-                              f'{_percent(old)}% -> {_percent(rate)}%')
+
+        member = getattr(request, 'admin_member', None)
+        who = member.email if member else ''
+        with transaction.atomic():
+            st = PlatformSettings.objects.select_for_update().get(pk=PlatformSettings.get().pk)
+            changed = []
+            if rate is not None and rate != st.default_fee_rate:
+                old = st.default_fee_rate
+                st.default_fee_rate = rate
+                changed.append('default_fee_rate')
+                _log_admin_action(request, AdminAction.ACTION_FEE_DEFAULT_CHANGED, 'settings', 'fee', 'Default service fee',
+                                  f'{_percent(old)}% -> {_percent(rate)}%')
+            if provider is not None:
+                before = _current_provider(st.payment_provider)
+                if provider != st.payment_provider:
+                    st.payment_provider = provider
+                    changed.append('payment_provider')
+                    if provider != before:
+                        _log_admin_action(request, AdminAction.ACTION_PAYMENT_PROVIDER_CHANGED, 'settings', 'payments',
+                                          'Payment provider', f'{_provider_name(before)} -> {_provider_name(provider)}')
+            if emails is not None:
+                old_emails = st.bachs_test_email_list()
+                if emails != old_emails:
+                    st.bachs_test_emails = '\n'.join(emails)
+                    changed.append('bachs_test_emails')
+                    added = [e for e in emails if e not in old_emails]
+                    removed = [e for e in old_emails if e not in emails]
+                    parts = ([f'added {", ".join(added)}'] if added else []) + \
+                            ([f'removed {", ".join(removed)}'] if removed else [])
+                    _log_admin_action(request, AdminAction.ACTION_BACHS_TEST_EMAILS_CHANGED, 'settings', 'payments',
+                                      'Bachs test emails', '; '.join(parts) or 'reordered')
+            if changed:
+                # "Last changed by" on the page is about the fee; payment changes are in their own history.
+                if 'default_fee_rate' in changed:
+                    st.updated_by_email = who
+                    changed += ['updated_by_email', 'updated_at']
+                st.save(update_fields=changed)
         return self.get(request)
 
 

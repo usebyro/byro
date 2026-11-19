@@ -18,6 +18,19 @@ interface Deal {
   events: number;
 }
 
+type Provider = "paystack" | "bachs";
+
+interface PaymentSettings {
+  provider: Provider;
+  source: "admin" | "server";
+  test_emails: string[];
+  server_test_emails: string[];
+  bachs_configured: boolean;
+  bachs_mode: "live" | "sandbox" | null;
+  bachs_webhook_configured: boolean;
+  history: { kind: "provider" | "test_emails"; who: string; change: string; at: string }[];
+}
+
 interface Settings {
   default_fee_percent: string;
   max_fee_percent: string;
@@ -25,7 +38,10 @@ interface Settings {
   updated_at: string;
   organiser_fees: Deal[];
   history: { kind: "default" | "organiser"; who: string; target: string; change: string; at: string }[];
+  payments: PaymentSettings;
 }
+
+const PROVIDER_NAME: Record<Provider, string> = { paystack: "Paystack", bachs: "Bachs" };
 
 interface Organiser {
   user_id: number;
@@ -51,7 +67,7 @@ function Section({ title, hint, children }: { title: string; hint: React.ReactNo
   return (
     <section className="grid gap-x-10 gap-y-4 border-t border-line py-8 first:border-t-0 first:pt-0 md:grid-cols-[220px_minmax(0,1fr)]">
       <div>
-        <h2 className="font-display text-lg font-bold text-ink">{title}</h2>
+        <h3 className="font-display text-lg font-bold text-ink">{title}</h3>
         <p className="mt-1 text-sm leading-relaxed text-muted text-pretty">{hint}</p>
       </div>
       <div className="min-w-0">{children}</div>
@@ -224,9 +240,11 @@ export default function AdminSettingsPage() {
   return (
     <div className="p-5 pb-28 md:p-8 md:pb-28 max-w-5xl">
       <header className="mb-8">
-        <h1 className="font-display text-ink text-3xl font-extrabold tracking-tight">Service fee</h1>
-        <p className="text-muted text-sm mt-1">What Byro charges on paid tickets: the default, special deals for organisers, and who changed what.</p>
+        <h1 className="font-display text-ink text-3xl font-extrabold tracking-tight">Settings</h1>
+        <p className="text-muted text-sm mt-1">What Byro charges on paid tickets, and which payment provider takes new orders.</p>
       </header>
+
+      <h2 className="mb-3 font-display text-xl font-bold text-ink">Service fee</h2>
 
       <div className="rounded-3xl border border-line bg-white p-5 md:p-8">
         <Section
@@ -336,6 +354,9 @@ export default function AdminSettingsPage() {
           )}
         </Section>
       </div>
+
+      <h2 className="mb-3 mt-10 font-display text-xl font-bold text-ink">Payments</h2>
+      <PaymentsCard payments={data.payments} canEdit={isOwner} onSaved={(body) => setData(body)} />
 
       {/* Save bar: only while there's an unsaved change, so it's obvious and never in the way otherwise. */}
       {isOwner && dirty && (
@@ -621,6 +642,218 @@ function OrganiserSearch({ exclude, onPick }: { exclude: number[]; onPick: (o: O
           )}
         </ul>
       )}
+    </div>
+  );
+}
+
+/* Which provider takes new ticket orders, the Bachs test list, and their history. */
+function PaymentsCard({
+  payments,
+  canEdit,
+  onSaved,
+}: {
+  payments: PaymentSettings;
+  canEdit: boolean;
+  onSaved: (body: Settings) => void;
+}) {
+  const confirm = useConfirm();
+  const [switching, setSwitching] = useState<Provider | null>(null);
+  const [emailsDraft, setEmailsDraft] = useState(payments.test_emails.join("\n"));
+  const [savingEmails, setSavingEmails] = useState(false);
+
+  useEffect(() => {
+    setEmailsDraft(payments.test_emails.join("\n"));
+  }, [payments.test_emails]);
+
+  const send = async (body: Record<string, unknown>) => {
+    const res = await fetch("/api/admin/settings", { method: "PATCH", body: JSON.stringify(body) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data?.error || "Try again.");
+    onSaved(data);
+    return data as Settings;
+  };
+
+  const choose = async (next: Provider) => {
+    if (next === payments.provider) return;
+    const toBachs = next === "bachs";
+    const ok = await confirm({
+      title: `Send new orders to ${PROVIDER_NAME[next]}?`,
+      body: toBachs
+        ? "Every new paid ticket order goes to Bachs from now on, for every buyer. Orders already taken stay with the provider that took them, so their tickets and refunds keep working. You can switch back at any time."
+        : "Every new paid ticket order goes to Paystack from now on. Buyers on the Bachs test list still go to Bachs. Orders already taken by Bachs keep verifying and refunding through Bachs.",
+      confirmLabel: `Use ${PROVIDER_NAME[next]}`,
+      tone: toBachs ? "danger" : "primary",
+    });
+    if (!ok) return;
+    setSwitching(next);
+    try {
+      await send({ payment_provider: next });
+      toast.success(`New orders now go to ${PROVIDER_NAME[next]}`);
+    } catch (err) {
+      toast.error("Couldn't change the provider", { description: (err as Error).message });
+    } finally {
+      setSwitching(null);
+    }
+  };
+
+  const parsed = emailsDraft
+    .split(/[\s,;]+/)
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+  const emailsDirty = parsed.join(",") !== payments.test_emails.join(",");
+
+  const saveEmails = async () => {
+    setSavingEmails(true);
+    try {
+      const body = await send({ bachs_test_emails: parsed });
+      const n = body.payments.test_emails.length;
+      toast.success("Test list saved", { description: n ? `${n} email${n === 1 ? "" : "s"} pay through Bachs` : "Nobody is on the list" });
+    } catch (err) {
+      toast.error("Couldn't save the test list", { description: (err as Error).message });
+    } finally {
+      setSavingEmails(false);
+    }
+  };
+
+  const bachsStatus = !payments.bachs_configured
+    ? { text: "Not set up: BACHS_SECRET_KEY is empty on the server", cls: "text-danger" }
+    : payments.bachs_mode === "sandbox"
+      ? { text: "Sandbox key: test payments only, no real money moves", cls: "text-waiting" }
+      : { text: "Live key", cls: "text-good" };
+
+  return (
+    <div className="rounded-3xl border border-line bg-white p-5 md:p-8">
+      <Section
+        title="Provider for new orders"
+        hint={
+          <>
+            Which payment provider buyers are sent to when they pay for a ticket. Orders already taken always stay with the provider that took
+            them. Merch still uses Paystack.
+            {!canEdit && <span className="mt-2 block font-semibold text-ink">Only Owners can change it.</span>}
+          </>
+        }
+      >
+        <div role="radiogroup" aria-label="Provider for new orders" className="grid gap-3 sm:grid-cols-2">
+          {(["paystack", "bachs"] as Provider[]).map((p) => {
+            const active = payments.provider === p;
+            const blocked = p === "bachs" && !payments.bachs_configured;
+            return (
+              <button
+                key={p}
+                type="button"
+                role="radio"
+                aria-checked={active}
+                disabled={!canEdit || blocked || switching !== null}
+                onClick={() => choose(p)}
+                className={`flex flex-col items-start rounded-2xl border p-4 text-left transition-colors disabled:cursor-not-allowed ${
+                  active ? "border-brand bg-sky ring-2 ring-brand/30" : "border-line bg-white enabled:hover:bg-mist"
+                } ${blocked ? "opacity-60" : ""}`}
+              >
+                <span className="flex w-full items-center justify-between gap-2">
+                  <span className="font-display text-lg font-bold text-ink">{PROVIDER_NAME[p]}</span>
+                  {active && (
+                    <span className="rounded-full bg-brand px-2.5 py-0.5 text-xs font-bold text-white">Taking new orders</span>
+                  )}
+                  {switching === p && <span className="text-xs font-semibold text-muted">Switching…</span>}
+                </span>
+                <span className="mt-1 text-xs leading-relaxed text-muted">
+                  {p === "paystack"
+                    ? "Paystack adds its processing charge on top for the buyer."
+                    : "The buyer pays the all-in price; Bachs takes its fee from what Byro receives."}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        <p className="mt-3 text-xs text-faint">
+          {payments.source === "server"
+            ? "Not chosen here yet: following the server's PAYMENT_PROVIDER setting."
+            : "Chosen here. This overrides the server's PAYMENT_PROVIDER setting."}
+        </p>
+        <dl className="mt-4 grid gap-1 text-sm sm:grid-cols-[140px_minmax(0,1fr)]">
+          <dt className="text-muted">Bachs key</dt>
+          <dd className={`font-semibold ${bachsStatus.cls}`}>{bachsStatus.text}</dd>
+          <dt className="text-muted">Bachs webhook</dt>
+          <dd className={`font-semibold ${payments.bachs_webhook_configured ? "text-good" : "text-danger"}`}>
+            {payments.bachs_webhook_configured
+              ? "Secret set"
+              : "BACHS_WEBHOOK_SECRET is empty: Bachs payments only confirm when the buyer returns to Byro"}
+          </dd>
+        </dl>
+      </Section>
+
+      <Section
+        title="Bachs test list"
+        hint={
+          <>
+            While Paystack takes new orders, buyers with these emails (the email at checkout, or the account they&apos;re signed in with) pay through
+            Bachs instead. Use it to try Bachs with real money before switching everyone.
+          </>
+        }
+      >
+        <label htmlFor="bachs-test-emails" className="mb-1.5 block text-sm font-bold text-ink">
+          Emails, one per line
+        </label>
+        <textarea
+          id="bachs-test-emails"
+          rows={Math.min(8, Math.max(3, parsed.length + 1))}
+          value={emailsDraft}
+          onChange={(e) => setEmailsDraft(e.target.value)}
+          disabled={!canEdit || savingEmails}
+          placeholder={"you@example.com\nteammate@example.com"}
+          className="w-full max-w-md rounded-2xl border border-line bg-white px-4 py-3 text-sm text-ink placeholder:text-faint focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/25 disabled:text-muted"
+        />
+        {payments.provider === "bachs" && (
+          <p className="mt-2 text-xs font-semibold text-waiting">Bachs is taking every new order, so this list makes no difference right now.</p>
+        )}
+        {!payments.bachs_configured && parsed.length > 0 && (
+          <p className="mt-2 text-xs font-semibold text-danger">
+            Bachs isn&apos;t set up on the server, so people on this list can&apos;t pay until BACHS_SECRET_KEY is set.
+          </p>
+        )}
+        {payments.server_test_emails.length > 0 && (
+          <p className="mt-2 text-xs text-faint">
+            Also on the list from the server&apos;s BACHS_TEST_EMAILS: {payments.server_test_emails.join(", ")}
+          </p>
+        )}
+        {canEdit && (
+          <div className="mt-3 flex gap-1.5">
+            <Button variant="primary" size="sm" onClick={saveEmails} loading={savingEmails} disabled={!emailsDirty}>
+              Save list
+            </Button>
+            {emailsDirty && (
+              <Button variant="ghost" size="sm" onClick={() => setEmailsDraft(payments.test_emails.join("\n"))}>
+                Discard
+              </Button>
+            )}
+          </div>
+        )}
+      </Section>
+
+      <Section title="History" hint="Provider and test list changes, newest first. The full record is in the Audit log.">
+        {payments.history.length === 0 ? (
+          <p className="text-sm text-faint">No changes yet.</p>
+        ) : (
+          <ol className="relative space-y-4 border-l border-line pl-5">
+            {payments.history.map((h, i) => (
+              <li key={i} className="relative">
+                <span aria-hidden="true" className={`absolute -left-[26px] top-1.5 h-2.5 w-2.5 rounded-full ${h.kind === "provider" ? "bg-brand" : "bg-marigold"}`} />
+                <p className="text-sm text-ink">
+                  <b>{h.kind === "provider" ? "Provider" : "Test list"}</b>{" "}
+                  {h.kind === "provider"
+                    ? h.change.split("->").map((part, j) => (
+                        <span key={j}>{j > 0 && <To />}{part.trim()}</span>
+                      ))
+                    : h.change}
+                </p>
+                <p className="text-xs text-faint">
+                  {fmtDateTime(h.at)} · {h.who || "—"}
+                </p>
+              </li>
+            ))}
+          </ol>
+        )}
+      </Section>
     </div>
   );
 }
