@@ -45,7 +45,8 @@ class FakeBachs:
     """Answers the Bachs endpoints Byro calls; records every request."""
 
     def __init__(self, checkout_status='completed', payment_status='succeeded', amount=None,
-                 currency='NGN', existing_refund=None, refund_status='processing'):
+                 currency='NGN', existing_refund=None, refund_status='processing',
+                 amount_paid=None, fee=None):
         self.calls = []
         self.checkout_status = checkout_status
         self.payment_status = payment_status
@@ -53,14 +54,21 @@ class FakeBachs:
         self.currency = currency
         self.existing_refund = existing_refund
         self.refund_status = refund_status
+        self.amount_paid = amount_paid
+        self.fee = fee
 
     def checkout(self, checkout_id):
         done = self.checkout_status == 'completed'
+        charge = {'payment_id': 'ch_123', 'status': 'succeeded'}
+        if self.amount_paid is not None:
+            charge['amount_paid'] = self.amount_paid
+        if self.fee is not None:
+            charge['fees'] = {'amount': self.fee, 'currency': 'NGN'}
         return {
             'checkout_id': checkout_id, 'status': self.checkout_status,
             'payment_status': self.payment_status, 'amount': self.amount, 'currency': self.currency,
             'payment_method': 'NGN_BANK_TRANSFER' if done else None,
-            'charge': {'payment_id': 'ch_123', 'status': 'succeeded'} if done else None,
+            'charge': charge if done else None,
         }
 
     def __call__(self, method, url, **kwargs):
@@ -95,7 +103,7 @@ class BachsInitializeTests(PaymentTestBase):
                 'customer_name': 'Buyer One', 'quantity': 1,
             }, format='json')
 
-    def test_new_order_opens_a_bachs_checkout_for_the_all_in_price(self):
+    def test_new_order_opens_a_bachs_checkout_where_bachs_adds_its_own_fee(self):
         fake = FakeBachs()
         res = self.initialize(fake)
         self.assertEqual(res.status_code, 200)
@@ -110,9 +118,31 @@ class BachsInitializeTests(PaymentTestBase):
                                      rate=payment.fee_rate)
         self.assertEqual(payment.amount, fees['total'])
         sent = fake.posted('/v1/checkout-sessions')[0]
-        self.assertEqual(sent['pricing'], {'currency': 'NGN', 'amount': str(fees['display_total'])})
+        # Byro's price only: Bachs adds its own fee on top, so Byro nets exactly this amount.
+        self.assertEqual(sent['pricing'], {'currency': 'NGN', 'amount': str(fees['total'])})
+        self.assertIs(sent['customer_bears_fee'], True)
+        self.assertEqual(payment.metadata['charge_amount'], str(fees['total']))
         self.assertEqual(sent['reference'], payment.paystack_reference)
         self.assertIn(f'reference={payment.paystack_reference}', sent['success_url'])
+
+    def test_admin_fee_changes_flow_into_the_bachs_amount(self):
+        from .models import PlatformSettings, UserProfile
+        # Default fee raised to 8%: ticket 5,000 + 400 Byro fee.
+        st = PlatformSettings.get()
+        st.default_fee_rate = Decimal('0.08')
+        st.save()
+        fake = FakeBachs()
+        self.assertEqual(self.initialize(fake).status_code, 200)
+        self.assertEqual(fake.posted('/v1/checkout-sessions')[0]['pricing']['amount'], '5400.00')
+        self.assertEqual(Payment.objects.get().fee_rate, Decimal('0.08'))
+
+        # A special fee for this organiser (2%) beats the default for their next order.
+        profile, _ = UserProfile.objects.get_or_create(user=self.event.owner)
+        profile.fee_rate_override = Decimal('0.02')
+        profile.save()
+        fake2 = FakeBachs()
+        self.assertEqual(self.initialize(fake2).status_code, 200)
+        self.assertEqual(fake2.posted('/v1/checkout-sessions')[0]['pricing']['amount'], '5100.00')
 
     def test_seat_is_released_when_bachs_refuses(self):
         refuse = lambda *a, **k: FakeResponse({'error_code': 'VALIDATION_ERROR', 'message': 'bad'}, 422)
@@ -221,6 +251,26 @@ class BachsFulfilmentTests(PaymentTestBase):
         self.assertEqual(res.status_code, 400)
         self.webhook(FakeBachs(amount='100.00'))
         self.assertEqual(Ticket.objects.count(), 0)
+
+    def test_buyer_paying_the_fee_on_top_is_fulfilled_and_the_fee_recorded(self):
+        # The session amount stays what we asked for; the charge is what the buyer paid.
+        res = self.verify(FakeBachs(amount='5400.00', amount_paid='5481.00', fee='81.00'))
+        self.assertEqual(res.status_code, 200)
+        self.payment.refresh_from_db()
+        self.assertEqual(self.payment.status, 'successful')
+        self.assertEqual(self.payment.processor_fee, Decimal('81.00'))
+        self.assertEqual(self.payment.amount_paid, Decimal('5481.00'))
+
+    def test_buyer_charged_less_than_we_asked_is_not_fulfilled(self):
+        res = self.verify(FakeBachs(amount='5400.00', amount_paid='5000.00', fee='75.00'))
+        self.assertEqual(res.status_code, 400)
+        self.webhook(FakeBachs(amount='5400.00', amount_paid='5000.00', fee='75.00'))
+        self.assertEqual(Ticket.objects.count(), 0)
+
+    def test_a_charge_without_fee_details_still_fulfils(self):
+        self.assertEqual(self.verify(FakeBachs(amount='5400.00')).status_code, 200)
+        self.payment.refresh_from_db()
+        self.assertIsNone(self.payment.processor_fee)
 
     def test_wrong_currency_is_not_fulfilled(self):
         self.verify(FakeBachs(amount='5400.00', currency='USD'))
