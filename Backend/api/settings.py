@@ -66,15 +66,17 @@ PAYSTACK_CALLBACK_URL = config('PAYSTACK_CALLBACK_URL', default='http://localhos
 PAYSTACK_CALLBACK_URL = config('PAYSTACK_CALLBACK_URL', default='https://usebyro.com/payment/callback')
 
 # PAYMENT_PROVIDER picks the provider for NEW orders: 'paystack' (the default) or 'bachs'
-# (see bryo/bachs.py). Bachs only takes orders when this says so or the buyer is on
-# BACHS_TEST_EMAILS. Each payment keeps the provider that took it, so older orders still
+# (see bryo/bachs.py). Byro owners can override it in Admin > Settings (PlatformSettings),
+# which wins over this. Each payment keeps the provider that took it, so older orders still
 # verify and refund through the provider that took them.
-PAYMENT_PROVIDER = config('PAYMENT_PROVIDER', default='paystack').strip().lower()
-# Test list for going live: while PAYMENT_PROVIDER is 'paystack', buyers whose checkout email
-# or account email is listed here (comma-separated) still pay through Bachs. Everyone else stays
-# on Paystack. Empty = nobody. Ignored once PAYMENT_PROVIDER is 'bachs' (everyone uses Bachs).
+PAYMENT_PROVIDER = config('PAYMENT_PROVIDER', default='paystack').strip().strip('"\'').strip().lower()
+# Test list: while Paystack takes new orders, buyers whose checkout or account email is listed
+# (comma-separated) pay through Bachs. Owners can add more in Admin > Settings. Stray quotes
+# and spaces are ignored.
 BACHS_TEST_EMAILS = {
-    e.strip().lower() for e in config('BACHS_TEST_EMAILS', default='').split(',') if e.strip()
+    e.strip().strip('"\'').strip().lower()
+    for e in config('BACHS_TEST_EMAILS', default='').strip().strip('"\'').split(',')
+    if e.strip().strip('"\'').strip()
 }
 BACHS_SECRET_KEY = config('BACHS_SECRET_KEY', default='')
 BACHS_WEBHOOK_SECRET = config('BACHS_WEBHOOK_SECRET', default='')

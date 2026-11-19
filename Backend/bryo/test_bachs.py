@@ -369,3 +369,159 @@ class BachsBankLookupTests(PaymentTestBase):
             res = self.client.get('/api/banks/resolve-account/', {'account_number': '0000000000', 'bank_code': '101'})
         self.assertEqual(res.status_code, 400)
         self.assertEqual(res.json()['error'], 'Account not found')
+
+
+@override_settings(**{**BACHS_SETTINGS, 'PAYMENT_PROVIDER': 'paystack', 'BACHS_TEST_EMAILS': set()})
+class AdminPaymentProviderTests(PaymentTestBase):
+    """Byro owners pick Paystack or Bachs for new orders, and keep a Bachs test list, in Admin > Settings."""
+
+    SETTINGS_URL = '/api/admin/settings/'
+
+    def setUp(self):
+        super().setUp()
+        from django.contrib.auth import get_user_model
+        from .models import AdminMember
+        User = get_user_model()
+        self.boss = User.objects.create_user(email='boss@byro.test')
+        AdminMember.objects.create(email='boss@byro.test', role='owner', added_by_email='test')
+        self.admin = User.objects.create_user(email='admin@byro.test')
+        AdminMember.objects.create(email='admin@byro.test', role='admin', added_by_email='test')
+
+    def patch_as(self, user, body):
+        self.client.force_authenticate(user)
+        res = self.client.patch(self.SETTINGS_URL, body, format='json')
+        self.client.force_authenticate(None)
+        return res
+
+    def provider_for(self, *emails):
+        from .views import _provider_for_new_order
+        return _provider_for_new_order(*emails)
+
+    def buy(self, email='customer@example.com'):
+        fake = FakeBachs()
+        paystack = patch('bryo.views.requests.post', return_value=FakeResponse({
+            'status': True, 'data': {'access_code': 'ac', 'authorization_url': 'https://checkout.paystack.com/x'}}))
+        with patch('bryo.views.check_and_remember_verification', return_value=True), \
+                patch('bryo.bachs.requests.request', side_effect=fake), paystack:
+            res = self.client.post(INITIALIZE_URL, {
+                'event_slug': self.event.slug, 'customer_email': email,
+                'customer_name': 'Buyer', 'quantity': 1,
+            }, format='json')
+        self.assertEqual(res.status_code, 200, res.content[:300])
+        return res.json()['data'].get('provider', 'paystack')
+
+    def test_paystack_until_an_owner_chooses_otherwise(self):
+        self.client.force_authenticate(self.admin)
+        payments = self.client.get(self.SETTINGS_URL).json()['payments']
+        self.assertEqual(payments['provider'], 'paystack')
+        self.assertEqual(payments['source'], 'server')
+        self.assertTrue(payments['bachs_configured'])
+        self.assertEqual(payments['bachs_mode'], 'sandbox')
+        self.client.force_authenticate(None)
+        self.assertEqual(self.buy(), 'paystack')
+
+    def test_owner_switches_new_orders_to_bachs_and_back(self):
+        res = self.patch_as(self.boss, {'payment_provider': 'bachs'})
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json()['payments']['provider'], 'bachs')
+        self.assertEqual(res.json()['payments']['source'], 'admin')
+        self.assertEqual(self.buy(), 'bachs')
+        self.assertEqual(Payment.objects.latest('created_at').provider, 'bachs')
+
+        self.assertEqual(self.patch_as(self.boss, {'payment_provider': 'paystack'}).status_code, 200)
+        self.assertEqual(self.buy('second@example.com'), 'paystack')
+        self.assertEqual(Payment.objects.latest('created_at').provider, 'paystack')
+
+        from .models import AdminAction
+        changes = list(AdminAction.objects.filter(action=AdminAction.ACTION_PAYMENT_PROVIDER_CHANGED)
+                       .order_by('created_at').values_list('detail', 'actor_email'))
+        self.assertEqual(changes, [('Paystack -> Bachs', 'boss@byro.test'), ('Bachs -> Paystack', 'boss@byro.test')])
+
+    def test_orders_already_taken_keep_their_provider_after_a_switch(self):
+        self.patch_as(self.boss, {'payment_provider': 'bachs'})
+        self.buy()
+        taken = Payment.objects.latest('created_at')
+        self.patch_as(self.boss, {'payment_provider': 'paystack'})
+        taken.refresh_from_db()
+        self.assertEqual(taken.provider, 'bachs')
+
+    def test_admin_choice_beats_the_server_setting(self):
+        with override_settings(PAYMENT_PROVIDER='bachs'):
+            self.assertEqual(self.provider_for('a@example.com'), 'bachs')
+            self.patch_as(self.boss, {'payment_provider': 'paystack'})
+            self.assertEqual(self.provider_for('a@example.com'), 'paystack')
+
+    def test_only_owners_can_change_it(self):
+        self.assertEqual(self.patch_as(self.admin, {'payment_provider': 'bachs'}).status_code, 403)
+        self.assertEqual(self.patch_as(self.admin, {'bachs_test_emails': 'x@example.com'}).status_code, 403)
+        self.assertEqual(self.provider_for('x@example.com'), 'paystack')
+
+    @override_settings(BACHS_SECRET_KEY='')
+    def test_bachs_cannot_be_chosen_without_a_key(self):
+        res = self.patch_as(self.boss, {'payment_provider': 'bachs'})
+        self.assertEqual(res.status_code, 400)
+        self.assertIn('BACHS_SECRET_KEY', res.json()['error'])
+        self.assertEqual(self.provider_for('a@example.com'), 'paystack')
+
+    def test_unknown_provider_is_refused(self):
+        for bad in ('stripe', '', None):
+            self.assertEqual(self.patch_as(self.boss, {'payment_provider': bad}).status_code, 400, bad)
+
+    def test_test_list_from_the_admin_sends_only_those_buyers_to_bachs(self):
+        res = self.patch_as(self.boss, {'bachs_test_emails': ' "Tester@UseByro.com", friend@example.com\nfriend@example.com '})
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json()['payments']['test_emails'], ['tester@usebyro.com', 'friend@example.com'])
+        self.assertEqual(res.json()['payments']['provider'], 'paystack')
+        self.assertEqual(self.buy('tester@usebyro.com'), 'bachs')
+        self.assertEqual(self.buy('customer@example.com'), 'paystack')
+        self.assertEqual(self.provider_for(None, 'FRIEND@example.com'), 'bachs')
+
+    def test_test_list_accepts_a_list_and_can_be_emptied(self):
+        self.patch_as(self.boss, {'bachs_test_emails': ['a@example.com', 'b@example.com']})
+        self.assertEqual(self.provider_for('b@example.com'), 'bachs')
+        res = self.patch_as(self.boss, {'bachs_test_emails': []})
+        self.assertEqual(res.json()['payments']['test_emails'], [])
+        self.assertEqual(self.provider_for('b@example.com'), 'paystack')
+
+    def test_bad_email_is_refused_and_nothing_changes(self):
+        self.patch_as(self.boss, {'bachs_test_emails': 'good@example.com'})
+        res = self.patch_as(self.boss, {'bachs_test_emails': 'good@example.com, not-an-email',
+                                        'payment_provider': 'bachs'})
+        self.assertEqual(res.status_code, 400)
+        self.assertIn('not-an-email', res.json()['error'])
+        self.assertEqual(self.provider_for('customer@example.com'), 'paystack')
+        self.client.force_authenticate(self.boss)
+        self.assertEqual(self.client.get(self.SETTINGS_URL).json()['payments']['test_emails'], ['good@example.com'])
+
+    def test_server_test_list_still_works_next_to_the_admin_list(self):
+        self.patch_as(self.boss, {'bachs_test_emails': 'admin-list@example.com'})
+        with override_settings(BACHS_TEST_EMAILS={'server-list@example.com'}):
+            self.assertEqual(self.provider_for('server-list@example.com'), 'bachs')
+            self.assertEqual(self.provider_for('admin-list@example.com'), 'bachs')
+            self.assertEqual(self.provider_for('other@example.com'), 'paystack')
+
+    def test_changing_payments_does_not_touch_the_fee_or_its_last_changed_line(self):
+        from .models import PlatformSettings
+        self.patch_as(self.boss, {'default_fee_percent': '4'})
+        before = PlatformSettings.get()
+        self.patch_as(self.admin, {})  # refused, no-op
+        res = self.patch_as(self.boss, {'payment_provider': 'bachs', 'bachs_test_emails': 'x@example.com'})
+        self.assertEqual(res.json()['default_fee_percent'], '4')
+        after = PlatformSettings.get()
+        self.assertEqual(after.updated_at, before.updated_at)
+        self.assertEqual(after.default_fee_rate, Decimal('0.04'))
+
+    def test_empty_patch_is_refused(self):
+        self.assertEqual(self.patch_as(self.boss, {}).status_code, 400)
+
+    def test_changes_are_in_the_payment_history(self):
+        self.patch_as(self.boss, {'bachs_test_emails': 'a@example.com'})
+        self.patch_as(self.boss, {'bachs_test_emails': 'b@example.com'})
+        self.patch_as(self.boss, {'payment_provider': 'bachs'})
+        self.client.force_authenticate(self.admin)
+        history = self.client.get(self.SETTINGS_URL).json()['payments']['history']
+        self.assertEqual([(h['kind'], h['change']) for h in history], [
+            ('provider', 'Paystack -> Bachs'),
+            ('test_emails', 'added b@example.com; removed a@example.com'),
+            ('test_emails', 'added a@example.com'),
+        ])
