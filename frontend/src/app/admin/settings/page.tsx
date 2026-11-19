@@ -140,7 +140,7 @@ function Tabs({ value, onChange }: { value: Tab; onChange: (t: Tab) => void }) {
     { id: "payments", label: "Payments" },
   ];
   return (
-    <div role="tablist" aria-label="Settings" className="inline-flex gap-1 rounded-full bg-mist p-1">
+    <div role="tablist" aria-label="Settings" className="flex w-full gap-1 rounded-full bg-mist p-1 sm:inline-flex sm:w-auto">
       {tabs.map((t) => {
         const on = value === t.id;
         return (
@@ -160,7 +160,7 @@ function Tabs({ value, onChange }: { value: Tab; onChange: (t: Tab) => void }) {
               onChange(next);
               document.getElementById(`tab-${next}`)?.focus();
             }}
-            className={`h-10 rounded-full px-5 text-sm font-bold ${PRESS} ${
+            className={`h-11 flex-1 rounded-full px-5 text-sm font-bold sm:h-10 sm:flex-none ${PRESS} ${
               on ? "bg-white text-ink shadow-[0_1px_2px_rgba(20,22,28,0.08),0_0_0_1px_rgba(20,22,28,0.04)]" : "text-muted hover:text-ink"
             }`}
           >
@@ -398,11 +398,11 @@ export default function AdminSettingsPage() {
                 </label>
               </div>
 
-              <div role="radiogroup" aria-label="Who pays the fee" className="mt-4 inline-flex gap-1 rounded-full bg-mist p-1">
+              <div role="radiogroup" aria-label="Who pays the fee" className="mt-4 grid w-full grid-cols-2 gap-1 rounded-full bg-mist p-1 sm:inline-grid sm:w-auto">
                 {(
                   [
-                    ["buyer", "Buyer pays the fee"],
-                    ["organiser", "Organiser pays the fee"],
+                    ["buyer", "Buyer pays"],
+                    ["organiser", "Organiser pays"],
                   ] as const
                 ).map(([id, label]) => (
                   <button
@@ -411,7 +411,7 @@ export default function AdminSettingsPage() {
                     role="radio"
                     aria-checked={payer === id}
                     onClick={() => setPayer(id)}
-                    className={`h-9 rounded-full px-4 text-sm font-semibold ${PRESS} ${
+                    className={`h-10 rounded-full px-4 text-center text-sm font-semibold sm:h-9 ${PRESS} ${
                       payer === id ? "bg-white text-ink shadow-[0_1px_2px_rgba(20,22,28,0.08),0_0_0_1px_rgba(20,22,28,0.04)]" : "text-muted hover:text-ink"
                     }`}
                   >
@@ -475,7 +475,7 @@ export default function AdminSettingsPage() {
             className="flex w-full max-w-xl items-center justify-between gap-3 rounded-full bg-ink py-2 pl-5 pr-2 text-white shadow-[0_16px_40px_rgba(20,22,28,0.28)] animate-dialog-in motion-reduce:animate-none"
           >
             <p className="text-sm">
-              Default fee <b className="tabular-nums">{data.default_fee_percent}% <To /> {clean(pct)}%</b>
+              <span className="hidden sm:inline">Default fee </span><b className="tabular-nums">{data.default_fee_percent}% <To /> {clean(pct)}%</b>
             </p>
             <div className="flex gap-1.5">
               <button
@@ -534,8 +534,8 @@ function SpecialFees({
           <table className="w-full text-sm">
             <thead className="bg-paper">
               <tr className="text-left">
-                <th scope="col" className="px-4 py-2.5 text-xs font-bold text-faint">Organiser</th>
-                <th scope="col" className="px-4 py-2.5 text-xs font-bold text-faint">Fee</th>
+                <th scope="col" className="px-3 py-2.5 text-xs font-bold text-faint sm:px-4">Organiser</th>
+                <th scope="col" className="px-3 py-2.5 text-xs font-bold text-faint sm:px-4">Fee</th>
                 <th scope="col" className="hidden px-4 py-2.5 text-xs font-bold text-faint sm:table-cell">Events</th>
                 <th scope="col" className="px-4 py-2.5"><span className="sr-only">Actions</span></th>
               </tr>
@@ -546,7 +546,7 @@ function SpecialFees({
                 const vs = diff(d.fee_percent);
                 return (
                   <tr key={d.user_id} className="align-middle">
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-3 sm:px-4">
                       {d.handle ? (
                         <a href={publicHref(`/u/${d.handle}`)} target="_blank" rel="noopener noreferrer" className="font-semibold text-ink hover:underline">
                           {d.name}
@@ -554,9 +554,9 @@ function SpecialFees({
                       ) : (
                         <span className="font-semibold text-ink">{d.name}</span>
                       )}
-                      <span className="block max-w-[220px] truncate text-xs text-muted">{d.email}</span>
+                      <span className="block max-w-[130px] truncate text-xs text-muted sm:max-w-[220px]">{d.email}</span>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-3 sm:px-4">
                       {isEditing ? (
                         <PercentInput value={editValue} onChange={setEditValue} max={max} label={`${d.name}'s fee`} size="sm" />
                       ) : (
@@ -567,10 +567,10 @@ function SpecialFees({
                       )}
                     </td>
                     <td className="hidden px-4 py-3 tabular-nums text-muted sm:table-cell">{d.events}</td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-3 py-3 text-right sm:px-4">
                       {canEdit &&
                         (isEditing ? (
-                          <span className="inline-flex gap-1.5">
+                          <span className="inline-flex flex-col items-stretch gap-1.5 sm:flex-row">
                             <Button size="sm" variant="ghost" onClick={() => setEditing(null)}>
                               Cancel
                             </Button>
@@ -586,7 +586,7 @@ function SpecialFees({
                             </Button>
                           </span>
                         ) : (
-                          <span className="inline-flex gap-1.5">
+                          <span className="inline-flex flex-col items-stretch gap-1.5 sm:flex-row">
                             <Button
                               size="sm"
                               variant="secondary"
@@ -619,7 +619,7 @@ function SpecialFees({
               <span className="block truncate text-xs text-muted">{adding.email}</span>
             </span>
             <PercentInput value={addValue} onChange={setAddValue} max={max} label={`${adding.name}'s fee`} size="sm" />
-            <span className="inline-flex gap-1.5">
+            <span className="inline-flex flex-col items-stretch gap-1.5 sm:flex-row">
               <Button size="sm" variant="ghost" onClick={() => setAdding(null)}>
                 Cancel
               </Button>
@@ -866,7 +866,7 @@ function PaymentsPanel({
                   active ? "border-brand bg-sky ring-2 ring-brand/30" : "border-line bg-white enabled:hover:bg-mist"
                 } ${blocked ? "opacity-60" : ""}`}
               >
-                <span className="flex w-full items-center justify-between gap-2">
+                <span className="flex w-full flex-wrap items-center justify-between gap-x-2 gap-y-1.5">
                   <span className="font-display text-2xl font-extrabold tracking-tight text-ink">{PROVIDER_NAME[p]}</span>
                   {active && <span className="rounded-full bg-brand px-3 py-1 text-xs font-bold text-white">Taking new orders</span>}
                   {switching === p && <span className="text-xs font-semibold text-muted">Switching…</span>}
