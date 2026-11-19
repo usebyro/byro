@@ -253,6 +253,10 @@ class Payment(models.Model):
     # Bachs fields
     bachs_checkout_id = models.CharField(max_length=64, blank=True, default='', db_index=True)
     bachs_charge_id = models.CharField(max_length=64, blank=True, default='')
+    # What the processor really charged, for reconciling Byro's revenue. Bachs only for now.
+    # amount_paid is what the buyer was charged (our amount plus the processor's fee when the buyer bears it).
+    processor_fee = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    amount_paid = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     
     # Transaction details
     status = models.CharField(max_length=20, choices=PAYMENT_STATUS, default='pending')

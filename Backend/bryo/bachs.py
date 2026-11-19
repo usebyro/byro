@@ -17,9 +17,13 @@ Neither the redirect nor the webhook body is trusted on its own: both end in
 `fetch_checkout`, which asks Bachs for the session and checks status, amount
 and currency before any ticket is issued.
 
-Money: Bachs takes its fee out of what Byro receives (Paystack adds its fee on
-top for the buyer). So a Bachs order charges the buyer `display_total`, the
-same all-in price the cart already shows, and Byro still nets about `total`.
+Money: every checkout is created with `customer_bears_fee: true`, so Bachs adds
+its own processing fee on top of the amount we send (checked against the sandbox:
+a 10,000.00 session charged the buyer 10,150.00 and settled 10,000.00). We send
+`total` (ticket plus Byro's fee), so Byro nets exactly `total` whatever method the
+buyer picks. Without the flag Bachs deducts its fee from settlement instead, and
+Byro would absorb it. The checkout session's `amount` stays what we asked for; the
+charge carries `amount_paid` (what the buyer was actually charged) and `fees`.
 Amounts are decimal strings in naira ("5250.00"), never kobo.
 """
 import hashlib
@@ -119,8 +123,14 @@ def amount_string(amount):
 # Checkout
 # ---------------------------------------------------------------------------
 
-def create_checkout(*, reference, amount, email, name, success_url, cancel_url, metadata, expires_in_minutes):
-    """POST /v1/checkout-sessions. Returns the session (checkout_id, checkout_url, ...)."""
+def create_checkout(*, reference, amount, email, name, success_url, cancel_url, metadata, expires_in_minutes,
+                    customer_bears_fee=True):
+    """
+    POST /v1/checkout-sessions. Returns the session (checkout_id, checkout_url, ...).
+
+    `customer_bears_fee` makes Bachs add its fee on top of `amount` instead of deducting it from
+    what Byro settles. It is always sent explicitly so the account-level default never decides it.
+    """
     payload = {
         'pricing': {'currency': 'NGN', 'amount': amount_string(amount)},
         'customer': {'email': email, 'name': name},
@@ -129,6 +139,7 @@ def create_checkout(*, reference, amount, email, name, success_url, cancel_url, 
         'cancel_url': cancel_url,
         'metadata': {k: str(v) for k, v in metadata.items() if v is not None},
         'expires_in_minutes': expires_in_minutes,
+        'customer_bears_fee': bool(customer_bears_fee),
     }
     methods = [m.strip() for m in (settings.BACHS_PAYMENT_METHODS or '').split(',') if m.strip()]
     if methods:
@@ -161,6 +172,14 @@ def channel_of(checkout):
     return None
 
 
+def charge_money(checkout):
+    """(processing fee, amount the buyer was charged) from a completed checkout's charge; None where absent."""
+    charge = checkout.get('charge') or {}
+    fee = money((charge.get('fees') or {}).get('amount'))
+    paid = money(charge.get('amount_paid'))
+    return fee, paid
+
+
 def checkout_outcome(checkout, expected_amount):
     """
     'success', 'failed', 'pending' or 'mismatch' for a checkout session,
@@ -171,7 +190,12 @@ def checkout_outcome(checkout, expected_amount):
     if state == CHECKOUT_COMPLETED and pay_state in PAYMENT_SUCCEEDED:
         amount = money(checkout.get('amount'))
         currency = (checkout.get('currency') or '').upper()
-        if amount != Decimal(expected_amount).quantize(Decimal('0.01')) or currency != 'NGN':
+        expected = Decimal(expected_amount).quantize(Decimal('0.01'))
+        if amount != expected or currency != 'NGN':
+            return 'mismatch'
+        # With the fee on top, the buyer pays more than the session amount; never less.
+        _, paid = charge_money(checkout)
+        if paid is not None and paid < expected:
             return 'mismatch'
         return 'success'
     if state in CHECKOUT_TERMINAL_FAILED or pay_state in ('failed', 'canceled', 'cancelled'):
