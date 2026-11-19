@@ -874,7 +874,7 @@ function PaymentsPanel({
                 <span className="mt-2 max-w-[38ch] text-sm leading-relaxed text-muted text-pretty">
                   {p === "paystack"
                     ? "Paystack adds its processing charge on top for the buyer."
-                    : "The buyer pays the all-in price. Bachs takes its fee from what Byro receives."}
+                    : "Bachs adds its own fee on top at checkout, so Byro receives the full amount."}
                 </span>
               </button>
             );

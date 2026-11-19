@@ -794,9 +794,12 @@ def _stored_ticket_user(payment):
 def _complete_bachs_payment(payment, checkout, ticket_user, request=None):
     """Issue the tickets for a Bachs checkout already confirmed paid. Safe to call twice."""
     new_tickets, all_tickets = _fulfil_payment(payment, ticket_user)
+    fee, paid = bachs.charge_money(checkout)
     Payment.objects.filter(pk=payment.pk).update(
         channel=bachs.channel_of(checkout),
         bachs_charge_id=bachs.charge_id_of(checkout) or payment.bachs_charge_id,
+        processor_fee=fee,
+        amount_paid=paid,
     )
     payment.refresh_from_db()
 
@@ -989,9 +992,9 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
             return Response({
                 'error': "We couldn't start your payment. You haven't been charged. Try again in a minute."
             }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
-        # Bachs takes its fee out of what Byro receives, so the buyer is charged the all-in
-        # price the cart shows. Paystack adds its fee on top of `total` itself.
-        charge_amount = fees['display_total'] if provider == Payment.PROVIDER_BACHS else amount
+        # Both providers are sent `total`. Paystack adds its fee on top itself, and Bachs does too
+        # because the checkout is created with customer_bears_fee, so Byro nets `total` either way.
+        charge_amount = amount
 
         # Reserve the seats BEFORE calling Paystack. The pending payment is what
         # holds them: lock_and_check_capacity counts pending payments as taken.
@@ -1132,6 +1135,7 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
             checkout = bachs.create_checkout(
                 reference=reference,
                 amount=charge_amount,
+                customer_bears_fee=True,
                 email=payment.customer_email,
                 name=payment.customer_name,
                 success_url=f'{settings.BACHS_SUCCESS_URL}?{urlencode({"reference": reference})}',
