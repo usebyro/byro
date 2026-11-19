@@ -1415,7 +1415,15 @@ class Report(models.Model):
 
 class PlatformSettings(models.Model):
     """Settings Byro owners change from the admin. There is one row (pk=1); use PlatformSettings.get()."""
+    PROVIDER_CHOICES = [('', 'Server setting (PAYMENT_PROVIDER)'), ('paystack', 'Paystack'), ('bachs', 'Bachs')]
+
     default_fee_rate = models.DecimalField(max_digits=5, decimal_places=4, default=Decimal('0.05'))
+    # Which processor takes NEW paid ticket orders. Blank = settings.PAYMENT_PROVIDER decides.
+    # Orders already taken keep their own provider (Payment.provider) whatever this says.
+    payment_provider = models.CharField(max_length=20, choices=PROVIDER_CHOICES, blank=True, default='')
+    # While Paystack takes new orders, buyers with these emails (one per line) pay through Bachs,
+    # so the team can try Bachs on the live site. Added to settings.BACHS_TEST_EMAILS.
+    bachs_test_emails = models.TextField(blank=True, default='')
     updated_by_email = models.EmailField(blank=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -1423,6 +1431,9 @@ class PlatformSettings(models.Model):
     def get(cls):
         obj, _ = cls.objects.get_or_create(pk=1)
         return obj
+
+    def bachs_test_email_list(self):
+        return [e for e in (self.bachs_test_emails or '').split() if e]
 
     def __str__(self):
         return f"Platform settings (fee {self.default_fee_rate})"
@@ -1552,6 +1563,8 @@ class AdminAction(models.Model):
     ACTION_EXPORT_DOWNLOADED = 'export.downloaded'
     ACTION_FEE_DEFAULT_CHANGED = 'fee.default_changed'
     ACTION_FEE_OVERRIDE_CHANGED = 'fee.organiser_changed'
+    ACTION_PAYMENT_PROVIDER_CHANGED = 'payment.provider_changed'
+    ACTION_BACHS_TEST_EMAILS_CHANGED = 'payment.test_emails_changed'
     ACTION_REQUEST_CLOSED = 'request.closed'
     ACTION_MESSAGING_BLOCKED = 'user.messaging_blocked'
     ACTION_MESSAGING_UNBLOCKED = 'user.messaging_unblocked'
@@ -1608,6 +1621,8 @@ class AdminAction(models.Model):
         (ACTION_EXPORT_DOWNLOADED, 'Data exported'),
         (ACTION_FEE_DEFAULT_CHANGED, 'Default service fee changed'),
         (ACTION_FEE_OVERRIDE_CHANGED, 'Organiser service fee changed'),
+        (ACTION_PAYMENT_PROVIDER_CHANGED, 'Payment provider for new orders changed'),
+        (ACTION_BACHS_TEST_EMAILS_CHANGED, 'Bachs test emails changed'),
         (ACTION_REQUEST_CLOSED, 'Support request marked done'),
         (ACTION_MESSAGING_BLOCKED, 'Organiser blocked from messaging'),
         (ACTION_MESSAGING_UNBLOCKED, 'Organiser allowed to message again'),
