@@ -13,18 +13,23 @@ describe("calculateTicketFees", () => {
     expect(calculateTicketFees(5000, true, 0.05, "paystack")).toEqual(calculateTicketFees(5000, true, 0.05));
   });
 
-  it("estimates Bachs' fee on top of total at the card rate", () => {
+  it("estimates Bachs' fee on top of total at the bank-transfer rate", () => {
     const f = calculateTicketFees(10000, true, 0.03, "bachs");
     expect(f.serviceFee).toBe(300);
     expect(f.total).toBe(10300);
-    expect(f.processorFee).toBe(206); // 2% of 10,300
-    expect(f.displayTotal).toBe(10506);
+    expect(f.processorFee).toBe(154.5); // 1.5% of 10,300
+    expect(f.displayTotal).toBe(10454.5);
+  });
+
+  it("caps Bachs' estimated fee at NGN 2,000", () => {
+    const f = calculateTicketFees(200000, true, 0.03, "bachs");
+    expect(f.processorFee).toBe(2000);
   });
 
   it("charges the buyer only the ticket plus Bachs' fee when the organiser absorbs Byro's fee", () => {
     const f = calculateTicketFees(10000, false, 0.03, "bachs");
     expect(f.total).toBe(10000);
-    expect(f.displayTotal).toBe(10200);
+    expect(f.displayTotal).toBe(10150);
   });
 
   it("is all zeroes for a free order", () => {

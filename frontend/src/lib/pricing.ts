@@ -17,9 +17,10 @@
  *
  * Bachs orders: the checkout is created so Bachs adds ITS fee on top of `total`
  * (Byro nets `total`). Bachs' fee depends on the method the buyer picks on its
- * page (bank transfer 1.5%, local card 2%, virtual account 1%), which the cart
- * cannot know. We estimate at the card rate, the highest local one, so the cart
- * never shows less than the buyer is charged.
+ * page (bank transfer 1.5% capped at NGN 2,000, local card 2%, virtual account 1%),
+ * which the cart cannot know. We estimate at the bank-transfer rate, the most common
+ * method, so the cart matches what Bachs shows for it. A buyer paying by card is
+ * charged a little more than the cart shows.
  *
  * The backend recomputes everything itself, so these values are for display.
  */
@@ -32,8 +33,9 @@ const PAYSTACK_FLAT = 100;
 const PAYSTACK_FLAT_WAIVER_THRESHOLD = 2500; // flat fee waived under this charge
 const PAYSTACK_FEE_CAP = 2000; // max fee per transaction
 
-// Bachs' highest local rate (cards). Bank transfer is 1.5%, virtual accounts 1%.
-const BACHS_ESTIMATE_RATE = 0.02;
+// Bachs' bank-transfer fee: 1.5%, capped at NGN 2,000. Cards are 2%, virtual accounts 1%.
+const BACHS_ESTIMATE_RATE = 0.015;
+const BACHS_ESTIMATE_CAP = 2000;
 
 export type PaymentProvider = "paystack" | "bachs";
 
@@ -48,7 +50,7 @@ export interface TicketFees {
 
 /** The processor's fee added on top of `amount`, for the provider taking new orders. */
 function processorFeeFor(amount: number, provider?: string): number {
-  if (provider === "bachs") return round2(amount * BACHS_ESTIMATE_RATE);
+  if (provider === "bachs") return Math.min(round2(amount * BACHS_ESTIMATE_RATE), BACHS_ESTIMATE_CAP);
   return simulatePaystackFee(amount);
 }
 
