@@ -353,7 +353,7 @@ export default function AdminSettingsPage() {
         <div role="tabpanel" id="panel-fees" aria-labelledby="tab-fees" className="mt-8 space-y-10">
           {/* The fee on the left, what it does to a real price on the right. */}
           <div className="grid gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
-            <section className={`${PANEL} flex flex-col`}>
+            <section className="flex flex-col rounded-2xl border border-line bg-white p-5 md:p-6">
               <h2 className="font-display text-xl font-bold tracking-tight text-ink">Default service fee</h2>
               <p className="mt-1 text-sm leading-relaxed text-muted text-pretty">
                 Charged on every paid ticket unless the organiser has a special fee. Free tickets are never charged.
@@ -885,25 +885,19 @@ function PaymentsPanel({
             ? "Not chosen here yet. Following the server's PAYMENT_PROVIDER setting."
             : "Chosen here. This overrides the server's PAYMENT_PROVIDER setting."}
         </p>
+        <ul className="mt-3 space-y-1.5">
+          {connection.map((c) => (
+            <li key={c.label} className={`flex items-start gap-2 text-sm ${ink[c.tone]}`}>
+              <span aria-hidden="true" className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${dot[c.tone]}`} />
+              <span className="text-pretty">
+                <b>{c.label}:</b> {c.text}
+              </span>
+            </li>
+          ))}
+        </ul>
       </Block>
 
-      <div className="grid gap-4 md:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
-        <section className={PANEL}>
-          <h2 className="font-display text-xl font-bold tracking-tight text-ink">Bachs connection</h2>
-          <dl className="mt-4 space-y-4">
-            {connection.map((c) => (
-              <div key={c.label}>
-                <dt className="text-xs font-bold text-faint">{c.label}</dt>
-                <dd className={`mt-1 flex items-start gap-2 text-sm font-semibold ${ink[c.tone]}`}>
-                  <span aria-hidden="true" className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${dot[c.tone]}`} />
-                  <span className="text-pretty">{c.text}</span>
-                </dd>
-              </div>
-            ))}
-          </dl>
-        </section>
-
-        <section className={PANEL}>
+      <section>
           <h2 className="font-display text-xl font-bold tracking-tight text-ink">Bachs test list</h2>
           <p className="mt-1 max-w-[65ch] text-sm leading-relaxed text-muted text-pretty">
             While Paystack takes new orders, buyers with these emails (the email at checkout, or the account they&apos;re signed in with) pay through
@@ -919,7 +913,7 @@ function PaymentsPanel({
             onChange={(e) => setEmailsDraft(e.target.value)}
             disabled={!canEdit || savingEmails}
             placeholder={"you@example.com\nteammate@example.com"}
-            className="w-full rounded-xl border border-line bg-white px-4 py-3 text-sm text-ink placeholder:text-faint focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/25 disabled:text-muted"
+            className="w-full max-w-md rounded-xl border border-line bg-white px-4 py-3 text-sm text-ink placeholder:text-faint focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/25 disabled:text-muted"
           />
           {payments.provider === "bachs" && (
             <p className="mt-2 text-xs font-semibold text-waiting">Bachs is taking every new order, so this list makes no difference right now.</p>
@@ -944,8 +938,7 @@ function PaymentsPanel({
               )}
             </div>
           )}
-        </section>
-      </div>
+      </section>
 
       <Timeline
         entries={payments.history.map((h, i) => ({
