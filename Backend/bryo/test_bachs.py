@@ -205,6 +205,26 @@ class BachsTestEmailTests(PaymentTestBase):
         self.assertEqual(self.provider_for('customer@example.com'), 'bachs')
 
 
+class EventPaymentProviderTests(PaymentTestBase):
+    """The event payload tells the cart which processor takes new orders, so it estimates the right fee."""
+
+    def provider_in_payload(self):
+        from .serializers import EventSerializer
+        from rest_framework.test import APIRequestFactory
+        request = APIRequestFactory().get('/')
+        from django.contrib.auth.models import AnonymousUser
+        request.user = AnonymousUser()
+        return EventSerializer(self.event, context={'request': request}).data['payment_provider']
+
+    @override_settings(**BACHS_SETTINGS)
+    def test_cart_is_told_bachs_when_bachs_takes_new_orders(self):
+        self.assertEqual(self.provider_in_payload(), 'bachs')
+
+    @override_settings(**{**BACHS_SETTINGS, 'PAYMENT_PROVIDER': 'paystack'})
+    def test_cart_is_told_paystack_otherwise(self):
+        self.assertEqual(self.provider_in_payload(), 'paystack')
+
+
 @override_settings(**BACHS_SETTINGS)
 class BachsFulfilmentTests(PaymentTestBase):
 
