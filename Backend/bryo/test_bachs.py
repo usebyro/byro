@@ -595,3 +595,76 @@ class AdminPaymentProviderTests(PaymentTestBase):
             ('test_emails', 'added b@example.com; removed a@example.com'),
             ('test_emails', 'added a@example.com'),
         ])
+
+
+@override_settings(**BACHS_SETTINGS)
+class EventOwnProviderTests(PaymentTestBase):
+    """An admin can send one event to Paystack or Bachs whatever the platform setting is."""
+
+    def setUp(self):
+        super().setUp()
+        from django.contrib.auth import get_user_model
+        from .models import AdminMember
+        User = get_user_model()
+        self.boss = User.objects.create_user(email='boss@byro.test')
+        AdminMember.objects.create(email='boss@byro.test', role='owner', added_by_email='test')
+        self.admin = User.objects.create_user(email='admin@byro.test')
+        AdminMember.objects.create(email='admin@byro.test', role='admin', added_by_email='test')
+        self.viewer = User.objects.create_user(email='viewer@byro.test')
+        AdminMember.objects.create(email='viewer@byro.test', role='viewer', added_by_email='test')
+
+    def set_provider(self, user, value):
+        self.client.force_authenticate(user)
+        res = self.client.post(f'/api/admin/events/{self.event.pk}/payment-provider/', {'provider': value}, format='json')
+        self.client.force_authenticate(None)
+        return res
+
+    def effective(self):
+        from .views import _provider_for_new_order
+        self.event.refresh_from_db()
+        return _provider_for_new_order('buyer@example.com', event=self.event)
+
+    def test_event_set_to_paystack_ignores_a_bachs_platform_setting(self):
+        self.assertEqual(self.effective(), 'bachs')  # platform default is Bachs in these settings
+        self.assertEqual(self.set_provider(self.boss, 'paystack').status_code, 200)
+        self.assertEqual(self.effective(), 'paystack')
+
+    @override_settings(PAYMENT_PROVIDER='paystack')
+    def test_event_set_to_bachs_ignores_a_paystack_platform_setting(self):
+        self.assertEqual(self.effective(), 'paystack')
+        self.assertEqual(self.set_provider(self.admin, 'bachs').status_code, 200)
+        self.assertEqual(self.effective(), 'bachs')
+
+    def test_blank_goes_back_to_the_platform_setting(self):
+        self.set_provider(self.boss, 'paystack')
+        self.set_provider(self.boss, '')
+        self.assertEqual(self.effective(), 'bachs')
+
+    def test_viewers_cannot_change_it(self):
+        self.assertEqual(self.set_provider(self.viewer, 'paystack').status_code, 403)
+        self.event.refresh_from_db()
+        self.assertEqual(self.event.payment_provider, '')
+
+    @override_settings(BACHS_SECRET_KEY='')
+    def test_bachs_needs_a_key(self):
+        self.assertEqual(self.set_provider(self.boss, 'bachs').status_code, 400)
+
+    def test_rejects_unknown_provider(self):
+        self.assertEqual(self.set_provider(self.boss, 'stripe').status_code, 400)
+
+    def test_change_is_logged(self):
+        from .models import AdminAction
+        self.set_provider(self.admin, 'paystack')
+        log = AdminAction.objects.get(action=AdminAction.ACTION_EVENT_PROVIDER_CHANGED)
+        self.assertEqual(log.detail, 'platform default -> Paystack')
+        self.assertEqual(log.actor_email, 'admin@byro.test')
+
+    def test_cart_is_told_the_events_own_provider(self):
+        from .serializers import EventSerializer
+        from rest_framework.test import APIRequestFactory
+        from django.contrib.auth.models import AnonymousUser
+        self.set_provider(self.boss, 'paystack')
+        self.event.refresh_from_db()
+        request = APIRequestFactory().get('/')
+        request.user = AnonymousUser()
+        self.assertEqual(EventSerializer(self.event, context={'request': request}).data['payment_provider'], 'paystack')

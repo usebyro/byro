@@ -764,13 +764,17 @@ def _current_provider(chosen=None):
     return Payment.PROVIDER_BACHS if chosen == Payment.PROVIDER_BACHS else Payment.PROVIDER_PAYSTACK
 
 
-def _provider_for_new_order(*emails):
+def _provider_for_new_order(*emails, event=None):
     """
+    An event an admin has set to Paystack or Bachs always uses that one. Otherwise:
     Which processor takes a new paid order. Byro owners choose Paystack or Bachs in
     Admin > Settings (falling back to settings.PAYMENT_PROVIDER). While Paystack is chosen,
     buyers on the Bachs test list (admin list plus settings.BACHS_TEST_EMAILS, checkout or
     account email) are sent to Bachs, so the team can test Bachs without moving customers.
     """
+    own = getattr(event, 'payment_provider', '') if event is not None else ''
+    if own in (Payment.PROVIDER_PAYSTACK, Payment.PROVIDER_BACHS):
+        return own
     chosen, admin_list = _payment_settings()
     if _current_provider(chosen) == Payment.PROVIDER_BACHS:
         return Payment.PROVIDER_BACHS
@@ -986,6 +990,7 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
         reference = f"EVT-{event.slug}-{timezone.now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:8]}"
         provider = _provider_for_new_order(
             customer_email, request.user.email if request.user.is_authenticated else None,
+            event=event,
         )
         if provider == Payment.PROVIDER_BACHS and not bachs.is_configured():
             logger.error('Bachs takes new orders but BACHS_SECRET_KEY is empty; checkout refused')
@@ -5027,7 +5032,7 @@ class AdminEventsOverviewView(APIView):
                 'id': e.pk, 'slug': e.slug, 'name': e.name,
                 'category': e.category, 'day': str(e.day), 'time_from': str(e.time_from),
                 'location': e.location, 'ticket_price': str(e.ticket_price),
-                'hosted_by': e.hosted_by, 'visibility': e.visibility, 'is_draft': e.is_draft, 'featured_until': e.featured_until, 'is_featured': bool(e.featured_until and e.featured_until > timezone.now()),
+                'hosted_by': e.hosted_by, 'visibility': e.visibility, 'is_draft': e.is_draft, 'payment_provider': e.payment_provider, 'featured_until': e.featured_until, 'is_featured': bool(e.featured_until and e.featured_until > timezone.now()),
                 'is_active': e.is_active, 'created_at': e.created_at,
                 'owner_email': e.owner.email if e.owner else None,
                 'tiers': [{'id': t.pk, 'name': t.name, 'price': str(t.price)} for t in tiers],
@@ -5472,6 +5477,36 @@ class AdminEventFeatureView(APIView):
         _log_admin_action(request, AdminAction.ACTION_EVENT_FEATURED if days else AdminAction.ACTION_EVENT_UNFEATURED,
                           'event', event.pk, event.name[:255], f'{days} day(s)' if days else '')
         return Response({'featured_until': event.featured_until, 'is_featured': bool(days)})
+
+
+class AdminEventProviderView(APIView):
+    """
+    POST /api/admin/events/<pk>/payment-provider/ {provider: 'paystack' | 'bachs' | ''} — Admins and Owners.
+    Sets the processor for this event's NEW paid orders. An empty value follows the platform setting.
+    Orders already taken stay with the provider that took them.
+    """
+    permission_classes = [IsAdminMember]
+    min_role = AdminMember.ROLE_ADMIN
+
+    def post(self, request, pk):
+        event = Event.objects.filter(pk=pk).first()
+        if not event:
+            return Response({'error': 'Event not found.'}, status=status.HTTP_404_NOT_FOUND)
+        provider = str(request.data.get('provider') or '').strip().lower()
+        if provider not in ('', Payment.PROVIDER_PAYSTACK, Payment.PROVIDER_BACHS):
+            return Response({'error': 'Choose Paystack, Bachs, or the platform default.'}, status=status.HTTP_400_BAD_REQUEST)
+        if provider == Payment.PROVIDER_BACHS and not bachs.is_configured():
+            return Response({'error': "Bachs isn't set up on the server yet (BACHS_SECRET_KEY is empty)."},
+                            status=status.HTTP_400_BAD_REQUEST)
+        before = event.payment_provider
+        if provider != before:
+            event.payment_provider = provider
+            event.save(update_fields=['payment_provider'])
+            label = lambda v: _provider_name(v) if v else 'platform default'
+            _log_admin_action(request, AdminAction.ACTION_EVENT_PROVIDER_CHANGED, 'event', event.pk, event.name[:255],
+                              f'{label(before)} -> {label(provider)}')
+        return Response({'payment_provider': event.payment_provider,
+                         'effective_provider': _provider_for_new_order(event=event)})
 
 
 class AdminExportView(APIView):
