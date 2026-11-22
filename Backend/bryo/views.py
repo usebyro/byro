@@ -5011,6 +5011,7 @@ class AdminEventsOverviewView(APIView):
             .values_list('event_id').annotate(n=Sum('redeemed_count')).values_list('event_id', 'n')
         )
 
+        platform_provider = _current_provider()  # what an event with no provider of its own uses
         out = []
         for e in events:
             tiers = list(e.tiers.all())
@@ -5032,7 +5033,7 @@ class AdminEventsOverviewView(APIView):
                 'id': e.pk, 'slug': e.slug, 'name': e.name,
                 'category': e.category, 'day': str(e.day), 'time_from': str(e.time_from),
                 'location': e.location, 'ticket_price': str(e.ticket_price),
-                'hosted_by': e.hosted_by, 'visibility': e.visibility, 'is_draft': e.is_draft, 'payment_provider': e.payment_provider, 'featured_until': e.featured_until, 'is_featured': bool(e.featured_until and e.featured_until > timezone.now()),
+                'hosted_by': e.hosted_by, 'visibility': e.visibility, 'is_draft': e.is_draft, 'payment_provider': e.payment_provider, 'platform_provider': platform_provider, 'featured_until': e.featured_until, 'is_featured': bool(e.featured_until and e.featured_until > timezone.now()),
                 'is_active': e.is_active, 'created_at': e.created_at,
                 'owner_email': e.owner.email if e.owner else None,
                 'tiers': [{'id': t.pk, 'name': t.name, 'price': str(t.price)} for t in tiers],
