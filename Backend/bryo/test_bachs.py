@@ -668,3 +668,15 @@ class EventOwnProviderTests(PaymentTestBase):
         request = APIRequestFactory().get('/')
         request.user = AnonymousUser()
         self.assertEqual(EventSerializer(self.event, context={'request': request}).data['payment_provider'], 'paystack')
+
+    def test_events_list_says_what_the_platform_default_is(self):
+        self.client.force_authenticate(self.boss)
+        res = self.client.get('/api/admin/events/overview/')
+        self.client.force_authenticate(None)
+        self.assertEqual(res.status_code, 200)
+        rows = res.json()
+        rows = rows if isinstance(rows, list) else rows.get('events') or rows.get('results') or []
+        row = next(r for r in rows if r.get('id') == self.event.pk) if rows else None
+        self.assertIsNotNone(row, 'the event should be in the list')
+        self.assertEqual(row['platform_provider'], 'bachs')
+        self.assertEqual(row['payment_provider'], '')
