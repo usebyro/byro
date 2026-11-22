@@ -386,6 +386,8 @@ class Event(models.Model):
     
     # Set by Byro admins: shown first on the landing page and Discover until this time.
     featured_until = models.DateTimeField(null=True, blank=True, db_index=True)
+    # Set by Byro admins: the processor for this event's new paid orders. Blank follows the platform setting.
+    payment_provider = models.CharField(max_length=10, blank=True, default='')
 
     day = models.DateField()
     time_from = models.TimeField()
@@ -1569,6 +1571,7 @@ class AdminAction(models.Model):
     ACTION_FEE_OVERRIDE_CHANGED = 'fee.organiser_changed'
     ACTION_PAYMENT_PROVIDER_CHANGED = 'payment.provider_changed'
     ACTION_BACHS_TEST_EMAILS_CHANGED = 'payment.test_emails_changed'
+    ACTION_EVENT_PROVIDER_CHANGED = 'event.payment_provider_changed'
     ACTION_REQUEST_CLOSED = 'request.closed'
     ACTION_MESSAGING_BLOCKED = 'user.messaging_blocked'
     ACTION_MESSAGING_UNBLOCKED = 'user.messaging_unblocked'
@@ -1627,6 +1630,7 @@ class AdminAction(models.Model):
         (ACTION_FEE_OVERRIDE_CHANGED, 'Organiser service fee changed'),
         (ACTION_PAYMENT_PROVIDER_CHANGED, 'Payment provider for new orders changed'),
         (ACTION_BACHS_TEST_EMAILS_CHANGED, 'Bachs test emails changed'),
+        (ACTION_EVENT_PROVIDER_CHANGED, 'Payment provider for an event changed'),
         (ACTION_REQUEST_CLOSED, 'Support request marked done'),
         (ACTION_MESSAGING_BLOCKED, 'Organiser blocked from messaging'),
         (ACTION_MESSAGING_UNBLOCKED, 'Organiser allowed to message again'),

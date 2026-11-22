@@ -32,6 +32,7 @@ interface Event {
   owner_email?: string;
   featured_until?: string | null;
   is_featured?: boolean;
+  payment_provider?: "" | "paystack" | "bachs";
   cancelled_at?: string | null;
   sales_closed?: boolean;
   description?: string;
@@ -473,6 +474,24 @@ export default function AdminEventsPage() {
       toast.error("Couldn't update featuring", { description: (err as Error).message });
     } finally {
       setFeaturing(false);
+    }
+  };
+
+  const [savingProvider, setSavingProvider] = useState(false);
+  const setProvider = async (event: Event, provider: "" | "paystack" | "bachs") => {
+    setSavingProvider(true);
+    try {
+      const res = await fetch(`/api/admin/events/${event.id}/payment-provider`, { method: "POST", body: JSON.stringify({ provider }) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || "Try again.");
+      const patch = { payment_provider: (data.payment_provider || "") as "" | "paystack" | "bachs" };
+      setEvents((prev) => prev.map((e) => (e.id === event.id ? { ...e, ...patch } : e)));
+      setSelected((prev) => (prev && prev.id === event.id ? { ...prev, ...patch } : prev));
+      toast.success(provider ? `New orders go to ${provider === "bachs" ? "Bachs" : "Paystack"}` : "Following the platform setting", { description: event.name });
+    } catch (err) {
+      toast.error("Couldn't change the provider", { description: (err as Error).message });
+    } finally {
+      setSavingProvider(false);
     }
   };
 
@@ -954,6 +973,36 @@ export default function AdminEventsPage() {
                               {isFeatured(selected) && (
                                 <button type="button" onClick={() => feature(selected, 0)} disabled={featuring} className={BTN_QUIET}>
                                   Stop featuring
+                                </button>
+                              )}
+                            </>
+                          }
+                        />
+                      )}
+                      {can.moderate && !selected.is_draft && (
+                        <ActionRow
+                          title="Payment provider"
+                          hint={
+                            selected.payment_provider
+                              ? `New ticket orders for this event go to ${selected.payment_provider === "bachs" ? "Bachs" : "Paystack"}, whatever the platform setting is. Orders already taken stay where they were.`
+                              : "Following the platform setting in Settings. Pick one to send only this event somewhere else."
+                          }
+                          below={
+                            <>
+                              {(["paystack", "bachs"] as const).map((p) => (
+                                <button
+                                  key={p}
+                                  type="button"
+                                  onClick={() => setProvider(selected, p)}
+                                  disabled={savingProvider || selected.payment_provider === p}
+                                  className={selected.payment_provider === p ? BTN_BRAND : BTN_QUIET}
+                                >
+                                  {p === "bachs" ? "Use Bachs" : "Use Paystack"}
+                                </button>
+                              ))}
+                              {selected.payment_provider && (
+                                <button type="button" onClick={() => setProvider(selected, "")} disabled={savingProvider} className={BTN_QUIET}>
+                                  Follow platform setting
                                 </button>
                               )}
                             </>
