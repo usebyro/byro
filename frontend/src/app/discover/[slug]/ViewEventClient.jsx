@@ -19,6 +19,7 @@ import Delayed from "@/components/dashboard/v2/Delayed";
 import { stampCity as stampCityOf, stampDate as stampDateOf, stampInk, stampShortName } from "@/lib/stamps";
 import { StackTile } from "@/components/brand/EventTile";
 import { categoryTone, dayParts, formatNaira, formatTime, isPast } from "@/lib/eventFormat";
+import { eventState } from "@/lib/eventStatus";
 import { trackViewItem, trackShare, trackSaveEvent, ticketItem } from "@/lib/analytics";
 import { calculateTicketFees } from "@/lib/pricing";
 import { ticketLimits, describeTicketLimits } from "@/lib/ticketLimits";
@@ -46,6 +47,25 @@ const inputCls =
 /** Tiers come embedded in the event, or from their own endpoint. */
 const tierList = (data) => (Array.isArray(data) ? data : Array.isArray(data?.results) ? data.results : []);
 const firstOpenTier = (tiers) => String((tiers.find((t) => t.remaining !== 0) || tiers[0]).id);
+
+/** Where to go from an ended or cancelled event: Discover first, then the host's page. */
+function OverLinks({ event }) {
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2">
+      <Link
+        href="/discover"
+        className="inline-flex h-11 items-center rounded-full bg-brand px-5 text-[15px] font-bold text-white transition-[filter,scale] hover:brightness-90 active:scale-[0.96] focus:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2"
+      >
+        Browse upcoming events
+      </Link>
+      {event.owner_handle && (
+        <Link href={`/u/${event.owner_handle}`} className="text-[15px] font-bold text-brand hover:text-brand-dark">
+          More from @{event.owner_handle}
+        </Link>
+      )}
+    </div>
+  );
+}
 
 /**
  * `initialEvent` is the public event the server already fetched, so the page arrives with its
@@ -88,7 +108,7 @@ export default function ViewEventClient({ slug, initialEvent = null }) {
   /* Set browser tab title + fire GA4 view_item */
   useEffect(() => {
     if (event?.name) {
-      document.title = `${event.name} | Byro`;
+      document.title = `${event.name} – Byro`;
       trackViewItem({
         items: [ticketItem(event, { price: parseFloat(event.ticket_price ?? 0) }, 1)],
         eventId: event.id,
@@ -201,17 +221,10 @@ export default function ViewEventClient({ slug, initialEvent = null }) {
     }
   }, [ticketId]);
 
-  /* Registration closes one full day after the event has ended */
-  const registrationClosed = useMemo(() => {
-    if (event?.cancelled_at) return true; // cancelled by the organiser: nothing to buy
-    if (event?.sales_closed) return true; // closed by Byro
-    if (!event?.day) return false;
-    const endTime = event.time_to || event.time_from || "23:59:59";
-    const eventEnd = new Date(`${event.day}T${endTime}`);
-    if (isNaN(eventEnd.getTime())) return false;
-    const closeAt = new Date(eventEnd.getTime() + 24 * 60 * 60 * 1000);
-    return new Date() > closeAt;
-  }, [event?.day, event?.time_to, event?.time_from, event?.cancelled_at, event?.sales_closed]);
+  // Over: the event has ended (its end time, in its own timezone) or was cancelled. Nothing left to buy.
+  const state = eventState(event);
+  const over = state !== "upcoming";
+  const registrationClosed = over || Boolean(event?.sales_closed); // sales_closed: closed by Byro
 
   // Shaped like the real page (board 34): the navbar and headings are real, the rest waits.
   if (loading) return (
@@ -417,11 +430,19 @@ export default function ViewEventClient({ slug, initialEvent = null }) {
                 >
                   {tone.label}
                 </span>
-                {event?.cancelled_at && (
+                {state === "cancelled" && (
                   <div role="status" className="mb-5 rounded-2xl border border-[#F2C4C4] bg-[#FDECEC] px-5 py-4 text-[#8A1C1C]">
-                    <p className="font-bold">This event has been cancelled.</p>
+                    <p className="font-bold">This event was cancelled.</p>
                     {event.cancel_reason && <p className="mt-1 text-[15px] break-words">{event.cancel_reason}</p>}
                     <p className="mt-2 text-sm">If you had a ticket, check your email: paid tickets are refunded the ticket price.</p>
+                    <OverLinks event={event} />
+                  </div>
+                )}
+                {state === "ended" && (
+                  <div role="status" className="mb-5 rounded-2xl border border-line bg-mist px-5 py-4 text-ink">
+                    <p className="font-bold">This event has ended.</p>
+                    <p className="mt-1 text-[15px] text-muted">Tickets are no longer on sale.</p>
+                    <OverLinks event={event} />
                   </div>
                 )}
                 <h1 className="text-balance font-display text-[40px] font-bold leading-none tracking-[-0.04em] md:text-[64px]">
@@ -599,7 +620,7 @@ export default function ViewEventClient({ slug, initialEvent = null }) {
                   >
                     View ticket
                   </button>
-                  {isFree && !confirmingCancel && (
+                  {isFree && !confirmingCancel && !over && (
                     <button
                       type="button"
                       onClick={() => setConfirmingCancel(true)}
@@ -629,6 +650,21 @@ export default function ViewEventClient({ slug, initialEvent = null }) {
                         </button>
                       </div>
                     </div>
+                  )}
+                </div>
+              ) : over ? (
+                <div className="flex flex-col gap-3">
+                  <p className="text-[15px] text-muted">{state === "cancelled" ? "This event was cancelled." : "This event has ended."}</p>
+                  <Link
+                    href="/discover"
+                    className="flex h-14 items-center justify-center rounded-full bg-brand text-[17px] font-bold text-white transition-[filter,scale] hover:brightness-90 active:scale-[0.96] focus:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2"
+                  >
+                    Browse upcoming events
+                  </Link>
+                  {event.owner_handle && (
+                    <Link href={`/u/${event.owner_handle}`} className="text-center text-[15px] font-bold text-brand hover:text-brand-dark">
+                      More from @{event.owner_handle}
+                    </Link>
                   )}
                 </div>
               ) : (
@@ -711,7 +747,7 @@ export default function ViewEventClient({ slug, initialEvent = null }) {
                     disabled={registrationClosed}
                     className="flex h-14 items-center justify-center rounded-full bg-brand text-[17px] font-bold text-white transition-[filter,scale] hover:brightness-90 active:scale-[0.96] focus:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-line disabled:text-faint disabled:hover:brightness-100"
                   >
-                    {event?.cancelled_at ? "Event cancelled" : registrationClosed ? (isFree ? "Registration closed" : "Sales ended") : isFree ? "Register" : "Get tickets"}
+                    {registrationClosed ? (isFree ? "Registration closed" : "Sales ended") : isFree ? "Register" : "Get tickets"}
                   </button>
                 </>
               )}
@@ -734,7 +770,20 @@ export default function ViewEventClient({ slug, initialEvent = null }) {
         </main>
 
         {/* Phone: sticky buy bar */}
-        {!registered && (
+        {!registered && over && (
+          <div className="fixed inset-x-0 bottom-0 z-40 flex items-center gap-4 border-t border-hairline bg-white/95 px-4 py-3 backdrop-blur lg:hidden">
+            <span className="min-w-0 flex-1 truncate text-sm font-bold text-muted">
+              {state === "cancelled" ? "Cancelled" : "This event has ended"}
+            </span>
+            <Link
+              href="/discover"
+              className="flex h-12 items-center rounded-full bg-brand px-6 text-[15px] font-bold text-white transition-[filter,scale] active:scale-[0.96]"
+            >
+              Browse upcoming events
+            </Link>
+          </div>
+        )}
+        {!registered && !over && (
           <div className="fixed inset-x-0 bottom-0 z-40 flex items-center gap-4 border-t border-hairline bg-white/95 px-4 py-3 backdrop-blur lg:hidden">
             <div className="flex min-w-0 flex-1 flex-col">
               <span className="text-xs text-muted">{isFree ? "Entry" : "From"}</span>
@@ -746,7 +795,7 @@ export default function ViewEventClient({ slug, initialEvent = null }) {
               disabled={registrationClosed}
               className="flex h-12 items-center rounded-full bg-brand px-7 text-[15px] font-bold text-white transition-[filter,scale] active:scale-[0.96] disabled:bg-line disabled:text-faint"
             >
-              {event?.cancelled_at ? "Cancelled" : registrationClosed ? "Closed" : isFree ? "Register" : "Get tickets"}
+              {registrationClosed ? "Closed" : isFree ? "Register" : "Get tickets"}
             </button>
           </div>
         )}

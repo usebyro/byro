@@ -13,7 +13,7 @@ const BLOG_URL = `${SITE_URL}/blog`
 const SHARE_IMAGE = {url: `${BLOG_URL}/og`, width: 1200, height: 630, alt: 'The Byro blog'}
 
 export const metadata: Metadata = {
-  title: 'Blog',
+  title: {absolute: 'Blog – Byro'},
   description: DESCRIPTION,
   alternates: {canonical: BLOG_URL},
   openGraph: {

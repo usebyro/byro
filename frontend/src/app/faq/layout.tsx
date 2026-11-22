@@ -3,7 +3,7 @@ import {FAQS} from '@/lib/faqs'
 import {faqPageJsonLd, serializeJsonLd} from '@/lib/faqSchema'
 
 export const metadata: Metadata = {
-  title: 'FAQ',
+  title: {absolute: 'FAQ – Byro'},
   description: 'Answers to common questions about hosting events, buying tickets, payouts and refunds on Byro.',
   alternates: {canonical: '/faq'},
   openGraph: {

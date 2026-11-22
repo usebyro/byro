@@ -1,6 +1,8 @@
 // Server-side helpers for how an event looks when its link is shared
 // (Open Graph / Twitter cards and the generated fallback image).
 
+import { eventState } from "./eventStatus";
+
 const API_BASE = (() => {
   const raw = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/+$/, "");
   return raw.endsWith("/api") ? raw + "/" : raw + "/api/";
@@ -85,6 +87,8 @@ export function priceText(event) {
 export function shareDescription(event) {
   const facts = [whenText(event), event?.location, priceText(event)].filter(Boolean).join(", ");
   const about = plainText(event?.description);
-  const text = about ? `${facts}. ${about}` : `${facts}. Get your ticket on Byro.`;
+  // No text from the organiser: close with something true for a finished or cancelled event too.
+  const fallback = eventState(event) === "upcoming" ? "Get your ticket on Byro." : "See details and browse upcoming events on Byro.";
+  const text = about ? `${facts}. ${about}` : `${facts}. ${fallback}`;
   return text.length > 200 ? `${text.slice(0, 197).trimEnd()}...` : text;
 }

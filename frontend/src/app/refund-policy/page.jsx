@@ -4,6 +4,8 @@ import Footer from "@/components/Footer";
 export const metadata = {
   title: "Refund Policy",
   alternates: { canonical: "/refund-policy" },
+  // Linked from the footer for buyers, but not something to rank or to show as a sitelink under Byro.
+  robots: { index: false, follow: true },
   description: "Read Byro's Refund Policy for ticket purchases.",
 };
 

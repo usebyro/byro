@@ -1,7 +1,7 @@
 import type {Metadata} from 'next'
 
 export const metadata: Metadata = {
-  title: 'Pricing',
+  title: {absolute: 'Pricing – Byro'},
   description: 'Byro is free to use. Free events cost nothing for you or your guests, and paid events have a small fee per ticket sold.',
   alternates: {canonical: '/pricing'},
   openGraph: {
