@@ -3,7 +3,9 @@ import Footer from "@/components/Footer";
 import CookieSettingsButton from "@/components/CookieSettingsButton";
 
 export const metadata = {
-  title: "Cookie Policy | Byro",
+  title: "Cookie Policy",
+  alternates: { canonical: "/cookies" },
+  robots: { index: false, follow: true },
   description: "What Byro stores in your browser, why, and how to change your choices.",
 };
 

@@ -15,12 +15,13 @@ import { Compass01Icon, Calendar03Icon, UserGroupIcon, UserCircleIcon } from "@h
 type NavLink = { label: string; href: string; authOnly?: boolean; marketing?: boolean };
 
 // Signed in, the app menu is just Discover, Events and Communities (as in the design);
-// Pricing and Blog stay on the marketing pages and for visitors who aren't signed in.
+// Pricing, FAQ and Blog stay on the marketing pages and for visitors who aren't signed in.
 const navLinks: NavLink[] = [
   { label: "Discover", href: "/discover" },
   { label: "Events", href: "/home", authOnly: true },
   { label: "Communities", href: "/communities" },
   { label: "Pricing", href: "/pricing", marketing: true },
+  { label: "FAQ", href: "/faq", marketing: true },
   { label: "Blog", href: "/blog", marketing: true },
 ];
 const isMarketingPage = (path: string) => path === "/" || path === "/pricing" || path.startsWith("/blog");

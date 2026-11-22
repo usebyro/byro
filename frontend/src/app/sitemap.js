@@ -7,7 +7,7 @@ const API_BASE = (() => {
   return raw.endsWith('/api') ? raw + '/' : raw + '/api/';
 })();
 
-// Static pages that are always indexed
+// Static pages that are always indexed. /refund-policy and /cookies are noindex, so they stay out.
 const staticPages = [
   { url: BASE_URL,                      priority: 1.0, changeFrequency: 'daily'   },
   { url: `${BASE_URL}/discover`,        priority: 0.9, changeFrequency: 'daily'   },
@@ -17,10 +17,11 @@ const staticPages = [
   { url: `${BASE_URL}/blog`,            priority: 0.5, changeFrequency: 'weekly'  },
   { url: `${BASE_URL}/terms`,           priority: 0.4, changeFrequency: 'yearly'  },
   { url: `${BASE_URL}/privacy`,         priority: 0.4, changeFrequency: 'yearly'  },
-  { url: `${BASE_URL}/refund-policy`,   priority: 0.4, changeFrequency: 'yearly'  },
-  { url: `${BASE_URL}/cookies`,         priority: 0.3, changeFrequency: 'yearly'  },
   { url: `${BASE_URL}/careers`,         priority: 0.4, changeFrequency: 'monthly' },
 ];
+
+// How long after its day an event stays in the sitemap.
+const ENDED_EVENT_DAYS = 30;
 
 const asList = (data) => (Array.isArray(data) ? data : (data?.results ?? []));
 
@@ -43,8 +44,12 @@ export default async function sitemap() {
   // Live event pages. They live at /discover/{slug}, NOT /events/{slug}.
   try {
     const events = asList(await getJson('events/'));
+    // Ended events keep their page but leave the sitemap a month after the day, so Google stops
+    // being nudged toward old events.
+    const cutoff = new Date(now.getTime() - ENDED_EVENT_DAYS * 24 * 60 * 60 * 1000);
     for (const e of events) {
       if (!e.slug || e.is_active === false) continue;
+      if (e.day && new Date(`${e.day}T23:59:59Z`) < cutoff) continue;
       entries.push({
         url: `${BASE_URL}/discover/${e.slug}`,
         lastModified: e.updated_at ? new Date(e.updated_at) : now,

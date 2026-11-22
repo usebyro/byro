@@ -78,7 +78,7 @@ const nextConfig: NextConfig = {
         // "/events" (meant to be rewritten to "/admin/events") gets
         // hijacked by this rule and sent to the public /home page instead.
         source: '/events',
-        destination: '/home',
+        destination: '/discover',
         permanent: true,
         missing: [{ type: 'host', value: 'admin.usebyro.com' }],
       },
@@ -93,6 +93,12 @@ const nextConfig: NextConfig = {
         source: '/:path(payment|payment-page)',
         destination: '/discover',
         permanent: true,
+      },
+      {
+        // A claim link needs its token; the bare path has nothing to show.
+        source: '/claim',
+        destination: '/login',
+        permanent: false,
       },
       {
         source: '/ticket-confirmation',

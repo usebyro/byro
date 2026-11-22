@@ -1,3 +1,4 @@
+import { eventHasEnded } from "./eventStatus";
 export interface TicketTierLike {
   id?: string | number;
   name?: string;
@@ -16,6 +17,7 @@ export interface EventLike {
   day: string;
   time_from: string;
   time_to?: string;
+  timezone?: string;
   location: string;
   ticket_price: number | string;
   event_image_url?: string;
@@ -95,10 +97,9 @@ export function dayGroupLabel(day: string, now = new Date()) {
   return { label: WEEKDAY_LONG[d.getDay()], sub: parts.dayMonth };
 }
 
-export function isPast(event: Pick<EventLike, "day" | "time_from" | "time_to">) {
-  if (!event.day) return false;
-  const end = new Date(`${event.day}T${event.time_to || event.time_from || "23:59:59"}`);
-  return !Number.isNaN(end.getTime()) && new Date() > end;
+/** Has the event finished? Same rule as the event page (lib/eventStatus): its own timezone, past-midnight aware. */
+export function isPast(event: Pick<EventLike, "day" | "time_from" | "time_to" | "timezone">) {
+  return eventHasEnded(event);
 }
 
 type Tone = { label: string; ink: string; bg: string; text: string };

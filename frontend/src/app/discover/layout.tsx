@@ -1,7 +1,7 @@
 import type {Metadata} from 'next'
 
 export const metadata: Metadata = {
-  title: 'Discover Events',
+  title: {absolute: 'Discover events – Byro'},
   alternates: {canonical: '/discover'},
   description: 'Find concerts, sports, nightlife and conferences around you. Book tickets in seconds on Byro.',
   openGraph: {
