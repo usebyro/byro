@@ -5643,8 +5643,6 @@ class AdminSettingsView(APIView):
                 'provider': _current_provider(st.payment_provider),
                 'source': 'admin' if st.payment_provider else 'server',
                 'test_emails': st.bachs_test_email_list(),
-                # Emails listed in the server's BACHS_TEST_EMAILS; shown read-only.
-                'server_test_emails': sorted(getattr(settings, 'BACHS_TEST_EMAILS', None) or ()),
                 'bachs_configured': bachs.is_configured(),
                 'bachs_mode': ('sandbox' if key.startswith('sk_sandbox_') else 'live') if key else None,
                 'bachs_webhook_configured': bool((settings.BACHS_WEBHOOK_SECRET or '').strip()),

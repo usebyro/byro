@@ -24,7 +24,6 @@ interface PaymentSettings {
   provider: Provider;
   source: "admin" | "server";
   test_emails: string[];
-  server_test_emails: string[];
   bachs_configured: boolean;
   bachs_mode: "live" | "sandbox" | null;
   bachs_webhook_configured: boolean;
@@ -784,22 +783,19 @@ function PaymentsPanel({
 
   const choose = async (next: Provider) => {
     if (next === payments.provider) return;
-    const toBachs = next === "bachs";
     const ok = await confirm({
-      title: `Send new orders to ${PROVIDER_NAME[next]}?`,
-      body: toBachs
-        ? "Every new paid ticket order goes to Bachs from now on, for every buyer. Orders already taken stay with the provider that took them, so their tickets and refunds keep working. You can switch back at any time."
-        : "Every new paid ticket order goes to Paystack from now on. Buyers on the Bachs test list still go to Bachs. Orders already taken by Bachs keep verifying and refunding through Bachs.",
-      confirmLabel: `Use ${PROVIDER_NAME[next]}`,
-      tone: toBachs ? "danger" : "primary",
+      title: `Switch to ${PROVIDER_NAME[next]}?`,
+      body: `New ticket payments will go through ${PROVIDER_NAME[next]}. Past orders aren't affected.`,
+      confirmLabel: `Switch to ${PROVIDER_NAME[next]}`,
+      tone: next === "bachs" ? "danger" : "primary",
     });
     if (!ok) return;
     setSwitching(next);
     try {
       await send({ payment_provider: next });
-      toast.success(`New orders now go to ${PROVIDER_NAME[next]}`);
+      toast.success(`Switched to ${PROVIDER_NAME[next]}`);
     } catch (err) {
-      toast.error("Couldn't change the provider", { description: (err as Error).message });
+      toast.error("Couldn't switch", { description: (err as Error).message });
     } finally {
       setSwitching(null);
     }
@@ -814,43 +810,28 @@ function PaymentsPanel({
   const saveEmails = async () => {
     setSavingEmails(true);
     try {
-      const body = await send({ bachs_test_emails: parsed });
-      const n = body.payments.test_emails.length;
-      toast.success("Test list saved", { description: n ? `${n} email${n === 1 ? "" : "s"} pay through Bachs` : "Nobody is on the list" });
+      await send({ bachs_test_emails: parsed });
+      toast.success("Saved");
     } catch (err) {
-      toast.error("Couldn't save the test list", { description: (err as Error).message });
+      toast.error("Couldn't save", { description: (err as Error).message });
     } finally {
       setSavingEmails(false);
     }
   };
 
-  /* Real state, so a coloured dot is earned here: green is working, amber is test-only, red is broken. */
-  const connection: { label: string; text: string; tone: "good" | "waiting" | "danger" }[] = [
-    !payments.bachs_configured
-      ? { label: "Bachs key", text: "Not set up. BACHS_SECRET_KEY is empty on the server.", tone: "danger" }
-      : payments.bachs_mode === "sandbox"
-        ? { label: "Bachs key", text: "Sandbox key. Test payments only, no real money moves.", tone: "waiting" }
-        : { label: "Bachs key", text: "Live key", tone: "good" },
-    payments.bachs_webhook_configured
-      ? { label: "Bachs webhook", text: "Secret set", tone: "good" }
-      : { label: "Bachs webhook", text: "BACHS_WEBHOOK_SECRET is empty. Bachs payments only confirm when the buyer returns to Byro.", tone: "danger" },
-  ];
-  const dot = { good: "bg-good", waiting: "bg-waiting", danger: "bg-danger" } as const;
-  const ink = { good: "text-good", waiting: "text-waiting", danger: "text-danger" } as const;
+  /* One plain-words warning, only when Bachs isn't fully ready. */
+  const bachsWarning = !payments.bachs_configured
+    ? "Bachs isn't connected yet."
+    : payments.bachs_mode === "sandbox"
+      ? "Bachs is in test mode. No real money moves."
+      : !payments.bachs_webhook_configured
+        ? "Bachs payments may take longer to confirm."
+        : null;
 
   return (
     <div className="space-y-10">
-      <Block
-        title="Provider for new orders"
-        hint={
-          <>
-            Which provider buyers are sent to when they pay for a ticket. Orders already taken always stay with the provider that took them. Merch
-            still uses Paystack.
-            {!canEdit && <span className="mt-2 block font-semibold text-ink">Only Owners can change it.</span>}
-          </>
-        }
-      >
-        <div role="radiogroup" aria-label="Provider for new orders" className="grid gap-3 sm:grid-cols-2">
+      <Block title="Payment provider" hint="Where buyers pay for tickets.">
+        <div role="radiogroup" aria-label="Payment provider" className="grid gap-3 sm:grid-cols-2">
           {(["paystack", "bachs"] as Provider[]).map((p) => {
             const active = payments.provider === p;
             const blocked = p === "bachs" && !payments.bachs_configured;
@@ -862,48 +843,33 @@ function PaymentsPanel({
                 aria-checked={active}
                 disabled={!canEdit || blocked || switching !== null}
                 onClick={() => choose(p)}
-                className={`flex min-h-[132px] flex-col items-start rounded-2xl border p-5 text-left disabled:cursor-not-allowed active:scale-[0.98] ${PRESS} ${
+                className={`flex items-center justify-between gap-3 rounded-2xl border p-5 text-left disabled:cursor-not-allowed ${PRESS} ${
                   active ? "border-brand bg-sky ring-2 ring-brand/30" : "border-line bg-white enabled:hover:bg-mist"
                 } ${blocked ? "opacity-60" : ""}`}
               >
-                <span className="flex w-full flex-wrap items-center justify-between gap-x-2 gap-y-1.5">
-                  <span className="font-display text-2xl font-extrabold tracking-tight text-ink">{PROVIDER_NAME[p]}</span>
-                  {active && <span className="rounded-full bg-brand px-3 py-1 text-xs font-bold text-white">Taking new orders</span>}
-                  {switching === p && <span className="text-xs font-semibold text-muted">Switching…</span>}
-                </span>
-                <span className="mt-2 max-w-[38ch] text-sm leading-relaxed text-muted text-pretty">
-                  {p === "paystack"
-                    ? "Paystack adds its processing charge on top for the buyer."
-                    : "Bachs adds its own fee on top at checkout, so Byro receives the full amount."}
-                </span>
+                <span className="font-display text-2xl font-extrabold tracking-tight text-ink">{PROVIDER_NAME[p]}</span>
+                {active ? (
+                  <span className="rounded-full bg-brand px-3 py-1 text-xs font-bold text-white">On</span>
+                ) : switching === p ? (
+                  <span className="text-xs font-semibold text-muted">Switching…</span>
+                ) : blocked ? (
+                  <span className="text-xs font-semibold text-muted">Not connected</span>
+                ) : canEdit ? (
+                  <span className="rounded-full border border-line bg-white px-3 py-1 text-xs font-bold text-ink">Switch</span>
+                ) : null}
               </button>
             );
           })}
         </div>
-        <p className="mt-3 text-xs text-faint">
-          {payments.source === "server"
-            ? "Not chosen here yet. Following the server's PAYMENT_PROVIDER setting."
-            : "Chosen here. This overrides the server's PAYMENT_PROVIDER setting."}
-        </p>
-        <ul className="mt-3 space-y-1.5">
-          {connection.map((c) => (
-            <li key={c.label} className={`flex items-start gap-2 text-sm ${ink[c.tone]}`}>
-              <span aria-hidden="true" className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${dot[c.tone]}`} />
-              <span className="text-pretty">
-                <b>{c.label}:</b> {c.text}
-              </span>
-            </li>
-          ))}
-        </ul>
+        {!canEdit && <p className="mt-3 text-sm text-muted">Only Owners can switch.</p>}
+        {bachsWarning && !(!payments.bachs_configured && !canEdit) && (
+          <p className="mt-3 text-sm font-semibold text-waiting">{bachsWarning}</p>
+        )}
       </Block>
 
-      <section>
-          <h2 className="font-display text-xl font-bold tracking-tight text-ink">Bachs test list</h2>
-          <p className="mt-1 max-w-[65ch] text-sm leading-relaxed text-muted text-pretty">
-            While Paystack takes new orders, buyers with these emails (the email at checkout, or the account they&apos;re signed in with) pay through
-            Bachs instead. Use it to try Bachs with real money before switching everyone.
-          </p>
-          <label htmlFor="bachs-test-emails" className="mb-1.5 mt-5 block text-sm font-bold text-ink">
+      {payments.provider === "paystack" && payments.bachs_configured && (
+        <Block title="Test Bachs" hint="These emails pay with Bachs while Paystack is on.">
+          <label htmlFor="bachs-test-emails" className="sr-only">
             Emails, one per line
           </label>
           <textarea
@@ -912,33 +878,21 @@ function PaymentsPanel({
             value={emailsDraft}
             onChange={(e) => setEmailsDraft(e.target.value)}
             disabled={!canEdit || savingEmails}
-            placeholder={"you@example.com\nteammate@example.com"}
+            placeholder={"One email per line"}
             className="w-full max-w-md rounded-xl border border-line bg-white px-4 py-3 text-sm text-ink placeholder:text-faint focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/25 disabled:text-muted"
           />
-          {payments.provider === "bachs" && (
-            <p className="mt-2 text-xs font-semibold text-waiting">Bachs is taking every new order, so this list makes no difference right now.</p>
-          )}
-          {!payments.bachs_configured && parsed.length > 0 && (
-            <p className="mt-2 text-xs font-semibold text-danger">
-              Bachs isn&apos;t set up on the server, so people on this list can&apos;t pay until BACHS_SECRET_KEY is set.
-            </p>
-          )}
-          {payments.server_test_emails.length > 0 && (
-            <p className="mt-2 text-xs text-faint">Also on the list from the server&apos;s BACHS_TEST_EMAILS: {payments.server_test_emails.join(", ")}</p>
-          )}
-          {canEdit && (
+          {canEdit && emailsDirty && (
             <div className="mt-3 flex gap-1.5">
-              <Button variant="primary" size="sm" onClick={saveEmails} loading={savingEmails} disabled={!emailsDirty}>
-                Save list
+              <Button variant="primary" size="sm" onClick={saveEmails} loading={savingEmails}>
+                Save
               </Button>
-              {emailsDirty && (
-                <Button variant="ghost" size="sm" onClick={() => setEmailsDraft(payments.test_emails.join("\n"))}>
-                  Discard
-                </Button>
-              )}
+              <Button variant="ghost" size="sm" onClick={() => setEmailsDraft(payments.test_emails.join("\n"))}>
+                Discard
+              </Button>
             </div>
           )}
-      </section>
+        </Block>
+      )}
 
       <Timeline
         entries={payments.history.map((h, i) => ({
