@@ -348,23 +348,23 @@ export default function PublicProfileClient({ username }) {
                         <Link
                           key={evt.slug}
                           href={`/discover/${evt.slug}`}
-                          className="flex flex-col gap-3 border-t border-hairline py-5 transition-[scale] active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand sm:flex-row sm:items-center sm:gap-4 sm:py-4 md:gap-5"
+                          className="flex items-center gap-3 border-t border-hairline py-4 transition-[scale] active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand sm:gap-4 md:gap-5"
                         >
-                          <div className="relative aspect-[16/10] w-full shrink-0 overflow-hidden rounded-2xl sm:aspect-auto sm:h-20 sm:w-28 sm:rounded-xl md:h-24 md:w-[152px]">
-                            <EventImage event={evt} sizes="(min-width: 640px) 152px, 100vw" />
+                          <div className="relative size-20 shrink-0 overflow-hidden rounded-xl sm:size-24 md:h-24 md:w-[152px] md:rounded-2xl">
+                            <EventImage event={evt} sizes="(min-width: 768px) 152px, 96px" />
                           </div>
                           <div className="flex min-w-0 flex-1 flex-col gap-1">
-                            <span className="text-sm font-bold text-brand-dark">
+                            <span className="text-[13px] font-bold text-brand-dark sm:text-sm">
                               {parts.short} · {formatTime(evt.time_from)}
                             </span>
-                            <span className="font-display text-xl font-bold leading-tight tracking-[-0.02em] sm:text-lg md:text-[22px]">{evt.name}</span>
-                            <span className="text-sm text-muted">
-                              {evt.location}
-                              <span className="sm:hidden"> · {priceLabel(evt)}</span>
+                            <span className="line-clamp-2 break-words font-display text-base font-bold leading-tight tracking-[-0.02em] sm:text-lg md:text-[22px]">{evt.name}</span>
+                            <span className="flex min-w-0 items-baseline gap-1 text-sm text-muted">
+                              <span className="truncate">{evt.location}</span>
+                              <span className="shrink-0 font-semibold text-ink md:hidden">· {priceLabel(evt)}</span>
                             </span>
                           </div>
-                          <span className="hidden whitespace-nowrap text-[15px] font-bold sm:block">{priceLabel(evt)}</span>
-                          <span className="hidden h-11 items-center whitespace-nowrap rounded-full bg-brand px-5 text-[15px] font-bold text-white sm:flex">
+                          <span className="hidden whitespace-nowrap text-[15px] font-bold md:block">{priceLabel(evt)}</span>
+                          <span className="hidden h-11 items-center whitespace-nowrap rounded-full bg-brand px-5 text-[15px] font-bold text-white md:flex">
                             {free ? "Register" : "Get tickets"}
                           </span>
                         </Link>
