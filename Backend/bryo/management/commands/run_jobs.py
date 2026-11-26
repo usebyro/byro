@@ -8,6 +8,8 @@ Every background job in one command, for a single scheduled service (Railway cro
 - process_merch_orders: free held merch stock, tell organisers when merch money becomes available, remind
   them about orders they have not started (10 days), cancel and refund those left 14 days, retry stuck merch refunds.
   Safe to run every time: each order is reminded and announced once.
+- reconcile_pending_payments: check payments still pending with the provider and issue tickets for any that were
+  actually paid (missed webhook, buyer closed the page). Runs before the abandoned-checkout job.
 - send_abandoned_checkout_reminders: one "finish my order" email to buyers who left a payment unfinished
   for 3 hours, and mark payments left pending for 24 hours as abandoned. Each payment is emailed once.
 - send_sales_summaries: the 8 AM daily sales summary for organisers who chose it in Settings (once a day each,
@@ -35,8 +37,8 @@ class Command(BaseCommand):
     help = 'Run scheduled messages, refunds, merch orders and (from 09:00 Lagos) event reminders. Schedule every 5 minutes.'
 
     def handle(self, *args, **options):
-        jobs = ['send_scheduled_messages', 'process_refunds', 'process_merch_orders', 'send_abandoned_checkout_reminders',
-                'send_sales_summaries']
+        jobs = ['send_scheduled_messages', 'process_refunds', 'process_merch_orders', 'reconcile_pending_payments',
+                'send_abandoned_checkout_reminders', 'send_sales_summaries']
         if datetime.now(LAGOS).hour >= REMINDERS_FROM_HOUR:
             jobs.append('send_event_reminders')
 

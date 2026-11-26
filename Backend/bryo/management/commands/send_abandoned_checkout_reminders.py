@@ -29,8 +29,14 @@ LAGOS = ZoneInfo('Africa/Lagos')
 def skip_reason(payment):
     """Why this buyer should not be emailed, or '' when they should."""
     from bryo.models import Payment
-    from bryo.views import InsufficientCapacityError, lock_and_check_capacity
+    from bryo.views import InsufficientCapacityError, lock_and_check_capacity, settle_payment_with_provider
 
+    # Ask the provider first: a buyer who paid but whose payment we missed must get tickets, not a reminder.
+    result = settle_payment_with_provider(payment)
+    if result == 'paid':
+        return 'already paid'
+    if result == 'unknown':
+        return 'could not check'
     event = payment.event
     if not event.is_active or event.is_draft or event.cancelled_at or event.sales_closed:
         return 'event closed'
@@ -77,6 +83,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         from bryo.models import Payment
+        from bryo.views import settle_payment_with_provider
 
         dry = options['dry_run']
         now = timezone.now()
@@ -110,8 +117,17 @@ class Command(BaseCommand):
                 logger.exception("Abandoned-checkout reminder failed for payment %s", payment.pk)
                 failed += 1
 
-        stale = Payment.objects.filter(status='pending', created_at__lte=now - ABANDON_AFTER)
-        abandoned = stale.count() if dry else stale.update(status='abandoned')
+        # Only abandon what the provider confirms was never paid; a payment we can't check stays pending.
+        abandoned = 0
+        for payment in Payment.objects.filter(status='pending', created_at__lte=now - ABANDON_AFTER).select_related('event'):
+            try:
+                if dry:
+                    abandoned += 1
+                    continue
+                if settle_payment_with_provider(payment) == 'unpaid':
+                    abandoned += Payment.objects.filter(pk=payment.pk, status='pending').update(status='abandoned')
+            except Exception:
+                logger.exception("Could not check payment %s before marking it abandoned", payment.pk)
 
         verb = 'Would send' if dry else 'Sent'
         self.stdout.write(f"{verb} {sent} reminder(s); skipped {skipped}; failed {failed}; "

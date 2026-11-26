@@ -5151,6 +5151,77 @@ def _paystack_transaction(reference):
     return None, (body.get('message') or f'Paystack answered {res.status_code}')[:300]
 
 
+def _tell_admins_payment_recovered(payment):
+    """A buyer paid but we had not completed the order: the webhook or the return to the site was missed."""
+    notify_admins(
+        'payment_recovered', 'Paid order recovered',
+        body=f"{payment.customer_email}, {payment.event.name}. We had it as pending; tickets are now sent."[:255],
+        link=f"/payments/{payment.pk}",
+    )
+
+
+def _tell_admins_payment_needs_review(payment):
+    """The provider shows money for this order but it can't be completed automatically. Told once per order."""
+    meta = dict(payment.metadata or {})
+    if meta.get('review_notified'):
+        return
+    meta['review_notified'] = True
+    Payment.objects.filter(pk=payment.pk).update(metadata=meta)
+    notify_admins(
+        'payment_attention', 'Paid order needs a look',
+        body=f"{payment.customer_email}, {payment.event.name}. The amount paid does not match the order."[:255],
+        link=f"/payments/{payment.pk}",
+    )
+
+
+def settle_payment_with_provider(payment):
+    """
+    Ask the payment provider what really happened to a payment we still show as pending, and finish it if the
+    money arrived (a webhook or the buyer's return to the site can be missed). Returns:
+      'paid'    the provider took the money; tickets are now issued (or were already)
+      'unpaid'  the provider has no completed payment for it (or it never reached the provider)
+      'unknown' we could not tell (provider down, amount mismatch): leave the payment alone
+    """
+    if payment.status == 'successful':
+        return 'paid'
+    if payment.provider == Payment.PROVIDER_BACHS:
+        if not payment.bachs_checkout_id:
+            return 'unpaid'
+        try:
+            checkout = bachs.fetch_checkout(payment.bachs_checkout_id)
+        except (bachs.BachsUnavailable, bachs.BachsError) as e:
+            logger.warning("Could not read Bachs checkout for %s: %s", payment.paystack_reference, e)
+            return 'unknown'
+        outcome = bachs.checkout_outcome(checkout, _charge_amount(payment))
+        if outcome == 'success':
+            _complete_bachs_payment(payment, checkout, _stored_ticket_user(payment))
+            _tell_admins_payment_recovered(payment)
+            return 'paid'
+        if outcome == 'mismatch':
+            logger.error("Paid amount does not match payment %s; left for an admin", payment.paystack_reference)
+            _tell_admins_payment_needs_review(payment)
+            return 'unknown'
+        return 'unpaid'
+    data, err = _paystack_transaction(payment.paystack_reference)
+    if err:
+        return 'unknown'
+    if data.get('status') == 'success':
+        if not _paid_amount_ok(int(data.get('amount') or 0), int(payment.amount * 100)):
+            logger.error("Paid amount does not match payment %s; left for an admin", payment.paystack_reference)
+            _tell_admins_payment_needs_review(payment)
+            return 'unknown'
+        new_tickets, _all = _fulfil_payment(payment, _stored_ticket_user(payment))
+        payment.refresh_from_db()
+        if data.get('channel'):
+            Payment.objects.filter(pk=payment.pk).update(channel=data['channel'])
+        if new_tickets:
+            _email_tickets(new_tickets, payment.event)
+            ticket_sale(payment.event, len(new_tickets), paid_amount=payment.amount, payment=payment)
+        _tell_admins_payment_recovered(payment)
+        return 'paid'
+    return 'unpaid'
+
+
 class AdminPaymentDetailView(APIView):
     """GET /api/admin/payments/<uuid>/ — one order in full: money, buyer, tickets, refund, organiser."""
     permission_classes = [IsAdminMember]
