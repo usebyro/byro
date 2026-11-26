@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-// Settings opens on Notifications until the other tabs exist.
+// Settings opens on the first tab.
 export default function SettingsIndex() {
-  redirect("/dashboard/settings/notifications");
+  redirect("/dashboard/settings/account");
 }

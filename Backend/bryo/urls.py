@@ -1,3 +1,7 @@
+from .account_settings import (
+    AccountDeleteView, AccountView, DataExportDownloadView, DataExportRequestView, PrivacyView,
+    SessionDetailView, SessionsView, SignOutOthersView,
+)
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from . import views
@@ -160,6 +164,14 @@ urlpatterns = [
     path('api/notifications/', MyNotificationsView.as_view(), name='notifications'),
     path('api/notifications/read/', MyNotificationsReadView.as_view(), name='notifications-read'),
     path('api/notifications/settings/', NotificationSettingsView.as_view(), name='notifications-settings'),
+    path('api/account/', AccountView.as_view(), name='account'),
+    path('api/account/sessions/', SessionsView.as_view(), name='account-sessions'),
+    path('api/account/sessions/sign-out-others/', SignOutOthersView.as_view(), name='account-sign-out-others'),
+    path('api/account/sessions/<str:session_id>/', SessionDetailView.as_view(), name='account-session'),
+    path('api/account/delete/', AccountDeleteView.as_view(), name='account-delete'),
+    path('api/account/privacy/', PrivacyView.as_view(), name='account-privacy'),
+    path('api/account/data-export/', DataExportRequestView.as_view(), name='account-data-export'),
+    path('api/account/data-export/download/', DataExportDownloadView.as_view(), name='account-data-export-download'),
     path('api/admin/notifications/', AdminNotificationsView.as_view(), name='admin-notifications'),
     path('api/admin/notifications/read/', AdminNotificationsReadView.as_view(), name='admin-notifications-read'),
     path('api/admin/analytics/activity-trend/', AdminAnalyticsActivityTrendView.as_view(), name='admin-analytics-activity-trend'),

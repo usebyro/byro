@@ -153,6 +153,13 @@ class UserProfile(models.Model):
     muted_notifications = models.JSONField(default=list, blank=True)
     # How this organiser wants ticket sale and merch order emails: every one, a daily summary, or none.
     EMAIL_MODES = [('every', 'Every one'), ('daily', 'Daily summary'), ('off', 'Off')]
+    # Settings > Privacy and Account. list_in_directory is the person's own choice; hidden_from_directory
+    # stays Byro's moderation switch, so turning this back on never undoes an admin hiding a community.
+    list_in_directory = models.BooleanField(default=True)
+    show_passport = models.BooleanField(default=True)
+    TIME_ZONES = [('Africa/Lagos', 'Lagos (WAT, UTC+1)'), ('Africa/Accra', 'Accra (GMT)'),
+                  ('Africa/Nairobi', 'Nairobi (EAT, UTC+3)'), ('Europe/London', 'London (GMT/BST)')]
+    timezone = models.CharField(max_length=40, choices=TIME_ZONES, default='Africa/Lagos')
     sale_email_mode = models.CharField(max_length=10, choices=EMAIL_MODES, default='every')
     merch_email_mode = models.CharField(max_length=10, choices=EMAIL_MODES, default='every')
     # What kind of community this is, shown beside the location on the community page.

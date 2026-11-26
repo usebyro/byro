@@ -3,8 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-// A tab appears here once its page exists. With one tab there is nothing to switch between, so the bar stays hidden.
-const TABS = [{ label: "Notifications", href: "/dashboard/settings/notifications" }];
+// A tab appears here once its page exists.
+const TABS = [
+  { label: "Account", href: "/dashboard/settings/account" },
+  { label: "Notifications", href: "/dashboard/settings/notifications" },
+  { label: "Privacy", href: "/dashboard/settings/privacy" },
+];
 
 export default function SettingsLayout({ children }) {
   const pathname = usePathname();

@@ -405,6 +405,31 @@ def organizer_event_reminder_email(name, event_name, date, time, tickets_sold, d
     return {"subject": f"{event_name} starts tomorrow", "html": html, "text": text}
 
 
+def data_export_email(name, download_url):
+    """Their data is ready: a link that works for 7 days and only for them, once signed in."""
+    first = (name or "").strip().split(" ")[0] or "there"
+    body_html = (
+        _lead(f"Hi {_h(first)}, your data is ready. It has your events, guest lists and sales as CSV files in one zip.")
+        + _btn_row(_btn(download_url, "Download my data"))
+        + _small("The link works for 7 days and only when you are signed in to Byro. "
+                 "If you didn&#8217;t ask for this, ignore this email and nothing is shared.")
+    )
+    html = _shell(
+        _badge("Your data", TIME, TIME_BG),
+        "Your data is ready",
+        body_html,
+        "You&#8217;re getting this because a data download was requested from your Byro settings.",
+        preheader="Download your events, guest lists and sales as CSV files.",
+    )
+    text = (
+        f"Your data is ready\n\nHi {first}, your data is ready. It has your events, guest lists and sales as CSV files in one zip.\n\n"
+        f"Download my data: {download_url}\n\n"
+        "The link works for 7 days and only when you are signed in to Byro. "
+        "If you didn't ask for this, ignore this email and nothing is shared.\n\nByro Team\nsupport@usebyro.com"
+    )
+    return {"subject": "Your Byro data is ready", "html": html, "text": text}
+
+
 def abandoned_checkout_email(name, event_name, date, time, location, tier_label, event_url, quantity=1):
     """Sent once to someone who started checkout and never finished paying."""
     first = (name or "").strip().split(" ")[0] or "there"

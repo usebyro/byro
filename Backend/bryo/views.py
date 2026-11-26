@@ -1736,6 +1736,8 @@ class ProfileViewSet(viewsets.GenericViewSet):
         data['merch_checkout'] = merch_orders.public_checkout_info(profile.user)
         data['community'] = community_stats(profile.user)
         passport = passport_for_user(profile.user)
+        if not profile.show_passport and request.user != profile.user:
+            passport = []  # they chose not to show where they've been
         data['stamps'] = _stamp_payload(passport[:60])
         data['stamps_count'] = len(passport)
         # Which of this organiser's events the person looking was checked in to ("You were there").
@@ -2091,7 +2093,7 @@ class CommunityDirectoryView(APIView):
         today = timezone.localdate()
         live = Event.objects.filter(is_active=True, is_draft=False, visibility='public', cancelled_at__isnull=True)
         qs = (
-            UserProfile.objects.filter(is_public=True, hidden_from_directory=False, handle__isnull=False,
+            UserProfile.objects.filter(is_public=True, hidden_from_directory=False, list_in_directory=True, handle__isnull=False,
                                        user__owned_events__in=live)
             .select_related('user').distinct()
         )
