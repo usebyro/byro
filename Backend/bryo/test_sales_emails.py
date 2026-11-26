@@ -57,6 +57,22 @@ class EverySaleTests(SalesBase):
         self.assertIn('You earn', got['owner@example.com'][2])
         self.assertNotIn('You earn', got['cohost@example.com'][2])
 
+    def test_the_money_is_what_the_owner_earns_never_the_charge_with_byros_fee(self):
+        payment = self.sale()  # what the buyer was charged (payment.amount) has Byro's fee in it
+        self.assertEqual(payment.amount, Decimal('5250.00'))
+        send_sale_emails(self.event.pk, [], payment.pk)
+        html = self.sent_to()['owner@example.com'][2]
+        self.assertIn('₦10,000', html)  # two tickets at ₦5,000
+        self.assertNotIn('₦5,250', html)
+        self.assertNotIn('Paid', html)
+
+    def test_when_the_organiser_carries_the_fee_they_earn_less_than_the_ticket_price(self):
+        self.event.pass_fee_to_attendee = False
+        self.event.save()
+        payment = paid_order(self.event, subtotal='5000.00', fee='250.00', seats=1)
+        send_sale_emails(self.event.pk, [], payment.pk)
+        self.assertIn('₦4,750', self.sent_to()['owner@example.com'][2])
+
     def test_the_email_shows_the_tickets_and_progress(self):
         tier = TicketTier.objects.create(event=self.event, name='VIP', price=Decimal('5000'), capacity=50)
         payment = make_payment(self.event, reference='EVT-vip-1', tier=tier, seats=2)
@@ -131,8 +147,9 @@ class DailySummaryTests(SalesBase):
         got = self.sent_to()
         self.assertEqual(got['owner@example.com'][1], '2 tickets sold yesterday')
         self.assertIn('Ada Obi', got['owner@example.com'][2])
-        self.assertIn('₦5,250', got['owner@example.com'][2])
-        self.assertNotIn('₦5,250', got['cohost@example.com'][2])
+        self.assertIn('₦10,000', got['owner@example.com'][2])  # two tickets at ₦5,000
+        self.assertNotIn('₦5,250', got['owner@example.com'][2])  # never the buyer's charge, which has Byro's fee in it
+        self.assertNotIn('₦', got['cohost@example.com'][2])
         self.assertNotIn('door@example.com', got)
 
     def test_once_a_day_only(self):
@@ -216,7 +233,8 @@ class CatchupTests(SalesBase):
         self.assertEqual(to, 'owner@example.com')
         self.assertEqual(subject, '2 tickets sold so far')
         self.assertIn('since', html)
-        self.assertIn('₦5,250', html)
+        self.assertIn('₦10,000', html)
+        self.assertNotIn('₦5,250', html)
 
     def test_someone_with_no_sales_gets_nothing(self):
         out = self.run_it('--email', 'cohost@example.com', '--apply')

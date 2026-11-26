@@ -100,7 +100,7 @@ def send_sale_emails(event_id, ticket_ids, payment_id=None, buyer=''):
             mail = sale_email(
                 buyer, event.name, _tier_lines(tickets), len(tickets), sold, capacity,
                 f"{_site()}/dashboard/events/{event.slug}",
-                paid=payment.amount if payment is not None else None, earn=earn if is_owner and payment is not None else None,
+                free=payment is None, earn=earn if is_owner and payment is not None else None,
             )
             try:
                 send_email(user.email, mail['subject'], mail['html'], mail['text'])
@@ -148,7 +148,7 @@ def build_summary(user, start, end, tz):
         event = events[p.event_id]
         owner = event.owner_id == user.pk
         orders.append((p.paid_at, event, p.customer_name or 'Someone', ', '.join(f"{n} × {q}" for n, q in _tier_lines(tickets)),
-                       len(tickets), _money(p.amount) if owner else None))
+                       len(tickets), _money(_earnings(p)) if owner else None))
     free = (Ticket.objects.filter(event_id__in=events, payment_status='free', created_at__gte=start, created_at__lt=end)
             .select_related('tier').order_by('created_at'))
     by_buyer = OrderedDict()
@@ -177,7 +177,7 @@ def summary_mail(user, start, end, tz, *, when='yesterday', on='on', label=None)
     built, first_total = [], None
     for sec in sections.values():
         event = sec['event']
-        money = sum((p.amount for p in Payment.objects.filter(
+        money = sum((_earnings(p) for p in Payment.objects.filter(
             event=event, status='successful', paid_at__gte=start, paid_at__lt=end)), Decimal('0'))
         sold, cap = sold_count(event), event.capacity
         built.append({'event_name': event.name, 'rows': sec['rows'],
