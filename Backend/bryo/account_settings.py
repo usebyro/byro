@@ -245,13 +245,14 @@ def build_export(user):
     guest_rows = [(t.event.name, t.current_owner_name, t.current_owner_email, t.tier.name if t.tier else '',
                    t.payment_status, 'yes' if t.checked_in else 'no', t.created_at.date()) for t in tickets.iterator()]
     payments = Payment.objects.filter(event__owner=user, status='successful').select_related('event').order_by('-paid_at')
-    sale_rows = [(p.event.name, p.customer_name, p.customer_email, p.amount, p.currency, p.paid_at.date() if p.paid_at else '',
+    from .sales_emails import _ticket_total  # what the tickets sold for, never the buyer's charge or any Byro fee
+    sale_rows = [(p.event.name, p.customer_name, p.customer_email, _ticket_total(p), p.currency, p.paid_at.date() if p.paid_at else '',
                   p.paystack_reference) for p in payments.iterator()]
     out = io.BytesIO()
     with zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as z:
         z.writestr('events.csv', _csv(event_rows, ['Event', 'Link name', 'Date', 'Location', 'Status', 'Capacity']))
         z.writestr('guest-list.csv', _csv(guest_rows, ['Event', 'Name', 'Email', 'Ticket', 'Payment', 'Checked in', 'Registered']))
-        z.writestr('sales.csv', _csv(sale_rows, ['Event', 'Buyer', 'Buyer email', 'Amount', 'Currency', 'Paid on', 'Reference']))
+        z.writestr('sales.csv', _csv(sale_rows, ['Event', 'Buyer', 'Buyer email', 'Ticket total', 'Currency', 'Paid on', 'Reference']))
     return out.getvalue()
 
 

@@ -50,12 +50,64 @@ class EverySaleTests(SalesBase):
         subject = got['owner@example.com'][1]
         self.assertEqual(subject, f'Ada Obi bought 2 tickets for {self.event.name}')
 
-    def test_only_the_owner_sees_what_they_earn(self):
+    def test_only_the_owner_sees_the_money(self):
         payment = self.sale()
         send_sale_emails(self.event.pk, [], payment.pk)
         got = self.sent_to()
-        self.assertIn('You earn', got['owner@example.com'][2])
-        self.assertNotIn('You earn', got['cohost@example.com'][2])
+        self.assertIn('Total', got['owner@example.com'][2])
+        self.assertNotIn('₦', got['cohost@example.com'][2])
+
+    def test_the_money_is_the_ticket_price_never_the_charge_with_byros_fee(self):
+        payment = self.sale()  # what the buyer was charged (payment.amount) has Byro's fee in it
+        self.assertEqual(payment.amount, Decimal('5250.00'))
+        send_sale_emails(self.event.pk, [], payment.pk)
+        html = self.sent_to()['owner@example.com'][2]
+        self.assertIn('₦10,000', html)       # two tickets at the ₦5,000 the organiser set
+        self.assertNotIn('₦5,250', html)
+        for word in ('Paid', 'You earn', 'fee'):
+            self.assertNotIn(word, html)
+
+    def test_the_fee_rate_and_who_carries_it_never_change_the_figure(self):
+        # Byro's base fee is 5%, some organisers are on 3%, and an organiser can carry the fee themselves.
+        # None of that is in the sale email: it shows the ticket price, the same every time.
+        seen = set()
+        for rate, carries in (('0.0500', False), ('0.0300', False), ('0.0300', True), ('0.0500', True)):
+            self.mail.reset_mock()
+            self.event.pass_fee_to_attendee = not carries
+            self.event.save()
+            payment = paid_order(self.event, subtotal='5000.00', fee='150.00', seats=1)
+            Payment.objects.filter(pk=payment.pk).update(fee_rate=Decimal(rate))
+            send_sale_emails(self.event.pk, [], payment.pk)
+            html = self.sent_to()['owner@example.com'][2]
+            seen.add('₦5,000' in html)
+            self.assertNotIn('₦4,', html)
+        self.assertEqual(seen, {True})
+
+    def test_a_promo_discount_lowers_the_figure_because_the_ticket_sold_for_less(self):
+        payment = paid_order(self.event, subtotal='5000.00', fee='250.00', seats=1,
+                             metadata={'discount_amount': '1000'})
+        send_sale_emails(self.event.pk, [], payment.pk)
+        self.assertIn('₦4,000', self.sent_to()['owner@example.com'][2])
+
+    def test_the_emails_use_the_backends_own_ticket_price_calculation(self):
+        """One source of truth: the same calculation the dashboard's figures start from."""
+        from django.db.models import Sum
+        from .models import Ticket
+        from .sales_emails import _ticket_total
+        from .views import ticket_sale_price_expr
+        for n in range(3):
+            paid_order(self.event, subtotal='5000.00', fee='250.00', seats=2)
+        total = sum((_ticket_total(p) for p in Payment.objects.filter(event=self.event, status='successful')), Decimal('0'))
+        direct = Ticket.objects.filter(event=self.event, payment_status='paid').aggregate(t=Sum(ticket_sale_price_expr()))['t']
+        self.assertEqual(total, direct)
+        self.assertEqual(total, Decimal('30000'))
+
+    def test_no_fee_rate_is_written_into_the_sales_email_code(self):
+        import inspect
+        from . import sales_emails
+        source = inspect.getsource(sales_emails)
+        for literal in ('0.05', '0.03', 'fee_rate', 'service_fee', '* 0.', '/ 100'):
+            self.assertNotIn(literal, source)
 
     def test_the_email_shows_the_tickets_and_progress(self):
         tier = TicketTier.objects.create(event=self.event, name='VIP', price=Decimal('5000'), capacity=50)
@@ -81,8 +133,8 @@ class EverySaleTests(SalesBase):
         send_sale_emails(self.event.pk, [t.pk], None, buyer='Tunde Bello')
         subject, html = self.sent_to()['owner@example.com'][1:3]
         self.assertEqual(subject, f'Tunde Bello claimed 1 free ticket for {self.event.name}')
-        self.assertNotIn('You earn', html)
-        self.assertNotIn('Paid', html)
+        self.assertNotIn('Total', html)
+        self.assertNotIn('₦', html)
 
     def test_the_last_ticket_says_sold_out(self):
         self.event.capacity = 2
@@ -131,8 +183,9 @@ class DailySummaryTests(SalesBase):
         got = self.sent_to()
         self.assertEqual(got['owner@example.com'][1], '2 tickets sold yesterday')
         self.assertIn('Ada Obi', got['owner@example.com'][2])
-        self.assertIn('₦5,250', got['owner@example.com'][2])
-        self.assertNotIn('₦5,250', got['cohost@example.com'][2])
+        self.assertIn('₦10,000', got['owner@example.com'][2])  # two tickets at ₦5,000
+        self.assertNotIn('₦5,250', got['owner@example.com'][2])  # never the buyer's charge, which has Byro's fee in it
+        self.assertNotIn('₦', got['cohost@example.com'][2])
         self.assertNotIn('door@example.com', got)
 
     def test_once_a_day_only(self):
@@ -216,7 +269,8 @@ class CatchupTests(SalesBase):
         self.assertEqual(to, 'owner@example.com')
         self.assertEqual(subject, '2 tickets sold so far')
         self.assertIn('since', html)
-        self.assertIn('₦5,250', html)
+        self.assertIn('₦10,000', html)
+        self.assertNotIn('₦5,250', html)
 
     def test_someone_with_no_sales_gets_nothing(self):
         out = self.run_it('--email', 'cohost@example.com', '--apply')
