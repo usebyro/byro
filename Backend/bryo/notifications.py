@@ -71,7 +71,7 @@ def _naira(amount):
         return str(amount)
 
 
-def ticket_sale(event, count, *, paid_amount=None, payment=None, buyer=''):
+def ticket_sale(event, count, *, paid_amount=None, payment=None, buyer='', tickets=None):
     """Tell the organiser tickets were sold or claimed, and the admin team when money came in."""
     noun = 'ticket' if count == 1 else 'tickets'
     if paid_amount:
@@ -97,6 +97,9 @@ def ticket_sale(event, count, *, paid_amount=None, payment=None, buyer=''):
         title = f"{count} free {noun} claimed"
         body = event.name
     notify(event.owner, 'ticket_sale', title, body=body, link=f"/dashboard/events/{event.slug}")
+    # The email, if they chose it in Settings: every sale now, or in the 8 AM summary.
+    from .sales_emails import on_sale
+    on_sale(event, tickets=tickets, payment=payment, buyer=buyer)
 
 
 def milestone(event, sold):

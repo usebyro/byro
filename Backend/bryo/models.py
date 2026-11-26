@@ -160,6 +160,8 @@ class UserProfile(models.Model):
     TIME_ZONES = [('Africa/Lagos', 'Lagos (WAT, UTC+1)'), ('Africa/Accra', 'Accra (GMT)'),
                   ('Africa/Nairobi', 'Nairobi (EAT, UTC+3)'), ('Europe/London', 'London (GMT/BST)')]
     timezone = models.CharField(max_length=40, choices=TIME_ZONES, default='Africa/Lagos')
+    # The last day (in their own time zone) this person was sent the daily sales summary, so it goes once a day.
+    last_sales_summary_on = models.DateField(null=True, blank=True)
     sale_email_mode = models.CharField(max_length=10, choices=EMAIL_MODES, default='every')
     merch_email_mode = models.CharField(max_length=10, choices=EMAIL_MODES, default='every')
     # What kind of community this is, shown beside the location on the community page.

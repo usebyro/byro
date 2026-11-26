@@ -992,7 +992,7 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                 detail=f"{len(tickets)} ticket(s)",
             )
             if tickets:
-                ticket_sale(event, len(tickets), buyer=tickets[0].original_owner_name or '')
+                ticket_sale(event, len(tickets), buyer=tickets[0].original_owner_name or '', tickets=tickets)
 
             if apps.posthog_client is not None:
                 apps.posthog_client.capture(
@@ -3117,7 +3117,7 @@ class EventViewSet(viewsets.ModelViewSet):
             except InsufficientCapacityError as e:
                 return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-            ticket_sale(event, 1, buyer=ticket.original_owner_name or '')
+            ticket_sale(event, 1, buyer=ticket.original_owner_name or '', tickets=[ticket])
 
             serializer = TicketSerializer(ticket, context={'request': request})
             ticket_url = request.build_absolute_uri(

@@ -405,6 +405,96 @@ def organizer_event_reminder_email(name, event_name, date, time, tickets_sold, d
     return {"subject": f"{event_name} starts tomorrow", "html": html, "text": text}
 
 
+def sale_email(buyer, event_name, tier_lines, quantity, sold, capacity, event_url, paid=None, earn=None):
+    """To an organiser or co-host the moment an order completes. paid=None means a free claim; earn is the
+    owner's share and is left out for co-hosts. Kept short on purpose: who, what, how much, how many left."""
+    free = paid is None
+    noun = "ticket" if quantity == 1 else "tickets"
+    word = "claimed" if free else "sold"
+    sold_out = bool(capacity) and sold >= capacity
+    headline = f"{buyer} claimed {quantity} free {noun}" if free else f"{buyer} bought {quantity} {noun}"
+    rows = [("Tickets", "<br>".join(f"{_h(n)} &times; {q}" for n, q in tier_lines))]
+    if not free:
+        rows.append(("Paid", _money(paid)))
+        if earn is not None:
+            rows.append(("You earn", _money(earn)))
+    if sold_out:
+        status = (
+            f'<p style="margin:0 0 20px;"><span style="display:inline-block;padding:7px 13px;border-radius:999px;background:{MONEY_BG};'
+            f'color:#1F6B47;font-size:13px;font-weight:800;letter-spacing:0.06em;">SOLD OUT</span></p>'
+        )
+        count = "Sold out"
+    else:
+        count = f"{sold} of {capacity} {word}" if capacity else f"{sold} {word}"
+        status = f'<p style="margin:0 0 20px;font-size:16px;color:{INK};">{count}</p>'
+    body_html = (
+        f'<p style="margin:0 0 20px;font-family:{DISPLAY_STACK};font-size:18px;font-weight:700;color:{INK};">{_h(event_name)}</p>'
+        + _rows(rows) + status + _btn_row(_btn(event_url, "View attendees"))
+    )
+    html = _shell(
+        _badge("New claim" if free else "New sale", NEUTRAL, NEUTRAL_BG),
+        _h(headline),
+        body_html,
+        "",
+        preheader=("Free" if free else _money(paid)) + " &middot; " + count,
+    )
+    lines = "".join(f"{n} x {q}\n" for n, q in tier_lines)
+    text = (
+        f"{headline}\n{event_name}\n\n{lines}"
+        + ("" if free else f"Paid: {_money(paid)}\n" + (f"You earn: {_money(earn)}\n" if earn is not None else ""))
+        + f"{count}\n\nView attendees: {event_url}\n\nByro Team\nsupport@usebyro.com"
+    )
+    subject = f"{buyer} claimed {quantity} free {noun} for {event_name}" if free else f"{buyer} bought {quantity} {noun} for {event_name}"
+    return {"subject": subject, "html": html, "text": text}
+
+
+def sales_summary_email(tickets, orders, sold_word, day_label, sections, more, preheader, sales_url):
+    """The 8 AM summary of yesterday's sales. sections: [{event_name, rows: [(buyer, tiers, amount or None)],
+    total: money text or None}]; more is how many orders did not fit."""
+    noun = "ticket" if tickets == 1 else "tickets"
+    order_word = "order" if orders == 1 else "orders"
+    headline = f"{tickets} {noun} {sold_word} yesterday"
+    parts = [f'<p style="margin:0 0 20px;font-size:16px;color:{MUTED};">{orders} {order_word} on {_h(day_label)}.</p>']
+    for sec in sections:
+        rows = "".join(
+            f'<tr><td style="padding:12px 12px 12px 0;border-top:1px solid {HAIRLINE};font-size:16px;font-weight:700;color:{INK};">{_h(b)}'
+            f'<div style="font-size:14px;font-weight:600;color:{MUTED};">{_h(t)}</div></td>'
+            f'<td style="white-space:nowrap;padding:12px 0;border-top:1px solid {HAIRLINE};font-size:16px;font-weight:800;color:{INK};text-align:right;vertical-align:top;">{a or ""}</td></tr>'
+            for b, t, a in sec["rows"]
+        )
+        total = (
+            f'<tr><td style="padding:12px 12px 12px 0;border-top:1px solid #D5DBE5;font-size:16px;color:{MUTED};">Total</td>'
+            f'<td style="white-space:nowrap;padding:12px 0;border-top:1px solid #D5DBE5;font-size:16px;font-weight:800;color:{INK};text-align:right;">{sec["total"]}</td></tr>'
+        ) if sec["total"] else ""
+        parts.append(
+            f'<p style="margin:0 0 4px;font-family:{DISPLAY_STACK};font-size:18px;font-weight:700;color:{INK};">{_h(sec["event_name"])}</p>'
+            f'<table cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;margin:0 0 20px;">{rows}{total}</table>'
+        )
+    if more:
+        parts.append(f'<p style="margin:0 0 20px;font-size:15px;color:{MUTED};">+ {more} more {"order" if more == 1 else "orders"}</p>')
+    parts.append(_btn_row(_btn(sales_url, "View sales")))
+    html = _shell(
+        _badge("Daily sales", NEUTRAL, NEUTRAL_BG),
+        _h(headline),
+        "".join(parts),
+        "",
+        preheader=preheader,
+    )
+    lines = []
+    for sec in sections:
+        lines.append(sec["event_name"])
+        lines += [f"- {b}: {t}" + (f" - {a}" if a else "") for b, t, a in sec["rows"]]
+        if sec["total"]:
+            lines.append(f"Total: {sec['total']}")
+        lines.append("")
+    text = (
+        f"{headline}\n{orders} {order_word} on {day_label}.\n\n" + "\n".join(lines)
+        + (f"+ {more} more {'order' if more == 1 else 'orders'}\n\n" if more else "")
+        + f"View sales: {sales_url}\n\nByro Team\nsupport@usebyro.com"
+    )
+    return {"subject": headline, "html": html, "text": text}
+
+
 def data_export_email(name, download_url):
     """Their data is ready: a link that works for 7 days and only for them, once signed in."""
     first = (name or "").strip().split(" ")[0] or "there"
