@@ -141,9 +141,17 @@ def claim_pending_cohost_invites(user):
                 invite.save(update_fields=['user', 'status', 'accepted_at'])
             claimed += 1
             from .notifications import cohost_joined
-            cohost_joined(invite, user)
+            from .models import TeamMember
+            # Team members are on every event: tell the organiser once (below), not once per event.
+            if not TeamMember.objects.filter(owner=invite.event.owner, invited_email__iexact=user.email).exists():
+                cohost_joined(invite, user)
         except IntegrityError:
             invite.delete()
+
+    from .team import accept_team_invites
+    from .notifications import team_member_joined
+    for member in accept_team_invites(user):
+        team_member_joined(member, user)
 
     if claimed:
         logger.info("Claimed %s co-host invite(s) for %s", claimed, user.email)

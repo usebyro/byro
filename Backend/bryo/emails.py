@@ -687,6 +687,44 @@ def cohost_invite_email(event_name, inviter_name, event_url, is_new_user=False, 
     return {"subject": f"{inviter_name} invited you to co-host {event_name}", "html": html, "text": text}
 
 
+def team_invite_email(inviter_name, community_name, role, accept_url, is_new_user=False):
+    """Invite to someone's whole team: co-host or door staff, across all their events."""
+    if role == "checkin":
+        what = "Door staff"
+        can = ["Check people in at the door", "See the guest list for events", "You won&#8217;t be able to edit events or see sales"]
+        can_text = ["Check people in at the door", "See the guest list for events", "You won't be able to edit events or see sales"]
+    else:
+        what = "Co-host"
+        can = ["Create and edit events, and see sales and guests", "Message followers and check people in", "You won&#8217;t see payouts or bank details"]
+        can_text = ["Create and edit events, and see sales and guests", "Message followers and check people in", "You won't see payouts or bank details"]
+    inviter = _h(inviter_name)
+    community = _h(community_name)
+    body_html = (
+        _lead(f"{inviter} invited you to join <b>{community}</b> as {what.lower()}. It covers all their events, including new ones.")
+        + _callout(f"As {what.lower()} you can", can)
+        + _btn_row(_btn(accept_url, "Accept invite" if is_new_user else "Open Byro"))
+        + _small("Not expecting this? Ignore this email. Nothing changes unless you accept.")
+        + (_small("If you don&#8217;t have a Byro account yet, you can create one when you accept.") if is_new_user else "")
+    )
+    html = _shell(
+        _badge("Team invite", NEUTRAL, NEUTRAL_BG),
+        "",
+        body_html,
+        f"You&#8217;re getting this because {inviter} added this email to their team.",
+        preheader=f"Join {community} as {what.lower()}.",
+    )
+    text = (
+        f"{inviter_name} invited you to join {community_name} as {what.lower()}\n\n"
+        "It covers all their events, including new ones.\n\n"
+        f"As {what.lower()} you can:\n" + "".join(f"- {c}\n" for c in can_text)
+        + f"\n{'Accept invite' if is_new_user else 'Open Byro'}: {accept_url}\n\n"
+        "Not expecting this? Ignore this email. Nothing changes unless you accept.\n"
+        + ("If you don't have a Byro account yet, you can create one when you accept.\n" if is_new_user else "")
+        + "\nByro Team\nsupport@usebyro.com"
+    )
+    return {"subject": f"{inviter_name} invited you to join {community_name} on Byro", "html": html, "text": text}
+
+
 def event_claim_email(event_name, sender_name, claim_url, date="", time="", location="", expires_on=""):
     """Tell an organiser Byro has set up their event, with a link to claim it."""
     when = " · ".join(x for x in [date, time, location] if x)

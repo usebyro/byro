@@ -805,6 +805,39 @@ const API = {
     }
   },
 
+  // ===== SETTINGS: TEAM =====
+  getTeam: async () => {
+    try {
+      return (await axiosInstance.get("team/")).data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  inviteTeamMember: async (email, role) => {
+    try {
+      return (await axiosInstance.post("team/", { email, role })).data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  updateTeamMember: async (id, role) => {
+    try {
+      return (await axiosInstance.patch(`team/${id}/`, { role })).data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  removeTeamMember: async (id) => {
+    try {
+      return (await axiosInstance.delete(`team/${id}/`)).data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
   // ===== SETTINGS: ACCOUNT AND PRIVACY =====
   getAccount: async () => {
     try {

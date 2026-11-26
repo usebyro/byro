@@ -9,6 +9,7 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: nav.replace }),
   useSearchParams: () => new URLSearchParams(nav.query),
 }));
+vi.mock("@/redux/useAuth", () => ({ useAuth: () => ({ user: { display_name: "GDGoC UNILAG" } }) }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/lib/consent", () => ({ openCookieSettings: vi.fn() }));
 vi.mock("@/services/api", () => ({
@@ -22,6 +23,11 @@ beforeEach(() => {
 });
 
 describe("Settings > Privacy", () => {
+  it("names the community in the listing hint", async () => {
+    render(<PrivacySettings />);
+    expect(await screen.findByText(/People can find GDGoC UNILAG in Byro’s directory/)).toBeInTheDocument();
+  });
+
   it("turns directory listing off", async () => {
     API.updatePrivacy.mockResolvedValue({ listed: false, show_passport: true });
     render(<PrivacySettings />);

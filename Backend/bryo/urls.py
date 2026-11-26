@@ -1,3 +1,4 @@
+from .team import TeamMemberView, TeamView
 from .account_settings import (
     AccountDeleteView, AccountView, DataExportDownloadView, DataExportRequestView, PrivacyView,
     SessionDetailView, SessionsView, SignOutOthersView,
@@ -164,6 +165,8 @@ urlpatterns = [
     path('api/notifications/', MyNotificationsView.as_view(), name='notifications'),
     path('api/notifications/read/', MyNotificationsReadView.as_view(), name='notifications-read'),
     path('api/notifications/settings/', NotificationSettingsView.as_view(), name='notifications-settings'),
+    path('api/team/', TeamView.as_view(), name='team'),
+    path('api/team/<int:pk>/', TeamMemberView.as_view(), name='team-member'),
     path('api/account/', AccountView.as_view(), name='account'),
     path('api/account/sessions/', SessionsView.as_view(), name='account-sessions'),
     path('api/account/sessions/sign-out-others/', SignOutOthersView.as_view(), name='account-sign-out-others'),

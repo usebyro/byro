@@ -18,6 +18,7 @@ class BryoConfig(AppConfig):
         global posthog_client
 
         from . import zoho_signals  # noqa: F401  (connects the Zoho Campaigns sync)
+        from . import team  # noqa: F401  (a new event gets the organiser's team)
 
         if not settings.POSTHOG_PROJECT_TOKEN:
             if settings.DEBUG:

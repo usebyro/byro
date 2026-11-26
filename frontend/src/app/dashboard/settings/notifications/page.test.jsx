@@ -36,23 +36,23 @@ describe("Settings > Notifications", () => {
   it("turning a switch off sends the full list of turned-off kinds", async () => {
     API.updateNotificationSettings.mockResolvedValue(prefs({ muted: ["milestone_email"] }));
     render(<NotificationSettings />);
-    await userEvent.click(await screen.findByRole("switch", { name: "Milestones" }));
+    await userEvent.click(await screen.findByRole("switch", { name: "Milestones, email" }));
     expect(API.updateNotificationSettings).toHaveBeenCalledWith({ muted: ["milestone_email"] });
   });
 
   it("Byro picks is saved as its own setting", async () => {
     API.updateNotificationSettings.mockResolvedValue(prefs({ byro_picks: false }));
     render(<NotificationSettings />);
-    await userEvent.click(await screen.findByRole("switch", { name: "Byro picks" }));
+    await userEvent.click(await screen.findByRole("switch", { name: "Byro picks, email" }));
     expect(API.updateNotificationSettings).toHaveBeenCalledWith({ byro_picks: false });
   });
 
   it("puts the switch back when saving fails", async () => {
     API.updateNotificationSettings.mockRejectedValue(new Error("nope"));
     render(<NotificationSettings />);
-    const sw = await screen.findByRole("switch", { name: "Event reminders" });
+    const sw = await screen.findByRole("switch", { name: "Event reminders, email" });
     expect(sw).toHaveAttribute("aria-checked", "true");
     await userEvent.click(sw);
-    await waitFor(() => expect(screen.getByRole("switch", { name: "Event reminders" })).toHaveAttribute("aria-checked", "true"));
+    await waitFor(() => expect(screen.getByRole("switch", { name: "Event reminders, email" })).toHaveAttribute("aria-checked", "true"));
   });
 });

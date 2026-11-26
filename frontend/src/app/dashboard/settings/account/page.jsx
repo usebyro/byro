@@ -17,8 +17,6 @@ const ZONES = [
   ["Europe/London", "London (GMT/BST)"],
 ];
 
-const FIELD = "h-11 w-full rounded-xl border border-[#D5DBE5] bg-white px-3.5 text-[15px] text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand";
-const BTN = "inline-flex h-10 items-center justify-center rounded-full px-5 text-[14px] font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 disabled:opacity-50 motion-reduce:transition-none";
 
 function when(iso) {
   if (!iso) return "";
@@ -140,96 +138,95 @@ export default function AccountSettings() {
   };
 
   const others = (sessions || []).filter((s) => !s.current);
-  const card = (title, children, id) => (
-    <section aria-labelledby={id} className="v-card flex flex-col px-6 py-5">
-      <h2 id={id} className="v-h2">{title}</h2>
-      {children}
-    </section>
-  );
+  const saveIfChanged = () => {
+    if (name.trim() && name.trim() !== account.name) saveName({ preventDefault() {} });
+  };
 
   return (
     <>
-      <p className="v-sub -mt-2">Your sign-in details and where your times are shown.</p>
       {failed ? (
         <section className="v-card"><SectionError what="your account" onRetry={load} /></section>
       ) : account === null ? (
         <Delayed onRetry={load}><div className="v-skel h-[420px] !rounded-[20px]" /></Delayed>
       ) : (
         <>
-          {card("You", (
-            <div className="mt-3 flex flex-col gap-5">
-              <form onSubmit={saveName} className="flex flex-col gap-1.5">
-                <label htmlFor="acct-name" className="text-[15px] font-bold">Your name</label>
-                <div className="flex flex-col gap-2 sm:flex-row">
-                  <input id="acct-name" className={FIELD} value={name} maxLength={100} onChange={(e) => setName(e.target.value)} autoComplete="name" />
-                  <button type="submit" className={`${BTN} shrink-0 bg-brand text-white hover:bg-brand-dark`} disabled={savingName || !name.trim() || name.trim() === account.name}>
-                    {savingName ? "Saving…" : "Save"}
-                  </button>
-                </div>
-                <span className="v-hint">Shown to co-hosts and door staff. Your community name is set on <a className="font-bold text-brand-dark underline" href="/dashboard/profile">Profile</a>.</span>
-              </form>
+          <section aria-labelledby="ac-t" className="v-card v-bf" style={{ padding: "8px 24px 20px", "--i": 1 }}>
+            <div className="s-nrow s-nhead"><h2 id="ac-t" className="v-h2" style={{ fontSize: 17 }}>You</h2></div>
 
-              <div className="flex flex-col gap-1.5">
-                <span className="text-[15px] font-bold">Sign-in email</span>
-                <span className="text-[15px]" data-testid="acct-email">{account.email}</span>
+            <form className="s-frow" onSubmit={saveName}>
+              <label className="s-fl" htmlFor="nm">Your name</label>
+              <div className="s-fv">
+                <input
+                  id="nm"
+                  className="v-input"
+                  value={name}
+                  maxLength={100}
+                  autoComplete="name"
+                  onChange={(e) => setName(e.target.value)}
+                  onBlur={saveIfChanged}
+                />
+                <span className="v-hint">Shown to co-hosts and door staff. Your community name is set on <a className="font-bold text-brand-dark underline" href="/dashboard/profile">Profile</a>.</span>
+              </div>
+            </form>
+
+            <div className="s-frow">
+              <span className="s-fl">Sign-in email</span>
+              <div className="s-fv">
+                <div className="s-fixed"><span data-testid="acct-email" style={{ flex: 1, minWidth: 0, overflowWrap: "anywhere" }}>{account.email}</span></div>
                 <span className="v-hint">
                   To change it, email <a className="font-bold text-brand-dark underline" href="mailto:support@usebyro.com">support@usebyro.com</a> from this address. We check it’s you, then send a confirmation link to the new one.
                 </span>
               </div>
+            </div>
 
-              <div className="flex flex-col gap-1.5">
-                <label htmlFor="acct-zone" className="text-[15px] font-bold">Time zone</label>
-                <select id="acct-zone" className={FIELD} value={account.timezone} onChange={(e) => saveZone(e.target.value)}>
-                  {ZONES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-                </select>
+            <div className="s-frow">
+              <label className="s-fl" htmlFor="tz">Time zone</label>
+              <div className="s-fv">
+                <div className="s-selw">
+                  <select id="tz" className="v-input" value={account.timezone} onChange={(e) => saveZone(e.target.value)}>
+                    {ZONES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                  </select>
+                </div>
                 <span className="v-hint">Used for event times in your dashboard and for 8 AM summary emails.</span>
               </div>
             </div>
-          ), "acct-you")}
+          </section>
 
-          {card("Signed in", (
-            <div className="mt-2 flex flex-col">
-              {sessions === null ? (
-                <div className="v-skel mt-2 h-[88px] !rounded-[14px]" />
-              ) : sessionsFailed ? (
-                <div className="py-2"><SectionError what="your devices" onRetry={loadSessions} /></div>
-              ) : (
-                <>
-                  <ul className="m-0 flex list-none flex-col divide-y divide-hairline p-0">
-                    {sessions.map((s) => (
-                      <li key={s.id} className="flex items-center gap-3 py-3.5">
-                        <span className="flex min-w-0 flex-1 flex-col">
-                          <span className="text-[15px] font-bold">{s.name}</span>
-                          <span className="v-hint">{s.current ? "Active now" : `Signed in ${when(s.last_active)}`.trim()}</span>
-                        </span>
-                        {s.current ? (
-                          <span className="rounded-full bg-[#EAEEF5] px-3 py-1 text-[12px] font-bold text-[#5B6272]">This device</span>
-                        ) : (
-                          <button type="button" className={`${BTN} border border-[#D5DBE5] bg-white text-ink hover:bg-[#F7F9FC]`} onClick={() => signOutOne(s)}>
-                            Sign out
-                          </button>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                  {others.length > 0 && (
-                    <button type="button" className={`${BTN} mt-3 self-start border border-[#D5DBE5] bg-white text-ink hover:bg-[#F7F9FC]`} onClick={signOutOthers}>
-                      Sign out everywhere else
-                    </button>
+          <section aria-labelledby="dv-t" className="v-card v-bf" style={{ padding: "8px 24px 12px", "--i": 2 }}>
+            <div className="s-nrow s-nhead">
+              <h2 id="dv-t" className="v-h2" style={{ fontSize: 17, flex: 1 }}>Signed in</h2>
+              {others.length > 0 && <button type="button" className="v-btn v-btn-s v-btn-sm" onClick={signOutOthers}>Sign out everywhere else</button>}
+            </div>
+            {sessions === null ? (
+              <div className="v-skel mb-2 h-[64px] !rounded-[14px]" />
+            ) : sessionsFailed ? (
+              <div className="pb-2"><SectionError what="your devices" onRetry={loadSessions} /></div>
+            ) : (
+              sessions.map((s) => (
+                <div key={s.id} className="s-nrow">
+                  <span className="s-nlab">
+                    <b>{s.name}</b>
+                    <span className="v-hint">{s.current ? "Active now" : `Signed in ${when(s.last_active)}`.trim()}</span>
+                  </span>
+                  {s.current ? (
+                    <span className="s-deftag">This device</span>
+                  ) : (
+                    <button type="button" className="v-btn v-btn-s v-btn-sm" onClick={() => signOutOne(s)}>Sign out</button>
                   )}
-                </>
-              )}
-            </div>
-          ), "acct-signed-in")}
+                </div>
+              ))
+            )}
+          </section>
 
-          {card("Delete account", (
-            <div className="mt-2 flex flex-col items-start gap-3">
-              <p className="v-hint m-0">You can only delete your account when you have no upcoming events and nothing left to withdraw.</p>
-              <button type="button" className={`${BTN} bg-[#D92D20] text-white hover:bg-[#B42318]`} onClick={deleteAccount}>
-                Delete account
-              </button>
+          <section aria-labelledby="dl-t" className="v-card v-bf" style={{ padding: "20px 24px", "--i": 3 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+              <span style={{ flex: "1 1 280px", display: "flex", flexDirection: "column", gap: 2 }}>
+                <h2 id="dl-t" className="v-h2" style={{ fontSize: 17 }}>Delete account</h2>
+                <span className="v-hint">You can only delete your account when you have no upcoming events and nothing left to withdraw.</span>
+              </span>
+              <button type="button" className="v-btn v-btn-s" style={{ color: "#B42318" }} onClick={deleteAccount}>Delete account</button>
             </div>
-          ), "acct-delete")}
+          </section>
         </>
       )}
     </>

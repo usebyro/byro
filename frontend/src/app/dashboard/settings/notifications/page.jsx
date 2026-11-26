@@ -69,10 +69,10 @@ export default function NotificationSettings() {
   };
   const flipPicks = () => save({ byro_picks: !prefs.byro_picks }, { byro_picks: !prefs.byro_picks });
 
-  const card = (title, children) => (
-    <section aria-labelledby={`set-${title}`} className="v-card flex flex-col px-6 py-5">
-      <h2 id={`set-${title}`} className="v-h2">{title}</h2>
-      <div className="mt-2 flex flex-col divide-y divide-hairline">{children}</div>
+  const card = (title, children, i) => (
+    <section aria-labelledby={`set-${title}`} className="v-card v-bf" style={{ padding: "8px 24px 12px", "--i": i }}>
+      <div className="s-nrow s-nhead"><h2 id={`set-${title}`} className="v-h2" style={{ fontSize: 17 }}>{title}</h2></div>
+      {children}
     </section>
   );
 
@@ -82,6 +82,7 @@ export default function NotificationSettings() {
       <Toggle
         key={r.kind || r.key}
         label={r.label}
+        ariaLabel={`${r.label}, email`}
         hint={r.hint}
         on={on}
         disabled={saving}
@@ -92,8 +93,6 @@ export default function NotificationSettings() {
 
   return (
     <>
-      <p className="v-sub -mt-2">Everything also shows in your notification bell. Choose what else reaches you.</p>
-
       {failed ? (
         <section className="v-card">
           <SectionError what="your settings" onRetry={load} />
@@ -113,7 +112,7 @@ export default function NotificationSettings() {
               disabled={saving}
               onChange={(v) => save({ sale_email: v }, { sale_email: v })}
             />
-          ))}
+          ), 1)}
           {card("Merch orders", (
             <ChoiceGroup
               label="Merch order emails"
@@ -123,10 +122,10 @@ export default function NotificationSettings() {
               disabled={saving}
               onChange={(v) => save({ merch_email: v }, { merch_email: v })}
             />
-          ))}
-          {card("Hosting emails", HOSTING.map(row))}
-          {card("Emails when you attend", ATTENDING.map(row))}
-          <p className="v-hint m-0">Tickets, receipts, payouts, refunds and sign-in codes always come by email, so they’re not listed here.</p>
+          ), 2)}
+          {card("Hosting emails", HOSTING.map(row), 3)}
+          {card("Emails when you attend", ATTENDING.map(row), 4)}
+          <p className="v-hint" style={{ margin: "-8px 0 0" }}>Tickets, receipts, payouts, refunds and sign-in codes always come by email, so they’re not listed here.</p>
         </>
       )}
     </>

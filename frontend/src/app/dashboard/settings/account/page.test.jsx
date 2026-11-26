@@ -46,7 +46,7 @@ describe("Settings > Account", () => {
     const input = await screen.findByLabelText("Your name");
     await userEvent.clear(input);
     await userEvent.type(input, "Samuel Ajayi");
-    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    await userEvent.tab(); // leaving the field saves it
     expect(API.updateAccount).toHaveBeenCalledWith({ name: "Samuel Ajayi" });
   });
 

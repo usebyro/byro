@@ -650,6 +650,35 @@ class Event(models.Model):
         return f"{self.name} - {self.owner.email if self.owner else 'No owner'}"
 
 
+class TeamMember(models.Model):
+    """
+    Someone an organiser has on their whole team (Settings > Team).
+
+    The team is the source for the Team page; access itself is still the per-event
+    EventCoHost grants, which are created for every one of the organiser's events (and for each new
+    event). So every permission check keeps working unchanged. The role is a co-host (manager) or
+    door staff (check-in only). The owner is the organiser, not a row here.
+    """
+    STATUS_PENDING = 'pending'
+    STATUS_ACCEPTED = 'accepted'
+
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='team_members')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                             related_name='team_memberships')
+    invited_email = models.EmailField(db_index=True)  # kept lower case
+    role = models.CharField(max_length=20, choices=[('manager', 'Co-host'), ('checkin', 'Door staff')], default='manager')
+    status = models.CharField(max_length=20, default=STATUS_PENDING, db_index=True)
+    added_at = models.DateTimeField(auto_now_add=True)
+    accepted_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['added_at']
+        constraints = [models.UniqueConstraint(fields=['owner', 'invited_email'], name='unique_team_member')]
+
+    def __str__(self):
+        return f"{self.invited_email} on {self.owner_id}'s team ({self.role})"
+
+
 class EventCoHost(models.Model):
     """
     Event co-host grant.

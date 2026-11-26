@@ -123,6 +123,14 @@ def cohost_joined(invite, user):
     )
 
 
+def team_member_joined(member, user):
+    """Someone invited to the team signed up and took their place."""
+    profile = getattr(user, 'profile', None)
+    name = (profile.display_name if profile else '') or user.get_full_name() or user.email
+    label = 'door staff' if member.role == 'checkin' else 'co-host'
+    notify(member.owner, 'cohost_joined', name, body=f"joined your team as {label}.", link='/dashboard/settings/team')
+
+
 def event_reminder(user, event, days):
     """A heads-up a few days before an event, sent once per person per event."""
     link = f"/dashboard/events/{event.slug}"
