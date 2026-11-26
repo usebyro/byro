@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useDispatch } from "react-redux";
 import { toast } from "sonner";
@@ -165,7 +166,7 @@ export default function AccountSettings() {
                   onChange={(e) => setName(e.target.value)}
                   onBlur={saveIfChanged}
                 />
-                <span className="v-hint">Shown to co-hosts and door staff. Your community name is set on <a className="font-bold text-brand-dark underline" href="/dashboard/profile">Profile</a>.</span>
+                <span className="v-hint">Shown to co-hosts and door staff. Your community name is set on <Link className="font-bold text-brand-dark underline" href="/dashboard/profile">Profile</Link>.</span>
               </div>
             </form>
 
