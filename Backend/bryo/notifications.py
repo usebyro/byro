@@ -21,7 +21,10 @@ logger = logging.getLogger(__name__)
 KEEP_LATEST = 30
 
 # What organisers can turn off in Settings. Payouts and events going on hold always reach them.
-MUTABLE_KINDS = ['ticket_sale', 'new_follower', 'milestone', 'cohost_joined', 'event_reminder', 'milestone_email']
+# The three *_email kinds after milestone_email are the Settings switches for hosting and attending emails.
+MUTABLE_KINDS = ['ticket_sale', 'new_follower', 'milestone', 'cohost_joined', 'event_reminder', 'milestone_email',
+                 'event_reminder_email', 'ticket_reminder_email', 'new_event_email']
+EMAIL_MODES = ('every', 'daily', 'off')
 
 
 def is_muted(user, kind):
@@ -164,25 +167,53 @@ class _NotificationsReadBase(_NotificationsBase):
 
 
 class NotificationSettingsView(APIView):
-    """GET/PATCH /api/notifications/settings/  {muted: [...kinds]} for the signed-in organiser."""
+    """
+    GET/PATCH /api/notifications/settings/ for the signed-in person:
+      {muted: [...kinds], sale_email: 'every'|'daily'|'off', merch_email: 'every'|'daily'|'off', byro_picks: bool}
+    PATCH takes any of them. byro_picks is the Byro newsletter.
+    """
     permission_classes = [IsAuthenticated]
 
     def _profile(self, request):
         from .models import UserProfile
         return UserProfile.objects.get_or_create(user=request.user)[0]
 
+    @staticmethod
+    def _body(profile):
+        return {
+            'muted': [k for k in (profile.muted_notifications or []) if k in MUTABLE_KINDS],
+            'sale_email': profile.sale_email_mode,
+            'merch_email': profile.merch_email_mode,
+            'byro_picks': profile.newsletter_subscribed,
+        }
+
     def get(self, request):
-        profile = self._profile(request)
-        return Response({'muted': [k for k in (profile.muted_notifications or []) if k in MUTABLE_KINDS]})
+        return Response(self._body(self._profile(request)))
 
     def patch(self, request):
-        muted = request.data.get('muted')
-        if not isinstance(muted, list):
-            return Response({'error': 'Send the list of notifications to turn off.'}, status=400)
+        data = request.data
         profile = self._profile(request)
-        profile.muted_notifications = sorted({k for k in muted if k in MUTABLE_KINDS})
-        profile.save(update_fields=['muted_notifications'])
-        return Response({'muted': profile.muted_notifications})
+        changed = []
+        if 'muted' in data:
+            if not isinstance(data['muted'], list):
+                return Response({'error': 'Send the list of notifications to turn off.'}, status=400)
+            profile.muted_notifications = sorted({k for k in data['muted'] if k in MUTABLE_KINDS})
+            changed.append('muted_notifications')
+        for key, field in (('sale_email', 'sale_email_mode'), ('merch_email', 'merch_email_mode')):
+            if key in data:
+                if data[key] not in EMAIL_MODES:
+                    return Response({'error': 'Choose every, daily or off.'}, status=400)
+                setattr(profile, field, data[key])
+                changed.append(field)
+        if 'byro_picks' in data:
+            if not isinstance(data['byro_picks'], bool):
+                return Response({'error': 'Byro picks is on or off.'}, status=400)
+            profile.newsletter_subscribed = data['byro_picks']  # the profile signal syncs Zoho
+            changed.append('newsletter_subscribed')
+        if not changed:
+            return Response({'error': 'Nothing to change.'}, status=400)
+        profile.save(update_fields=changed)
+        return Response(self._body(profile))
 
 
 class MyNotificationsView(_NotificationsBase):

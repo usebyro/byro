@@ -151,6 +151,10 @@ class UserProfile(models.Model):
     fee_rate_override = models.DecimalField(max_digits=5, decimal_places=4, null=True, blank=True)
     # Notification kinds this person turned off in Settings (bell kinds, plus 'milestone_email').
     muted_notifications = models.JSONField(default=list, blank=True)
+    # How this organiser wants ticket sale and merch order emails: every one, a daily summary, or none.
+    EMAIL_MODES = [('every', 'Every one'), ('daily', 'Daily summary'), ('off', 'Off')]
+    sale_email_mode = models.CharField(max_length=10, choices=EMAIL_MODES, default='every')
+    merch_email_mode = models.CharField(max_length=10, choices=EMAIL_MODES, default='every')
     # What kind of community this is, shown beside the location on the community page.
     CATEGORY_CHOICES = [
         ('tech', 'Tech'), ('music', 'Music'), ('fitness', 'Fitness'),

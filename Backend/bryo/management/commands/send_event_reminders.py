@@ -40,6 +40,7 @@ class Command(BaseCommand):
             event_reminder_email, format_event_date, format_event_time, organizer_event_reminder_email,
         )
         from bryo.mailer import send_email
+        from bryo.notifications import is_muted
         from bryo.views import _event_revenue
 
         dry_run = options['dry_run']
@@ -63,6 +64,8 @@ class Command(BaseCommand):
                 if not ticket.current_owner_email:
                     continue
                 attendee_count += 1
+                if ticket.user_id and is_muted(ticket.user, 'ticket_reminder_email'):
+                    continue  # turned off in Settings
                 if dry_run:
                     continue
                 try:
@@ -91,9 +94,10 @@ class Command(BaseCommand):
             # (name, email, is_owner): co-hosts see sales but not revenue, which belongs to the owner.
             recipients = []
             if event.owner_id and event.owner.email:
-                recipients.append((event.owner.get_full_name() or event.owner.email, event.owner.email, True))
+                if not is_muted(event.owner, 'event_reminder_email'):
+                    recipients.append((event.owner.get_full_name() or event.owner.email, event.owner.email, True))
             for cohost in event.cohosts.filter(status=EventCoHost.STATUS_ACCEPTED).select_related('user'):
-                if cohost.user and cohost.user.email:
+                if cohost.user and cohost.user.email and not is_muted(cohost.user, 'event_reminder_email'):
                     recipients.append((cohost.user.get_full_name() or cohost.user.email, cohost.user.email, False))
 
             for name, email, is_owner in recipients:

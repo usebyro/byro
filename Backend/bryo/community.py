@@ -112,6 +112,7 @@ def notify_followers(event):
         if not claimed:
             return 0
 
+        from .notifications import is_muted
         from .views import _tickets_label  # shared with the organiser's "event is live" email
 
         owner = event.owner
@@ -132,7 +133,7 @@ def notify_followers(event):
         follows = Follow.objects.filter(following=owner).select_related('follower', 'follower__profile')
         for follow in follows:
             person = follow.follower
-            if not person.email:
+            if not person.email or is_muted(person, 'new_event_email'):
                 continue
             fprofile = getattr(person, 'profile', None)
             name = (fprofile.display_name if fprofile else '') or person.first_name or ''

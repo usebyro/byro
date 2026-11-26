@@ -785,7 +785,7 @@ const API = {
     }
   },
 
-  // Which notifications the organiser turned off: { muted: ["ticket_sale", ...] }.
+  // The person's notification choices: { muted: [...kinds], sale_email, merch_email ("every"|"daily"|"off"), byro_picks }.
   getNotificationSettings: async () => {
     try {
       const response = await axiosInstance.get("notifications/settings/");
@@ -795,9 +795,10 @@ const API = {
     }
   },
 
-  updateNotificationSettings: async (muted) => {
+  // Send only what changed: { muted }, { sale_email }, { merch_email } or { byro_picks }.
+  updateNotificationSettings: async (changes) => {
     try {
-      const response = await axiosInstance.patch("notifications/settings/", { muted });
+      const response = await axiosInstance.patch("notifications/settings/", changes);
       return response.data;
     } catch (error) {
       throw handleApiError(error);
