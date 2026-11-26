@@ -45,9 +45,18 @@ const NAV = [
 // Phone tab bar: the four most used pages, the rest live under More.
 const TAB_HREFS = ["/dashboard/overview", "/dashboard/events", "/dashboard/community", "/dashboard/payouts"];
 const TABS = NAV.filter((n) => TAB_HREFS.includes(n.href)).map((n) => (n.label === "Overview" ? { ...n, tab: "Home" } : n));
-const MORE = NAV.filter((n) => !TAB_HREFS.includes(n.href));
+const SETTINGS = { label: "Settings", href: "/dashboard/settings", icon: "gear" };
+const MORE = [...NAV.filter((n) => !TAB_HREFS.includes(n.href)), SETTINGS];
 
-const NavIcon = ({ icon, size = 18 }) => (
+// The free Hugeicons pack has no settings icon, so the gear is drawn here, in the same stroke style.
+const GearIcon = ({ size }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="shrink-0" aria-hidden="true">
+    <circle cx="12" cy="12" r="3" />
+    <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v.1a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" />
+  </svg>
+);
+
+const NavIcon = ({ icon, size = 18 }) => icon === "gear" ? <GearIcon size={size} /> : (
   <HugeiconsIcon icon={icon} size={size} color="currentColor" strokeWidth={1.8} className="shrink-0" aria-hidden="true" />
 );
 
@@ -231,6 +240,19 @@ function StudioShell({ children }) {
       </nav>
 
       <div className="flex-1" />
+
+      <Link
+        href={SETTINGS.href}
+        aria-current={pathname.startsWith(SETTINGS.href) ? "page" : undefined}
+        className={`group relative flex h-[42px] shrink-0 items-center rounded-xl text-[15px] transition-[background-color,color,scale] active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
+          collapsed ? "justify-center" : "gap-3 px-3"
+        } ${pathname.startsWith(SETTINGS.href) ? "bg-white font-extrabold text-ink shadow-[0_1px_3px_rgba(20,22,28,.08)]" : "v-navi font-semibold text-body"}`}
+      >
+        <span className={pathname.startsWith(SETTINGS.href) ? "text-brand" : "text-muted"}>
+          <NavIcon icon={SETTINGS.icon} />
+        </span>
+        <RailLabel label={SETTINGS.label} collapsed={collapsed} />
+      </Link>
 
       <Link
         href="/home"

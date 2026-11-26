@@ -151,6 +151,19 @@ class UserProfile(models.Model):
     fee_rate_override = models.DecimalField(max_digits=5, decimal_places=4, null=True, blank=True)
     # Notification kinds this person turned off in Settings (bell kinds, plus 'milestone_email').
     muted_notifications = models.JSONField(default=list, blank=True)
+    # How this organiser wants ticket sale and merch order emails: every one, a daily summary, or none.
+    EMAIL_MODES = [('every', 'Every one'), ('daily', 'Daily summary'), ('off', 'Off')]
+    # Settings > Privacy and Account. list_in_directory is the person's own choice; hidden_from_directory
+    # stays Byro's moderation switch, so turning this back on never undoes an admin hiding a community.
+    list_in_directory = models.BooleanField(default=True)
+    show_passport = models.BooleanField(default=True)
+    TIME_ZONES = [('Africa/Lagos', 'Lagos (WAT, UTC+1)'), ('Africa/Accra', 'Accra (GMT)'),
+                  ('Africa/Nairobi', 'Nairobi (EAT, UTC+3)'), ('Europe/London', 'London (GMT/BST)')]
+    timezone = models.CharField(max_length=40, choices=TIME_ZONES, default='Africa/Lagos')
+    # The last day (in their own time zone) this person was sent the daily sales summary, so it goes once a day.
+    last_sales_summary_on = models.DateField(null=True, blank=True)
+    sale_email_mode = models.CharField(max_length=10, choices=EMAIL_MODES, default='every')
+    merch_email_mode = models.CharField(max_length=10, choices=EMAIL_MODES, default='every')
     # What kind of community this is, shown beside the location on the community page.
     CATEGORY_CHOICES = [
         ('tech', 'Tech'), ('music', 'Music'), ('fitness', 'Fitness'),
@@ -637,6 +650,35 @@ class Event(models.Model):
 
     def __str__(self):
         return f"{self.name} - {self.owner.email if self.owner else 'No owner'}"
+
+
+class TeamMember(models.Model):
+    """
+    Someone an organiser has on their whole team (Settings > Team).
+
+    The team is the source for the Team page; access itself is still the per-event
+    EventCoHost grants, which are created for every one of the organiser's events (and for each new
+    event). So every permission check keeps working unchanged. The role is a co-host (manager) or
+    door staff (check-in only). The owner is the organiser, not a row here.
+    """
+    STATUS_PENDING = 'pending'
+    STATUS_ACCEPTED = 'accepted'
+
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='team_members')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                             related_name='team_memberships')
+    invited_email = models.EmailField(db_index=True)  # kept lower case
+    role = models.CharField(max_length=20, choices=[('manager', 'Co-host'), ('checkin', 'Door staff')], default='manager')
+    status = models.CharField(max_length=20, default=STATUS_PENDING, db_index=True)
+    added_at = models.DateTimeField(auto_now_add=True)
+    accepted_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['added_at']
+        constraints = [models.UniqueConstraint(fields=['owner', 'invited_email'], name='unique_team_member')]
+
+    def __str__(self):
+        return f"{self.invited_email} on {self.owner_id}'s team ({self.role})"
 
 
 class EventCoHost(models.Model):

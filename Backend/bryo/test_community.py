@@ -71,6 +71,14 @@ class FollowerEmailTests(CommunityBase):
         self.assertIn('Lagos Run Club', subject)
         self.assertIn('/unfollow?t=', html)
 
+    def test_a_follower_who_turned_new_event_emails_off_is_skipped(self):
+        quiet, loud = self.fan('quiet@example.com'), self.fan('loud@example.com')
+        UserProfile.objects.filter(user=quiet).update(muted_notifications=['new_event_email'])
+        Follow.objects.create(follower=quiet, following=self.owner)
+        Follow.objects.create(follower=loud, following=self.owner)
+        self.assertEqual(notify_followers(self.event), 1)
+        self.assertEqual(self.sent.call_args[0][0], 'loud@example.com')
+
     def test_drafts_and_private_events_stay_quiet(self):
         Follow.objects.create(follower=self.fan(), following=self.owner)
         draft = make_event(self.owner, name='Draft', is_draft=True)

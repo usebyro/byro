@@ -405,6 +405,121 @@ def organizer_event_reminder_email(name, event_name, date, time, tickets_sold, d
     return {"subject": f"{event_name} starts tomorrow", "html": html, "text": text}
 
 
+def sale_email(buyer, event_name, tier_lines, quantity, sold, capacity, event_url, paid=None, earn=None):
+    """To an organiser or co-host the moment an order completes. paid=None means a free claim; earn is the
+    owner's share and is left out for co-hosts. Kept short on purpose: who, what, how much, how many left."""
+    free = paid is None
+    noun = "ticket" if quantity == 1 else "tickets"
+    word = "claimed" if free else "sold"
+    sold_out = bool(capacity) and sold >= capacity
+    headline = f"{buyer} claimed {quantity} free {noun}" if free else f"{buyer} bought {quantity} {noun}"
+    rows = [("Tickets", "<br>".join(f"{_h(n)} &times; {q}" for n, q in tier_lines))]
+    if not free:
+        rows.append(("Paid", _money(paid)))
+        if earn is not None:
+            rows.append(("You earn", _money(earn)))
+    if sold_out:
+        status = (
+            f'<p style="margin:0 0 20px;"><span style="display:inline-block;padding:7px 13px;border-radius:999px;background:{MONEY_BG};'
+            f'color:#1F6B47;font-size:13px;font-weight:800;letter-spacing:0.06em;">SOLD OUT</span></p>'
+        )
+        count = "Sold out"
+    else:
+        count = f"{sold} of {capacity} {word}" if capacity else f"{sold} {word}"
+        status = f'<p style="margin:0 0 20px;font-size:16px;color:{INK};">{count}</p>'
+    body_html = (
+        f'<p style="margin:0 0 20px;font-family:{DISPLAY_STACK};font-size:18px;font-weight:700;color:{INK};">{_h(event_name)}</p>'
+        + _rows(rows) + status + _btn_row(_btn(event_url, "View attendees"))
+    )
+    html = _shell(
+        _badge("New claim" if free else "New sale", NEUTRAL, NEUTRAL_BG),
+        _h(headline),
+        body_html,
+        "",
+        preheader=("Free" if free else _money(paid)) + " &middot; " + count,
+    )
+    lines = "".join(f"{n} x {q}\n" for n, q in tier_lines)
+    text = (
+        f"{headline}\n{event_name}\n\n{lines}"
+        + ("" if free else f"Paid: {_money(paid)}\n" + (f"You earn: {_money(earn)}\n" if earn is not None else ""))
+        + f"{count}\n\nView attendees: {event_url}\n\nByro Team\nsupport@usebyro.com"
+    )
+    subject = f"{buyer} claimed {quantity} free {noun} for {event_name}" if free else f"{buyer} bought {quantity} {noun} for {event_name}"
+    return {"subject": subject, "html": html, "text": text}
+
+
+def sales_summary_email(tickets, orders, sold_word, day_label, sections, more, preheader, sales_url):
+    """The 8 AM summary of yesterday's sales. sections: [{event_name, rows: [(buyer, tiers, amount or None)],
+    total: money text or None}]; more is how many orders did not fit."""
+    noun = "ticket" if tickets == 1 else "tickets"
+    order_word = "order" if orders == 1 else "orders"
+    headline = f"{tickets} {noun} {sold_word} yesterday"
+    parts = [f'<p style="margin:0 0 20px;font-size:16px;color:{MUTED};">{orders} {order_word} on {_h(day_label)}.</p>']
+    for sec in sections:
+        rows = "".join(
+            f'<tr><td style="padding:12px 12px 12px 0;border-top:1px solid {HAIRLINE};font-size:16px;font-weight:700;color:{INK};">{_h(b)}'
+            f'<div style="font-size:14px;font-weight:600;color:{MUTED};">{_h(t)}</div></td>'
+            f'<td style="white-space:nowrap;padding:12px 0;border-top:1px solid {HAIRLINE};font-size:16px;font-weight:800;color:{INK};text-align:right;vertical-align:top;">{a or ""}</td></tr>'
+            for b, t, a in sec["rows"]
+        )
+        total = (
+            f'<tr><td style="padding:12px 12px 12px 0;border-top:1px solid #D5DBE5;font-size:16px;color:{MUTED};">Total</td>'
+            f'<td style="white-space:nowrap;padding:12px 0;border-top:1px solid #D5DBE5;font-size:16px;font-weight:800;color:{INK};text-align:right;">{sec["total"]}</td></tr>'
+        ) if sec["total"] else ""
+        parts.append(
+            f'<p style="margin:0 0 4px;font-family:{DISPLAY_STACK};font-size:18px;font-weight:700;color:{INK};">{_h(sec["event_name"])}</p>'
+            f'<table cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;margin:0 0 20px;">{rows}{total}</table>'
+        )
+    if more:
+        parts.append(f'<p style="margin:0 0 20px;font-size:15px;color:{MUTED};">+ {more} more {"order" if more == 1 else "orders"}</p>')
+    parts.append(_btn_row(_btn(sales_url, "View sales")))
+    html = _shell(
+        _badge("Daily sales", NEUTRAL, NEUTRAL_BG),
+        _h(headline),
+        "".join(parts),
+        "",
+        preheader=preheader,
+    )
+    lines = []
+    for sec in sections:
+        lines.append(sec["event_name"])
+        lines += [f"- {b}: {t}" + (f" - {a}" if a else "") for b, t, a in sec["rows"]]
+        if sec["total"]:
+            lines.append(f"Total: {sec['total']}")
+        lines.append("")
+    text = (
+        f"{headline}\n{orders} {order_word} on {day_label}.\n\n" + "\n".join(lines)
+        + (f"+ {more} more {'order' if more == 1 else 'orders'}\n\n" if more else "")
+        + f"View sales: {sales_url}\n\nByro Team\nsupport@usebyro.com"
+    )
+    return {"subject": headline, "html": html, "text": text}
+
+
+def data_export_email(name, download_url):
+    """Their data is ready: a link that works for 7 days and only for them, once signed in."""
+    first = (name or "").strip().split(" ")[0] or "there"
+    body_html = (
+        _lead(f"Hi {_h(first)}, your data is ready. It has your events, guest lists and sales as CSV files in one zip.")
+        + _btn_row(_btn(download_url, "Download my data"))
+        + _small("The link works for 7 days and only when you are signed in to Byro. "
+                 "If you didn&#8217;t ask for this, ignore this email and nothing is shared.")
+    )
+    html = _shell(
+        _badge("Your data", TIME, TIME_BG),
+        "Your data is ready",
+        body_html,
+        "You&#8217;re getting this because a data download was requested from your Byro settings.",
+        preheader="Download your events, guest lists and sales as CSV files.",
+    )
+    text = (
+        f"Your data is ready\n\nHi {first}, your data is ready. It has your events, guest lists and sales as CSV files in one zip.\n\n"
+        f"Download my data: {download_url}\n\n"
+        "The link works for 7 days and only when you are signed in to Byro. "
+        "If you didn't ask for this, ignore this email and nothing is shared.\n\nByro Team\nsupport@usebyro.com"
+    )
+    return {"subject": "Your Byro data is ready", "html": html, "text": text}
+
+
 def abandoned_checkout_email(name, event_name, date, time, location, tier_label, event_url, quantity=1):
     """Sent once to someone who started checkout and never finished paying."""
     first = (name or "").strip().split(" ")[0] or "there"
@@ -660,6 +775,44 @@ def cohost_invite_email(event_name, inviter_name, event_url, is_new_user=False, 
         + "\nByro Team\nsupport@usebyro.com"
     )
     return {"subject": f"{inviter_name} invited you to co-host {event_name}", "html": html, "text": text}
+
+
+def team_invite_email(inviter_name, community_name, role, accept_url, is_new_user=False):
+    """Invite to someone's whole team: co-host or door staff, across all their events."""
+    if role == "checkin":
+        what = "Door staff"
+        can = ["Check people in at the door", "See the guest list for events", "You won&#8217;t be able to edit events or see sales"]
+        can_text = ["Check people in at the door", "See the guest list for events", "You won't be able to edit events or see sales"]
+    else:
+        what = "Co-host"
+        can = ["Create and edit events, and see sales and guests", "Message followers and check people in", "You won&#8217;t see payouts or bank details"]
+        can_text = ["Create and edit events, and see sales and guests", "Message followers and check people in", "You won't see payouts or bank details"]
+    inviter = _h(inviter_name)
+    community = _h(community_name)
+    body_html = (
+        _lead(f"{inviter} invited you to join <b>{community}</b> as {what.lower()}. It covers all their events, including new ones.")
+        + _callout(f"As {what.lower()} you can", can)
+        + _btn_row(_btn(accept_url, "Accept invite" if is_new_user else "Open Byro"))
+        + _small("Not expecting this? Ignore this email. Nothing changes unless you accept.")
+        + (_small("If you don&#8217;t have a Byro account yet, you can create one when you accept.") if is_new_user else "")
+    )
+    html = _shell(
+        _badge("Team invite", NEUTRAL, NEUTRAL_BG),
+        "",
+        body_html,
+        f"You&#8217;re getting this because {inviter} added this email to their team.",
+        preheader=f"Join {community} as {what.lower()}.",
+    )
+    text = (
+        f"{inviter_name} invited you to join {community_name} as {what.lower()}\n\n"
+        "It covers all their events, including new ones.\n\n"
+        f"As {what.lower()} you can:\n" + "".join(f"- {c}\n" for c in can_text)
+        + f"\n{'Accept invite' if is_new_user else 'Open Byro'}: {accept_url}\n\n"
+        "Not expecting this? Ignore this email. Nothing changes unless you accept.\n"
+        + ("If you don't have a Byro account yet, you can create one when you accept.\n" if is_new_user else "")
+        + "\nByro Team\nsupport@usebyro.com"
+    )
+    return {"subject": f"{inviter_name} invited you to join {community_name} on Byro", "html": html, "text": text}
 
 
 def event_claim_email(event_name, sender_name, claim_url, date="", time="", location="", expires_on=""):

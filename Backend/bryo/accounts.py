@@ -74,9 +74,13 @@ def summary(user):
     }
 
 
-def delete_blockers(user):
-    """Plain reasons this account can't be deleted yet. Empty list means it can."""
+def delete_blockers(user, you=False):
+    """Plain reasons this account can't be deleted yet. Empty list means it can.
+    you=True words them for the account owner reading their own Settings."""
     from .views import compute_available_balance
+
+    def say(they, yours):
+        return yours if you else they
 
     reasons = []
     today = timezone.localdate()
@@ -84,22 +88,24 @@ def delete_blockers(user):
                                 tickets__payment_status__in=('paid', 'free')).distinct()
     if live.exists():
         names = ', '.join(live.values_list('name', flat=True)[:3])
-        reasons.append(f'They have upcoming events with tickets sold ({names}). Cancel or finish them first.')
+        reasons.append(say(f'They have upcoming events with tickets sold ({names}). Cancel or finish them first.',
+                           f'You have upcoming events with tickets sold ({names}). Cancel or finish them first.'))
     if Refund.objects.filter(event__owner=user).exclude(status=Refund.STATUS_PROCESSED).exists():
-        reasons.append('Refunds for their events are not finished yet.')
+        reasons.append(say('Refunds for their events are not finished yet.', 'Refunds for your events are not finished yet.'))
     if PayoutRequest.objects.filter(user=user, status__in=['pending', 'on_hold']).exists():
-        reasons.append('They have a payout waiting to be processed.')
+        reasons.append(say('They have a payout waiting to be processed.', 'You have a payout waiting to be processed.'))
     if compute_available_balance(user) > 0:
-        reasons.append('Byro still owes them money. Pay it out first.')
+        reasons.append(say('Byro still owes them money. Pay it out first.', 'You still have money to withdraw. Withdraw it first.'))
     from .models import MerchOrder
     open_merch = MerchOrder.objects.filter(seller=user).filter(
         Q(status__in=[MerchOrder.PAID, MerchOrder.PACKED, MerchOrder.SHIPPED, MerchOrder.READY, MerchOrder.REFUND_PROCESSING])
         | Q(reported_at__isnull=False, report_resolved_at__isnull=True)
     )
     if open_merch.exists():
-        reasons.append('They have merch orders still to fulfil or refund.')
+        reasons.append(say('They have merch orders still to fulfil or refund.', 'You have merch orders still to fulfil or refund.'))
     if AdminMember.objects.filter(email__iexact=user.email).exists():
-        reasons.append('They are on the Byro admin team. Remove them from Team first.')
+        reasons.append(say('They are on the Byro admin team. Remove them from Team first.',
+                           'You are on the Byro admin team. Ask an owner to remove you first.'))
     return reasons
 
 

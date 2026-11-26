@@ -785,7 +785,7 @@ const API = {
     }
   },
 
-  // Which notifications the organiser turned off: { muted: ["ticket_sale", ...] }.
+  // The person's notification choices: { muted: [...kinds], sale_email, merch_email ("every"|"daily"|"off"), byro_picks }.
   getNotificationSettings: async () => {
     try {
       const response = await axiosInstance.get("notifications/settings/");
@@ -795,10 +795,135 @@ const API = {
     }
   },
 
-  updateNotificationSettings: async (muted) => {
+  // Send only what changed: { muted }, { sale_email }, { merch_email } or { byro_picks }.
+  updateNotificationSettings: async (changes) => {
     try {
-      const response = await axiosInstance.patch("notifications/settings/", { muted });
+      const response = await axiosInstance.patch("notifications/settings/", changes);
       return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  // ===== SETTINGS: TEAM =====
+  getTeam: async () => {
+    try {
+      return (await axiosInstance.get("team/")).data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  inviteTeamMember: async (email, role) => {
+    try {
+      return (await axiosInstance.post("team/", { email, role })).data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  updateTeamMember: async (id, role) => {
+    try {
+      return (await axiosInstance.patch(`team/${id}/`, { role })).data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  removeTeamMember: async (id) => {
+    try {
+      return (await axiosInstance.delete(`team/${id}/`)).data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  // ===== SETTINGS: ACCOUNT AND PRIVACY =====
+  getAccount: async () => {
+    try {
+      return (await axiosInstance.get("account/")).data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  updateAccount: async (changes) => {
+    try {
+      return (await axiosInstance.patch("account/", changes)).data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  getSessions: async () => {
+    try {
+      return (await axiosInstance.get("account/sessions/")).data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  signOutSession: async (id) => {
+    try {
+      return (await axiosInstance.delete(`account/sessions/${encodeURIComponent(id)}/`)).data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  signOutOtherSessions: async () => {
+    try {
+      return (await axiosInstance.post("account/sessions/sign-out-others/")).data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  // Plain reasons the account can't be deleted yet; an empty list means it can.
+  getDeleteBlockers: async () => {
+    try {
+      return (await axiosInstance.get("account/delete/")).data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  deleteAccount: async (confirmEmail) => {
+    try {
+      return (await axiosInstance.post("account/delete/", { confirm_email: confirmEmail })).data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  getPrivacy: async () => {
+    try {
+      return (await axiosInstance.get("account/privacy/")).data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  updatePrivacy: async (changes) => {
+    try {
+      return (await axiosInstance.patch("account/privacy/", changes)).data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  requestDataExport: async () => {
+    try {
+      return (await axiosInstance.post("account/data-export/")).data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+
+  // The zip behind the emailed link, as a Blob.
+  downloadDataExport: async (token) => {
+    try {
+      return (await axiosInstance.get("account/data-export/download/", { params: { t: token }, responseType: "blob" })).data;
     } catch (error) {
       throw handleApiError(error);
     }
