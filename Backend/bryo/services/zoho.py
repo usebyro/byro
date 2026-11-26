@@ -1,5 +1,5 @@
 """
-Zoho Campaigns: the role mailing lists (Organisers, Attendees) and the newsletter.
+Zoho Campaigns: the role mailing lists (Organisers, Attendees), guests who agreed to marketing (on the Attendees list, tagged) and the newsletter.
 
 Every public function returns a Result and never raises, so a Zoho outage can't break
 signup, onboarding or the newsletter form. With ZOHO_ENABLED off, or any setting missing,
@@ -29,6 +29,7 @@ BACKOFF_SECONDS = 0.5      # doubles each retry
 LIST_ORGANISERS = 'organisers'
 LIST_ATTENDEES = 'attendees'
 LIST_NEWSLETTER = 'newsletter'
+EVENT_GUEST_TAG = 'guest'
 
 _ROLE_LISTS = {'organizer': LIST_ORGANISERS, 'attendee': LIST_ATTENDEES}
 
@@ -36,6 +37,7 @@ _lock = threading.Lock()   # one token refresh at a time; the others wait and re
 _token = None
 _expires_at = 0.0
 _warned = False
+_warned_guests = False
 
 
 @dataclass
@@ -46,9 +48,9 @@ class Result:
 
 def _reset():
     """Forget the cached token and the one-time warning (tests)."""
-    global _token, _expires_at, _warned
+    global _token, _expires_at, _warned, _warned_guests
     with _lock:
-        _token, _expires_at, _warned = None, 0.0, False
+        _token, _expires_at, _warned, _warned_guests = None, 0.0, False, False
 
 
 def mask_email(email):
@@ -146,7 +148,16 @@ def _is_auth_error(http_status, body):
     return ('invalid' in text or 'expired' in text) and ('token' in text or 'oauth' in text)
 
 
-def _post(action, list_name, contact):
+UNSUBSCRIBED = 'unsubscribed'
+
+
+def _is_unsubscribed(error):
+    """Zoho refusing someone who opted out earlier. The docs list no code for it, so go by the words."""
+    text = (error or '').lower()
+    return any(w in text for w in ('unsubscrib', 'suppress', 'blocked', 'do not mail', 'opted out'))
+
+
+def _post(action, list_name, contact, guest=False):
     """listsubscribe / listunsubscribe with retries. Returns a Result."""
     refreshed = False
     last_error = 'unknown error'
@@ -183,11 +194,15 @@ def _post(action, list_name, contact):
                 if resp.status_code >= 400 and not error:
                     error = f"HTTP {resp.status_code}"
                 # Adding someone who is already on the list is a success.
-                if error and action == 'listsubscribe' and 'already' in error.lower():
+                if error and action == 'listsubscribe' and ('already' in error.lower() or 'exists in this list' in error.lower()):
                     error = None
                 if error:
                     # The body has no tokens or contact details, only Zoho's code and message.
-                    logger.error("Zoho %s answered HTTP %s: %s", action, resp.status_code, json.dumps(body)[:500])
+                    refused = guest and _is_unsubscribed(error)
+                    logger.log(logging.INFO if refused else logging.ERROR,
+                               "Zoho %s answered HTTP %s: %s", action, resp.status_code, json.dumps(body)[:500])
+                    if refused:
+                        return Result(False, UNSUBSCRIBED)
                 return Result(False, error) if error else Result(True)
         if attempt < MAX_RETRIES:
             time.sleep(BACKOFF_SECONDS * (2 ** attempt))
@@ -205,20 +220,20 @@ def _contact(email, first_name='', last_name='', extra=None):
     return info
 
 
-def _run(action, list_name, email, first_name='', last_name='', extra=None):
+def _run(action, list_name, email, first_name='', last_name='', extra=None, guest=False):
     if not is_enabled():
         return Result(False, 'disabled')
     try:
-        result = _post(action, list_name, _contact(email, first_name, last_name, extra))
+        result = _post(action, list_name, _contact(email, first_name, last_name, extra), guest=guest)
     except Exception as exc:  # never let Zoho reach a caller
         result = Result(False, exc.__class__.__name__)
-    if not result.ok:
+    if not result.ok and result.error != UNSUBSCRIBED:
         logger.error("Zoho %s failed for list=%s email=%s: %s", action, list_name, mask_email(email), result.error)
     return result
 
 
-def subscribe(list_name, email, first_name='', last_name='', extra=None):
-    return _run('listsubscribe', list_name, email, first_name, last_name, extra)
+def subscribe(list_name, email, first_name='', last_name='', extra=None, guest=False):
+    return _run('listsubscribe', list_name, email, first_name, last_name, extra, guest=guest)
 
 
 def unsubscribe(list_name, email):
@@ -259,6 +274,98 @@ def add_user_by_role(user, role=None, extra=None):
         return Result(False, 'no role')
     first, last = _names(user)
     return subscribe(list_name, user.email, first, last, extra)
+
+
+def _split_name(full):
+    first, _, last = (full or '').strip().partition(' ')
+    return first.strip()[:100], last.strip()[:100]
+
+
+def _tag_get(path, **params):
+    """GET one of the tag endpoints. Returns (ok, error code or None). Never raises."""
+    try:
+        resp = requests.get(
+            f"{_setting('ZOHO_CAMPAIGNS_URL', 'https://campaigns.zoho.com').rstrip('/')}/api/v1.1/{path}",
+            headers={'Authorization': f"Zoho-oauthtoken {get_access_token()}"},
+            params={'resfmt': 'JSON', **params},
+            timeout=TIMEOUT_SECONDS,
+        )
+        body = _json(resp)
+        if resp.status_code == 200 and str(body.get('code')) == '0':
+            return True, None
+        logger.warning("Zoho %s answered HTTP %s: %s", path, resp.status_code, json.dumps(body)[:500])
+        return False, str(body.get('code') or resp.status_code)
+    except Exception as exc:
+        logger.warning("Zoho %s failed: %s", path, exc.__class__.__name__)
+        return False, exc.__class__.__name__
+
+
+def tag_contact(email, tag=EVENT_GUEST_TAG):
+    """Put a tag on a contact (GET /tag/associate). The tag has to exist, so if Zoho says
+    'Tag not found' (9001) make it (GET /tag/add) and try once more. Never raises."""
+    email = (email or '').strip().lower()
+    ok, code = _tag_get('tag/associate', tagName=tag, lead_email=email)
+    if not ok and code == '9001':
+        made, made_code = _tag_get('tag/add', tagName=tag)
+        if made or made_code == '9000':  # 9000: someone made it first
+            ok, code = _tag_get('tag/associate', tagName=tag, lead_email=email)
+    return Result(ok, None if ok else f"tag failed: {code}")
+
+
+def _guest_sync_not_configured():
+    """Guests need the Attendees list and the Marketing topic (without a topic Zoho skips the
+    contact). One warning, then quiet."""
+    global _warned_guests
+    missing = [k for k in ('ZOHO_LISTKEY_ATTENDEES', 'ZOHO_MARKETING_TOPIC_ID') if not _setting(k)]
+    if not missing:
+        return False
+    if not _warned_guests:
+        _warned_guests = True
+        logger.warning("Event guests will not be synced to Zoho: %s is not set", ', '.join(missing))
+    return True
+
+
+def sync_event_guest_to_zoho(user_id, ticket_ids=()):
+    """
+    A guest who ticked the marketing box joins the Attendees list (with the Marketing topic)
+    and gets the tag "guest". Only Contact Email, First Name and Last Name are sent.
+    Only ever called for consented guests. Never raises, never retries someone who unsubscribed.
+    Once settled the tickets are stamped, so a backfill skips them.
+    """
+    try:
+        if not is_enabled() or _guest_sync_not_configured():
+            return Result(False, 'disabled')
+        from django.contrib.auth import get_user_model
+        from django.utils import timezone
+        from ..models import Ticket
+        user = get_user_model().objects.filter(pk=user_id).first()  # fresh, so the checkout name is there
+        if not user or not user.email or not user.is_active:
+            return Result(False, 'no guest')
+        profile = getattr(user, 'profile', None)
+        first, last = _split_name(getattr(profile, 'display_name', '') or '')
+        result = subscribe(LIST_ATTENDEES, user.email, first, last, guest=True)
+        domain = user.email.rpartition('@')[2]
+        if result.ok:
+            logger.info("Zoho event guest synced (email domain %s)", domain)
+            tag = tag_contact(user.email)
+            if not tag.ok:
+                logger.warning("Zoho event guest tag not applied (email domain %s): %s", domain, tag.error)
+            if ticket_ids:
+                Ticket.objects.filter(pk__in=list(ticket_ids)).update(zoho_synced_at=timezone.now())
+        elif result.error == UNSUBSCRIBED:
+            logger.info("Zoho event guest not added, previously unsubscribed (email domain %s)", domain)
+            if ticket_ids:  # settled: don't offer them to a backfill again
+                Ticket.objects.filter(pk__in=list(ticket_ids)).update(zoho_synced_at=timezone.now())
+        return result
+    except Exception as exc:
+        logger.error("Zoho event guest sync failed: %s", exc.__class__.__name__)
+        return Result(False, exc.__class__.__name__)
+
+
+def sync_event_guest_after_commit(user_id, ticket_ids):
+    from django.db import transaction
+    ids = list(ticket_ids)
+    transaction.on_commit(lambda: run_in_background(sync_event_guest_to_zoho, user_id, ids))
 
 
 def move_role(user, old_role, new_role):

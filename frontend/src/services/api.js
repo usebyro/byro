@@ -528,10 +528,11 @@ const API = {
   },
 
   // ===== PAYMENTS =====
-  initializePayment: async ({ event_slug, customer_email, customer_name, quantity = 1, tier_id, attendees, promo_code, turnstile_token, form_answers, follow_organizer }) => {
+  initializePayment: async ({ event_slug, customer_email, customer_name, quantity = 1, tier_id, attendees, promo_code, turnstile_token, form_answers, follow_organizer, marketing_consent }) => {
     try {
       const body = { event_slug, customer_email, customer_name, quantity };
       if (follow_organizer === false) body.follow_organizer = false;
+      if (marketing_consent === true) body.marketing_consent = true;
       if (Array.isArray(form_answers) && form_answers.length > 0) body.form_answers = form_answers;
       if (tier_id !== undefined && tier_id !== null) body.tier_id = tier_id;
       if (Array.isArray(attendees) && attendees.length > 0) body.attendees = attendees;

@@ -1170,6 +1170,11 @@ class Ticket(models.Model):
         related_name='tickets_purchased',
     )
 
+    # The buyer ticked the marketing box at checkout while signed out (a guest registration).
+    # Only these buyers are ever sent to the Zoho Attendees list (tagged guest); zoho_synced_at says it was done.
+    marketing_consent = models.BooleanField(default=False)
+    zoho_synced_at = models.DateTimeField(null=True, blank=True)
+
     # Link to authenticated user account (null = guest registration)
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
