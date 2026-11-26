@@ -182,3 +182,64 @@ class DailySummaryTests(SalesBase):
         call_command('send_sales_summaries', stdout=out)
         self.assertIn('daily sales summary', out.getvalue())
         from .test_run_jobs import RunJobsTests  # noqa: F401  (its expectations list the job)
+
+
+class CatchupTests(SalesBase):
+
+    def run_it(self, *args):
+        from io import StringIO
+        out = StringIO()
+        with patch('bryo.management.commands.send_sales_catchup.clock.sleep'), \
+                patch('bryo.management.commands.send_sales_catchup.send_email', self.mail):
+            call_command('send_sales_catchup', *args, stdout=out)
+        return out.getvalue()
+
+    def test_it_needs_to_be_told_who(self):
+        from django.core.management.base import CommandError
+        with self.assertRaises(CommandError):
+            self.run_it()
+
+    def test_a_dry_run_counts_and_sends_nothing(self):
+        paid_order(self.event, subtotal='5000.00', fee='250.00', seats=2)
+        out = self.run_it('--email', 'owner@example.com')
+        self.assertIn('1 with sales to report', out)
+        self.assertIn('Dry run', out)
+        self.mail.assert_not_called()
+
+    def test_apply_sends_the_so_far_summary_to_the_person(self):
+        paid_order(self.event, subtotal='5000.00', fee='250.00', seats=2)
+        self.run_it('--email', 'owner@example.com', '--apply')
+        self.assertEqual(self.mail.call_count, 1)
+        to, subject, html = self.mail.call_args.args[:3]
+        self.assertEqual(to, 'owner@example.com')
+        self.assertEqual(subject, '2 tickets sold so far')
+        self.assertIn('since', html)
+        self.assertIn('₦5,250', html)
+
+    def test_someone_with_no_sales_gets_nothing(self):
+        out = self.run_it('--all', '--apply')
+        self.assertIn('0 with sales to report', out)
+        self.mail.assert_not_called()
+
+    def test_people_who_turned_sale_emails_off_are_skipped(self):
+        paid_order(self.event, subtotal='5000.00', fee='250.00', seats=1)
+        self.mode(self.owner, 'off')
+        self.run_it('--email', 'owner@example.com', '--apply')
+        self.mail.assert_not_called()
+
+    def test_a_co_host_is_sent_it_without_the_money(self):
+        paid_order(self.event, subtotal='5000.00', fee='250.00', seats=1)
+        self.run_it('--email', 'cohost@example.com', '--apply')
+        html = self.mail.call_args.args[2]
+        self.assertNotIn('₦', html)
+
+    def test_sales_before_the_start_date_are_left_out(self):
+        paid_order(self.event, subtotal='5000.00', fee='250.00', seats=1)
+        tomorrow = (datetime.date.today() + datetime.timedelta(days=2)).isoformat()
+        out = self.run_it('--email', 'owner@example.com', '--since', tomorrow, '--apply')
+        self.assertIn('0 with sales to report', out)
+
+    def test_a_bad_date_is_refused(self):
+        from django.core.management.base import CommandError
+        with self.assertRaises(CommandError):
+            self.run_it('--email', 'owner@example.com', '--since', 'last week')
