@@ -163,9 +163,39 @@ def build_summary(user, start, end, tz):
     return orders
 
 
+def summary_mail(user, start, end, tz, *, when='yesterday', on='on', label=None):
+    """The summary email for what this person can see sold between start and end, or None if nothing was."""
+    from .emails import _money, sales_summary_email
+    orders = build_summary(user, start, end, tz)
+    if not orders:
+        return None
+    shown, more = orders[:MAX_SUMMARY_ROWS], max(0, len(orders) - MAX_SUMMARY_ROWS)
+    sections = OrderedDict()
+    for _, event, buyer, tiers, qty, money in shown:
+        sec = sections.setdefault(event.pk, {'event': event, 'rows': []})
+        sec['rows'].append((buyer, tiers, money))
+    built, first_total = [], None
+    for sec in sections.values():
+        event = sec['event']
+        money = sum((p.amount for p in Payment.objects.filter(
+            event=event, status='successful', paid_at__gte=start, paid_at__lt=end)), Decimal('0'))
+        sold, cap = sold_count(event), event.capacity
+        built.append({'event_name': event.name, 'rows': sec['rows'],
+                      'total': _money(money) if event.owner_id == user.pk and money else None})
+        first_total = first_total or (built[-1]['total'], sold, cap)
+    word = 'claimed' if all(o[5] == 'Free' for o in orders) else 'sold'
+    total_text, sold0, cap0 = first_total
+    pre = ' · '.join(x for x in [total_text, (f"{sold0} of {cap0} {word}" if cap0 else f"{sold0} {word}") if len(built) == 1 else
+                                 f"{len(orders)} orders across {len(built)} events"] if x)
+    if label is None:
+        day = start.date()
+        label = f"{day:%A}, {day.day} {day:%b}"
+    return sales_summary_email(sum(o[4] for o in orders), len(orders), word, label, built, more, pre,
+                               f"{_site()}/dashboard/events", when=when, on=on)
+
+
 def send_daily_summaries(now=None):
     """Send each person on 'daily' their summary, once a day from 8 AM their time. Returns how many went out."""
-    from .emails import _money, sales_summary_email
     from .mailer import send_email
     now = now or timezone.now()
     sent = 0
@@ -180,34 +210,10 @@ def send_daily_summaries(now=None):
             if not UserProfile.objects.filter(pk=profile.pk).exclude(last_sales_summary_on=local.date()).update(
                     last_sales_summary_on=local.date()):
                 continue
-            day = local.date() - timedelta(days=1)
-            start = datetime.combine(day, time.min, tzinfo=tz)
-            orders = build_summary(user, start, start + timedelta(days=1), tz)
-            if not orders:
+            start = datetime.combine(local.date() - timedelta(days=1), time.min, tzinfo=tz)
+            mail = summary_mail(user, start, start + timedelta(days=1), tz)
+            if mail is None:
                 continue
-            shown, more = orders[:MAX_SUMMARY_ROWS], max(0, len(orders) - MAX_SUMMARY_ROWS)
-            sections = OrderedDict()
-            for _, event, buyer, tiers, qty, money in shown:
-                sec = sections.setdefault(event.pk, {'event': event, 'rows': []})
-                sec['rows'].append((buyer, tiers, money))
-            tickets_total = sum(o[4] for o in orders)
-            built, first_total = [], None
-            for sec in sections.values():
-                event = sec['event']
-                owner = event.owner_id == user.pk
-                money = sum((p.amount for p in Payment.objects.filter(
-                    event=event, status='successful', paid_at__gte=start, paid_at__lt=start + timedelta(days=1))), Decimal('0'))
-                sold, cap = sold_count(event), event.capacity
-                built.append({'event_name': event.name, 'rows': sec['rows'], 'total': _money(money) if owner and money else None})
-                first_total = first_total or (built[-1]['total'], sold, cap)
-            only_free = all(o[5] == 'Free' for o in orders)
-            word = 'claimed' if only_free else 'sold'
-            total_text, sold0, cap0 = first_total
-            pre = ' · '.join(x for x in [total_text, (f"{sold0} of {cap0} {word}" if cap0 else f"{sold0} {word}") if len(built) == 1 else
-                                         f"{len(orders)} orders across {len(built)} events"] if x)
-            day_label = f"{day:%A}, {day.day} {day:%b}"
-            mail = sales_summary_email(tickets_total, len(orders), word, day_label, built, more, pre,
-                                       f"{_site()}/dashboard/events")
             try:
                 send_email(user.email, mail['subject'], mail['html'], mail['text'])
                 sent += 1
@@ -217,3 +223,10 @@ def send_daily_summaries(now=None):
         except Exception:
             logger.exception('Daily sales summary failed for user %s', getattr(user, 'pk', None))
     return sent
+
+
+def catchup_recipients(emails):
+    """The named people who could be sent a catch-up: not on Off, and with events they can see."""
+    qs = (UserProfile.objects.exclude(sale_email_mode='off').select_related('user').filter(user__is_active=True)
+          .filter(user__email__in=[e.strip().lower() for e in emails]))
+    return [p for p in qs if p.user.email and _visible_events(p.user).exists()]

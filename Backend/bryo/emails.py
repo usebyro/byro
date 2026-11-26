@@ -448,13 +448,13 @@ def sale_email(buyer, event_name, tier_lines, quantity, sold, capacity, event_ur
     return {"subject": subject, "html": html, "text": text}
 
 
-def sales_summary_email(tickets, orders, sold_word, day_label, sections, more, preheader, sales_url):
+def sales_summary_email(tickets, orders, sold_word, day_label, sections, more, preheader, sales_url, when="yesterday", on="on"):
     """The 8 AM summary of yesterday's sales. sections: [{event_name, rows: [(buyer, tiers, amount or None)],
     total: money text or None}]; more is how many orders did not fit."""
     noun = "ticket" if tickets == 1 else "tickets"
     order_word = "order" if orders == 1 else "orders"
-    headline = f"{tickets} {noun} {sold_word} yesterday"
-    parts = [f'<p style="margin:0 0 20px;font-size:16px;color:{MUTED};">{orders} {order_word} on {_h(day_label)}.</p>']
+    headline = f"{tickets} {noun} {sold_word} {when}"
+    parts = [f'<p style="margin:0 0 20px;font-size:16px;color:{MUTED};">{orders} {order_word} {on} {_h(day_label)}.</p>']
     for sec in sections:
         rows = "".join(
             f'<tr><td style="padding:12px 12px 12px 0;border-top:1px solid {HAIRLINE};font-size:16px;font-weight:700;color:{INK};">{_h(b)}'
@@ -488,7 +488,7 @@ def sales_summary_email(tickets, orders, sold_word, day_label, sections, more, p
             lines.append(f"Total: {sec['total']}")
         lines.append("")
     text = (
-        f"{headline}\n{orders} {order_word} on {day_label}.\n\n" + "\n".join(lines)
+        f"{headline}\n{orders} {order_word} {on} {day_label}.\n\n" + "\n".join(lines)
         + (f"+ {more} more {'order' if more == 1 else 'orders'}\n\n" if more else "")
         + f"View sales: {sales_url}\n\nByro Team\nsupport@usebyro.com"
     )
