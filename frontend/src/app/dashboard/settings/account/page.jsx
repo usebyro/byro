@@ -174,7 +174,7 @@ export default function AccountSettings() {
               <div className="s-fv">
                 <div className="s-fixed"><span data-testid="acct-email" style={{ flex: 1, minWidth: 0, overflowWrap: "anywhere" }}>{account.email}</span></div>
                 <span className="v-hint">
-                  To change it, email <a className="font-bold text-brand-dark underline" href="mailto:support@usebyro.com">support@usebyro.com</a> from your current address. Nothing changes until you confirm the new one.
+                  To change it, email <a className="font-bold text-brand-dark underline" href="mailto:support@usebyro.com">support@usebyro.com</a> from your current address.
                 </span>
               </div>
             </div>
