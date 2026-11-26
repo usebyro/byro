@@ -3,9 +3,10 @@ import { render, screen } from "@testing-library/react";
 import ViewEventClient from "./ViewEventClient";
 import API from "@/services/api";
 
+const nav = vi.hoisted(() => ({ query: "", replace: vi.fn() }));
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
-  useSearchParams: () => new URLSearchParams(),
+  useRouter: () => ({ push: vi.fn(), replace: nav.replace }),
+  useSearchParams: () => new URLSearchParams(nav.query),
   notFound: vi.fn(),
 }));
 vi.mock("@/redux/Providers", () => ({ Providers: ({ children }) => <>{children}</> }));
@@ -13,7 +14,11 @@ vi.mock("@/components/Navbar", () => ({ default: () => null }));
 vi.mock("@/components/Footer", () => ({ default: () => null }));
 vi.mock("@/components/ReportButton", () => ({ default: () => null }));
 vi.mock("@/components/ShareMenu", () => ({ default: () => null }));
-vi.mock("@/components/checkout/CheckoutModal", () => ({ default: () => null }));
+vi.mock("@/components/checkout/CheckoutModal", () => ({
+  default: ({ initialTierId, initialQty }) => (
+    <div data-testid="checkout" data-tier={initialTierId ?? ""} data-qty={initialQty ?? ""} />
+  ),
+}));
 vi.mock("@/components/events/EventPublishedModal", () => ({ default: () => null }));
 vi.mock("@/lib/analytics", () => ({
   trackViewItem: vi.fn(), trackShare: vi.fn(), trackSaveEvent: vi.fn(), ticketItem: vi.fn(() => ({})),
@@ -42,6 +47,8 @@ function open(e) {
 }
 
 beforeEach(() => {
+  nav.query = "";
+  nav.replace.mockClear();
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(NOW);
 });
@@ -65,6 +72,29 @@ describe("event page: upcoming", () => {
   it("does not call an event with an unreadable date ended", () => {
     open(event({ day: "", time_from: "", time_to: "" }));
     expect(screen.queryByText("This event has ended.")).not.toBeInTheDocument();
+  });
+});
+
+describe("event page: finish-my-order link", () => {
+  it("opens checkout with the tier and quantity from the email, then tidies the address", () => {
+    nav.query = "tier=12&qty=2";
+    open(event());
+    const checkout = screen.getByTestId("checkout");
+    expect(checkout).toHaveAttribute("data-tier", "12");
+    expect(checkout).toHaveAttribute("data-qty", "2");
+    expect(nav.replace).toHaveBeenCalledWith("/discover/paint-yap", { scroll: false });
+  });
+
+  it("does not open checkout for an event that has ended", () => {
+    nav.query = "tier=12&qty=2";
+    open(event({ day: "2026-11-10" }));
+    expect(screen.queryByTestId("checkout")).not.toBeInTheDocument();
+  });
+
+  it("does nothing without the link parameters", () => {
+    open(event());
+    expect(screen.queryByTestId("checkout")).not.toBeInTheDocument();
+    expect(nav.replace).not.toHaveBeenCalled();
   });
 });
 

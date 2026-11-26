@@ -1,7 +1,7 @@
 "use client";
 
 import ReportButton from "@/components/ReportButton";
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams, notFound } from "next/navigation";
 import API from "@/services/api";
@@ -84,6 +84,8 @@ export default function ViewEventClient({ slug, initialEvent = null }) {
   const [registered, setRegistered] = useState(false);
   const [ticketId, setTicketId] = useState(null);
   const [showCheckout, setShowCheckout] = useState(false);
+  const [resume, setResume] = useState(null); // tier and quantity from a "finish my order" email link
+  const resumeHandled = useRef(false); // the link is acted on once
   const [saved, setSaved] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [more, setMore] = useState([]);
@@ -124,6 +126,24 @@ export default function ViewEventClient({ slug, initialEvent = null }) {
     setShowShareModal(true);
     const params = new URLSearchParams(searchParams);
     params.delete("share");
+    const qs = params.toString();
+    router.replace(`/discover/${slug}${qs ? `?${qs}` : ""}`, { scroll: false });
+  }, [event, searchParams, router, slug]);
+
+  /* "Finish my order" email link: /discover/:slug?tier=12&qty=2 opens checkout with that choice already made. */
+  useEffect(() => {
+    if (!event || resumeHandled.current || !searchParams.has("tier")) return;
+    resumeHandled.current = true;
+    const params = new URLSearchParams(searchParams);
+    const tier = params.get("tier");
+    const quantity = parseInt(params.get("qty") || "1", 10);
+    params.delete("tier");
+    params.delete("qty");
+    const open = eventState(event) === "upcoming" && !event.sales_closed;
+    if (open) {
+      setResume({ tier, qty: Number.isFinite(quantity) && quantity > 0 ? quantity : 1 });
+      setShowCheckout(true);
+    }
     const qs = params.toString();
     router.replace(`/discover/${slug}${qs ? `?${qs}` : ""}`, { scroll: false });
   }, [event, searchParams, router, slug]);
@@ -803,7 +823,7 @@ export default function ViewEventClient({ slug, initialEvent = null }) {
         <Footer />
 
         {showCheckout && (
-          <CheckoutModal event={event} onClose={() => setShowCheckout(false)} tiers={realTiers} />
+          <CheckoutModal event={event} onClose={() => setShowCheckout(false)} tiers={realTiers} initialTierId={resume?.tier} initialQty={resume?.qty} />
         )}
 
         {showShareModal && event && (

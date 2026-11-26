@@ -143,7 +143,7 @@ export default function AdminPaymentDetailPage({ params }: { params: Promise<{ i
         <div>
           <h1 className="font-display text-ink text-3xl font-extrabold tracking-tight">{naira(data.amount)}</h1>
           <p className="text-muted text-sm mt-1">
-            {data.customer_name} · <span className="capitalize">{data.status}</span>
+            {data.customer_name} · <span className="capitalize">{data.status === "abandoned" ? "not completed" : data.status}</span>
             {data.channel ? ` · ${data.channel}` : ""}
           </p>
           <p className="font-mono text-xs text-faint mt-1 break-all">{data.reference}</p>
