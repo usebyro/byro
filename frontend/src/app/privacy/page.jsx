@@ -19,7 +19,7 @@ export default function PrivacyPage() {
 
       <main className="flex-1 max-w-3xl mx-auto w-full px-4 sm:px-6 py-14">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Privacy Policy</h1>
-        <p className="text-sm text-gray-400 mb-10">Last updated: 14 November 2026</p>
+        <p className="text-sm text-gray-400 mb-10">Last updated: 26 November 2026</p>
 
         <div className="prose prose-sm max-w-none text-gray-600 space-y-8">
           <section>
@@ -56,7 +56,7 @@ export default function PrivacyPage() {
               <li>process payments and refunds, and pay organisers;</li>
               <li>prevent fraud, abuse, theft and bots, and resolve disputes;</li>
               <li>send service messages such as sign-in codes, receipts, tickets, event updates and support replies;</li>
-              <li>send you the Byro newsletter, which you are subscribed to automatically when you create an account (you can unsubscribe at any time), and send event recommendations only if you agreed;</li>
+              <li>send you the Byro newsletter, which you are subscribed to automatically when you create an account (you can unsubscribe at any time), and send event and product emails to attendees who accepted our Terms when registering for an event (you can unsubscribe at any time), and send event recommendations only if you agreed;</li>
               <li>show your name and profile to other users and organisers as part of using Byro;</li>
               <li>monitor and analyse usage and trends, fix errors and improve the Site;</li>
               <li>request feedback and respond to support requests;</li>
@@ -93,7 +93,7 @@ export default function PrivacyPage() {
             <p>
               We process your personal data on one or more of these lawful grounds, depending on the purpose:
             </p>            <ul className="list-disc pl-5 space-y-1.5 mt-2">
-              <li><strong>Consent.</strong> For example, optional analytics cookies and newsletter sign-ups from the footer. You can withdraw consent at any time and we will stop that processing. We will ask again before using your data for a new, different purpose.</li>
+              <li><strong>Consent.</strong> For example, optional analytics cookies and newsletter sign-ups from the footer, and the event and product emails you agree to when you accept our Terms at checkout. You can withdraw consent at any time and we will stop that processing. We will ask again before using your data for a new, different purpose.</li>
               <li><strong>Contract.</strong> To provide the services you ask for, such as issuing a ticket you bought or paying an organiser.</li>
               <li><strong>Legitimate interests.</strong> To keep Byro secure, prevent fraud and improve our services, and to send the Byro newsletter to people who create an account, where this does not override your rights. You can opt out of the newsletter at any time.</li>
               <li><strong>Legal obligation.</strong> Where the law requires us to process or keep data.</li>
@@ -148,7 +148,7 @@ export default function PrivacyPage() {
             </p>            <ul className="list-disc pl-5 space-y-1.5 mt-2">
               <li><strong>Event organisers.</strong> When you register for or buy a ticket, the organiser receives your name, email and ticket details so they can run their event. Organisers must not use attendee data for anything other than managing their event.</li>
               <li><strong>Other users.</strong> Your name, profile photo and activity you choose to make public, such as attending an event, may be visible to other users.</li>
-              <li><strong>Service providers.</strong> Companies that work for us: WorkOS (sign-in and Google authentication), Bachs and Paystack (payments), Resend (transactional email delivery), Zoho Campaigns (our newsletter and email lists, which receive your email address, name and account type), Cloudflare (bot protection), Sentry (error monitoring), Google Analytics (usage analytics, with your consent), advertising platforms such as Meta (marketing pixel, with your consent), and our hosting and database providers. They may only use the data to provide their service to us, under our instructions.</li>
+              <li><strong>Service providers.</strong> Companies that work for us: WorkOS (sign-in and Google authentication), Bachs and Paystack (payments), Resend (transactional email delivery), Zoho Campaigns (our newsletter and email lists, which receive your email address, name and account type, or, for attendees who register without an account, your email address and name), Cloudflare (bot protection), Sentry (error monitoring), Google Analytics (usage analytics, with your consent), advertising platforms such as Meta (marketing pixel, with your consent), and our hosting and database providers. They may only use the data to provide their service to us, under our instructions.</li>
               <li><strong>Law and safety.</strong> Authorities or advisers where we believe in good faith that disclosure is needed to follow the law or legal process, enforce our terms, detect or prevent fraud and security problems, or protect the rights, property or safety of Byro, our users or the public.</li>
               <li><strong>Business changes.</strong> A successor, if Byro is merged, acquired or sold. We will notify you if your data is to be transferred, and the new owner must honour this policy.</li>
               <li><strong>With your consent.</strong></li>
@@ -201,7 +201,7 @@ export default function PrivacyPage() {
             <h2 className={H2}>14. Account, communications and retention</h2>
             <ul className="list-disc pl-5 space-y-1.5">
               <li><strong>Your account.</strong> You can review or change your account information in your settings. To change the email address on your account, email <a href="mailto:support@usebyro.com" className={MAIL}>support@usebyro.com</a> from your current address. We check it is you and send a confirmation link to the new address. When you confirm, we update your email with our sign-in provider and on your tickets, stamps and other records, and we tell your old address. To close your account and have your data deleted, email <a href="mailto:support@usebyro.com" className={MAIL}>support@usebyro.com</a> from your account email. We will delete or anonymise your data, except records we must keep to prevent fraud, investigate problems, enforce our Terms of Service and meet legal requirements (such as order and payout records).</li>
-              <li><strong>Emails.</strong> Creating a Byro account subscribes you to our newsletter automatically. You can opt out at any time using the unsubscribe link in any newsletter, the newsletter switch in your account settings, or by emailing us. We will still send service messages about your account and tickets.</li>
+              <li><strong>Emails.</strong> Creating a Byro account subscribes you to our newsletter automatically. You can opt out at any time using the unsubscribe link in any newsletter, the newsletter switch in your account settings, or by emailing us. Registering for an event, with or without a Byro account, and accepting our Terms also adds you to our event and product emails; unsubscribe the same way. We will still send service messages about your account and tickets.</li>
               <li><strong>Retention.</strong> We keep your data only as long as needed to provide Byro and meet our legal, tax and accounting duties. Order, ticket and payout records are kept for as long as those rules require.</li>
             </ul>
           </section>

@@ -18,7 +18,7 @@ export default function TermsPage() {
 
       <main className="flex-1 max-w-3xl mx-auto w-full px-4 sm:px-6 py-14">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Terms of Service</h1>
-        <p className="text-sm text-gray-400 mb-10">Last updated: 9 November 2026</p>
+        <p className="text-sm text-gray-400 mb-10">Last updated: 26 November 2026</p>
 
         <div className="prose prose-sm max-w-none text-gray-600 space-y-8">
           <section>
@@ -147,7 +147,7 @@ export default function TermsPage() {
           <section>
             <h2 className={H2}>10. Communications</h2>
             <p>
-              You agree that we may contact you electronically, including by email and notifications on the Platform, about your account, tickets, events and these Terms. Marketing emails are sent only if you opt in, and you can unsubscribe at any time. You are responsible for any charges your internet or phone provider makes for receiving our messages.
+              You agree that we may contact you electronically, including by email and notifications on the Platform, about your account, tickets, events and these Terms. When you register for an event, with or without a Byro account, and accept these Terms, you also agree to receive event and product emails from Byro. You can unsubscribe at any time using the link in any email, and we will still send service messages about your account and tickets. You are responsible for any charges your internet or phone provider makes for receiving our messages.
             </p>
           </section>
 

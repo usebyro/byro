@@ -426,6 +426,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
           turnstile_token: tsToken || undefined,
           form_answers: buildAnswers(),
           follow_organizer: followOrganizer,
+          marketing_consent: agreed, // accepting the terms includes Byro event emails
         });
         const ticket = result.tickets?.[0];
         const ticketData = {
@@ -463,6 +464,7 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
         turnstile_token: tsToken || undefined,
         form_answers: buildAnswers(),
           follow_organizer: followOrganizer,
+          marketing_consent: agreed, // accepting the terms includes Byro event emails
       });
 
       if (result?.data?.authorization_url) {
@@ -521,7 +523,8 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
         <a href="/terms" target="_blank" className="font-bold text-[#2451D6] hover:underline">Terms</a>,{" "}
         <a href="/refund-policy" target="_blank" className="font-bold text-[#2451D6] hover:underline">Refund policy</a>{" "}
         and{" "}
-        <a href="/privacy" target="_blank" className="font-bold text-[#2451D6] hover:underline">Privacy policy</a>.
+        <a href="/privacy" target="_blank" className="font-bold text-[#2451D6] hover:underline">Privacy policy</a>, and
+        to get event and product emails from Byro. You can unsubscribe any time.
         <span className="ml-0.5 font-bold text-[#D92D20]" aria-hidden="true">*</span>
         <span className="sr-only"> (required)</span>
       </span>

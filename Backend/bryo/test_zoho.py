@@ -1,4 +1,5 @@
 """Zoho Campaigns: the client, the role-list sync, and the newsletter endpoints. Zoho is always mocked."""
+import json
 import time
 from unittest.mock import MagicMock, patch
 
@@ -11,7 +12,15 @@ from django.test import TestCase, override_settings
 from django.utils import timezone
 from rest_framework.test import APIClient
 
-from .models import Event, NewsletterSignup, UserProfile
+from decimal import Decimal
+
+from rest_framework.test import APIClient
+
+from .models import Event, NewsletterSignup, Ticket, UserProfile
+from .test_payments import (
+    INITIALIZE_URL, PAYMENT_SETTINGS, PAYSTACK_OK, FakeResponse, PaymentTestBase, make_event,
+)
+from .views import _fulfil_payment, _stored_ticket_user
 from .services import zoho
 
 User = get_user_model()
@@ -173,6 +182,203 @@ class RoleTests(ZohoBase):
             zoho.add_user_by_role(user)
             zoho.add_user_by_role(guest)
         post.assert_not_called()
+
+
+@override_settings(**ZOHO_ON, ZOHO_MARKETING_TOPIC_ID='TOPIC-1')
+class GuestTests(ZohoBase):
+    """Guests who tick the marketing box go on the Attendees list, with the topic and the tag."""
+
+    def guest(self, email='guest@example.com', name='Grace Hopper'):
+        user = User.objects.create_user(email=email, auth_provider='guest')
+        UserProfile.objects.filter(user=user).update(display_name=name)
+        return user
+
+    def subscribe_call(self, post):
+        return [c for c in post.call_args_list if 'listsubscribe' in c.args[0]][0].kwargs['data']
+
+    def test_a_consented_guest_is_synced_with_the_right_payload(self):
+        user = self.guest()
+        with patch('bryo.services.zoho.requests.post', side_effect=zoho_api(OK)) as post, \
+                patch('bryo.services.zoho.requests.get', return_value=reply(code='0')) as get:
+            self.assertTrue(zoho.sync_event_guest_to_zoho(user.pk).ok)
+        data = self.subscribe_call(post)
+        self.assertEqual(data['listkey'], 'LK-ATT')       # the existing Attendees list
+        self.assertEqual(data['topic_id'], 'TOPIC-1')
+        self.assertEqual(json.loads(data['contactinfo']),
+                         {'Contact Email': 'guest@example.com', 'First Name': 'Grace', 'Last Name': 'Hopper'})
+        self.assertEqual(get.call_args.args[0].rsplit('/', 1)[1], 'associate')
+        self.assertEqual(get.call_args.kwargs['params']['tagName'], 'guest')
+        self.assertEqual(get.call_args.kwargs['params']['lead_email'], 'guest@example.com')
+
+    def test_a_single_word_name_leaves_last_name_out(self):
+        user = self.guest(name='Grace')
+        with patch('bryo.services.zoho.requests.post', side_effect=zoho_api(OK)) as post, \
+                patch('bryo.services.zoho.requests.get', return_value=reply(code='0')):
+            zoho.sync_event_guest_to_zoho(user.pk)
+        info = json.loads(self.subscribe_call(post)['contactinfo'])
+        self.assertEqual(info, {'Contact Email': 'guest@example.com', 'First Name': 'Grace'})
+
+    def test_a_missing_tag_is_created_then_applied(self):
+        user = self.guest()
+        replies = [reply(code='9001'), reply(code='0'), reply(code='0')]
+        with patch('bryo.services.zoho.requests.post', side_effect=zoho_api(OK)), \
+                patch('bryo.services.zoho.requests.get', side_effect=replies) as get:
+            self.assertTrue(zoho.sync_event_guest_to_zoho(user.pk).ok)
+        self.assertEqual([c.args[0].rsplit('/', 1)[1] for c in get.call_args_list], ['associate', 'add', 'associate'])
+
+    def test_a_failed_tag_does_not_fail_the_sync(self):
+        user = self.guest()
+        with patch('bryo.services.zoho.requests.post', side_effect=zoho_api(OK)), \
+                patch('bryo.services.zoho.requests.get', side_effect=OSError('down')):
+            self.assertTrue(zoho.sync_event_guest_to_zoho(user.pk).ok)
+
+    def test_a_repeat_registration_is_a_success(self):
+        user = self.guest()
+        again = reply(status='failure', code='2003', message='Contact exists in this list.')
+        with patch('bryo.services.zoho.requests.post', side_effect=zoho_api(again)), \
+                patch('bryo.services.zoho.requests.get', return_value=reply(code='0')):
+            self.assertTrue(zoho.sync_event_guest_to_zoho(user.pk).ok)
+
+    def test_someone_who_unsubscribed_is_left_alone_and_not_retried(self):
+        user = self.guest()
+        refused = reply(status='failure', code='2004', message='Contact has unsubscribed from this list.')
+        with patch('bryo.services.zoho.requests.post', side_effect=zoho_api(refused)) as post, \
+                patch('bryo.services.zoho.requests.get') as get:
+            r = zoho.sync_event_guest_to_zoho(user.pk)
+        self.assertEqual(r.error, zoho.UNSUBSCRIBED)
+        self.assertEqual(len([c for c in post.call_args_list if 'listsubscribe' in c.args[0]]), 1)
+        get.assert_not_called()  # no tag either
+
+    def test_missing_topic_or_list_key_skips_cleanly(self):
+        user = self.guest()
+        for override in ({'ZOHO_MARKETING_TOPIC_ID': ''}, {'ZOHO_LISTKEY_ATTENDEES': ''}):
+            with override_settings(**override), patch('bryo.services.zoho.requests.post') as post:
+                zoho._reset()
+                self.assertFalse(zoho.sync_event_guest_to_zoho(user.pk).ok)
+            post.assert_not_called()
+
+    def test_zoho_down_never_raises(self):
+        user = self.guest()
+        with patch('bryo.services.zoho.requests.post', side_effect=OSError('down')):
+            self.assertFalse(zoho.sync_event_guest_to_zoho(user.pk).ok)
+
+
+@override_settings(**PAYMENT_SETTINGS, **ZOHO_ON, ZOHO_MARKETING_TOPIC_ID='TOPIC-1')
+class GuestCheckoutTests(PaymentTestBase):
+    """Consent is read at checkout and the Zoho call runs after the registration is saved."""
+
+    def setUp(self):
+        super().setUp()
+        zoho._reset()
+        self.free = make_event(self.owner, name='Free one', ticket_price=Decimal('0'), capacity=50)
+
+    def register(self, event=None, consent=None, email='buyer@example.com', client=None):
+        body = {'event_slug': (event or self.free).slug, 'customer_email': email,
+                'customer_name': 'Grace Hopper', 'quantity': 1}
+        if consent is not None:
+            body['marketing_consent'] = consent
+        with patch('bryo.views.check_and_remember_verification', return_value=True), \
+             patch('bryo.views.requests.post', return_value=FakeResponse(PAYSTACK_OK)), \
+             patch('bryo.views._email_tickets'), \
+             patch('bryo.services.zoho.run_in_background') as bg, \
+             self.captureOnCommitCallbacks(execute=True):
+            res = (client or self.client).post(INITIALIZE_URL, body, format='json')
+        return res, bg
+
+    def synced(self, bg):
+        return [c for c in bg.call_args_list if c.args[0] is zoho.sync_event_guest_to_zoho]
+
+    def test_a_consenting_guest_is_synced_after_the_ticket_is_saved(self):
+        res, bg = self.register(consent=True)
+        self.assertEqual(res.status_code, 201)
+        ticket = Ticket.objects.get()
+        self.assertTrue(ticket.marketing_consent)
+        calls = self.synced(bg)
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0].args[1], ticket.user_id)
+        self.assertEqual(calls[0].args[2], [ticket.pk])
+
+    def test_no_consent_means_nothing_goes_to_zoho(self):
+        for consent in (None, False, 'false', 'maybe'):
+            Ticket.objects.all().delete()
+            res, bg = self.register(consent=consent, email=f'b{consent}@example.com')
+            self.assertEqual(res.status_code, 201)
+            self.assertFalse(Ticket.objects.get().marketing_consent)
+            self.assertEqual(self.synced(bg), [])
+
+    def test_a_signed_in_attendee_is_never_added_this_way(self):
+        client = APIClient()
+        client.force_authenticate(User.objects.create_user(email='member@example.com'))
+        res, bg = self.register(consent=True, email='member@example.com', client=client)
+        self.assertEqual(res.status_code, 201)
+        self.assertFalse(Ticket.objects.get().marketing_consent)
+        self.assertEqual(self.synced(bg), [])
+
+    def test_a_paid_guest_is_synced_once_the_payment_is_fulfilled(self):
+        res, bg = self.register(event=self.event, consent=True)
+        self.assertEqual(res.status_code, 200)
+        payment = self.event.payments.get()
+        self.assertTrue(payment.metadata['marketing_consent'])
+        self.assertEqual(self.synced(bg), [])  # nothing until paid
+        with patch('bryo.services.zoho.run_in_background') as bg2, self.captureOnCommitCallbacks(execute=True):
+            _fulfil_payment(payment, _stored_ticket_user(payment))
+        self.assertEqual(len(self.synced(bg2)), 1)
+        self.assertTrue(Ticket.objects.get().marketing_consent)
+
+    def test_a_zoho_failure_does_not_break_the_registration(self):
+        def run_now(fn, *args):
+            fn(*args)  # same code the background thread runs, but inline
+        with patch('bryo.views.check_and_remember_verification', return_value=True), \
+             patch('bryo.views._email_tickets'), \
+             patch('bryo.services.zoho.run_in_background', side_effect=run_now), \
+             patch('bryo.services.zoho.requests.post', side_effect=OSError('down')), \
+             patch('bryo.services.zoho.time.sleep'), \
+             self.captureOnCommitCallbacks(execute=True):
+            res = self.client.post(INITIALIZE_URL, {
+                'event_slug': self.free.slug, 'customer_email': 'buyer@example.com',
+                'customer_name': 'Grace Hopper', 'quantity': 1, 'marketing_consent': True,
+            }, format='json')
+        self.assertEqual(res.status_code, 201)
+        self.assertEqual(Ticket.objects.count(), 1)
+        self.assertIsNone(Ticket.objects.get().zoho_synced_at)  # not stamped, so a backfill retries
+
+    def test_registering_again_with_the_same_email_is_fine(self):
+        again = reply(status='failure', code='2003', message='Contact exists in this list.')
+        results = []
+
+        def run_now(fn, *args):
+            result = fn(*args)
+            if fn is zoho.sync_event_guest_to_zoho:
+                results.append(result)
+        with patch('bryo.services.zoho.requests.post', side_effect=zoho_api(again)), \
+             patch('bryo.services.zoho.requests.get', return_value=reply(code='0')):
+            for _ in range(2):
+                with patch('bryo.views.check_and_remember_verification', return_value=True), \
+                     patch('bryo.views._email_tickets'), \
+                     patch('bryo.services.zoho.run_in_background', side_effect=run_now), \
+                     self.captureOnCommitCallbacks(execute=True):
+                    res = self.client.post(INITIALIZE_URL, {
+                        'event_slug': self.free.slug, 'customer_email': 'buyer@example.com',
+                        'customer_name': 'Grace Hopper', 'quantity': 1, 'marketing_consent': True,
+                    }, format='json')
+                self.assertEqual(res.status_code, 201)
+        self.assertEqual([r.ok for r in results], [True, True])
+        self.assertEqual(User.objects.filter(email='buyer@example.com').count(), 1)
+        self.assertEqual(Ticket.objects.filter(zoho_synced_at__isnull=False).count(), 2)
+
+
+@override_settings(**ZOHO_ON, ZOHO_MARKETING_TOPIC_ID='TOPIC-1')
+class BackfillGuestsTests(ZohoBase):
+
+    def test_dry_run_prints_counts_only_and_calls_nothing(self):
+        from io import StringIO
+        from django.core.management import call_command
+        out = StringIO()
+        with patch('bryo.services.zoho.requests.post') as post:
+            call_command('backfill_event_guests', stdout=out)
+        post.assert_not_called()
+        self.assertIn('Consented guests not yet in Zoho: 0', out.getvalue())
+        self.assertIn('Dry run', out.getvalue())
 
 
 @override_settings(**ZOHO_ON)

@@ -489,7 +489,25 @@ def _wants_follow(data):
     return bool(value)
 
 
-def _create_tickets(event, tier, attendees, *, payment_status, payment=None, user=None):
+def _wants_marketing(request):
+    """The guest checkout's marketing box. Off unless explicitly ticked, and only for a guest:
+    a signed-in attendee is never added to the Zoho Attendees list as a guest."""
+    if request.user.is_authenticated:
+        return False
+    value = request.data.get('marketing_consent', False)
+    if isinstance(value, str):
+        return value.strip().lower() in ('true', '1', 'yes', 'on')
+    return value is True
+
+
+def _sync_guest_consent(user, tickets):
+    """After the tickets are saved: send a consented guest to Zoho, off the request."""
+    consented = [t.pk for t in tickets if t.marketing_consent]
+    if user is not None and consented:
+        zoho.sync_event_guest_after_commit(user.pk, consented)
+
+
+def _create_tickets(event, tier, attendees, *, payment_status, payment=None, user=None, marketing_consent=False):
     """Create one Ticket row per attendee (each its own QR)."""
     tickets = []
     for att in attendees:
@@ -503,6 +521,7 @@ def _create_tickets(event, tier, attendees, *, payment_status, payment=None, use
             current_owner_name=att['name'],
             current_owner_email=att['email'],
             payment_status=payment_status,
+            marketing_consent=marketing_consent,
         ))
     return tickets
 
@@ -729,7 +748,9 @@ def _fulfil_payment(payment, ticket_user):
             new_tickets = _create_tickets(
                 payment.event, payment.tier, missing,
                 payment_status='paid', payment=payment, user=ticket_user,
+                marketing_consent=bool(payment.metadata.get('marketing_consent')),
             )
+            _sync_guest_consent(ticket_user, new_tickets)
 
         if new_tickets:
             stored = payment.metadata.get('form_answers') or []
@@ -952,12 +973,14 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                 tickets = _create_tickets(
                     event, tier, attendees,
                     payment_status='free', user=linked_user,
+                    marketing_consent=_wants_marketing(request),
                 )
                 _save_answers(tickets, answers)
                 if promo is not None:
                     PromoCode.objects.filter(pk=promo.pk).update(redeemed_count=F('redeemed_count') + 1)
             if _wants_follow(request.data):
                 follow_organizer(linked_user, event)
+            _sync_guest_consent(linked_user, tickets)
 
             # Send each free ticket to its own attendee
             _email_tickets(tickets, event)
@@ -1040,6 +1063,7 @@ class PaystackPaymentViewSet(viewsets.ViewSet):
                         'discount_amount': str(discount_amount),
                         'form_answers': [{'question_id': q.id, 'answer': a} for q, a in answers],
                         'follow_organizer': _wants_follow(request.data),
+                        'marketing_consent': _wants_marketing(request),
                     }
                 )
         except InsufficientCapacityError as e:
