@@ -19,7 +19,7 @@ const MERCH_OPTIONS = [
   { value: "off", label: "Off", hint: "No order emails. Orders still show in the app." },
 ];
 
-// Each switch is a notification kind the person can turn off; Byro picks is the Byro newsletter.
+// Each switch is a notification kind the person can turn off; Newsletter is the Byro newsletter list.
 const HOSTING = [
   { kind: "milestone_email", label: "Milestones", hint: "When an event reaches 1, 10, 25 and 50 tickets, then every 100." },
   { kind: "event_reminder_email", label: "Event reminders", hint: "The day before your event, with your check-in link." },
@@ -27,7 +27,7 @@ const HOSTING = [
 const ATTENDING = [
   { kind: "ticket_reminder_email", label: "Ticket reminders", hint: "The day before and on the day of events you’re going to." },
   { kind: "new_event_email", label: "New events", hint: "From communities you follow." },
-  { key: "byro_picks", label: "Byro picks", hint: "Events worth going to, once a week." },
+  { key: "byro_picks", label: "Newsletter", hint: "Events worth going to, once a week." },
 ];
 
 export default function NotificationSettings() {

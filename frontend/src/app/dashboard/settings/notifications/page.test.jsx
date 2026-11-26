@@ -40,10 +40,10 @@ describe("Settings > Notifications", () => {
     expect(API.updateNotificationSettings).toHaveBeenCalledWith({ muted: ["milestone_email"] });
   });
 
-  it("Byro picks is saved as its own setting", async () => {
+  it("the newsletter switch is saved as its own setting", async () => {
     API.updateNotificationSettings.mockResolvedValue(prefs({ byro_picks: false }));
     render(<NotificationSettings />);
-    await userEvent.click(await screen.findByRole("switch", { name: "Byro picks, email" }));
+    await userEvent.click(await screen.findByRole("switch", { name: "Newsletter, email" }));
     expect(API.updateNotificationSettings).toHaveBeenCalledWith({ byro_picks: false });
   });
 
