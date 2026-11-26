@@ -8,6 +8,8 @@ Every background job in one command, for a single scheduled service (Railway cro
 - process_merch_orders: free held merch stock, tell organisers when merch money becomes available, remind
   them about orders they have not started (10 days), cancel and refund those left 14 days, retry stuck merch refunds.
   Safe to run every time: each order is reminded and announced once.
+- send_abandoned_checkout_reminders: one "finish my order" email to buyers who left a payment unfinished
+  for 3 hours, and mark payments left pending for 24 hours as abandoned. Each payment is emailed once.
 - send_event_reminders: the day-before emails, from 09:00 Lagos time. Each event is only
   reminded once (Event.reminder_sent_at), so the first run after 09:00 sends and later runs skip.
 
@@ -31,7 +33,7 @@ class Command(BaseCommand):
     help = 'Run scheduled messages, refunds, merch orders and (from 09:00 Lagos) event reminders. Schedule every 5 minutes.'
 
     def handle(self, *args, **options):
-        jobs = ['send_scheduled_messages', 'process_refunds', 'process_merch_orders']
+        jobs = ['send_scheduled_messages', 'process_refunds', 'process_merch_orders', 'send_abandoned_checkout_reminders']
         if datetime.now(LAGOS).hour >= REMINDERS_FROM_HOUR:
             jobs.append('send_event_reminders')
 

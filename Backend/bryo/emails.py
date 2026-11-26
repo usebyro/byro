@@ -405,6 +405,44 @@ def organizer_event_reminder_email(name, event_name, date, time, tickets_sold, d
     return {"subject": f"{event_name} starts tomorrow", "html": html, "text": text}
 
 
+def abandoned_checkout_email(name, event_name, date, time, location, tier_label, event_url, quantity=1):
+    """Sent once to someone who started checkout and never finished paying."""
+    first = (name or "").strip().split(" ")[0] or "there"
+    when = " · ".join(x for x in [date, time] if x)
+    rows = [("When", _h(when))]
+    if location:
+        rows.append(("Where", _h(location)))
+    if tier_label:
+        rows.append(("Tickets", _h(f"{tier_label} × {quantity}" if quantity and quantity > 1 else tier_label)))
+    body_html = (
+        _lead(f"Hi {_h(first)}, you chose tickets for <b>{_h(event_name)}</b> but didn&#8217;t finish checking out. "
+              "Tickets aren&#8217;t reserved until you pay, so they can sell out.")
+        + _rows(rows)
+        + _btn_row(_btn(event_url, "Finish my order"))
+        + _small("Already paid? If money left your account and you didn&#8217;t get a ticket email, "
+                 "reply to this email and we&#8217;ll sort it out.")
+    )
+    html = _shell(
+        _badge("Unfinished order", TIME, TIME_BG),
+        "Your tickets aren&#8217;t booked yet",
+        body_html,
+        f"You&#8217;re getting this one reminder because you started checkout for {_h(event_name)}. "
+        f'<a href="{_settings_url()}" style="color:{BRAND_DARK};">Manage Byro emails</a>',
+        preheader=f"You didn&#8217;t finish your order for {_h(event_name)}. Tickets aren&#8217;t reserved until you pay.",
+    )
+    text = (
+        f"Your tickets for {event_name} aren't booked yet\n\n"
+        f"Hi {first}, you chose tickets for {event_name} but didn't finish checking out. "
+        "Tickets aren't reserved until you pay, so they can sell out.\n\n"
+        f"When: {when}\n" + (f"Where: {location}\n" if location else "")
+        + (f"Tickets: {tier_label}{f' x {quantity}' if quantity and quantity > 1 else ''}\n" if tier_label else "")
+        + f"\nFinish my order: {event_url}\n\n"
+        "Already paid? If money left your account and you didn't get a ticket email, reply to this email and we'll sort it out.\n\n"
+        f"Manage Byro emails: {_settings_url()}\n\nByro Team\nsupport@usebyro.com"
+    )
+    return {"subject": f"Still want to go to {event_name}?", "html": html, "text": text}
+
+
 def _settings_url():
     from django.conf import settings
     return f"{(getattr(settings, 'FRONTEND_URL', '') or 'https://usebyro.com').rstrip('/')}/dashboard/settings"

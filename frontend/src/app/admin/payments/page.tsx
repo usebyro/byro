@@ -31,6 +31,9 @@ const STATUS_STYLE: Record<string, string> = {
   failed: "bg-danger-tint text-danger",
 };
 
+// A payment left pending for a day is marked abandoned: the buyer never finished paying.
+const STATUS_LABEL: Record<string, string> = { abandoned: "Not completed" };
+
 function formatDateTime(s: string | null) {
   if (!s) return "—";
   return new Date(s).toLocaleString("en-GB", {
@@ -97,7 +100,7 @@ export default function AdminPaymentsPage() {
         >
           {STATUSES.map((s) => (
             <option key={s} value={s} className="bg-white">
-              {s ? s[0].toUpperCase() + s.slice(1) : "All statuses"}
+              {s ? STATUS_LABEL[s] ?? s[0].toUpperCase() + s.slice(1) : "All statuses"}
             </option>
           ))}
         </select>
@@ -139,7 +142,7 @@ export default function AdminPaymentsPage() {
                   <td className="py-3 pr-6 text-muted tabular-nums">{p.tickets}</td>
                   <td className="py-3 pr-6">
                     <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_STYLE[p.status] ?? "bg-mist text-muted"}`}>
-                      {p.status}
+                      {STATUS_LABEL[p.status] ?? p.status}
                     </span>
                   </td>
                   <td className="py-3 text-muted whitespace-nowrap">{formatDateTime(p.paid_at ?? p.created_at)}</td>

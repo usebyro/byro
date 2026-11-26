@@ -126,9 +126,12 @@ interface Props {
   event: Event;
   onClose: () => void;
   tiers?: TicketTier[];
+  /** A choice made before checkout opened (the "finish my order" email link). */
+  initialTierId?: string | number;
+  initialQty?: number;
 }
 
-export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Props) {
+export default function CheckoutModal({ event, onClose, tiers: tiersProp, initialTierId, initialQty }: Props) {
   const limitsFor = (tier: TicketTier) => ticketLimits(tier, event);
   const router = useRouter();
   const [step, setStep] = useState(1);
@@ -213,7 +216,13 @@ export default function CheckoutModal({ event, onClose, tiers: tiersProp }: Prop
     const src = (tiersProp && tiersProp.length > 0)
       ? tiersProp
       : [{ id: "general", name: "General admission", price: event.ticket_price }];
-    src.forEach((t, i) => { init[String(t.id)] = i === 0 ? 1 : 0; });
+    const wanted = initialTierId != null && src.some((t) => String(t.id) === String(initialTierId));
+    src.forEach((t, i) => { init[String(t.id)] = (wanted ? String(t.id) === String(initialTierId) : i === 0) ? 1 : 0; });
+    if (wanted) {
+      const tier = src.find((t) => String(t.id) === String(initialTierId))!;
+      const { min, max } = ticketLimits(tier, event);
+      init[String(initialTierId)] = Math.min(max, Math.max(min, initialQty || 1));
+    }
     return init;
   });
   const [promoCode, setPromoCode] = useState("");

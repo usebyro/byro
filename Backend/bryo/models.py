@@ -262,6 +262,8 @@ class Payment(models.Model):
     status = models.CharField(max_length=20, choices=PAYMENT_STATUS, default='pending')
     channel = models.CharField(max_length=20, choices=PAYMENT_CHANNEL, blank=True, null=True)
     paid_at = models.DateTimeField(null=True, blank=True)
+    # When the "finish my order" email went out for an unfinished checkout. At most one per payment.
+    reminder_sent_at = models.DateTimeField(null=True, blank=True)
     
     # Metadata
     ip_address = models.GenericIPAddressField(null=True, blank=True)
