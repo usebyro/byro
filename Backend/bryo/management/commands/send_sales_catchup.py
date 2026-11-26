@@ -1,13 +1,13 @@
 """
-A one-off "here is what sold" email for organisers who missed sales made before the sale emails started.
+A one-off "here is what sold" email for an organiser who missed sales made before the sale emails started.
 
-It lists everything sold since a date (default: the last 7 days) for the events a person can see, in the same
-short format as the daily summary; people with nothing sold get nothing. Anyone who turned sale emails Off is
-skipped. A dry run unless you pass --apply, and it prints counts only, never names or addresses.
+It lists everything sold since a date (default: the last 7 days) for the events that person can see, in the same
+short format as the daily summary. Someone with nothing sold, or who turned sale emails Off, gets nothing.
+You have to name who: it never goes to everyone. A dry run unless you pass --apply, and it prints counts only.
 
-    python manage.py send_sales_catchup --email organiser@example.com            # dry run for one person
+    python manage.py send_sales_catchup --email organiser@example.com            # dry run
     python manage.py send_sales_catchup --email organiser@example.com --apply
-    python manage.py send_sales_catchup --all --since 2026-11-20                 # dry run for everyone
+    python manage.py send_sales_catchup --email organiser@example.com --since 2026-11-20 --apply
 """
 import time as clock
 from datetime import datetime, time, timedelta
@@ -23,22 +23,19 @@ class Command(BaseCommand):
     help = "Email organisers a summary of sales since a date (dry run unless --apply)."
 
     def add_arguments(self, parser):
-        parser.add_argument('--email', action='append', default=[], help="Only this person (repeat for several).")
-        parser.add_argument('--all', action='store_true', help="Everyone who has sales to report.")
+        parser.add_argument('--email', action='append', default=[], required=True, help="Who to send it to (repeat for a few people).")
         parser.add_argument('--since', help="First day to include, YYYY-MM-DD (default: 7 days ago).")
         parser.add_argument('--apply', action='store_true', help="Actually send. Without it, only counts are printed.")
         parser.add_argument('--delay', type=float, default=0.3, help="Seconds between emails (default 0.3).")
 
     def handle(self, *args, **opts):
-        if not opts['email'] and not opts['all']:
-            raise CommandError("Say who: --email someone@example.com, or --all.")
         now = timezone.now()
         try:
             since = datetime.strptime(opts['since'], '%Y-%m-%d').date() if opts['since'] else None
         except ValueError:
             raise CommandError("--since must look like 2026-11-20.")
 
-        people = catchup_recipients(opts['email'] or None)
+        people = catchup_recipients(opts['email'])
         would = sent = failed = 0
         for profile in people:
             tz = _tz(profile)

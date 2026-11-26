@@ -194,10 +194,12 @@ class CatchupTests(SalesBase):
             call_command('send_sales_catchup', *args, stdout=out)
         return out.getvalue()
 
-    def test_it_needs_to_be_told_who(self):
+    def test_it_needs_to_be_told_who_and_never_goes_to_everyone(self):
         from django.core.management.base import CommandError
         with self.assertRaises(CommandError):
             self.run_it()
+        with self.assertRaises(CommandError):
+            self.run_it('--all')
 
     def test_a_dry_run_counts_and_sends_nothing(self):
         paid_order(self.event, subtotal='5000.00', fee='250.00', seats=2)
@@ -217,7 +219,7 @@ class CatchupTests(SalesBase):
         self.assertIn('₦5,250', html)
 
     def test_someone_with_no_sales_gets_nothing(self):
-        out = self.run_it('--all', '--apply')
+        out = self.run_it('--email', 'cohost@example.com', '--apply')
         self.assertIn('0 with sales to report', out)
         self.mail.assert_not_called()
 

@@ -225,9 +225,8 @@ def send_daily_summaries(now=None):
     return sent
 
 
-def catchup_recipients(emails=None):
-    """People who would be sent a catch-up: those named, or every organiser who is not on Off and has events."""
-    qs = UserProfile.objects.exclude(sale_email_mode='off').select_related('user').filter(user__is_active=True)
-    if emails:
-        qs = qs.filter(user__email__in=[e.lower() for e in emails])
+def catchup_recipients(emails):
+    """The named people who could be sent a catch-up: not on Off, and with events they can see."""
+    qs = (UserProfile.objects.exclude(sale_email_mode='off').select_related('user').filter(user__is_active=True)
+          .filter(user__email__in=[e.strip().lower() for e in emails]))
     return [p for p in qs if p.user.email and _visible_events(p.user).exists()]
