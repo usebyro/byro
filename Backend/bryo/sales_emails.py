@@ -70,11 +70,12 @@ def _tier_lines(tickets):
     return list(counts.items())
 
 
-def _earnings(payment):
-    """What the owner earns from this order: the ticket price after discounts and, if they carry it, Byro's fee."""
-    from .views import ticket_net_price_expr
+def _ticket_total(payment):
+    """What this order's tickets sold for: the price the organiser set, less any promo discount. Never any Byro
+    fee, whatever rate the organiser is on. Comes from the backend's own calculation (ticket_sale_price_expr)."""
+    from .views import ticket_sale_price_expr
     return Ticket.objects.filter(payment=payment, payment_status='paid').aggregate(
-        total=Coalesce(Sum(ticket_net_price_expr()), Decimal('0')))['total']
+        total=Coalesce(Sum(ticket_sale_price_expr()), Decimal('0')))['total']
 
 
 def send_sale_emails(event_id, ticket_ids, payment_id=None, buyer=''):
@@ -91,7 +92,7 @@ def send_sale_emails(event_id, ticket_ids, payment_id=None, buyer=''):
             return 0
         buyer = (buyer or (payment.customer_name if payment else '') or tickets[0].original_owner_name or 'Someone').strip()
         sold, capacity = sold_count(event), event.capacity
-        earn = _earnings(payment) if payment is not None else None
+        total = _ticket_total(payment) if payment is not None else None
         sent = 0
         for user, is_owner in recipients(event):
             profile = _profile(user)
@@ -100,7 +101,7 @@ def send_sale_emails(event_id, ticket_ids, payment_id=None, buyer=''):
             mail = sale_email(
                 buyer, event.name, _tier_lines(tickets), len(tickets), sold, capacity,
                 f"{_site()}/dashboard/events/{event.slug}",
-                free=payment is None, earn=earn if is_owner and payment is not None else None,
+                free=payment is None, total=total if is_owner and payment is not None else None,
             )
             try:
                 send_email(user.email, mail['subject'], mail['html'], mail['text'])
@@ -148,7 +149,7 @@ def build_summary(user, start, end, tz):
         event = events[p.event_id]
         owner = event.owner_id == user.pk
         orders.append((p.paid_at, event, p.customer_name or 'Someone', ', '.join(f"{n} × {q}" for n, q in _tier_lines(tickets)),
-                       len(tickets), _money(_earnings(p)) if owner else None))
+                       len(tickets), _money(_ticket_total(p)) if owner else None))
     free = (Ticket.objects.filter(event_id__in=events, payment_status='free', created_at__gte=start, created_at__lt=end)
             .select_related('tier').order_by('created_at'))
     by_buyer = OrderedDict()
@@ -177,7 +178,7 @@ def summary_mail(user, start, end, tz, *, when='yesterday', on='on', label=None)
     built, first_total = [], None
     for sec in sections.values():
         event = sec['event']
-        money = sum((_earnings(p) for p in Payment.objects.filter(
+        money = sum((_ticket_total(p) for p in Payment.objects.filter(
             event=event, status='successful', paid_at__gte=start, paid_at__lt=end)), Decimal('0'))
         sold, cap = sold_count(event), event.capacity
         built.append({'event_name': event.name, 'rows': sec['rows'],

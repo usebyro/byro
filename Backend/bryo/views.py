@@ -3968,19 +3968,12 @@ class TicketTransferViewSet(mixins.RetrieveModelMixin, viewsets.GenericViewSet):
 # Payout endpoints
 # ---------------------------------------------------------------------------
 
-def ticket_net_price_expr():
+def ticket_sale_price_expr():
     """
-    What the organiser earns from one paid ticket.
-
-    Starts from the tier price (or the event's flat ticket_price), then takes
-    off this ticket's share of any promo-code discount. Checkout records the
-    discount for a whole purchase on Payment.metadata['discount_amount'], and a
-    purchase can produce several tickets, so each ticket carries an equal share.
-    If the organiser absorbs Byro's service fee (`pass_fee_to_attendee=False`),
-    that fee is the order's own recorded rate (Payment.fee_rate) of the DISCOUNTED
-    price and is deducted here, so changing the fee later never changes old earnings.
-
-    Shared by the payout balance and the dashboard analytics so both agree.
+    What one paid ticket sold for: the price the organiser set (the tier price, or the event's flat ticket price)
+    less this ticket's share of any promo-code discount. It never includes or deducts any Byro fee, whatever
+    rate the organiser is on. This is the figure organisers see in their sale emails; ticket_net_price_expr
+    starts from it.
     """
     money = models.DecimalField(max_digits=12, decimal_places=2)
     whole = models.IntegerField()
@@ -4016,6 +4009,25 @@ def ticket_net_price_expr():
         Decimal('0'),
         output_field=money,
     )
+    return after_discount
+
+
+def ticket_net_price_expr():
+    """
+    What the organiser earns from one paid ticket.
+
+    Starts from the tier price (or the event's flat ticket_price), then takes
+    off this ticket's share of any promo-code discount. Checkout records the
+    discount for a whole purchase on Payment.metadata['discount_amount'], and a
+    purchase can produce several tickets, so each ticket carries an equal share.
+    If the organiser absorbs Byro's service fee (`pass_fee_to_attendee=False`),
+    that fee is the order's own recorded rate (Payment.fee_rate) of the DISCOUNTED
+    price and is deducted here, so changing the fee later never changes old earnings.
+
+    Shared by the payout balance and the dashboard analytics so both agree.
+    """
+    money = models.DecimalField(max_digits=12, decimal_places=2)
+    after_discount = ticket_sale_price_expr()
     return models.Case(
         models.When(
             event__pass_fee_to_attendee=False,

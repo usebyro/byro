@@ -203,6 +203,10 @@ class DataExportTests(Base):
         self.assertEqual(sorted(z.namelist()), ['events.csv', 'guest-list.csv', 'sales.csv'])
         self.assertIn(self.event.name, z.read('events.csv').decode())
         self.assertIn('attendee1@example.com', z.read('guest-list.csv').decode())
+        sales = z.read('sales.csv').decode()
+        self.assertIn('Ticket total', sales)
+        self.assertIn('5000', sales)         # one ticket at the price the organiser set
+        self.assertNotIn('5250', sales)      # never the buyer's charge, which includes Byro's fee
 
     def test_someone_elses_link_does_not_work_for_you(self):
         other = self.fan('other@example.com')

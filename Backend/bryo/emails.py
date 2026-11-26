@@ -405,17 +405,17 @@ def organizer_event_reminder_email(name, event_name, date, time, tickets_sold, d
     return {"subject": f"{event_name} starts tomorrow", "html": html, "text": text}
 
 
-def sale_email(buyer, event_name, tier_lines, quantity, sold, capacity, event_url, free=False, earn=None):
-    """To an organiser or co-host the moment an order completes. earn is what the owner earns from the order
-    (ticket price after discounts, never the buyer's charge, which includes Byro's fee); co-hosts get no money
-    line. Kept short on purpose: who, what, how much, how many left."""
+def sale_email(buyer, event_name, tier_lines, quantity, sold, capacity, event_url, free=False, total=None):
+    """To an organiser or co-host the moment an order completes. total is what the order's tickets sold for: the
+    price the organiser set, less any promo discount. It never includes a Byro fee and is not the buyer's charge.
+    Co-hosts get no money line. Kept short on purpose: who, what, how much, how many left."""
     noun = "ticket" if quantity == 1 else "tickets"
     word = "claimed" if free else "sold"
     sold_out = bool(capacity) and sold >= capacity
     headline = f"{buyer} claimed {quantity} free {noun}" if free else f"{buyer} bought {quantity} {noun}"
     rows = [("Tickets", "<br>".join(f"{_h(n)} &times; {q}" for n, q in tier_lines))]
-    if not free and earn is not None:
-        rows.append(("You earn", _money(earn)))
+    if not free and total is not None:
+        rows.append(("Total", _money(total)))
     if sold_out:
         status = (
             f'<p style="margin:0 0 20px;"><span style="display:inline-block;padding:7px 13px;border-radius:999px;background:{MONEY_BG};'
@@ -434,12 +434,12 @@ def sale_email(buyer, event_name, tier_lines, quantity, sold, capacity, event_ur
         _h(headline),
         body_html,
         "",
-        preheader=(("Free" if free else _money(earn)) + " &middot; " + count) if (free or earn is not None) else count,
+        preheader=(("Free" if free else _money(total)) + " &middot; " + count) if (free or total is not None) else count,
     )
     lines = "".join(f"{n} x {q}\n" for n, q in tier_lines)
     text = (
         f"{headline}\n{event_name}\n\n{lines}"
-        + (f"You earn: {_money(earn)}\n" if (not free and earn is not None) else "")
+        + (f"Total: {_money(total)}\n" if (not free and total is not None) else "")
         + f"{count}\n\nView attendees: {event_url}\n\nByro Team\nsupport@usebyro.com"
     )
     subject = f"{buyer} claimed {quantity} free {noun} for {event_name}" if free else f"{buyer} bought {quantity} {noun} for {event_name}"
