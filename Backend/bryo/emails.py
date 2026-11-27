@@ -341,10 +341,6 @@ def event_reminder_email(name, event_name, date, time, location, ticket_url=None
     body_html = (
         _lead("Quick details so you can plan your day.")
         + _rows(rows)
-        + _callout("Before you go", [
-            "Have your QR ready (a screenshot works)",
-            "Doors open on time, so arriving 10 minutes early helps",
-        ])
         + _btn_row(_btn(view_url, "Show my ticket"))
     )
     short = " · ".join(x for x in [date, time] if x)
@@ -359,7 +355,7 @@ def event_reminder_email(name, event_name, date, time, location, ticket_url=None
         f"See you tomorrow at {event_name}\n\nQuick details so you can plan your day.\n\n"
         f"When: {when}\n" + (f"Where: {location} ({_maps_link(location)})\n" if location else "")
         + (f"Join link: {virtual_link}\n" if virtual_link else "") + (f"Your ticket: {tier_label}\n" if tier_label else "")
-        + "\nBefore you go:\n- Have your QR ready (a screenshot works)\n- Doors open on time, so arriving 10 minutes early helps\n\n"
+        + "\n"
         f"Show my ticket: {view_url}\n\nByro Team\nsupport@usebyro.com"
     )
     return {"subject": f"{event_name} is tomorrow", "html": html, "text": text}
