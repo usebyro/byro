@@ -1,4 +1,4 @@
-import type { StampInk } from "@/components/brand/Stamp";
+import type { StampInk } from "../components/brand/Stamp";
 
 /**
  * How a stamp looks, worked out from its event and id so it's the same everywhere it appears:

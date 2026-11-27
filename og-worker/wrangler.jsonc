@@ -1,0 +1,18 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "byro-og",
+  "main": "src/index.js",
+  "compatibility_date": "2026-11-01",
+  "compatibility_flags": ["nodejs_compat"],
+  // The shared card code lives in ../frontend/src and imports React from there; point it at this folder's copy,
+  // because Cloudflare installs only this folder's packages when it builds this Worker.
+  "alias": {
+    "react": "./node_modules/react"
+  },
+  "rules": [{ "type": "Data", "globs": ["**/*.ttf", "**/*.woff"], "fallthrough": true }],
+  "vars": {
+    "NEXT_PUBLIC_API_URL": "https://byro-production.up.railway.app/api/",
+    "NEXT_PUBLIC_SITE_URL": "https://usebyro.com"
+  },
+  "observability": { "enabled": true }
+}

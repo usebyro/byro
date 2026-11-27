@@ -9,5 +9,7 @@
     "binding": "ASSETS"
   },
   "images": { "binding": "IMAGES" },
+  // The image generator, deployed separately from og-worker/ (it must exist before this Worker is deployed).
+  "services": [{ "binding": "OG", "service": "byro-og" }],
   "observability": { "enabled": true }
 }
