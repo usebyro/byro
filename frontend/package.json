@@ -10,9 +10,9 @@
     "analyze": "ANALYZE=true next build",
     "test": "vitest run",
     "test:watch": "vitest",
-    "build:cf": "opennextjs-cloudflare build",
-    "preview:cf": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
-    "deploy:cf": "opennextjs-cloudflare build && opennextjs-cloudflare deploy"
+    "build:cf": "BYRO_TARGET=cloudflare opennextjs-cloudflare build",
+    "preview:cf": "BYRO_TARGET=cloudflare opennextjs-cloudflare build && opennextjs-cloudflare preview",
+    "deploy:cf": "BYRO_TARGET=cloudflare opennextjs-cloudflare build && opennextjs-cloudflare deploy"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.0.1",
