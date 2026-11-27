@@ -490,6 +490,13 @@ class AdminPaymentProviderTests(PaymentTestBase):
         self.client.force_authenticate(None)
         self.assertEqual(self.buy(), 'paystack')
 
+    @override_settings(BACHS_TEST_EMAILS={'someone@example.com'})
+    def test_settings_page_does_not_show_server_test_emails(self):
+        self.client.force_authenticate(self.admin)
+        res = self.client.get(self.SETTINGS_URL)
+        self.assertNotIn('server_test_emails', res.json()['payments'])
+        self.assertNotIn(b'someone@example.com', res.content)
+
     def test_owner_switches_new_orders_to_bachs_and_back(self):
         res = self.patch_as(self.boss, {'payment_provider': 'bachs'})
         self.assertEqual(res.status_code, 200)
