@@ -69,11 +69,13 @@ class DesignTests(SimpleTestCase):
         m = e.event_reminder_email("Tunde", "Tech Meetup", DATE, TIME, "Cafe One, Yaba", tier_label="General admission × 1")
         self.assertEqual(m["subject"], "Tech Meetup is tomorrow")
         for text in ("Quick details so you can plan your day.", "Get directions",
-                     "Before you go", "Have your QR ready (a screenshot works)",
-                     "Doors open on time, so arriving 10 minutes early helps", "Show my ticket",
+                     "Show my ticket",
                      "You&#8217;re getting this because you have a ticket for Tech Meetup."):
             self.assertIn(text, m["html"])
         self.assertIn("Sun, 11 Oct 2026 · 9:00 AM WAT at Cafe One, Yaba. Your ticket is inside.", m["html"])
+        for gone in ("Before you go", "Have your QR ready", "arriving 10 minutes early"):
+            self.assertNotIn(gone, m["html"])
+            self.assertNotIn(gone, m["text"])
 
     def test_host_reminder_email(self):
         m = e.organizer_event_reminder_email("Sam", "Tech Meetup", DATE, TIME, 5, location="Cafe One, Yaba", revenue=Decimal("200"))
