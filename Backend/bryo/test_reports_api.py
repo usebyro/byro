@@ -85,6 +85,36 @@ class SalesReportTests(CommunityBase):
         self.assertEqual((row['payout_status'], row['payout_amount']), ('paid', '9500.00'))
         self.assertEqual(row['payout_date'], timezone.now().date().isoformat())
 
+    def earned(self):
+        from .views import balance_parts
+        return balance_parts(self.owner, self.event)['tickets']
+
+    def test_a_payout_taken_across_all_events_marks_the_event_paid(self):
+        # The organiser withdrew their whole balance, so the payout has no event on it.
+        self.order('10000', '500', tickets=2)
+        earned = self.earned()
+        self.assertGreater(earned, 0)
+        PayoutRequest.objects.create(
+            user=self.owner, event=None, amount=earned, method='bank',
+            status='processed', processed_at=timezone.now(),
+        )
+        row = self.row()
+        self.assertEqual((row['payout_status'], row['payout_amount']), ('paid', f'{earned:.2f}'))
+        self.assertEqual(row['payout_date'], timezone.now().date().isoformat())
+
+    def test_an_all_events_payout_that_does_not_cover_the_event_leaves_it_pending(self):
+        self.order('10000', '500', tickets=2)
+        PayoutRequest.objects.create(
+            user=self.owner, event=None, amount=self.earned() - 1, method='bank',
+            status='processed', processed_at=timezone.now(),
+        )
+        self.assertEqual(self.row()['payout_status'], 'pending')
+
+    def test_an_all_events_payout_that_is_still_pending_does_not_count(self):
+        self.order('10000', '500', tickets=2)
+        PayoutRequest.objects.create(user=self.owner, event=None, amount=self.earned(), method='bank', status='pending')
+        self.assertEqual(self.row()['payout_status'], 'pending')
+
     def test_drafts_are_left_out_and_since_filters_by_event_date(self):
         self.event.is_draft = True
         self.event.save()
