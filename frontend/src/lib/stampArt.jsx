@@ -1,4 +1,6 @@
-import { STAMP_INK } from "@/components/brand/Stamp";
+/** @jsxRuntime automatic */
+/** @jsxImportSource react */
+import { STAMP_INK } from "../components/brand/Stamp";
 
 /**
  * The stamp drawn for server-made images (emails, share cards). Same look as <Stamp>, but

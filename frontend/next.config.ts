@@ -6,9 +6,18 @@ const withAnalyzer = withBundleAnalyzer({
   enabled: process.env.ANALYZE === 'true',
 });
 
+// Set by `npm run build:cf`. The Cloudflare Worker has a script size cap, so its server leaves Sentry's server SDK out.
+const isCloudflare = process.env.BYRO_TARGET === 'cloudflare';
+
 const nextConfig: NextConfig = {
+  env: { BYRO_TARGET: process.env.BYRO_TARGET ?? '' },
   turbopack: {
-    root: __dirname, 
+    root: __dirname,
+    ...(isCloudflare && {
+      resolveAlias: {
+        '@sentry/nextjs': { browser: '@sentry/nextjs', default: './src/lib/sentry-server-stub.ts' },
+      },
+    }),
   },
   images: {
     formats: ['image/avif', 'image/webp'],
@@ -109,7 +118,7 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default withSentryConfig(withAnalyzer(nextConfig), {
+export default isCloudflare ? withAnalyzer(nextConfig) : withSentryConfig(withAnalyzer(nextConfig), {
   // For all available options, see:
   // https://www.npmjs.com/package/@sentry/webpack-plugin#options
 

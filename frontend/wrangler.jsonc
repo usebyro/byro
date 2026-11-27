@@ -1,0 +1,22 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "byro",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-11-01",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "images": { "binding": "IMAGES" },
+  // The image generator, deployed separately from og-worker/ (it must exist before this Worker is deployed).
+  "services": [{ "binding": "OG", "service": "byro-og" }],
+  // Served on the real domain. Cloudflare creates and manages the DNS records for these.
+  "routes": [
+    { "pattern": "usebyro.com", "custom_domain": true },
+    { "pattern": "www.usebyro.com", "custom_domain": true },
+    { "pattern": "admin.usebyro.com", "custom_domain": true }
+  ],
+  "preview_urls": false,
+  "observability": { "enabled": true }
+}
