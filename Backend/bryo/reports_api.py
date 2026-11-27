@@ -53,6 +53,54 @@ def _service_fee(payment):
     return (refundable_amount(payment) * (payment.fee_rate or Decimal('0'))).quantize(Decimal('1'), rounding=ROUND_HALF_UP)
 
 
+class _Share:
+    """The part of an organiser's all-events payout that went to one event."""
+
+    def __init__(self, amount, processed_at):
+        self.amount, self.processed_at = amount, processed_at
+
+
+def _general_payouts(event_ids):
+    """
+    {event_id: [share, ...]} for payouts an organiser took across all their events (no event chosen).
+
+    Such a payout belongs to no single event, so it is applied to the organiser's events oldest first:
+    each event takes what it earned, less anything paid out for it specifically, until the payout runs out.
+    An event it only partly covers is left out, so it still reads 'pending'.
+    """
+    from .views import balance_parts
+
+    pools = defaultdict(list)
+    for payout in PayoutRequest.objects.filter(event__isnull=True, status='processed').order_by('processed_at', 'pk'):
+        pools[payout.user_id].append(payout)
+    shares = defaultdict(list)
+    wanted = set(event_ids)
+    for user_id, user_payouts in pools.items():
+        owned = list(Event.objects.filter(owner_id=user_id, is_draft=False).select_related('owner').order_by('day', 'pk'))
+        if not wanted.intersection(e.pk for e in owned):
+            continue
+        # Money still to hand out, one entry per payout so each share keeps its own date.
+        queue = [[p.amount, p.processed_at] for p in user_payouts]
+        for event in owned:
+            if not queue:
+                break
+            specific = sum((p.amount for p in PayoutRequest.objects.filter(event=event, status='processed')), Decimal('0'))
+            owed = balance_parts(event.owner, event)['tickets'] - specific
+            if owed <= 0:
+                continue
+            taken, event_shares = Decimal('0'), []
+            while queue and taken < owed:
+                use = min(queue[0][0], owed - taken)
+                event_shares.append(_Share(use, queue[0][1]))
+                taken += use
+                queue[0][0] -= use
+                if queue[0][0] <= 0:
+                    queue.pop(0)
+            if taken >= owed and event.pk in wanted:
+                shares[event.pk] = event_shares
+    return shares
+
+
 class SalesReportView(APIView):
     authentication_classes = [ReportsKeyAuthentication]
     permission_classes = [AllowAny]  # the authentication class above is the gate
@@ -83,15 +131,16 @@ class SalesReportView(APIView):
         payouts = defaultdict(list)
         for payout in PayoutRequest.objects.filter(event_id__in=ids, status='processed'):
             payouts[payout.event_id].append(payout)
+        general = _general_payouts(ids)
 
         results = []
         for event in events:
             event_orders = orders[event.pk]
-            done = payouts[event.pk]
+            done = payouts[event.pk] + general.get(event.pk, [])
             rate = event_orders[-1].fee_rate if event_orders else fee_rate_for(event.owner)
             owner = event.owner
             profile = getattr(owner, 'profile', None) if owner else None
-            dates = [p.processed_at for p in done if p.processed_at]
+            dates = [p.processed_at for p in done if p.processed_at]  # (payout rows; allocated ones carry their share)
             results.append({
                 'event_id': event.pk,
                 'event_name': event.name,
